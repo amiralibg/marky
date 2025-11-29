@@ -10,7 +10,7 @@ import {
   stopWatching
 } from '../utils/fileSystem';
 
-const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem, onItemMove }) => {
+const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem, onItemMove, filteredItems }) => {
   const {
     currentNoteId,
     expandedFolders,
@@ -30,7 +30,13 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
 
   const isFolder = item.type === 'folder';
   const isExpanded = expandedFolders.includes(item.id);
-  const children = isFolder ? getChildren(item.id) : [];
+  
+  // Use filtered children if search is active
+  const allChildren = isFolder ? getChildren(item.id) : [];
+  const children = filteredItems 
+    ? allChildren.filter(child => filteredItems.some(fi => fi.id === child.id))
+    : allChildren;
+  
   const isSelected = item.type === 'note' && currentNoteId === item.id;
   const isBeingDragged = draggedItem?.id === item.id;
 
@@ -303,6 +309,7 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
                 draggedItem={draggedItem}
                 setDraggedItem={setDraggedItem}
                 onItemMove={onItemMove}
+                filteredItems={filteredItems}
               />
             ))
           }
@@ -409,10 +416,41 @@ const Sidebar = ({ onSettingsClick }) => {
   const [contextMenu, setContextMenu] = useState(null);
   const [draggedItem, setDraggedItem] = useState(null);
   const [renamingItem, setRenamingItem] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const dropHandledRef = useRef(false);
 
+  // Search filtering function
+  const filterItemsBySearch = useCallback((items, query) => {
+    if (!query.trim()) return items;
+    
+    const searchLower = query.toLowerCase();
+    const matchedIds = new Set();
+    
+    // Find all matching notes and folders
+    items.forEach(item => {
+      const nameMatch = item.name.toLowerCase().includes(searchLower);
+      const contentMatch = item.type === 'note' && item.content && 
+                          item.content.toLowerCase().includes(searchLower);
+      
+      if (nameMatch || contentMatch) {
+        matchedIds.add(item.id);
+        
+        // Add all ancestors to show the path
+        let current = item;
+        while (current.parentId) {
+          matchedIds.add(current.parentId);
+          current = items.find(i => i.id === current.parentId);
+          if (!current) break;
+        }
+      }
+    });
+    
+    return items.filter(item => matchedIds.has(item.id));
+  }, []);
+
   // Get root-level items (those with null parentId)
-  const rootItems = items.filter(item => item.parentId === null);
+  const filteredItems = searchQuery ? filterItemsBySearch(items, searchQuery) : items;
+  const rootItems = filteredItems.filter(item => item.parentId === null);
 
   const handleContextMenu = (e, item) => {
     e.preventDefault();
@@ -722,6 +760,38 @@ const Sidebar = ({ onSettingsClick }) => {
         </button>
       </div>
 
+      {/* Search Bar */}
+      <div className="px-3 py-2 border-b border-border bg-editor-bg">
+        <div className="relative">
+          <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search notes..."
+            className="w-full pl-9 pr-8 py-1.5 bg-sidebar-bg border border-border rounded text-sm text-white placeholder-text-muted outline-none focus:border-accent transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded text-text-muted hover:text-white transition-colors"
+              title="Clear search"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        {searchQuery && (
+          <div className="mt-1.5 text-xs text-text-muted">
+            {filteredItems.filter(i => i.type === 'note').length} note{filteredItems.filter(i => i.type === 'note').length !== 1 ? 's' : ''} found
+          </div>
+        )}
+      </div>
+
       {/* Tree View */}
       <div
         className={`flex-1 overflow-y-auto px-2 py-2 transition-colors duration-200 ${
@@ -747,6 +817,7 @@ const Sidebar = ({ onSettingsClick }) => {
               draggedItem={draggedItem}
               setDraggedItem={setDraggedItem}
               onItemMove={handleItemMove}
+              filteredItems={searchQuery ? filteredItems : null}
             />
           ))
         )}
