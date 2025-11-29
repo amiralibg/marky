@@ -173,6 +173,8 @@ const useNotesStore = create(
       rootFolderPath: null,
       rootFolderId: null,
       isLoading: false,
+      recentNotes: [], // Array of {id, name, filePath, lastOpenedAt}
+      pinnedNotes: [], // Array of note IDs that are pinned
 
       setRootFolder: (folderData) => {
         const { items: fsItems, rootId } = buildItemsFromFolderData(folderData);
@@ -695,7 +697,29 @@ const useNotesStore = create(
       },
 
       selectNote: (noteId) => {
-        set({ currentNoteId: noteId });
+        const state = get();
+        const note = state.items.find((item) => item.id === noteId && item.type === 'note');
+        
+        if (note) {
+          // Update recent notes list
+          const recentNotes = state.recentNotes.filter(r => r.id !== noteId);
+          recentNotes.unshift({
+            id: note.id,
+            name: note.name,
+            filePath: note.filePath,
+            lastOpenedAt: new Date().toISOString()
+          });
+          
+          // Keep only last 10 recent notes
+          const trimmedRecent = recentNotes.slice(0, 10);
+          
+          set({ 
+            currentNoteId: noteId,
+            recentNotes: trimmedRecent
+          });
+        } else {
+          set({ currentNoteId: noteId });
+        }
       },
 
       getCurrentNote: () => {
@@ -718,6 +742,40 @@ const useNotesStore = create(
         return items.filter((item) => item.type === 'note');
       },
 
+      getRecentNotes: () => {
+        const { recentNotes, items } = get();
+        // Filter out notes that no longer exist
+        return recentNotes
+          .map(recent => {
+            const note = items.find(item => item.id === recent.id);
+            return note ? { ...recent, exists: true } : { ...recent, exists: false };
+          })
+          .filter(r => r.exists);
+      },
+
+      togglePinNote: (noteId) => {
+        set((state) => {
+          const isPinned = state.pinnedNotes.includes(noteId);
+          return {
+            pinnedNotes: isPinned
+              ? state.pinnedNotes.filter(id => id !== noteId)
+              : [...state.pinnedNotes, noteId]
+          };
+        });
+      },
+
+      isPinned: (noteId) => {
+        return get().pinnedNotes.includes(noteId);
+      },
+
+      getPinnedNotes: () => {
+        const { pinnedNotes, items } = get();
+        // Return pinned notes that still exist, sorted by name
+        return items
+          .filter(item => item.type === 'note' && pinnedNotes.includes(item.id))
+          .sort((a, b) => a.name.localeCompare(b.name));
+      },
+
       resetStore: () => {
         cancelAllPendingNoteWrites();
         set({
@@ -726,7 +784,9 @@ const useNotesStore = create(
           expandedFolders: [],
           rootFolderPath: null,
           rootFolderId: null,
-          isLoading: false
+          isLoading: false,
+          recentNotes: [],
+          pinnedNotes: []
         });
 
         if (typeof window !== 'undefined') {
@@ -745,7 +805,9 @@ const useNotesStore = create(
         currentNoteId: state.currentNoteId,
         expandedFolders: state.expandedFolders,
         rootFolderPath: state.rootFolderPath,
-        rootFolderId: state.rootFolderId
+        rootFolderId: state.rootFolderId,
+        recentNotes: state.recentNotes,
+        pinnedNotes: state.pinnedNotes
       }),
       onRehydrateStorage: () => (state) => {
         if (state?.rootFolderPath) {

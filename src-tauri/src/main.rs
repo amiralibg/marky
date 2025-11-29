@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu},
     Emitter, Manager, State,
 };
 
@@ -381,6 +381,35 @@ async fn show_main_window(window: tauri::Window) {
     let _ = window.show();
 }
 
+#[derive(Debug, Deserialize)]
+struct RecentNoteInfo {
+    name: String,
+    path: String,
+}
+
+#[tauri::command]
+async fn update_dock_menu(
+    app: tauri::AppHandle,
+    recent_notes: Vec<RecentNoteInfo>,
+) -> Result<(), String> {
+    // Note: Tauri v2 doesn't have direct dock menu support yet
+    // This is a placeholder for future implementation or use of native APIs
+    // For now, we'll just log the recent notes
+    println!("📋 Recent notes updated: {:?}", recent_notes.iter().map(|n| &n.name).collect::<Vec<_>>());
+    
+    // You could integrate with macOS native APIs here using objc crate if needed
+    // For this MVP, we'll rely on the sidebar UI for recent notes
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn open_recent_note(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    app.emit("open-recent-note", path)
+        .map_err(|e| format!("Failed to emit event: {}", e))?;
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(WatcherState {
@@ -437,23 +466,35 @@ fn main() {
             menu.append(&workspace)?;
             Ok(menu)
         })
-        .on_menu_event(|app, event| match event.id().as_ref() {
-            "menu://new-note" => {
-                let _ = app.emit("menu://new-note", ());
+        .on_menu_event(|app, event| {
+            let event_id = event.id().as_ref();
+            
+            // Handle recent note clicks
+            if event_id.starts_with("recent://") {
+                let path = event_id.strip_prefix("recent://").unwrap_or("");
+                let _ = app.emit("open-recent-note", path.to_string());
+                return;
             }
-            "menu://new-folder" => {
-                let _ = app.emit("menu://new-folder", ());
+            
+            // Handle regular menu items
+            match event_id {
+                "menu://new-note" => {
+                    let _ = app.emit("menu://new-note", ());
+                }
+                "menu://new-folder" => {
+                    let _ = app.emit("menu://new-folder", ());
+                }
+                "menu://open-file" => {
+                    let _ = app.emit("menu://open-file", ());
+                }
+                "menu://open-folder" => {
+                    let _ = app.emit("menu://open-folder", ());
+                }
+                "menu://save-note" => {
+                    let _ = app.emit("menu://save-note", ());
+                }
+                _ => {}
             }
-            "menu://open-file" => {
-                let _ = app.emit("menu://open-file", ());
-            }
-            "menu://open-folder" => {
-                let _ = app.emit("menu://open-folder", ());
-            }
-            "menu://save-note" => {
-                let _ = app.emit("menu://save-note", ());
-            }
-            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             scan_folder_for_markdown,
@@ -464,7 +505,9 @@ fn main() {
             move_entry,
             watch_folder,
             stop_watching,
-            show_main_window
+            show_main_window,
+            update_dock_menu,
+            open_recent_note
         ])
         .setup(|app| {
             #[cfg(debug_assertions)]

@@ -18,7 +18,8 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
     selectNote,
     getChildren,
     renameItem,
-    updateNote
+    updateNote,
+    isPinned
   } = useNotesStore();
 
   const [isRenaming, setIsRenaming] = useState(false);
@@ -257,9 +258,16 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
             )}
           </div>
         ) : (
-          <svg className="w-4 h-4 mr-2 ml-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
+          <div className="flex items-center">
+            <svg className="w-4 h-4 mr-2 ml-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            {isPinned(item.id) && (
+              <svg className="w-3 h-3 mr-1 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+            )}
+          </div>
         )}
 
         {/* Name / Rename Input */}
@@ -320,7 +328,8 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
 };
 
 const ContextMenu = ({ x, y, item, onClose, onRename }) => {
-  const { createNote, createFolder, deleteItem } = useNotesStore();
+  const { createNote, createFolder, deleteItem, togglePinNote, isPinned } = useNotesStore();
+  const isNotePinned = item.type === 'note' && isPinned(item.id);
 
   const handleAction = async (action) => {
     try {
@@ -330,6 +339,10 @@ const ContextMenu = ({ x, y, item, onClose, onRename }) => {
         await createFolder(item.type === 'folder' ? item.id : item.parentId);
       } else if (action === 'rename') {
         onRename(item);
+        return;
+      } else if (action === 'pin') {
+        togglePinNote(item.id);
+        onClose();
         return;
       } else if (action === 'delete') {
         await deleteItem(item.id);
@@ -384,6 +397,17 @@ const ContextMenu = ({ x, y, item, onClose, onRename }) => {
           </svg>
           Rename
         </button>
+        {item.type === 'note' && (
+          <button
+            className="w-full px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10 flex items-center gap-2 transition-colors"
+            onClick={() => handleAction('pin')}
+          >
+            <svg className="w-4 h-4" fill={isNotePinned ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+            {isNotePinned ? 'Unpin' : 'Pin to Top'}
+          </button>
+        )}
         <div className="h-px bg-white/10 my-1" />
         <button
           className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10 flex items-center gap-2 transition-colors"
@@ -411,12 +435,18 @@ const Sidebar = ({ onSettingsClick }) => {
     moveItemToRoot,
     renameItem,
     rootFolderPath,
-    refreshRootFromDisk
+    refreshRootFromDisk,
+    getRecentNotes,
+    selectNote,
+    getPinnedNotes,
+    isPinned
   } = useNotesStore();
   const [contextMenu, setContextMenu] = useState(null);
   const [draggedItem, setDraggedItem] = useState(null);
   const [renamingItem, setRenamingItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showRecentNotes, setShowRecentNotes] = useState(false);
+  const [showPinnedNotes, setShowPinnedNotes] = useState(true);
   const dropHandledRef = useRef(false);
 
   // Search filtering function
@@ -661,6 +691,7 @@ const Sidebar = ({ onSettingsClick }) => {
 
     let isMounted = true;
     let unlistenFileChange = null;
+    let unlistenRecentNote = null;
 
     const setupWatcher = async () => {
       try {
@@ -682,6 +713,24 @@ const Sidebar = ({ onSettingsClick }) => {
             console.error('Failed to refresh folder after file change:', error);
           }
         });
+
+        // Listen for recent note clicks from dock menu
+        unlistenRecentNote = await listen('open-recent-note', async (event) => {
+          if (!isMounted) return;
+          
+          const filePath = event.payload;
+          console.log('🔖 Opening recent note from dock:', filePath);
+          
+          // Find the note by file path
+          const { items, selectNote } = useNotesStore.getState();
+          const note = items.find(item => item.filePath === filePath && item.type === 'note');
+          
+          if (note) {
+            selectNote(note.id);
+          } else {
+            console.warn('Recent note not found:', filePath);
+          }
+        });
       } catch (error) {
         console.error('Failed to setup file watcher:', error);
       }
@@ -698,6 +747,14 @@ const Sidebar = ({ onSettingsClick }) => {
           unlistenFileChange();
         } catch (error) {
           console.error('Failed to cleanup file change listener:', error);
+        }
+      }
+
+      if (unlistenRecentNote) {
+        try {
+          unlistenRecentNote();
+        } catch (error) {
+          console.error('Failed to cleanup recent note listener:', error);
         }
       }
 
@@ -791,6 +848,90 @@ const Sidebar = ({ onSettingsClick }) => {
           </div>
         )}
       </div>
+
+      {/* Pinned/Favorites Notes */}
+      {!searchQuery && getPinnedNotes().length > 0 && (
+        <div className="border-b border-border bg-sidebar-bg">
+          <button
+            onClick={() => setShowPinnedNotes(!showPinnedNotes)}
+            className="w-full px-3 py-2 flex items-center justify-between text-xs font-semibold text-text-secondary hover:bg-white/5 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+              <span>PINNED</span>
+            </div>
+            <svg 
+              className={`w-3.5 h-3.5 transition-transform ${showPinnedNotes ? 'rotate-180' : ''}`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {showPinnedNotes && (
+            <div className="pb-2">
+              {getPinnedNotes().map((note) => (
+                <button
+                  key={note.id}
+                  onClick={() => selectNote(note.id)}
+                  className="w-full px-6 py-1.5 text-left text-sm text-white/80 hover:bg-white/8 hover:text-white transition-colors flex items-center gap-2 group"
+                  title={note.filePath || note.name}
+                >
+                  <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                  </svg>
+                  <span className="truncate">{note.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recent Notes */}
+      {!searchQuery && getRecentNotes().length > 0 && (
+        <div className="border-b border-border bg-sidebar-bg">
+          <button
+            onClick={() => setShowRecentNotes(!showRecentNotes)}
+            className="w-full px-3 py-2 flex items-center justify-between text-xs font-semibold text-text-secondary hover:bg-white/5 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>RECENT</span>
+            </div>
+            <svg 
+              className={`w-3.5 h-3.5 transition-transform ${showRecentNotes ? 'rotate-180' : ''}`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {showRecentNotes && (
+            <div className="pb-2">
+              {getRecentNotes().slice(0, 5).map((recent) => (
+                <button
+                  key={recent.id}
+                  onClick={() => selectNote(recent.id)}
+                  className="w-full px-6 py-1.5 text-left text-sm text-white/80 hover:bg-white/8 hover:text-white transition-colors flex items-center gap-2 group"
+                  title={recent.filePath || recent.name}
+                >
+                  <svg className="w-3.5 h-3.5 text-text-muted group-hover:text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="truncate">{recent.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tree View */}
       <div
