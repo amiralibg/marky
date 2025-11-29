@@ -21,6 +21,24 @@ const folderNameFromPath = (path) => {
   return parts[parts.length - 1] || path;
 };
 
+// Extract hashtags from markdown content
+const extractTags = (content) => {
+  if (!content) return [];
+  // Match #word (but not ##heading or ###heading)
+  // Must be preceded by space, newline, or start of string
+  // Must be followed by space, punctuation, or end of string
+  const tagRegex = /(?:^|[\s])#([a-zA-Z0-9_-]+)(?=[\s.,;!?)]|$)/g;
+  const tags = new Set();
+  let match;
+  
+  while ((match = tagRegex.exec(content)) !== null) {
+    const tag = match[1].toLowerCase();
+    tags.add(tag);
+  }
+  
+  return Array.from(tags).sort();
+};
+
 const collectAncestorIds = (itemId, items) => {
   const result = [];
   const parentMap = new Map(items.map((item) => [item.id, item.parentId]));
@@ -96,7 +114,7 @@ const cancelAllPendingNoteWrites = () => {
   pendingWriteTimers.clear();
 };
 
-const buildItemsFromFolderData = ({ folderPath, folderName, files }) => {
+const buildItemsFromFolderData = async ({ folderPath, folderName, files }) => {
   const now = new Date().toISOString();
   const normalizedRoot = normalizePath(folderPath);
   const rootId = buildId('folder', folderPath);
@@ -120,6 +138,22 @@ const buildItemsFromFolderData = ({ folderPath, folderName, files }) => {
     if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
     return a.path.toLowerCase().localeCompare(b.path.toLowerCase());
   });
+
+  // Load all note contents in parallel for tag extraction
+  const noteContentMap = new Map();
+  const noteLoadPromises = sortedEntries
+    .filter(entry => !entry.is_dir)
+    .map(async (entry) => {
+      try {
+        const content = await readMarkdownFile(entry.path);
+        noteContentMap.set(entry.path, content);
+      } catch (error) {
+        console.error(`Failed to load note content for ${entry.path}:`, error);
+        noteContentMap.set(entry.path, ''); // Use empty string as fallback
+      }
+    });
+  
+  await Promise.all(noteLoadPromises);
 
   sortedEntries.forEach((entry) => {
     const normalizedEntry = normalizePath(entry.path);
@@ -148,7 +182,7 @@ const buildItemsFromFolderData = ({ folderPath, folderName, files }) => {
         type: 'note',
         filePath: entry.path,
         normalizedPath: normalizedEntry,
-        content: null,
+        content: noteContentMap.get(entry.path) || '',
         createdAt: now,
         updatedAt: now
       });
@@ -175,9 +209,10 @@ const useNotesStore = create(
       isLoading: false,
       recentNotes: [], // Array of {id, name, filePath, lastOpenedAt}
       pinnedNotes: [], // Array of note IDs that are pinned
+      selectedTags: [], // Array of tag strings for filtering
 
-      setRootFolder: (folderData) => {
-        const { items: fsItems, rootId } = buildItemsFromFolderData(folderData);
+      setRootFolder: async (folderData) => {
+        const { items: fsItems, rootId } = await buildItemsFromFolderData(folderData);
         const normalizedRoot = normalizePath(folderData.folderPath);
         const previousItems = get().items;
         const ephemeralItems = previousItems.filter((item) => !item.filePath);
@@ -216,11 +251,27 @@ const useNotesStore = create(
             folderName: folderNameFromPath(rootFolderPath),
             files
           };
-          const { items: fsItems, rootId } = buildItemsFromFolderData(folderData);
+          const { items: fsItems, rootId } = await buildItemsFromFolderData(folderData);
           const normalizedRoot = normalizePath(rootFolderPath);
           const previousItems = state.items;
           const ephemeralItems = previousItems.filter((item) => !item.filePath);
-          const combinedItems = [...fsItems, ...ephemeralItems];
+          
+          // Preserve content of the currently open note to avoid overwriting while typing
+          const currentNote = state.currentNoteId 
+            ? previousItems.find(item => item.id === state.currentNoteId && item.type === 'note')
+            : null;
+          
+          const combinedItems = fsItems.map(item => {
+            // If this is the currently open note, preserve its in-memory content
+            if (currentNote && item.id === currentNote.id && item.type === 'note') {
+              return {
+                ...item,
+                content: currentNote.content,
+                updatedAt: currentNote.updatedAt
+              };
+            }
+            return item;
+          }).concat(ephemeralItems);
           const validFolderIds = new Set(
             combinedItems.filter((item) => item.type === 'folder').map((item) => item.id)
           );
@@ -776,6 +827,63 @@ const useNotesStore = create(
           .sort((a, b) => a.name.localeCompare(b.name));
       },
 
+      // Tag-related functions
+      getAllTags: () => {
+        const { items } = get();
+        const tagCounts = {};
+        
+        items
+          .filter(item => item.type === 'note' && item.content)
+          .forEach(note => {
+            const tags = extractTags(note.content);
+            tags.forEach(tag => {
+              tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+            });
+          });
+        
+        // Return array of {tag, count} sorted by count descending
+        return Object.entries(tagCounts)
+          .map(([tag, count]) => ({ tag, count }))
+          .sort((a, b) => b.count - a.count);
+      },
+
+      getNoteTags: (noteId) => {
+        const { items } = get();
+        const note = items.find(item => item.id === noteId && item.type === 'note');
+        return note?.content ? extractTags(note.content) : [];
+      },
+
+      toggleTagFilter: (tag) => {
+        set((state) => {
+          const isSelected = state.selectedTags.includes(tag);
+          return {
+            selectedTags: isSelected
+              ? state.selectedTags.filter(t => t !== tag)
+              : [...state.selectedTags, tag]
+          };
+        });
+      },
+
+      clearTagFilters: () => {
+        set({ selectedTags: [] });
+      },
+
+      getFilteredByTags: () => {
+        const { items, selectedTags } = get();
+        
+        if (selectedTags.length === 0) {
+          return items;
+        }
+        
+        // Return notes that contain ALL selected tags (AND logic)
+        return items.filter(item => {
+          if (item.type !== 'note' || !item.content) return false;
+          
+          const noteTags = extractTags(item.content);
+          return selectedTags.every(tag => noteTags.includes(tag));
+        });
+      },
+
       resetStore: () => {
         cancelAllPendingNoteWrites();
         set({
@@ -786,7 +894,8 @@ const useNotesStore = create(
           rootFolderId: null,
           isLoading: false,
           recentNotes: [],
-          pinnedNotes: []
+          pinnedNotes: [],
+          selectedTags: []
         });
 
         if (typeof window !== 'undefined') {
