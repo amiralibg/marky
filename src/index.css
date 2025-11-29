@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@theme {
+  /* VS Code Dark Theme Colors */
+  --color-editor-bg: #1e1e1e;
+  --color-sidebar-bg: #252526;
+  --color-titlebar-bg: #2d2d30;
+  --color-border: #3c3c3c;
+  --color-border-light: #454545;
+  --color-text-primary: #d4d4d4;
+  --color-text-secondary: #cccccc;
+  --color-text-muted: #858585;
+  --color-accent: #007acc;
+  --color-hover-bg: #2a2d2e;
+  --color-selected-bg: #37373d;
+
+  --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Helvetica Neue', sans-serif;
+  --font-family-mono: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', 'Ubuntu Mono', monospace;
+}
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: var(--font-family-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.6;
+    background: #1e1e1e;
+    color: #d4d4d4;
+  }
+
+  /* Remove default input/button styles */
+  button {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  input, textarea {
+    font-family: inherit;
+  }
+}
+
+/* Dark theme scrollbar */
+@layer utilities {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #424242;
+    border-radius: 5px;
+    border: 2px solid #1e1e1e;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #4e4e4e;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: #1e1e1e;
+  }
+}
+
+/* Selection */
+::selection {
+  background: #264f78;
+  color: #ffffff;
+}
+
+::-moz-selection {
+  background: #264f78;
+  color: #ffffff;
+}

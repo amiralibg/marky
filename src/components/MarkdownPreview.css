@@ -1,0 +1,193 @@
+/* Markdown Preview Styling - Dark Theme */
+
+.markdown-preview {
+  color: #d4d4d4;
+  line-height: 1.6;
+}
+
+/* Headings */
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6 {
+  font-weight: 600;
+  color: #d4d4d4;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.25;
+}
+
+.markdown-preview h1 {
+  font-size: 2em;
+  border-bottom: 1px solid #454545;
+  padding-bottom: 0.3em;
+}
+
+.markdown-preview h2 {
+  font-size: 1.5em;
+  border-bottom: 1px solid #454545;
+  padding-bottom: 0.3em;
+}
+
+.markdown-preview h3 {
+  font-size: 1.25em;
+}
+
+.markdown-preview h4 {
+  font-size: 1em;
+}
+
+.markdown-preview h5 {
+  font-size: 0.875em;
+}
+
+.markdown-preview h6 {
+  font-size: 0.85em;
+  color: #858585;
+}
+
+/* Paragraphs */
+.markdown-preview p {
+  margin-bottom: 1em;
+}
+
+/* Links */
+.markdown-preview a {
+  color: #4ec9b0;
+  text-decoration: none;
+}
+
+.markdown-preview a:hover {
+  text-decoration: underline;
+}
+
+/* Strong and Emphasis */
+.markdown-preview strong {
+  font-weight: 600;
+  color: #d4d4d4;
+}
+
+.markdown-preview em {
+  font-style: italic;
+}
+
+/* Inline Code */
+.markdown-preview code {
+  background: #2d2d30;
+  color: #ce9178;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', 'Ubuntu Mono', monospace;
+  font-size: 0.875em;
+}
+
+/* Code Blocks */
+.markdown-preview pre {
+  background: #1e1e1e;
+  border: 1px solid #454545;
+  padding: 1em;
+  border-radius: 5px;
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.markdown-preview pre code {
+  background: transparent;
+  color: #d4d4d4;
+  padding: 0;
+  font-size: 0.875em;
+  line-height: 1.45;
+  display: block;
+}
+
+/* Blockquotes */
+.markdown-preview blockquote {
+  border-left: 4px solid #454545;
+  padding-left: 1em;
+  margin: 1em 0;
+  color: #858585;
+  font-style: italic;
+}
+
+.markdown-preview blockquote p {
+  margin-bottom: 0;
+}
+
+/* Lists */
+.markdown-preview ul,
+.markdown-preview ol {
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.markdown-preview li {
+  margin: 0.25em 0;
+}
+
+.markdown-preview ul li::marker {
+  color: #858585;
+}
+
+.markdown-preview ol li::marker {
+  color: #858585;
+}
+
+/* Horizontal Rule */
+.markdown-preview hr {
+  border: none;
+  height: 1px;
+  background: #454545;
+  margin: 2em 0;
+}
+
+/* Tables */
+.markdown-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  border: 1px solid #454545;
+}
+
+.markdown-preview thead {
+  background: #2d2d30;
+}
+
+.markdown-preview th {
+  border: 1px solid #454545;
+  padding: 0.75em 1em;
+  text-align: left;
+  font-weight: 600;
+  color: #d4d4d4;
+}
+
+.markdown-preview td {
+  border: 1px solid #454545;
+  padding: 0.75em 1em;
+  color: #cccccc;
+}
+
+.markdown-preview tbody tr:hover {
+  background: #2a2d2e;
+}
+
+/* Images */
+.markdown-preview img {
+  max-width: 100%;
+  height: auto;
+  margin: 1em 0;
+  border-radius: 4px;
+  border: 1px solid #454545;
+}
+
+/* Task Lists */
+.markdown-preview input[type="checkbox"] {
+  margin-right: 0.5em;
+}
+
+/* Strikethrough */
+.markdown-preview del {
+  color: #858585;
+  text-decoration: line-through;
+}
