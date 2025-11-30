@@ -210,6 +210,7 @@ const useNotesStore = create(
       recentNotes: [], // Array of {id, name, filePath, lastOpenedAt}
       pinnedNotes: [], // Array of note IDs that are pinned
       selectedTags: [], // Array of tag strings for filtering
+      customTemplates: [], // Array of {id, name, icon, description, content}
 
       setRootFolder: async (folderData) => {
         const { items: fsItems, rootId } = await buildItemsFromFolderData(folderData);
@@ -367,7 +368,7 @@ const useNotesStore = create(
         throw lastError || new Error('Unable to create folder');
       },
 
-      createNote: async (parentId = null) => {
+      createNote: async (parentId = null, templateContent = null) => {
         const state = get();
         const { rootFolderPath, rootFolderId } = state;
 
@@ -390,6 +391,9 @@ const useNotesStore = create(
         let lastError = null;
         let newPath = null;
 
+        // Use template content or default
+        const initialContent = templateContent || '# New Note\n\nStart writing...';
+
         while (attempt < 100) {
           const fileName = `${noteBaseName}.md`;
 
@@ -397,7 +401,7 @@ const useNotesStore = create(
             newPath = await createMarkdownFileOnDisk(
               parentPath,
               fileName,
-              '# New Note\n\nStart writing...'
+              initialContent
             );
             break;
           } catch (error) {
@@ -866,6 +870,31 @@ const useNotesStore = create(
 
       clearTagFilters: () => {
         set({ selectedTags: [] });
+      },
+
+      // Custom template management
+      addCustomTemplate: (template) => {
+        set((state) => ({
+          customTemplates: [...state.customTemplates, {
+            ...template,
+            id: `custom-${Date.now()}`,
+            isCustom: true
+          }]
+        }));
+      },
+
+      deleteCustomTemplate: (templateId) => {
+        set((state) => ({
+          customTemplates: state.customTemplates.filter(t => t.id !== templateId)
+        }));
+      },
+
+      updateCustomTemplate: (templateId, updates) => {
+        set((state) => ({
+          customTemplates: state.customTemplates.map(t =>
+            t.id === templateId ? { ...t, ...updates } : t
+          )
+        }));
       },
 
       getFilteredByTags: () => {

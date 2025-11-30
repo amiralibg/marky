@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import useNotesStore from '../store/notesStore';
+import TemplateModal from './TemplateModal';
 import {
   openMarkdownFile,
   saveMarkdownFile,
@@ -356,14 +357,16 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
   );
 };
 
-const ContextMenu = ({ x, y, item, onClose, onRename }) => {
-  const { createNote, createFolder, deleteItem, togglePinNote, isPinned } = useNotesStore();
+const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
+  const { createFolder, deleteItem, togglePinNote, isPinned } = useNotesStore();
   const isNotePinned = item.type === 'note' && isPinned(item.id);
 
   const handleAction = async (action) => {
     try {
       if (action === 'newNote') {
-        await createNote(item.type === 'folder' ? item.id : item.parentId);
+        onShowTemplate(item.type === 'folder' ? item.id : item.parentId);
+        onClose();
+        return;
       } else if (action === 'newFolder') {
         await createFolder(item.type === 'folder' ? item.id : item.parentId);
       } else if (action === 'rename') {
@@ -452,7 +455,7 @@ const ContextMenu = ({ x, y, item, onClose, onRename }) => {
   );
 };
 
-const Sidebar = ({ onSettingsClick }) => {
+const Sidebar = forwardRef(({ onSettingsClick }, ref) => {
   const {
     items,
     createNote,
@@ -480,6 +483,8 @@ const Sidebar = ({ onSettingsClick }) => {
   const [showRecentNotes, setShowRecentNotes] = useState(false);
   const [showPinnedNotes, setShowPinnedNotes] = useState(true);
   const [showTags, setShowTags] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateParentId, setTemplateParentId] = useState(null);
   const dropHandledRef = useRef(false);
 
   // Compute all tags from items - this will re-compute when items change
@@ -597,7 +602,17 @@ const Sidebar = ({ onSettingsClick }) => {
 
   const handleNewNote = useCallback(async () => {
     try {
-      await createNote(null);
+      // Show template modal instead of creating directly
+      setTemplateParentId(null);
+      setShowTemplateModal(true);
+    } catch (error) {
+      console.error('Failed to open template modal:', error);
+    }
+  }, []);
+
+  const handleTemplateSelect = useCallback(async (template) => {
+    try {
+      await createNote(templateParentId, template.content);
     } catch (error) {
       if (error?.message && /exists/i.test(error.message)) {
         console.warn('Resolved duplicate note name conflict automatically.');
@@ -606,7 +621,7 @@ const Sidebar = ({ onSettingsClick }) => {
       console.error('Failed to create note:', error);
       alert('Failed to create note: ' + error.message);
     }
-  }, [createNote]);
+  }, [createNote, templateParentId]);
 
   const handleNewFolder = useCallback(async () => {
     try {
@@ -648,6 +663,13 @@ const Sidebar = ({ onSettingsClick }) => {
       alert('Failed to open folder: ' + error.message);
     }
   }, [loadFolderFromSystem]);
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    handleNewNote,
+    handleNewFolder,
+    handleOpenFolder
+  }), [handleNewNote, handleNewFolder, handleOpenFolder]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -1124,8 +1146,19 @@ const Sidebar = ({ onSettingsClick }) => {
           item={contextMenu.item}
           onClose={() => setContextMenu(null)}
           onRename={handleRename}
+          onShowTemplate={(parentId) => {
+            setTemplateParentId(parentId);
+            setShowTemplateModal(true);
+          }}
         />
       )}
+
+      {/* Template Modal */}
+      <TemplateModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        onSelectTemplate={handleTemplateSelect}
+      />
 
       {/* Rename Dialog */}
       {renamingItem && (
@@ -1137,7 +1170,9 @@ const Sidebar = ({ onSettingsClick }) => {
       )}
     </div>
   );
-};
+});
+
+Sidebar.displayName = 'Sidebar';
 
 const RenameDialog = ({ item, onSubmit, onCancel }) => {
   const [newName, setNewName] = useState(item.name);

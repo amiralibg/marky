@@ -1,14 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { marked } from "marked";
 import Toolbar from "./Toolbar";
+import ExportModal from "./ExportModal";
 import useNotesStore from "../store/notesStore";
 import "./MarkdownPreview.css";
 
-const MarkdownEditor = () => {
+const MarkdownEditor = forwardRef((props, ref) => {
   const { currentNoteId, updateNote, getCurrentNote } = useNotesStore();
 
   const [markdown, setMarkdown] = useState("");
   const [viewMode, setViewMode] = useState("split"); // "editor", "preview", or "split"
+  const [showExportModal, setShowExportModal] = useState(false);
+
+  // Expose setViewMode to parent
+  useImperativeHandle(ref, () => ({
+    setViewMode
+  }), []);
 
   useEffect(() => {
     const currentNote = getCurrentNote();
@@ -95,27 +102,39 @@ const MarkdownEditor = () => {
         </div>
 
         {/* View Mode Toggles */}
-        <div className="flex items-center gap-1 bg-border rounded p-0.5">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setViewMode("editor")}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              viewMode === "editor"
-                ? "bg-accent text-white"
-                : "text-text-secondary hover:bg-border/80"
-            }`}
-            title="Editor Only"
+            onClick={() => setShowExportModal(true)}
+            className="px-2 py-1 text-xs text-text-secondary hover:text-white hover:bg-white/10 rounded transition-colors flex items-center gap-1"
+            title="Export Note"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
+            Export
           </button>
-          <button
-            onClick={() => setViewMode("split")}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              viewMode === "split"
-                ? "bg-accent text-white"
-                : "text-text-secondary hover:bg-border/80"
-            }`}
+          
+          <div className="flex items-center gap-1 bg-border rounded p-0.5">
+            <button
+              onClick={() => setViewMode("editor")}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                viewMode === "editor"
+                  ? "bg-accent text-white"
+                  : "text-text-secondary hover:bg-border/80"
+              }`}
+              title="Editor Only"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode("split")}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                viewMode === "split"
+                  ? "bg-accent text-white"
+                  : "text-text-secondary hover:bg-border/80"
+              }`}
             title="Split View"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -137,6 +156,7 @@ const MarkdownEditor = () => {
             </svg>
           </button>
         </div>
+      </div>
       </div>
 
       {/* Toolbar */}
@@ -175,8 +195,17 @@ const MarkdownEditor = () => {
           </div>
         )}
       </div>
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        note={currentNote}
+      />
     </div>
   );
-};
+});
+
+MarkdownEditor.displayName = 'MarkdownEditor';
 
 export default MarkdownEditor;

@@ -1,4 +1,47 @@
+import { useEffect } from 'react';
+
 const Toolbar = ({ onInsert }) => {
+  // Add keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const isMod = e.metaKey || e.ctrlKey;
+      
+      if (!isMod) return;
+      
+      const textarea = document.querySelector('.editor-textarea');
+      if (!textarea || document.activeElement !== textarea) return;
+      
+      // Cmd/Ctrl + B - Bold
+      if (e.key === 'b') {
+        e.preventDefault();
+        onInsert('**', '**', 'bold text');
+      }
+      // Cmd/Ctrl + I - Italic
+      else if (e.key === 'i') {
+        e.preventDefault();
+        onInsert('*', '*', 'italic text');
+      }
+      // Cmd/Ctrl + K - Link
+      else if (e.key === 'k') {
+        e.preventDefault();
+        onInsert('[', '](https://)', 'link text');
+      }
+      // Cmd/Ctrl + Shift + C - Code block
+      else if (e.shiftKey && e.key === 'C') {
+        e.preventDefault();
+        onInsert('\n```\n', '\n```\n', 'code');
+      }
+      // Cmd/Ctrl + Shift + L - List
+      else if (e.shiftKey && e.key === 'L') {
+        e.preventDefault();
+        onInsert('- ', '', 'item');
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onInsert]);
+
   const toolbarButtons = [
     {
       label: 'Bold',
