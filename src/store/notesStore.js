@@ -14,6 +14,8 @@ import {
 const normalizePath = (value) => (value ? value.replace(/\\/g, '/') : '');
 const buildId = (type, path) => `${type}::${normalizePath(path)}`;
 const stripExtension = (name) => name.replace(/\.(md|markdown|txt)$/i, '') || name;
+const sanitizeNoteTitle = (value) =>
+  (value ? value.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() : '');
 const folderNameFromPath = (path) => {
   const normalized = normalizePath(path);
   if (!normalized) return path;
@@ -37,6 +39,54 @@ const extractTags = (content) => {
   }
   
   return Array.from(tags).sort();
+};
+
+const normalizeLinkTarget = (value) => (value ? value.trim().toLowerCase() : '');
+const buildNoteLinkKey = (name) => normalizeLinkTarget(stripExtension(name || ''));
+
+const extractWikiLinks = (content) => {
+  if (!content) return [];
+
+  const wikiLinkRegex = /\[\[([^\[\]]+)\]\]/g;
+  const links = [];
+  const seen = new Set();
+  let match;
+
+  while ((match = wikiLinkRegex.exec(content)) !== null) {
+    const inner = match[1].trim();
+    if (!inner) continue;
+
+    const [targetRaw, aliasRaw] = inner.split('|');
+    const target = stripExtension((targetRaw || '').trim());
+    if (!target) continue;
+
+    const key = buildNoteLinkKey(target);
+    if (!key || seen.has(key)) continue;
+
+    seen.add(key);
+    links.push({
+      key,
+      target,
+      alias: aliasRaw ? aliasRaw.trim() : null
+    });
+  }
+
+  return links;
+};
+
+const ensureNoteMetadata = (item) => {
+  if (!item || item.type !== 'note') {
+    return item;
+  }
+
+  const linkKey = item.linkKey || buildNoteLinkKey(item.name);
+  const links = item.links || extractWikiLinks(item.content);
+
+  return {
+    ...item,
+    linkKey,
+    links
+  };
 };
 
 const collectAncestorIds = (itemId, items) => {
@@ -175,6 +225,7 @@ const buildItemsFromFolderData = async ({ folderPath, folderName, files }) => {
       pathToId.set(normalizedEntry, folderId);
     } else {
       const noteId = buildId('note', entry.path);
+      const noteContent = noteContentMap.get(entry.path) || '';
       items.push({
         id: noteId,
         name: stripExtension(entry.name),
@@ -182,9 +233,11 @@ const buildItemsFromFolderData = async ({ folderPath, folderName, files }) => {
         type: 'note',
         filePath: entry.path,
         normalizedPath: normalizedEntry,
-        content: noteContentMap.get(entry.path) || '',
+        content: noteContent,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        linkKey: buildNoteLinkKey(entry.name),
+        links: extractWikiLinks(noteContent)
       });
     }
   });
@@ -217,7 +270,7 @@ const useNotesStore = create(
         const normalizedRoot = normalizePath(folderData.folderPath);
         const previousItems = get().items;
         const ephemeralItems = previousItems.filter((item) => !item.filePath);
-        const combinedItems = [...fsItems, ...ephemeralItems];
+        const combinedItems = [...fsItems, ...ephemeralItems].map(ensureNoteMetadata);
         const firstNote = combinedItems.find(
           (item) =>
             item.type === 'note' &&
@@ -262,17 +315,18 @@ const useNotesStore = create(
             ? previousItems.find(item => item.id === state.currentNoteId && item.type === 'note')
             : null;
           
-          const combinedItems = fsItems.map(item => {
-            // If this is the currently open note, preserve its in-memory content
-            if (currentNote && item.id === currentNote.id && item.type === 'note') {
-              return {
-                ...item,
-                content: currentNote.content,
-                updatedAt: currentNote.updatedAt
-              };
-            }
-            return item;
-          }).concat(ephemeralItems);
+          const combinedItems = fsItems
+            .map((item) => {
+              if (currentNote && item.id === currentNote.id && item.type === 'note') {
+                return ensureNoteMetadata({
+                  ...item,
+                  content: currentNote.content,
+                  updatedAt: currentNote.updatedAt
+                });
+              }
+              return ensureNoteMetadata(item);
+            })
+            .concat(ephemeralItems.map(ensureNoteMetadata));
           const validFolderIds = new Set(
             combinedItems.filter((item) => item.type === 'folder').map((item) => item.id)
           );
@@ -368,7 +422,7 @@ const useNotesStore = create(
         throw lastError || new Error('Unable to create folder');
       },
 
-      createNote: async (parentId = null, templateContent = null) => {
+      createNote: async (parentId = null, templateContent = null, noteName = null) => {
         const state = get();
         const { rootFolderPath, rootFolderId } = state;
 
@@ -386,13 +440,17 @@ const useNotesStore = create(
           (entry) => entry.parentId === resolvedParentId && entry.type === 'note'
         );
         const reservedNoteNames = createNameReservationSet(noteSiblings.map((entry) => entry.name));
-        let noteBaseName = reserveUniqueName('New Note', reservedNoteNames);
+        const desiredBase = sanitizeNoteTitle(noteName) || 'New Note';
+        let noteBaseName = reserveUniqueName(desiredBase, reservedNoteNames);
         let attempt = 0;
         let lastError = null;
         let newPath = null;
 
         // Use template content or default
-        const initialContent = templateContent || '# New Note\n\nStart writing...';
+        const initialContent =
+          templateContent !== null && templateContent !== undefined
+            ? templateContent
+            : `# ${noteBaseName}\n\nStart writing...`;
 
         while (attempt < 100) {
           const fileName = `${noteBaseName}.md`;
@@ -428,7 +486,9 @@ const useNotesStore = create(
           const content = await readMarkdownFile(newPath);
           set((current) => ({
             items: current.items.map((item) =>
-              item.filePath === newPath ? { ...item, content } : item
+              item.filePath === newPath
+                ? ensureNoteMetadata({ ...item, content })
+                : item
             )
           }));
         } catch (error) {
@@ -457,9 +517,11 @@ const useNotesStore = create(
           updatedAt: timestamp
         };
 
+        const enrichedNote = ensureNoteMetadata(newNote);
+
         set((current) => ({
-          items: [...current.items, newNote],
-          currentNoteId: newNote.id,
+          items: [...current.items, enrichedNote],
+          currentNoteId: enrichedNote.id,
           expandedFolders: parentId
             ? Array.from(new Set([...current.expandedFolders, parentId]))
             : current.expandedFolders
@@ -477,11 +539,11 @@ const useNotesStore = create(
         set((current) => ({
           items: current.items.map((item) =>
             item.id === noteId && item.type === 'note'
-              ? {
+              ? ensureNoteMetadata({
                   ...item,
                   content,
                   updatedAt: new Date().toISOString()
-                }
+                })
               : item
           )
         }));
@@ -505,13 +567,13 @@ const useNotesStore = create(
         set((state) => {
           const items = state.items.map((item) =>
             item.id === noteId && item.type === 'note'
-              ? {
+              ? ensureNoteMetadata({
                   ...item,
                   id: replacementId,
                   filePath,
                   normalizedPath: normalized,
                   updatedAt: new Date().toISOString()
-                }
+                })
               : item
           );
 
@@ -795,6 +857,60 @@ const useNotesStore = create(
       getNotes: () => {
         const { items } = get();
         return items.filter((item) => item.type === 'note');
+      },
+
+      findNoteByLinkTarget: (target) => {
+        const key = buildNoteLinkKey(target);
+        if (!key) return null;
+
+        const { items } = get();
+        return (
+          items.find(
+            (item) => item.type === 'note' && (item.linkKey || buildNoteLinkKey(item.name)) === key
+          ) || null
+        );
+      },
+
+      getOutgoingLinks: (noteId) => {
+        const { items } = get();
+        const note = items.find((item) => item.id === noteId && item.type === 'note');
+        if (!note) return [];
+
+        const notesByKey = new Map();
+        items.forEach((item) => {
+          if (item.type === 'note' && item.linkKey) {
+            notesByKey.set(item.linkKey, item);
+          } else if (item.type === 'note') {
+            const fallbackKey = buildNoteLinkKey(item.name);
+            if (fallbackKey) {
+              notesByKey.set(fallbackKey, ensureNoteMetadata(item));
+            }
+          }
+        });
+
+        const links = note.links || extractWikiLinks(note.content);
+
+        return links.map((link) => ({
+          ...link,
+          note: notesByKey.get(link.key) || null
+        }));
+      },
+
+      getBacklinks: (noteId) => {
+        const { items } = get();
+        const target = items.find((item) => item.id === noteId && item.type === 'note');
+        if (!target) return [];
+
+        const targetKey = target.linkKey || buildNoteLinkKey(target.name);
+        if (!targetKey) return [];
+
+        return items
+          .filter((item) => {
+            if (item.type !== 'note' || item.id === noteId) return false;
+            const links = item.links || extractWikiLinks(item.content);
+            return links.some((link) => link.key === targetKey);
+          })
+          .sort((a, b) => a.name.localeCompare(b.name));
       },
 
       getRecentNotes: () => {

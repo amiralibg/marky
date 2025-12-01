@@ -1,12 +1,96 @@
-import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
+import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { marked } from "marked";
 import Toolbar from "./Toolbar";
 import ExportModal from "./ExportModal";
 import useNotesStore from "../store/notesStore";
 import "./MarkdownPreview.css";
 
+const escapeHtml = (value = "") =>
+  value.replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return char;
+    }
+  });
+
+const wikiLinkExtension = {
+  name: "wikilink",
+  level: "inline",
+  start(src) {
+    return src.indexOf("[[");
+  },
+  tokenizer(src) {
+    const rule = /^\[\[([^\[\]]+)\]\]/;
+    const match = rule.exec(src);
+    if (match) {
+      const inner = match[1].trim();
+      if (!inner) return undefined;
+      const [targetPart, aliasPart] = inner.split("|");
+      const target = (targetPart || "").trim();
+      if (!target) return undefined;
+
+      return {
+        type: "wikilink",
+        raw: match[0],
+        target,
+        text: aliasPart ? aliasPart.trim() : target,
+        tokens: []
+      };
+    }
+    return undefined;
+  },
+  renderer(token) {
+    const label = token.text || token.target;
+    const attrs = [
+      'class="wikilink"',
+      `data-wikilink-target="${escapeHtml(token.target)}"`,
+      'href="#"'
+    ];
+
+    if (typeof token.exists === "boolean") {
+      attrs.push(`data-wikilink-exists="${token.exists ? "true" : "false"}"`);
+    }
+
+    return `<a ${attrs.join(" ")}>${escapeHtml(label)}</a>`;
+  }
+};
+
+let wikiExtensionRegistered = false;
+
+if (!wikiExtensionRegistered) {
+  marked.use({
+    extensions: [wikiLinkExtension],
+    walkTokens(token) {
+      if (token.type === "wikilink") {
+        const state = useNotesStore.getState();
+        const note = state.findNoteByLinkTarget?.(token.target);
+        token.exists = Boolean(note);
+      }
+    }
+  });
+  wikiExtensionRegistered = true;
+}
+
 const MarkdownEditor = forwardRef((props, ref) => {
-  const { currentNoteId, updateNote, getCurrentNote } = useNotesStore();
+  const {
+    currentNoteId,
+    updateNote,
+    getCurrentNote,
+    findNoteByLinkTarget,
+    selectNote,
+    createNote,
+    rootFolderPath
+  } = useNotesStore();
 
   const [markdown, setMarkdown] = useState("");
   const [viewMode, setViewMode] = useState("split"); // "editor", "preview", or "split"
@@ -71,6 +155,44 @@ const MarkdownEditor = forwardRef((props, ref) => {
       return { __html: "<p>Error rendering markdown</p>" };
     }
   };
+
+  const handlePreviewClick = useCallback(async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    const anchor = target.closest("a[data-wikilink-target]");
+    if (!anchor) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const linkTarget = anchor.getAttribute("data-wikilink-target");
+    if (!linkTarget) return;
+
+    const existing = findNoteByLinkTarget(linkTarget);
+    if (existing) {
+      selectNote(existing.id);
+      return;
+    }
+
+    if (!rootFolderPath) {
+      alert("Open or create a workspace folder before creating linked notes.");
+      return;
+    }
+
+    const shouldCreate = window.confirm(`Create new note "${linkTarget}"?`);
+    if (!shouldCreate) return;
+
+    try {
+      const newId = await createNote(null, null, linkTarget);
+      if (newId) {
+        selectNote(newId);
+      }
+    } catch (error) {
+      console.error("Failed to create note from link:", error);
+      alert(`Failed to create note: ${error.message}`);
+    }
+  }, [createNote, findNoteByLinkTarget, rootFolderPath, selectNote]);
 
   const currentNote = getCurrentNote();
 
@@ -185,7 +307,10 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
         {/* Preview */}
         {(viewMode === "preview" || viewMode === "split") && (
-          <div className={`flex flex-col bg-editor-bg overflow-y-auto ${viewMode === "split" ? "w-1/2" : "w-full"}`}>
+          <div
+            className={`flex flex-col bg-editor-bg overflow-y-auto ${viewMode === "split" ? "w-1/2" : "w-full"}`}
+            onClick={handlePreviewClick}
+          >
             <div className="p-6">
               <div
                 className="markdown-preview prose prose-invert max-w-none"

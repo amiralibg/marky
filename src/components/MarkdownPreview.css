@@ -63,6 +63,22 @@
   text-decoration: underline;
 }
 
+.markdown-preview a.wikilink {
+  color: #38bdf8;
+  border-bottom: 1px dashed rgba(56, 189, 248, 0.6);
+  text-decoration: none;
+}
+
+.markdown-preview a.wikilink:hover {
+  border-bottom-style: solid;
+  text-decoration: none;
+}
+
+.markdown-preview a.wikilink[data-wikilink-exists="false"] {
+  color: #f97316;
+  border-bottom-color: rgba(249, 115, 22, 0.7);
+}
+
 /* Strong and Emphasis */
 .markdown-preview strong {
   font-weight: 600;
