@@ -3,10 +3,12 @@ import Sidebar from './components/Sidebar';
 import MarkdownEditor from './components/MarkdownEditor';
 import OnboardingModal from './components/OnboardingModal';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
+import ScheduledNotesManager from './components/ScheduledNotesManager';
 import useNotesStore from './store/notesStore';
 
 function App() {
   const items = useNotesStore((state) => state.items);
+  const processDueSchedules = useNotesStore((state) => state.processDueSchedules);
   const [view, setView] = useState('editor');
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
@@ -65,6 +67,36 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (typeof processDueSchedules !== 'function') {
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    const run = async () => {
+      try {
+        await processDueSchedules();
+      } catch (error) {
+        console.error('Scheduled note processing failed:', error);
+      }
+    };
+
+    run();
+
+    const interval = setInterval(() => {
+      processDueSchedules().catch((error) => {
+        if (!isMounted) return;
+        console.error('Scheduled note processing failed:', error);
+      });
+    }, 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [processDueSchedules]);
+
   return (
     <div className="h-screen flex flex-col bg-editor-bg text-white">
       <div className="flex-1 flex overflow-hidden">
@@ -73,14 +105,31 @@ function App() {
           {view === 'editor' ? (
             <MarkdownEditor ref={editorRef} />
           ) : (
-            <div className="flex-1 p-8">
-              <h1 className="text-2xl font-bold mb-4">Settings</h1>
-              <button
-                onClick={() => setView('editor')}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
-              >
-                Back to Editor
-              </button>
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between px-8 py-6 border-b border-white/10">
+                <div>
+                  <h1 className="text-2xl font-bold text-white">Settings</h1>
+                  <p className="text-sm text-text-muted">Manage automations and workspace preferences.</p>
+                </div>
+                <button
+                  onClick={() => setView('editor')}
+                  className="px-4 py-2 text-sm font-medium bg-accent hover:bg-accent/90 rounded-lg transition-colors"
+                >
+                  Back to editor
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-8 py-6 space-y-10">
+                <section className="space-y-4">
+                  <header className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-semibold text-white">Scheduled notes</h2>
+                      <p className="text-sm text-text-muted">View and manage recurring note creation.</p>
+                    </div>
+                  </header>
+                  <ScheduledNotesManager />
+                </section>
+              </div>
             </div>
           )}
         </div>

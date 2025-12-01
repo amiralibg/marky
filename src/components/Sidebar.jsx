@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHand
 import { listen } from '@tauri-apps/api/event';
 import useNotesStore from '../store/notesStore';
 import TemplateModal from './TemplateModal';
+import ScheduleNoteModal from './ScheduleNoteModal';
 import GraphModal from './GraphModal';
 import {
   openMarkdownFile,
@@ -487,6 +488,8 @@ const Sidebar = forwardRef(({ onSettingsClick }, ref) => {
   const [showTags, setShowTags] = useState(false);
   const [showBacklinks, setShowBacklinks] = useState(true);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleTemplate, setScheduleTemplate] = useState(null);
   const [templateParentId, setTemplateParentId] = useState(null);
   const [showGraphModal, setShowGraphModal] = useState(false);
   const dropHandledRef = useRef(false);
@@ -618,7 +621,11 @@ const Sidebar = forwardRef(({ onSettingsClick }, ref) => {
 
   const handleTemplateSelect = useCallback(async (template) => {
     try {
-      await createNote(templateParentId, template.content);
+      await createNote(
+        templateParentId,
+        template.content,
+        template.suggestedTitle || template.name
+      );
     } catch (error) {
       if (error?.message && /exists/i.test(error.message)) {
         console.warn('Resolved duplicate note name conflict automatically.');
@@ -628,6 +635,11 @@ const Sidebar = forwardRef(({ onSettingsClick }, ref) => {
       alert('Failed to create note: ' + error.message);
     }
   }, [createNote, templateParentId]);
+
+  const handleScheduleTemplate = useCallback((template) => {
+    setScheduleTemplate(template);
+    setShowScheduleModal(true);
+  }, []);
 
   const handleNewFolder = useCallback(async () => {
     try {
@@ -1228,6 +1240,17 @@ const Sidebar = forwardRef(({ onSettingsClick }, ref) => {
         isOpen={showTemplateModal}
         onClose={() => setShowTemplateModal(false)}
         onSelectTemplate={handleTemplateSelect}
+        onScheduleTemplate={handleScheduleTemplate}
+      />
+
+      <ScheduleNoteModal
+        isOpen={showScheduleModal}
+        template={scheduleTemplate}
+        defaultFolderId={templateParentId}
+        onClose={() => {
+          setShowScheduleModal(false);
+          setScheduleTemplate(null);
+        }}
       />
 
       {/* Rename Dialog */}

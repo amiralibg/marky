@@ -10,6 +10,9 @@ import {
   scanFolder,
   writeMarkdownFileOnDisk
 } from '../utils/fileSystem';
+import {
+  resolveTemplateById
+} from '../data/templates';
 
 const normalizePath = (value) => (value ? value.replace(/\\/g, '/') : '');
 const buildId = (type, path) => `${type}::${normalizePath(path)}`;
@@ -121,6 +124,142 @@ const reserveUniqueName = (baseName, reservedNames) => {
     counter += 1;
   }
   reservedNames.add(candidate.toLowerCase());
+  return candidate;
+};
+
+const parseTimeString = (value) => {
+  if (!value) {
+    return { hours: 9, minutes: 0 };
+  }
+
+  const [hoursRaw, minutesRaw] = value.split(':');
+  const hours = Number.parseInt(hoursRaw, 10);
+  const minutes = Number.parseInt(minutesRaw, 10);
+
+  return {
+    hours: Number.isFinite(hours) ? hours : 9,
+    minutes: Number.isFinite(minutes) ? minutes : 0
+  };
+};
+
+const addMinutes = (date, minutes) => {
+  const result = new Date(date);
+  result.setMinutes(result.getMinutes() + minutes);
+  return result;
+};
+
+const addDays = (date, days) => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+};
+
+const clampDayOfMonth = (year, month, day) => {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return Math.min(Math.max(day, 1), daysInMonth);
+};
+
+const withTimeOfDay = (date, timeOfDay) => {
+  const { hours, minutes } = parseTimeString(timeOfDay);
+  const result = new Date(date);
+  result.setHours(hours, minutes, 0, 0);
+  return result;
+};
+
+const getNextWeeklyOccurrence = (fromDate, daysOfWeek, timeOfDay) => {
+  const normalizedDays = Array.from(
+    new Set(
+      (Array.isArray(daysOfWeek) ? daysOfWeek : [fromDate.getDay()]).map((day) => {
+        const normalized = Number.parseInt(day, 10);
+        if (!Number.isFinite(normalized)) return 0;
+        return ((normalized % 7) + 7) % 7;
+      })
+    )
+  ).sort((a, b) => a - b);
+
+  for (let offset = 0; offset < 14; offset += 1) {
+    const candidateDate = addDays(fromDate, offset);
+    if (normalizedDays.includes(candidateDate.getDay())) {
+      const candidate = withTimeOfDay(candidateDate, timeOfDay);
+      if (candidate > fromDate) {
+        return candidate;
+      }
+    }
+  }
+
+  return withTimeOfDay(addDays(fromDate, 7), timeOfDay);
+};
+
+const getNextMonthlyOccurrence = (fromDate, dayOfMonth, timeOfDay) => {
+  const base = new Date(fromDate);
+  const year = base.getFullYear();
+  const month = base.getMonth();
+  const day = clampDayOfMonth(year, month, dayOfMonth || base.getDate());
+  let candidate = withTimeOfDay(new Date(year, month, day), timeOfDay);
+
+  if (candidate <= fromDate) {
+    const nextMonth = new Date(year, month + 1, 1);
+    const nextDay = clampDayOfMonth(nextMonth.getFullYear(), nextMonth.getMonth(), dayOfMonth || base.getDate());
+    candidate = withTimeOfDay(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), nextDay), timeOfDay);
+  }
+
+  return candidate;
+};
+
+const calculateNextRun = (schedule, referenceDate = new Date()) => {
+  if (!schedule) return null;
+
+  const { frequency, timeOfDay = '09:00', startDate } = schedule;
+  if (!frequency) return null;
+
+  const now = new Date(referenceDate);
+  const start = startDate ? new Date(`${startDate}T00:00:00`) : null;
+  const baseline = start && !Number.isNaN(start.getTime()) && start > now ? start : now;
+
+  let candidate;
+
+  switch (frequency) {
+    case 'daily': {
+      candidate = withTimeOfDay(baseline, timeOfDay);
+      if (candidate <= now) {
+        candidate = withTimeOfDay(addDays(baseline, 1), timeOfDay);
+      }
+      break;
+    }
+    case 'weekly': {
+      const days = Array.isArray(schedule.daysOfWeek) && schedule.daysOfWeek.length > 0
+        ? schedule.daysOfWeek
+        : [baseline.getDay()];
+      candidate = getNextWeeklyOccurrence(baseline, days, timeOfDay);
+      if (candidate <= now) {
+        candidate = getNextWeeklyOccurrence(addDays(now, 1), days, timeOfDay);
+      }
+      break;
+    }
+    case 'monthly': {
+      const dayOfMonth = schedule.dayOfMonth || baseline.getDate();
+      candidate = getNextMonthlyOccurrence(baseline, dayOfMonth, timeOfDay);
+      if (candidate <= now) {
+        candidate = getNextMonthlyOccurrence(addDays(now, 1), dayOfMonth, timeOfDay);
+      }
+      break;
+    }
+    default:
+      return null;
+  }
+
+  if (!candidate || Number.isNaN(candidate.getTime())) {
+    return null;
+  }
+
+  if (start && candidate < withTimeOfDay(start, timeOfDay)) {
+    return calculateNextRun(schedule, withTimeOfDay(start, timeOfDay));
+  }
+
+  if (candidate <= now) {
+    return calculateNextRun(schedule, addMinutes(now, 1));
+  }
+
   return candidate;
 };
 
@@ -264,6 +403,7 @@ const useNotesStore = create(
       pinnedNotes: [], // Array of note IDs that are pinned
       selectedTags: [], // Array of tag strings for filtering
       customTemplates: [], // Array of {id, name, icon, description, content}
+      scheduledNotes: [], // Array of scheduled note configurations
 
       setRootFolder: async (folderData) => {
         const { items: fsItems, rootId } = await buildItemsFromFolderData(folderData);
@@ -1013,6 +1153,179 @@ const useNotesStore = create(
         }));
       },
 
+      addScheduledNote: (config) => {
+        const now = new Date();
+        const schedule = {
+          id: `schedule-${Date.now()}`,
+          templateId: config.templateId,
+          templateType: config.templateType || null,
+          templateName: config.templateName || 'Template',
+          templateIcon: config.templateIcon || '📝',
+          noteName: config.noteName ? config.noteName.trim() : null,
+          folderId: config.folderId || null,
+          frequency: config.frequency,
+          timeOfDay: config.timeOfDay || '09:00',
+          daysOfWeek: Array.isArray(config.daysOfWeek) ? config.daysOfWeek : [],
+          dayOfMonth: config.dayOfMonth || null,
+          startDate: config.startDate || null,
+          enabled: true,
+          createdAt: now.toISOString(),
+          lastRunAt: null,
+          nextRunAt: null
+        };
+
+        const nextRun = calculateNextRun(schedule, now);
+        schedule.nextRunAt = nextRun ? nextRun.toISOString() : null;
+
+        set((state) => ({
+          scheduledNotes: [...state.scheduledNotes, schedule]
+        }));
+
+        return schedule.id;
+      },
+
+      updateScheduledNote: (scheduleId, updates = {}) => {
+        set((state) => {
+          let changed = false;
+          const schedules = state.scheduledNotes.map((schedule) => {
+            if (schedule.id !== scheduleId) {
+              return schedule;
+            }
+
+            changed = true;
+            const merged = { ...schedule, ...updates };
+            const needsRecalculate = ['frequency', 'timeOfDay', 'daysOfWeek', 'dayOfMonth', 'startDate'].some((key) => key in updates);
+
+            if (needsRecalculate || ('enabled' in updates && updates.enabled)) {
+              const nextRun = calculateNextRun(merged, new Date());
+              merged.nextRunAt = nextRun ? nextRun.toISOString() : null;
+            }
+
+            if ('enabled' in updates && !updates.enabled) {
+              merged.nextRunAt = null;
+            }
+
+            return merged;
+          });
+
+          return changed ? { scheduledNotes: schedules } : {};
+        });
+      },
+
+      deleteScheduledNote: (scheduleId) => {
+        set((state) => ({
+          scheduledNotes: state.scheduledNotes.filter((schedule) => schedule.id !== scheduleId)
+        }));
+      },
+
+      setScheduledNoteEnabled: (scheduleId, enabled) => {
+        set((state) => {
+          let changed = false;
+          const schedules = state.scheduledNotes.map((schedule) => {
+            if (schedule.id !== scheduleId) {
+              return schedule;
+            }
+
+            changed = true;
+            const next = { ...schedule, enabled };
+            if (enabled) {
+              const nextRun = calculateNextRun(next, new Date());
+              next.nextRunAt = nextRun ? nextRun.toISOString() : null;
+            } else {
+              next.nextRunAt = null;
+            }
+            return next;
+          });
+
+          return changed ? { scheduledNotes: schedules } : {};
+        });
+      },
+
+      processDueSchedules: async () => {
+        const state = get();
+        const schedules = state.scheduledNotes;
+        if (!schedules || schedules.length === 0) {
+          return;
+        }
+
+        const now = new Date();
+        const updatedSchedules = [];
+        let hasChanges = false;
+
+        for (const schedule of schedules) {
+          if (!schedule.enabled) {
+            updatedSchedules.push(schedule);
+            continue;
+          }
+
+          let nextRun = schedule.nextRunAt ? new Date(schedule.nextRunAt) : null;
+          if (!nextRun || Number.isNaN(nextRun.getTime())) {
+            const recalculated = calculateNextRun(schedule, now);
+            const repairedSchedule = {
+              ...schedule,
+              nextRunAt: recalculated ? recalculated.toISOString() : null
+            };
+            updatedSchedules.push(repairedSchedule);
+            hasChanges = true;
+            continue;
+          }
+
+          if (nextRun > now) {
+            updatedSchedules.push(schedule);
+            continue;
+          }
+
+          let currentSchedule = { ...schedule };
+          let safetyCounter = 0;
+          const MAX_RUNS = 3;
+
+          while (nextRun && nextRun <= now && safetyCounter < MAX_RUNS) {
+            const template = resolveTemplateById(schedule.templateId, state.customTemplates);
+
+            if (!template) {
+              currentSchedule = {
+                ...currentSchedule,
+                enabled: false,
+                nextRunAt: null
+              };
+              hasChanges = true;
+              break;
+            }
+
+            const noteName = schedule.noteName || template.suggestedTitle || template.name || 'New Note';
+
+            try {
+              await get().createNote(schedule.folderId, template.content, noteName);
+            } catch (error) {
+              console.error('Failed to create scheduled note:', error);
+              break;
+            }
+
+            const executedAt = new Date().toISOString();
+            currentSchedule = {
+              ...currentSchedule,
+              lastRunAt: executedAt
+            };
+
+            const recalculated = calculateNextRun(currentSchedule, addMinutes(nextRun, 1));
+            currentSchedule.nextRunAt = recalculated ? recalculated.toISOString() : null;
+            nextRun = recalculated ? new Date(recalculated) : null;
+            safetyCounter += 1;
+            hasChanges = true;
+
+            if (!nextRun) {
+              break;
+            }
+          }
+
+          updatedSchedules.push(currentSchedule);
+        }
+
+        if (hasChanges) {
+          set({ scheduledNotes: updatedSchedules });
+        }
+      },
+
       getFilteredByTags: () => {
         const { items, selectedTags } = get();
         
@@ -1040,7 +1353,9 @@ const useNotesStore = create(
           isLoading: false,
           recentNotes: [],
           pinnedNotes: [],
-          selectedTags: []
+          selectedTags: [],
+          customTemplates: [],
+          scheduledNotes: []
         });
 
         if (typeof window !== 'undefined') {
