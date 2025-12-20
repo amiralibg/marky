@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{
-    menu::{Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu},
+    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     Emitter, Manager, State,
 };
 
@@ -285,16 +285,13 @@ fn watch_folder(
     app: tauri::AppHandle,
     watcher_state: State<WatcherState>,
 ) -> Result<(), String> {
-    println!("🔍 watch_folder called with: {}", folder_path);
 
     let path = PathBuf::from(&folder_path);
 
     if !path.exists() || !path.is_dir() {
-        println!("❌ Path does not exist or is not a directory");
         return Err("Invalid folder path".to_string());
     }
 
-    println!("✅ Path is valid, setting up watcher...");
     let app_clone = app.clone();
 
     let mut debouncer = new_debouncer(
@@ -302,14 +299,11 @@ fn watch_folder(
         None,
         move |result: DebounceEventResult| match result {
             Ok(events) => {
-                println!("📢 File change events received: {} events", events.len());
                 for event in events {
-                    println!("  Event kind: {:?}, paths: {:?}", event.kind, event.paths);
                     for path in &event.paths {
                         if let Some(file_name) = path.file_name() {
                             let name = file_name.to_string_lossy();
                             if name.starts_with('.') {
-                                println!("  ⏭️ Skipping hidden file: {}", name);
                                 continue;
                             }
 
@@ -325,7 +319,6 @@ fn watch_folder(
                                     _ => "other",
                                 };
 
-                                println!("  📤 Emitting event: {} for {}", event_type, path.display());
 
                                 let change_event = FileChangeEvent {
                                     event_type: event_type.to_string(),
@@ -334,7 +327,6 @@ fn watch_folder(
 
                                 let _ = app_clone.emit("file-change", change_event);
                             } else {
-                                println!("  ⏭️ Skipping non-markdown file: {}", path.display());
                             }
                         }
                     }
@@ -352,7 +344,6 @@ fn watch_folder(
         .watch(&path, RecursiveMode::Recursive)
         .map_err(|e| format!("Failed to watch folder: {}", e))?;
 
-    println!("👀 Successfully started watching: {}", path.display());
 
     let mut watcher_guard = watcher_state
         ._watcher
@@ -360,7 +351,6 @@ fn watch_folder(
         .map_err(|e| format!("Failed to lock watcher state: {}", e))?;
     *watcher_guard = Some(debouncer);
 
-    println!("✅ Watcher stored in state");
 
     Ok(())
 }
@@ -383,19 +373,18 @@ async fn show_main_window(window: tauri::Window) {
 
 #[derive(Debug, Deserialize)]
 struct RecentNoteInfo {
-    name: String,
-    path: String,
+    _name: String,
+    _path: String,
 }
 
 #[tauri::command]
 async fn update_dock_menu(
-    app: tauri::AppHandle,
-    recent_notes: Vec<RecentNoteInfo>,
+    _app: tauri::AppHandle,
+    _recent_notes: Vec<RecentNoteInfo>,
 ) -> Result<(), String> {
     // Note: Tauri v2 doesn't have direct dock menu support yet
     // This is a placeholder for future implementation or use of native APIs
     // For now, we'll just log the recent notes
-    println!("📋 Recent notes updated: {:?}", recent_notes.iter().map(|n| &n.name).collect::<Vec<_>>());
     
     // You could integrate with macOS native APIs here using objc crate if needed
     // For this MVP, we'll rely on the sidebar UI for recent notes

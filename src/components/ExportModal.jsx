@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { marked } from 'marked';
+import useUIStore from '../store/uiStore';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
@@ -7,6 +8,7 @@ import { writeTextFile } from '@tauri-apps/plugin-fs';
 const ExportModal = ({ isOpen, onClose, note }) => {
   const [exportFormat, setExportFormat] = useState('html');
   const [isExporting, setIsExporting] = useState(false);
+  const { addNotification } = useUIStore();
 
   if (!isOpen || !note) return null;
 
@@ -192,10 +194,10 @@ const ExportModal = ({ isOpen, onClose, note }) => {
             extensions: ['html']
           }]
         });
-        
+
         if (filePath) {
           await writeTextFile(filePath, html);
-          alert('Exported successfully!');
+          addNotification('Exported successfully!', 'success');
           onClose();
         }
       } else if (exportFormat === 'pdf') {
@@ -208,16 +210,16 @@ const ExportModal = ({ isOpen, onClose, note }) => {
             extensions: ['html']
           }]
         });
-        
+
         if (filePath) {
           await writeTextFile(filePath, pdfHTML);
-          alert('HTML file created for PDF export!\n\nOpen the file in your browser and use Print > Save as PDF');
+          addNotification('HTML file created for PDF export! Open it and Print > Save as PDF', 'info', 5000);
           onClose();
         }
       } else if (exportFormat === 'copy-html') {
         const htmlContent = marked(note.content || '');
         await writeText(htmlContent);
-        alert('Formatted HTML copied to clipboard!');
+        addNotification('Formatted HTML copied to clipboard!', 'success');
         onClose();
       } else if (exportFormat === 'markdown') {
         const filePath = await save({
@@ -227,16 +229,16 @@ const ExportModal = ({ isOpen, onClose, note }) => {
             extensions: ['md', 'markdown']
           }]
         });
-        
+
         if (filePath) {
           await writeTextFile(filePath, note.content || '');
-          alert('Exported successfully!');
+          addNotification('Exported successfully!', 'success');
           onClose();
         }
       }
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Export failed: ' + error.message);
+      addNotification('Export failed: ' + error.message, 'error');
     } finally {
       setIsExporting(false);
     }
@@ -249,17 +251,17 @@ const ExportModal = ({ isOpen, onClose, note }) => {
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div 
-          className="bg-sidebar-bg border border-white/10 rounded-xl shadow-2xl w-full max-w-md pointer-events-auto animate-slideUp"
+        <div
+          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-md pointer-events-auto animate-slideUp"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
+          <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-white">Export Note</h2>
+              <h2 className="text-xl font-semibold text-text-primary">Export Note</h2>
               <p className="text-sm text-text-muted mt-1">{note.name}</p>
             </div>
             <button
@@ -277,18 +279,17 @@ const ExportModal = ({ isOpen, onClose, note }) => {
           <div className="p-6 space-y-3">
             <button
               onClick={() => setExportFormat('html')}
-              className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                exportFormat === 'html'
-                  ? 'border-accent bg-accent/10'
-                  : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
-              }`}
+              className={`w-full p-4 rounded-lg border-2 text-left transition-all ${exportFormat === 'html'
+                ? 'border-accent bg-accent/10'
+                : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10'
+                }`}
             >
               <div className="flex items-center gap-3">
                 <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                 </svg>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-white">HTML File</h3>
+                  <h3 className="font-semibold text-text-primary">HTML File</h3>
                   <p className="text-xs text-text-muted">Standalone HTML with inline styles</p>
                 </div>
                 {exportFormat === 'html' && (
@@ -301,18 +302,17 @@ const ExportModal = ({ isOpen, onClose, note }) => {
 
             <button
               onClick={() => setExportFormat('pdf')}
-              className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                exportFormat === 'pdf'
-                  ? 'border-accent bg-accent/10'
-                  : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
-              }`}
+              className={`w-full p-4 rounded-lg border-2 text-left transition-all ${exportFormat === 'pdf'
+                ? 'border-accent bg-accent/10'
+                : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10'
+                }`}
             >
               <div className="flex items-center gap-3">
                 <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-white">PDF (via Print)</h3>
+                  <h3 className="font-semibold text-text-primary">PDF (via Print)</h3>
                   <p className="text-xs text-text-muted">Create HTML optimized for printing to PDF</p>
                 </div>
                 {exportFormat === 'pdf' && (
@@ -325,18 +325,17 @@ const ExportModal = ({ isOpen, onClose, note }) => {
 
             <button
               onClick={() => setExportFormat('copy-html')}
-              className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                exportFormat === 'copy-html'
-                  ? 'border-accent bg-accent/10'
-                  : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
-              }`}
+              className={`w-full p-4 rounded-lg border-2 text-left transition-all ${exportFormat === 'copy-html'
+                ? 'border-accent bg-accent/10'
+                : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10'
+                }`}
             >
               <div className="flex items-center gap-3">
                 <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-white">Copy HTML</h3>
+                  <h3 className="font-semibold text-text-primary">Copy HTML</h3>
                   <p className="text-xs text-text-muted">Copy formatted HTML to clipboard</p>
                 </div>
                 {exportFormat === 'copy-html' && (
@@ -349,18 +348,17 @@ const ExportModal = ({ isOpen, onClose, note }) => {
 
             <button
               onClick={() => setExportFormat('markdown')}
-              className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                exportFormat === 'markdown'
-                  ? 'border-accent bg-accent/10'
-                  : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
-              }`}
+              className={`w-full p-4 rounded-lg border-2 text-left transition-all ${exportFormat === 'markdown'
+                ? 'border-accent bg-accent/10'
+                : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10'
+                }`}
             >
               <div className="flex items-center gap-3">
                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-white">Markdown File</h3>
+                  <h3 className="font-semibold text-text-primary">Markdown File</h3>
                   <p className="text-xs text-text-muted">Export as .md file</p>
                 </div>
                 {exportFormat === 'markdown' && (
@@ -373,21 +371,20 @@ const ExportModal = ({ isOpen, onClose, note }) => {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-white/10 px-6 py-4 flex justify-end gap-2">
+          <div className="border-t border-glass-border px-6 py-4 flex justify-end gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-white/10 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleExport}
               disabled={isExporting}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                isExporting
-                  ? 'bg-white/10 text-text-muted cursor-not-allowed'
-                  : 'bg-accent text-white hover:bg-accent/90'
-              }`}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors shadow-lg shadow-accent/20 ${isExporting
+                ? 'bg-white/10 text-text-muted cursor-not-allowed'
+                : 'bg-accent text-white hover:bg-accent-hover'
+                }`}
             >
               {isExporting ? 'Exporting...' : 'Export'}
             </button>

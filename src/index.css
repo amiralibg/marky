@@ -1,91 +1,198 @@
 @import "tailwindcss";
 
-@theme {
-  /* VS Code Dark Theme Colors */
-  --color-editor-bg: #1e1e1e;
-  --color-sidebar-bg: #252526;
-  --color-titlebar-bg: #2d2d30;
-  --color-border: #3c3c3c;
-  --color-border-light: #454545;
-  --color-text-primary: #d4d4d4;
-  --color-text-secondary: #cccccc;
-  --color-text-muted: #858585;
-  --color-accent: #007acc;
-  --color-hover-bg: #2a2d2e;
-  --color-selected-bg: #37373d;
+:root {
+  /* Modern Zinc/Slate Dark Theme */
+  --color-bg-base: #09090b;
+  /* Zinc 950 */
+  --color-bg-sidebar: #121215;
+  /* Custom darker zinc */
+  --color-bg-editor: #0c0c0e;
+  /* Deep matte black/zinc */
 
-  --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Helvetica Neue', sans-serif;
-  --font-family-mono: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', 'Ubuntu Mono', monospace;
+  /* Glassmorphism & Overlays */
+  --color-overlay-bg: rgba(9, 9, 11, 0.8);
+  --color-glass-border: rgba(255, 255, 255, 0.08);
+  --color-glass-highlight: rgba(255, 255, 255, 0.03);
+
+  /* Text Colors */
+  --color-text-primary: #f4f4f5;
+  /* Zinc 100 */
+  --color-text-secondary: #a1a1aa;
+  /* Zinc 400 */
+  --color-text-muted: #52525b;
+  /* Zinc 600 */
+
+  /* Accents */
+  --color-accent: #3b82f6;
+  /* Blue 500 */
+  --color-accent-hover: #2563eb;
+  /* Blue 600 */
+  --color-accent-dim: rgba(59, 130, 246, 0.1);
+
+  /* UI Elements */
+  --color-border: #27272a;
+  /* Zinc 800 */
+  --color-border-light: #3f3f46;
+  /* Zinc 700 */
+  --color-item-hover: #18181b;
+  /* Zinc 900 */
+  --color-item-active: #27272a;
+  /* Zinc 800 */
 }
 
+@theme {
+  /* Map variables for Tailwind */
+  --color-bg-base: var(--color-bg-base);
+  --color-bg-sidebar: var(--color-bg-sidebar);
+  --color-bg-editor: var(--color-bg-editor);
+  --color-overlay-bg: var(--color-overlay-bg);
+  --color-glass-border: var(--color-glass-border);
+  --color-glass-highlight: var(--color-glass-highlight);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-dim: var(--color-accent-dim);
+  --color-border: var(--color-border);
+  --color-border-light: var(--color-border-light);
+  --color-item-hover: var(--color-item-hover);
+  --color-item-active: var(--color-item-active);
+
+  /* Fonts */
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+
+  /* Typography Scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+
+  /* Animations */
+  --animate-fade-in: fadeIn 0.2s ease-out;
+  --animate-slide-up: slideUp 0.3s ease-out;
+  --animate-slide-in-right: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-in-left: slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+    }
+
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes slideInLeft {
+    from {
+      transform: translateX(-100%);
+    }
+
+    to {
+      transform: translateX(0);
+    }
+  }
+}
+
+/* Layer Base equivalent in v4 is just standard CSS with @layer base if needed,
+   but for global styles sticking them after @theme works well or in a layer */
 @layer base {
   * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  html, body, #root {
+  html,
+  body,
+  #root {
     width: 100%;
     height: 100%;
     overflow: hidden;
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
   }
 
   body {
     font-family: var(--font-family-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
     line-height: 1.6;
-    background: #1e1e1e;
-    color: #d4d4d4;
   }
 
-  /* Remove default input/button styles */
+  input,
+  textarea,
   button {
-    border: none;
-    background: none;
-    cursor: pointer;
     font-family: inherit;
-  }
-
-  input, textarea {
-    font-family: inherit;
+    outline: none;
   }
 }
 
-/* Dark theme scrollbar */
 @layer utilities {
+  .glass {
+    background: var(--color-glass-highlight);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--color-glass-border);
+  }
+
+  .glass-panel {
+    background: rgba(18, 18, 21, 0.7);
+    backdrop-filter: blur(24px);
+    border: 1px solid var(--color-glass-border);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  /* Custom Scrollbar */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    background: #1e1e1e;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #424242;
-    border-radius: 5px;
-    border: 2px solid #1e1e1e;
+    background: var(--color-border);
+    border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #4e4e4e;
+    background: var(--color-text-muted);
   }
 
   ::-webkit-scrollbar-corner {
-    background: #1e1e1e;
+    background: transparent;
   }
 }
 
 /* Selection */
 ::selection {
-  background: #264f78;
-  color: #ffffff;
-}
-
-::-moz-selection {
-  background: #264f78;
-  color: #ffffff;
+  background: var(--color-accent);
+  color: white;
 }

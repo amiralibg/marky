@@ -98,12 +98,12 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
-          className="bg-sidebar-bg border border-white/10 rounded-xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col pointer-events-auto animate-slideUp"
+          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col pointer-events-auto animate-slideUp"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
+          <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-white">Choose a Template</h2>
+              <h2 className="text-xl font-semibold text-text-primary">Choose a Template</h2>
               <p className="text-sm text-text-muted mt-1">Select a template to start your note</p>
             </div>
             <button
@@ -173,11 +173,10 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
                   <button
                     onClick={handleCreateCustom}
                     disabled={!newTemplate.name || !newTemplate.content}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      newTemplate.name && newTemplate.content
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${newTemplate.name && newTemplate.content
                         ? 'bg-accent text-white hover:bg-accent/90'
                         : 'bg-white/10 text-text-muted cursor-not-allowed'
-                    }`}
+                      }`}
                   >
                     Save Template
                   </button>
@@ -204,11 +203,10 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
                       <button
                         key={template.id}
                         onClick={() => handleTemplateClick(template)}
-                        className={`p-4 rounded-lg border-2 text-left transition-all relative ${
-                          isSelected
+                        className={`p-4 rounded-lg border-2 text-left transition-all relative ${isSelected
                             ? 'border-accent bg-accent/10'
                             : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-start gap-3">
                           <span className="text-3xl">{template.icon}</span>
@@ -254,11 +252,10 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
               <button
                 onClick={handleSchedule}
                 disabled={!selectedTemplate}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors border ${
-                  selectedTemplate
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors border ${selectedTemplate
                     ? 'border-accent text-accent hover:bg-accent/10'
                     : 'border-white/10 text-text-muted cursor-not-allowed'
-                }`}
+                  }`}
               >
                 Schedule Recurring
               </button>
@@ -266,11 +263,10 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
             <button
               onClick={handleSelect}
               disabled={!selectedTemplate}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                selectedTemplate
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${selectedTemplate
                   ? 'bg-accent text-white hover:bg-accent/90'
                   : 'bg-white/10 text-text-muted cursor-not-allowed'
-              }`}
+                }`}
             >
               Use Template
             </button>

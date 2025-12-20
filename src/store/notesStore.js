@@ -26,21 +26,31 @@ const folderNameFromPath = (path) => {
   return parts[parts.length - 1] || path;
 };
 
+const stripCodeBlocks = (content) => {
+  if (!content) return '';
+  // Remove fenced code blocks
+  let stripped = content.replace(/```[\s\S]*?```/g, '');
+  // Remove inline code
+  stripped = stripped.replace(/`[^`\n]+`/g, '');
+  return stripped;
+};
+
 // Extract hashtags from markdown content
 const extractTags = (content) => {
   if (!content) return [];
+  const cleanContent = stripCodeBlocks(content);
   // Match #word (but not ##heading or ###heading)
   // Must be preceded by space, newline, or start of string
   // Must be followed by space, punctuation, or end of string
   const tagRegex = /(?:^|[\s])#([a-zA-Z0-9_-]+)(?=[\s.,;!?)]|$)/g;
   const tags = new Set();
   let match;
-  
-  while ((match = tagRegex.exec(content)) !== null) {
+
+  while ((match = tagRegex.exec(cleanContent)) !== null) {
     const tag = match[1].toLowerCase();
     tags.add(tag);
   }
-  
+
   return Array.from(tags).sort();
 };
 
@@ -50,12 +60,13 @@ const buildNoteLinkKey = (name) => normalizeLinkTarget(stripExtension(name || ''
 const extractWikiLinks = (content) => {
   if (!content) return [];
 
+  const cleanContent = stripCodeBlocks(content);
   const wikiLinkRegex = /\[\[([^\[\]]+)\]\]/g;
   const links = [];
   const seen = new Set();
   let match;
 
-  while ((match = wikiLinkRegex.exec(content)) !== null) {
+  while ((match = wikiLinkRegex.exec(cleanContent)) !== null) {
     const inner = match[1].trim();
     if (!inner) continue;
 
@@ -84,11 +95,13 @@ const ensureNoteMetadata = (item) => {
 
   const linkKey = item.linkKey || buildNoteLinkKey(item.name);
   const links = item.links || extractWikiLinks(item.content);
+  const tags = item.tags || extractTags(item.content);
 
   return {
     ...item,
     linkKey,
-    links
+    links,
+    tags
   };
 };
 
@@ -341,7 +354,7 @@ const buildItemsFromFolderData = async ({ folderPath, folderName, files }) => {
         noteContentMap.set(entry.path, ''); // Use empty string as fallback
       }
     });
-  
+
   await Promise.all(noteLoadPromises);
 
   sortedEntries.forEach((entry) => {
@@ -395,6 +408,9 @@ const useNotesStore = create(
     (set, get) => ({
       items: [],
       currentNoteId: null,
+      openNoteIds: [], // Currently open tabs
+      sidebarWidth: 280, // Saved sidebar width
+      editorSplitRatio: 50, // Saved split ratio percentage
       expandedFolders: [],
       rootFolderPath: null,
       rootFolderId: null,
@@ -449,12 +465,12 @@ const useNotesStore = create(
           const normalizedRoot = normalizePath(rootFolderPath);
           const previousItems = state.items;
           const ephemeralItems = previousItems.filter((item) => !item.filePath);
-          
+
           // Preserve content of the currently open note to avoid overwriting while typing
-          const currentNote = state.currentNoteId 
+          const currentNote = state.currentNoteId
             ? previousItems.find(item => item.id === state.currentNoteId && item.type === 'note')
             : null;
-          
+
           const combinedItems = fsItems
             .map((item) => {
               if (currentNote && item.id === currentNote.id && item.type === 'note') {
@@ -680,10 +696,10 @@ const useNotesStore = create(
           items: current.items.map((item) =>
             item.id === noteId && item.type === 'note'
               ? ensureNoteMetadata({
-                  ...item,
-                  content,
-                  updatedAt: new Date().toISOString()
-                })
+                ...item,
+                content,
+                updatedAt: new Date().toISOString()
+              })
               : item
           )
         }));
@@ -708,12 +724,12 @@ const useNotesStore = create(
           const items = state.items.map((item) =>
             item.id === noteId && item.type === 'note'
               ? ensureNoteMetadata({
-                  ...item,
-                  id: replacementId,
-                  filePath,
-                  normalizedPath: normalized,
-                  updatedAt: new Date().toISOString()
-                })
+                ...item,
+                id: replacementId,
+                filePath,
+                normalizedPath: normalized,
+                updatedAt: new Date().toISOString()
+              })
               : item
           );
 
@@ -955,8 +971,13 @@ const useNotesStore = create(
 
       selectNote: (noteId) => {
         const state = get();
+        if (!noteId) {
+          set({ currentNoteId: null });
+          return;
+        }
+
         const note = state.items.find((item) => item.id === noteId && item.type === 'note');
-        
+
         if (note) {
           // Update recent notes list
           const recentNotes = state.recentNotes.filter(r => r.id !== noteId);
@@ -966,17 +987,45 @@ const useNotesStore = create(
             filePath: note.filePath,
             lastOpenedAt: new Date().toISOString()
           });
-          
+
           // Keep only last 10 recent notes
           const trimmedRecent = recentNotes.slice(0, 10);
-          
-          set({ 
+
+          // Manage open tabs
+          const openNoteIds = state.openNoteIds.includes(noteId)
+            ? state.openNoteIds
+            : [...state.openNoteIds, noteId];
+
+          set({
             currentNoteId: noteId,
-            recentNotes: trimmedRecent
+            recentNotes: trimmedRecent,
+            openNoteIds
           });
         } else {
           set({ currentNoteId: noteId });
         }
+      },
+
+      closeNote: (noteId) => {
+        set((state) => {
+          const openNoteIds = state.openNoteIds.filter((id) => id !== noteId);
+          let currentNoteId = state.currentNoteId;
+
+          // If we closed the active note, switch to another one if available
+          if (currentNoteId === noteId) {
+            currentNoteId = openNoteIds.length > 0 ? openNoteIds[openNoteIds.length - 1] : null;
+          }
+
+          return { openNoteIds, currentNoteId };
+        });
+      },
+
+      setSidebarWidth: (width) => {
+        set({ sidebarWidth: width });
+      },
+
+      setEditorSplitRatio: (ratio) => {
+        set({ editorSplitRatio: ratio });
       },
 
       getCurrentNote: () => {
@@ -1091,16 +1140,15 @@ const useNotesStore = create(
       getAllTags: () => {
         const { items } = get();
         const tagCounts = {};
-        
+
         items
-          .filter(item => item.type === 'note' && item.content)
+          .filter(item => item.type === 'note' && item.tags)
           .forEach(note => {
-            const tags = extractTags(note.content);
-            tags.forEach(tag => {
+            note.tags.forEach(tag => {
               tagCounts[tag] = (tagCounts[tag] || 0) + 1;
             });
           });
-        
+
         // Return array of {tag, count} sorted by count descending
         return Object.entries(tagCounts)
           .map(([tag, count]) => ({ tag, count }))
@@ -1110,7 +1158,7 @@ const useNotesStore = create(
       getNoteTags: (noteId) => {
         const { items } = get();
         const note = items.find(item => item.id === noteId && item.type === 'note');
-        return note?.content ? extractTags(note.content) : [];
+        return note?.tags || [];
       },
 
       toggleTagFilter: (tag) => {
@@ -1328,15 +1376,15 @@ const useNotesStore = create(
 
       getFilteredByTags: () => {
         const { items, selectedTags } = get();
-        
+
         if (selectedTags.length === 0) {
           return items;
         }
-        
+
         // Return notes that contain ALL selected tags (AND logic)
         return items.filter(item => {
           if (item.type !== 'note' || !item.content) return false;
-          
+
           const noteTags = extractTags(item.content);
           return selectedTags.every(tag => noteTags.includes(tag));
         });
@@ -1353,6 +1401,9 @@ const useNotesStore = create(
           isLoading: false,
           recentNotes: [],
           pinnedNotes: [],
+          openNoteIds: [],
+          sidebarWidth: 280,
+          editorSplitRatio: 50,
           selectedTags: [],
           customTemplates: [],
           scheduledNotes: []
@@ -1376,7 +1427,10 @@ const useNotesStore = create(
         rootFolderPath: state.rootFolderPath,
         rootFolderId: state.rootFolderId,
         recentNotes: state.recentNotes,
-        pinnedNotes: state.pinnedNotes
+        pinnedNotes: state.pinnedNotes,
+        openNoteIds: state.openNoteIds,
+        sidebarWidth: state.sidebarWidth,
+        editorSplitRatio: state.editorSplitRatio
       }),
       onRehydrateStorage: () => (state) => {
         if (state?.rootFolderPath) {

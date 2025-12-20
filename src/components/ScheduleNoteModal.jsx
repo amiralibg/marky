@@ -335,13 +335,13 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
 
   const previewLabel = schedulePreview
     ? schedulePreview.toLocaleString(undefined, {
-        weekday: 'short',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
+      weekday: 'short',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
     : 'Will calculate when saved';
 
   const activeFolderOption = folderOptions.find((option) => option.value === selectedFolderId);
@@ -355,31 +355,31 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <form
-          className="bg-sidebar-bg border border-white/10 rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col pointer-events-auto animate-slideUp"
+          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col pointer-events-auto animate-slideUp"
           onSubmit={handleSubmit}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="border-b border-white/10 px-6 py-4">
+          <div className="border-b border-glass-border px-6 py-4">
             <div className="flex items-center gap-3">
               <span className="text-3xl" aria-hidden="true">{template.icon}</span>
               <div>
-                <h2 className="text-xl font-semibold text-white">Schedule recurring note</h2>
-                <p className="text-sm text-text-muted">Automatically create <span className="text-white font-medium">{template.name}</span> on a schedule.</p>
+                <h2 className="text-xl font-semibold text-text-primary">Schedule recurring note</h2>
+                <p className="text-sm text-text-muted">Automatically create <span className="text-text-primary font-medium">{template.name}</span> on a schedule.</p>
               </div>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 custom-scrollbar">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-white">Save to folder</span>
+                <span className="text-sm font-medium text-text-primary">Save to folder</span>
                 <select
                   value={selectedFolderId}
                   onChange={(event) => setSelectedFolderId(event.target.value)}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-accent"
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
                 >
                   {folderOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
+                    <option key={option.value} value={option.value} className="bg-bg-sidebar">
                       {option.label}
                     </option>
                   ))}
@@ -387,13 +387,13 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-white">Note name (optional)</span>
+                <span className="text-sm font-medium text-text-primary">Note name (optional)</span>
                 <input
                   type="text"
                   value={noteName}
                   onChange={(event) => setNoteName(event.target.value)}
                   placeholder={template.suggestedTitle || template.name}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-accent"
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
                 />
                 <span className="text-xs text-text-muted">Leave blank to use the template’s suggested title each time.</span>
               </label>
@@ -401,35 +401,35 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-white">Frequency</span>
+                <span className="text-sm font-medium text-text-primary">Frequency</span>
                 <select
                   value={frequency}
                   onChange={(event) => setFrequency(event.target.value)}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-accent"
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
                 >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
+                  <option value="daily" className="bg-bg-sidebar">Daily</option>
+                  <option value="weekly" className="bg-bg-sidebar">Weekly</option>
+                  <option value="monthly" className="bg-bg-sidebar">Monthly</option>
                 </select>
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-white">Start date</span>
+                <span className="text-sm font-medium text-text-primary">Start date</span>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(event) => setStartDate(event.target.value)}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-accent"
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent color-scheme-dark"
                 />
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-white">Time of day</span>
+                <span className="text-sm font-medium text-text-primary">Time of day</span>
                 <input
                   type="time"
                   value={timeOfDay}
                   onChange={(event) => setTimeOfDay(event.target.value)}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-accent"
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent color-scheme-dark"
                 />
               </label>
             </div>
@@ -445,11 +445,10 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                         key={day.value}
                         type="button"
                         onClick={() => handleToggleDay(day.value)}
-                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                          isSelected
+                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${isSelected
                             ? 'bg-accent text-white'
                             : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white'
-                        }`}
+                          }`}
                       >
                         {day.label}
                       </button>
@@ -516,11 +515,10 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
             <button
               type="submit"
               disabled={isSaving}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                isSaving
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isSaving
                   ? 'bg-white/10 text-text-muted cursor-not-allowed'
                   : 'bg-accent text-white hover:bg-accent/90'
-              }`}
+                }`}
             >
               {isSaving ? 'Saving…' : 'Save schedule'}
             </button>
