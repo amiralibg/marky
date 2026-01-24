@@ -145,7 +145,7 @@ const KeymapsModal = ({ isOpen, onClose }) => {
                           <div className="flex items-center gap-1">
                             {keys.map((key, i) => (
                               <span key={i} className="inline-flex items-center">
-                                <kbd className="px-2 py-1 text-xs font-mono bg-overlay-subtle border border-overlay-light rounded shadow-sm text-text-primary min-w-[24px] text-center">
+                                <kbd className="px-2 py-1 text-xs font-mono bg-overlay-subtle border border-overlay-light rounded shadow-sm text-text-primary min-w-6 text-center">
                                   {key}
                                 </kbd>
                                 {i < keys.length - 1 && (

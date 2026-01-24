@@ -5,7 +5,7 @@ const NotificationToast = () => {
     const { notifications, removeNotification } = useUIStore();
 
     return (
-        <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+        <div className="fixed bottom-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
             {notifications.map((n) => (
                 <div
                     key={n.id}

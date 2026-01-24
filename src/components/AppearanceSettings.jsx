@@ -26,7 +26,7 @@ const AppearanceSettings = () => {
               `}
             >
               {/* Theme preview */}
-              <div className="w-full aspect-[4/3] rounded-lg overflow-hidden border border-overlay-light">
+              <div className="w-full aspect-4/3 rounded-lg overflow-hidden border border-overlay-light">
                 <div
                   className="h-full flex"
                   style={{ backgroundColor: theme.preview.bg }}

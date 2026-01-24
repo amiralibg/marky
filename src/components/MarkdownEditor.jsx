@@ -379,7 +379,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
         <div className="absolute bottom-1/4 -left-20 w-96 h-96 bg-blue-500/5 rounded-full blur-[100px] pointer-events-none" />
 
         <div className="text-center z-10 max-w-md px-6 animate-in fade-in zoom-in-95 duration-500">
-          <div className="w-24 h-24 mx-auto mb-8 bg-gradient-to-tr from-accent/20 to-accent/5 rounded-2xl flex items-center justify-center border border-accent/10 shadow-inner">
+          <div className="w-24 h-24 mx-auto mb-8 bg-linear-to-tr from-accent/20 to-accent/5 rounded-2xl flex items-center justify-center border border-accent/10 shadow-inner">
             <svg className="w-12 h-12 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>

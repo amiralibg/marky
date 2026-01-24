@@ -62,12 +62,12 @@ const ConfirmDialog = ({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] animate-fadeIn"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-100 animate-fadeIn"
         onClick={onCancel}
       />
 
       {/* Dialog */}
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pointer-events-none">
+      <div className="fixed inset-0 z-100 flex items-center justify-center p-4 pointer-events-none">
         <div
           className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-md pointer-events-auto animate-slideUp"
           onClick={(e) => e.stopPropagation()}
