@@ -184,7 +184,7 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
                     {Array.from({ length: level }).map((_, i) => (
                         <div
                             key={i}
-                            className="absolute top-0 bottom-0 w-px bg-white/10"
+                            className="absolute top-0 bottom-0 w-px bg-overlay-light"
                             style={{ left: `${i * 16 + 16}px` }}
                         />
                     ))}
@@ -210,7 +210,7 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
             >
                 {isFolder && (
                     <svg
-                        className={`w-4 h-4 mr-1 transition-transform text-white/60 ${isExpanded ? 'rotate-90' : ''}`}
+                        className={`w-4 h-4 mr-1 transition-transform text-text-muted ${isExpanded ? 'rotate-90' : ''}`}
                         fill="currentColor"
                         viewBox="0 0 20 20"
                     >
@@ -231,7 +231,7 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
                     </div>
                 ) : (
                     <div className="flex items-center">
-                        <svg className="w-4 h-4 mr-2 ml-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 mr-2 ml-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         {isPinned(item.id) && (
@@ -249,7 +249,7 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
                         onChange={(e) => setRenamingValue(e.target.value)}
                         onBlur={handleRename}
                         onKeyDown={handleKeyDown}
-                        className="flex-1 bg-white/10 text-white px-2 py-0.5 rounded outline-none border border-white/30 focus:border-accent"
+                        className="flex-1 bg-overlay-light text-text-primary px-2 py-0.5 rounded outline-none border border-overlay-medium focus:border-accent"
                         autoFocus
                         onClick={(e) => e.stopPropagation()}
                     />

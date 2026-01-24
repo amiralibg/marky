@@ -266,7 +266,7 @@ const ExportModal = ({ isOpen, onClose, note }) => {
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              className="p-2 hover:bg-overlay-light rounded-lg transition-colors"
               title="Close"
             >
               <svg className="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -281,7 +281,7 @@ const ExportModal = ({ isOpen, onClose, note }) => {
               onClick={() => setExportFormat('html')}
               className={`w-full p-4 rounded-lg border-2 text-left transition-all ${exportFormat === 'html'
                 ? 'border-accent bg-accent/10'
-                : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10'
+                : 'border-overlay-subtle bg-overlay-subtle hover:bg-overlay-light hover:border-overlay-light'
                 }`}
             >
               <div className="flex items-center gap-3">
@@ -304,7 +304,7 @@ const ExportModal = ({ isOpen, onClose, note }) => {
               onClick={() => setExportFormat('pdf')}
               className={`w-full p-4 rounded-lg border-2 text-left transition-all ${exportFormat === 'pdf'
                 ? 'border-accent bg-accent/10'
-                : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10'
+                : 'border-overlay-subtle bg-overlay-subtle hover:bg-overlay-light hover:border-overlay-light'
                 }`}
             >
               <div className="flex items-center gap-3">
@@ -327,7 +327,7 @@ const ExportModal = ({ isOpen, onClose, note }) => {
               onClick={() => setExportFormat('copy-html')}
               className={`w-full p-4 rounded-lg border-2 text-left transition-all ${exportFormat === 'copy-html'
                 ? 'border-accent bg-accent/10'
-                : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10'
+                : 'border-overlay-subtle bg-overlay-subtle hover:bg-overlay-light hover:border-overlay-light'
                 }`}
             >
               <div className="flex items-center gap-3">
@@ -350,7 +350,7 @@ const ExportModal = ({ isOpen, onClose, note }) => {
               onClick={() => setExportFormat('markdown')}
               className={`w-full p-4 rounded-lg border-2 text-left transition-all ${exportFormat === 'markdown'
                 ? 'border-accent bg-accent/10'
-                : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10'
+                : 'border-overlay-subtle bg-overlay-subtle hover:bg-overlay-light hover:border-overlay-light'
                 }`}
             >
               <div className="flex items-center gap-3">
@@ -374,7 +374,7 @@ const ExportModal = ({ isOpen, onClose, note }) => {
           <div className="border-t border-glass-border px-6 py-4 flex justify-end gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-white/10 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-light rounded-lg transition-colors"
             >
               Cancel
             </button>
@@ -382,7 +382,7 @@ const ExportModal = ({ isOpen, onClose, note }) => {
               onClick={handleExport}
               disabled={isExporting}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors shadow-lg shadow-accent/20 ${isExporting
-                ? 'bg-white/10 text-text-muted cursor-not-allowed'
+                ? 'bg-overlay-light text-text-muted cursor-not-allowed'
                 : 'bg-accent text-white hover:bg-accent-hover'
                 }`}
             >

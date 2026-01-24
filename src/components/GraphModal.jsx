@@ -197,10 +197,10 @@ const GraphModal = ({ isOpen, onClose }) => {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-center bg-white/5 rounded-lg p-1 border border-white/10">
+              <div className="flex items-center bg-overlay-subtle rounded-lg p-1 border border-overlay-light">
                 <button
                   onClick={() => handleZoom(0.2)}
-                  className="p-1.5 hover:bg-white/10 rounded-md text-text-secondary hover:text-white transition-all"
+                  className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
                   title="Zoom In"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -209,7 +209,7 @@ const GraphModal = ({ isOpen, onClose }) => {
                 </button>
                 <button
                   onClick={() => handleZoom(-0.2)}
-                  className="p-1.5 hover:bg-white/10 rounded-md text-text-secondary hover:text-white transition-all"
+                  className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
                   title="Zoom Out"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -219,7 +219,7 @@ const GraphModal = ({ isOpen, onClose }) => {
                 <div className="w-px h-4 bg-white/10 mx-1" />
                 <button
                   onClick={handleReset}
-                  className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-white/10 rounded-md text-text-secondary hover:text-white transition-all"
+                  className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
                 >
                   Reset
                 </button>
@@ -227,7 +227,7 @@ const GraphModal = ({ isOpen, onClose }) => {
 
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors border border-white/5"
+                className="p-2 hover:bg-overlay-light rounded-lg transition-colors border border-white/5"
                 title="Close"
               >
                 <svg className="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -324,7 +324,7 @@ const GraphModal = ({ isOpen, onClose }) => {
             )}
 
             {/* Zoom Indicator */}
-            <div className="absolute bottom-4 right-6 px-2 py-1 bg-black/40 backdrop-blur rounded text-[10px] text-text-muted font-mono border border-white/5 pointer-events-none">
+            <div className="absolute bottom-4 right-6 px-2 py-1 bg-black/20 dark:bg-black/40 backdrop-blur rounded text-[10px] text-text font-mono border border-white/5 pointer-events-none">
               {Math.round(transform.k * 100)}%
             </div>
           </div>

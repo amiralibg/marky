@@ -2,20 +2,28 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import MarkdownEditor from './components/MarkdownEditor';
 import OnboardingModal from './components/OnboardingModal';
-import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import ScheduledNotesManager from './components/ScheduledNotesManager';
 import TemplateModal from './components/TemplateModal';
 import ScheduleNoteModal from './components/ScheduleNoteModal';
 import GraphModal from './components/GraphModal';
 import NotificationToast from './components/NotificationToast';
-import Tabs from './components/Tabs';
+import TitleBar from './components/TitleBar';
+import KeymapsModal from './components/KeymapsModal';
+import AppearanceSettings from './components/AppearanceSettings';
+import KeymapsSettings from './components/KeymapsSettings';
 import useNotesStore from './store/notesStore';
-import useUIStore from './store/uiStore';
+import useSettingsStore, { matchesKeymap } from './store/settingsStore';
 
 function App() {
   const items = useNotesStore((state) => state.items);
   const { sidebarWidth, setSidebarWidth, createNote, renameItem } = useNotesStore();
+  const { keymaps, initializeSettings, isRecordingKeymap } = useSettingsStore();
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+
+  // Initialize settings (apply accent color) on mount
+  useEffect(() => {
+    initializeSettings();
+  }, [initializeSettings]);
 
   const startResizingSidebar = useCallback((e) => {
     e.preventDefault();
@@ -48,11 +56,11 @@ function App() {
       window.removeEventListener('mouseup', stopResizingSidebar);
     };
   }, [isResizingSidebar, resizeSidebar, stopResizingSidebar]);
+
   const processDueSchedules = useNotesStore((state) => state.processDueSchedules);
   const [view, setView] = useState('editor');
-  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showKeymapsModal, setShowKeymapsModal] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
 
   // Modal states
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -101,86 +109,77 @@ function App() {
 
   const showOnboarding = items.length === 0;
 
-  // Handle media query for mobile
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(max-width: 768px)');
-    const handleResize = (e) => {
-      setIsMobile(e.matches);
-      if (e.matches) {
-        setShowSidebar(false);
-      } else {
-        setShowSidebar(true);
-      }
-    };
-
-    // Initial check
-    setIsMobile(mediaQuery.matches);
-    if (mediaQuery.matches) {
-      setShowSidebar(false);
-    }
-
-    mediaQuery.addEventListener('change', handleResize);
-    return () => mediaQuery.removeEventListener('change', handleResize);
-  }, []);
-
-  // Close sidebar on mobile when changing view or performing actions
-  const handleSidebarAction = () => {
-    if (isMobile) {
-      setShowSidebar(false);
-    }
-  };
-
-  // Global keyboard shortcut listener
+  // Global keyboard shortcut listener using configurable keymaps
   useEffect(() => {
     const handleKeyDown = (e) => {
-      const isMod = e.metaKey || e.ctrlKey;
-
-      // Cmd/Ctrl + ? to show shortcuts
-      if (isMod && e.key === '?') {
-        e.preventDefault();
-        setShowShortcuts(true);
+      // Don't handle shortcuts when recording a new keymap
+      if (isRecordingKeymap) {
+        return;
       }
 
-      // Cmd/Ctrl + / to toggle sidebar
-      if (isMod && e.key === '/') {
+      // Don't handle shortcuts when typing in inputs
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Show keymaps modal
+      if (matchesKeymap(e, keymaps.showShortcuts)) {
+        e.preventDefault();
+        setShowKeymapsModal(true);
+        return;
+      }
+
+      // Toggle sidebar
+      if (matchesKeymap(e, keymaps.toggleSidebar)) {
         e.preventDefault();
         setShowSidebar(prev => !prev);
+        return;
       }
 
-      // Cmd/Ctrl + N to create new note (delegate to sidebar)
-      if (isMod && !e.shiftKey && e.key === 'n') {
+      // New note
+      if (matchesKeymap(e, keymaps.newNote)) {
         e.preventDefault();
         sidebarRef.current?.handleNewNote?.();
-        if (isMobile) setShowSidebar(true);
+        return;
       }
 
-      // Cmd/Ctrl + Shift + N to create new folder (delegate to sidebar)
-      if (isMod && e.shiftKey && e.key === 'N') {
+      // New folder
+      if (matchesKeymap(e, keymaps.newFolder)) {
         e.preventDefault();
         sidebarRef.current?.handleNewFolder?.();
-        if (isMobile) setShowSidebar(true);
+        return;
       }
 
-      // Cmd/Ctrl + O to open folder (delegate to sidebar)
-      if (isMod && e.key === 'o') {
+      // Open folder
+      if (matchesKeymap(e, keymaps.openFolder)) {
         e.preventDefault();
         sidebarRef.current?.handleOpenFolder?.();
+        return;
       }
 
-      // Cmd/Ctrl + S is handled by browser/Tauri automatically
-
-      // Cmd/Ctrl + 1/2/3 for view modes (delegate to editor)
-      if (isMod && ['1', '2', '3'].includes(e.key)) {
+      // View modes
+      if (matchesKeymap(e, keymaps.viewEditor)) {
         e.preventDefault();
-        editorRef.current?.setViewMode?.(
-          e.key === '1' ? 'editor' : e.key === '2' ? 'split' : 'preview'
-        );
+        editorRef.current?.setViewMode?.('editor');
+        return;
+      }
+
+      if (matchesKeymap(e, keymaps.viewSplit)) {
+        e.preventDefault();
+        editorRef.current?.setViewMode?.('split');
+        return;
+      }
+
+      if (matchesKeymap(e, keymaps.viewPreview)) {
+        e.preventDefault();
+        editorRef.current?.setViewMode?.('preview');
+        return;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isMobile]);
+  }, [keymaps, isRecordingKeymap]);
 
   useEffect(() => {
     if (typeof processDueSchedules !== 'function') {
@@ -214,36 +213,30 @@ function App() {
 
   return (
     <div className={`h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden ${isResizingSidebar ? 'select-none cursor-col-resize' : ''}`}>
-      <div className="flex-1 flex relative overflow-hidden">
-        {/* Mobile Backdrop */}
-        {isMobile && showSidebar && (
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm z-20 fade-in"
-            onClick={() => setShowSidebar(false)}
-          />
-        )}
+      {/* Custom Title Bar */}
+      <TitleBar
+        sidebarWidth={sidebarWidth}
+        showSidebar={showSidebar}
+        onNewNote={() => sidebarRef.current?.handleNewNote?.()}
+        onNewFolder={() => sidebarRef.current?.handleNewFolder?.()}
+        onToggleSidebar={() => setShowSidebar(prev => !prev)}
+      />
 
+      <div className="flex-1 flex relative overflow-hidden">
         {/* Sidebar */}
         <div
           className={`
-            ${isMobile ? 'absolute inset-y-0 left-0 z-30 shadow-2xl glass-panel' : 'relative shrink-0'}
-            ${!showSidebar && !isMobile ? 'hidden' : ''}
-            ${isMobile && !showSidebar ? '-translate-x-full' : 'translate-x-0'}
+            relative shrink-0
+            ${!showSidebar ? 'hidden' : ''}
             ${isResizingSidebar ? 'transition-none' : 'transition-transform duration-300 ease-in-out'}
             flex flex-col border-r border-border overflow-hidden
           `}
-          style={{ width: isMobile ? '280px' : `${sidebarWidth}px` }}
+          style={{ width: `${sidebarWidth}px` }}
         >
           {showSidebar && (
             <Sidebar
               ref={sidebarRef}
-              isMobile={isMobile}
-              onClose={() => setShowSidebar(false)}
-              onSettingsClick={() => {
-                setView('settings');
-                handleSidebarAction();
-              }}
-              onNoteSelect={handleSidebarAction}
+              onSettingsClick={() => setView('settings')}
               onOpenGraph={() => setShowGraphModal(true)}
               onOpenTemplate={(parentId) => {
                 setTemplateParentId(parentId);
@@ -259,7 +252,7 @@ function App() {
         </div>
 
         {/* Resize Handle */}
-        {!isMobile && showSidebar && (
+        {showSidebar && (
           <div
             onMouseDown={startResizingSidebar}
             className={`
@@ -271,20 +264,6 @@ function App() {
 
         {/* Main Content */}
         <div className={`flex-1 flex flex-col min-w-0 bg-bg-editor ${isResizingSidebar ? 'pointer-events-none' : ''}`}>
-          {view === 'editor' && <Tabs />}
-
-          {/* Mobile Header Toggle (only when sidebar is hidden) */}
-          {isMobile && !showSidebar && (
-            <button
-              onClick={() => setShowSidebar(true)}
-              className="absolute top-3 left-4 z-50 p-2 bg-bg-base/80 backdrop-blur border border-border rounded-lg shadow-sm text-text-secondary hover:text-text-primary"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-          )}
-
           {view === 'editor' ? (
             <MarkdownEditor ref={editorRef} />
           ) : (
@@ -292,7 +271,7 @@ function App() {
               <div className="flex items-center justify-between px-8 py-6 border-b border-border">
                 <div>
                   <h1 className="text-2xl font-bold text-text-primary">Settings</h1>
-                  <p className="text-sm text-text-muted">Manage automations and workspace preferences.</p>
+                  <p className="text-sm text-text-muted">Customize appearance, keyboard shortcuts, and automations.</p>
                 </div>
                 <button
                   onClick={() => setView('editor')}
@@ -303,14 +282,52 @@ function App() {
               </div>
 
               <div className="flex-1 overflow-y-auto px-8 py-6 space-y-10 custom-scrollbar">
+                {/* Appearance Section */}
                 <section className="space-y-4">
-                  <header className="flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="text-xl font-semibold text-text-primary">Scheduled notes</h2>
-                      <p className="text-sm text-text-muted">View and manage recurring note creation.</p>
-                    </div>
+                  <header>
+                    <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+                      <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                      </svg>
+                      Appearance
+                    </h2>
+                    <p className="text-sm text-text-muted mt-1">Personalize the look of your workspace.</p>
                   </header>
-                  <ScheduledNotesManager />
+                  <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+                    <AppearanceSettings />
+                  </div>
+                </section>
+
+                {/* Keyboard Shortcuts Section */}
+                <section className="space-y-4">
+                  <header>
+                    <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+                      <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                      Keyboard Shortcuts
+                    </h2>
+                    <p className="text-sm text-text-muted mt-1">Configure keyboard shortcuts for quick actions.</p>
+                  </header>
+                  <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+                    <KeymapsSettings onOpenKeymapsModal={() => setShowKeymapsModal(true)} />
+                  </div>
+                </section>
+
+                {/* Scheduled Notes Section */}
+                <section className="space-y-4">
+                  <header>
+                    <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+                      <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Scheduled Notes
+                    </h2>
+                    <p className="text-sm text-text-muted mt-1">View and manage recurring note creation.</p>
+                  </header>
+                  <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+                    <ScheduledNotesManager />
+                  </div>
                 </section>
               </div>
             </div>
@@ -318,9 +335,9 @@ function App() {
         </div>
       </div>
       {showOnboarding && <OnboardingModal />}
-      <KeyboardShortcutsModal
-        isOpen={showShortcuts}
-        onClose={() => setShowShortcuts(false)}
+      <KeymapsModal
+        isOpen={showKeymapsModal}
+        onClose={() => setShowKeymapsModal(false)}
       />
       <TemplateModal
         isOpen={showTemplateModal}
@@ -370,7 +387,7 @@ const RenameDialog = ({ item, onSubmit, onCancel }) => {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-titlebar-bg border border-border rounded-lg shadow-2xl p-6 w-96 animate-in zoom-in-95 duration-200">
-        <h2 className="text-lg font-semibold text-white mb-4">
+        <h2 className="text-lg font-semibold text-text-primary mb-4">
           Rename {item.type === 'folder' ? 'Folder' : 'Note'}
         </h2>
         <form onSubmit={handleSubmit}>
@@ -379,7 +396,7 @@ const RenameDialog = ({ item, onSubmit, onCancel }) => {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="w-full px-3 py-2 bg-editor-bg border border-border rounded text-white outline-none focus:border-accent transition-colors"
+            className="w-full px-3 py-2 bg-bg-editor border border-border rounded text-text-primary outline-none focus:border-accent transition-colors"
             placeholder="Enter new name"
             autoFocus
           />
@@ -387,7 +404,7 @@ const RenameDialog = ({ item, onSubmit, onCancel }) => {
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 bg-border hover:bg-border/80 text-white rounded transition-colors"
+              className="px-4 py-2 bg-overlay-light hover:bg-overlay-medium text-text-primary rounded transition-colors"
             >
               Cancel
             </button>

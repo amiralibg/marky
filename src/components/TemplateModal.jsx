@@ -108,7 +108,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              className="p-2 hover:bg-overlay-light rounded-lg transition-colors"
               title="Close"
             >
               <svg className="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,42 +121,42 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
             {showCreateForm ? (
               <div className="max-w-2xl mx-auto space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-white mb-2">Template Name</label>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Template Name</label>
                   <input
                     type="text"
                     value={newTemplate.name}
                     onChange={(event) => setNewTemplate({ ...newTemplate, name: event.target.value })}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-accent"
+                    className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
                     placeholder="My Custom Template"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-white mb-2">Icon (emoji)</label>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Icon (emoji)</label>
                   <input
                     type="text"
                     value={newTemplate.icon}
                     onChange={(event) => setNewTemplate({ ...newTemplate, icon: event.target.value })}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-accent"
+                    className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
                     placeholder="📝"
                     maxLength={2}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-white mb-2">Description</label>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Description</label>
                   <input
                     type="text"
                     value={newTemplate.description}
                     onChange={(event) => setNewTemplate({ ...newTemplate, description: event.target.value })}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-accent"
+                    className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
                     placeholder="Brief description of this template"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-white mb-2">Template Content</label>
+                  <label className="block text-sm font-medium text-text-primary mb-2">Template Content</label>
                   <textarea
                     value={newTemplate.content}
                     onChange={(event) => setNewTemplate({ ...newTemplate, content: event.target.value })}
-                    className="w-full h-48 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-text-muted focus:outline-none focus:border-accent font-mono text-sm resize-none"
+                    className="w-full h-48 px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent font-mono text-sm resize-none"
                     placeholder="# Template Title\n\nYour template content here..."
                   />
                 </div>
@@ -166,7 +166,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
                       setShowCreateForm(false);
                       setNewTemplate({ name: '', icon: '📝', description: '', content: '' });
                     }}
-                    className="px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                    className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-light rounded-lg transition-colors"
                   >
                     Cancel
                   </button>
@@ -174,7 +174,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
                     onClick={handleCreateCustom}
                     disabled={!newTemplate.name || !newTemplate.content}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${newTemplate.name && newTemplate.content
-                        ? 'bg-accent text-white hover:bg-accent/90'
+                        ? 'bg-accent text-text-primary hover:bg-accent/90'
                         : 'bg-white/10 text-text-muted cursor-not-allowed'
                       }`}
                   >
@@ -188,7 +188,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
                   <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Templates</h3>
                   <button
                     onClick={() => setShowCreateForm(true)}
-                    className="px-3 py-1.5 text-xs bg-accent text-white hover:bg-accent/90 rounded-lg transition-colors flex items-center gap-1"
+                    className="px-3 py-1.5 text-xs bg-accent text-text-primary hover:bg-accent/90 rounded-lg transition-colors flex items-center gap-1"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -205,13 +205,13 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
                         onClick={() => handleTemplateClick(template)}
                         className={`p-4 rounded-lg border-2 text-left transition-all relative ${isSelected
                             ? 'border-accent bg-accent/10'
-                            : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
+                            : 'border-overlay-light bg-overlay-subtle hover:bg-overlay-light hover:border-overlay-medium'
                           }`}
                       >
                         <div className="flex items-start gap-3">
                           <span className="text-3xl">{template.icon}</span>
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-white mb-1">{template.name}</h3>
+                            <h3 className="font-semibold text-text-primary mb-1">{template.name}</h3>
                             <p className="text-xs text-text-muted truncate">{template.description}</p>
                           </div>
                           <div className="flex items-center gap-1">
@@ -241,10 +241,10 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
             )}
           </div>
 
-          <div className="border-t border-white/10 px-6 py-4 flex justify-end gap-2">
+          <div className="border-t border-overlay-light px-6 py-4 flex justify-end gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-light rounded-lg transition-colors"
             >
               Cancel
             </button>
@@ -254,7 +254,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
                 disabled={!selectedTemplate}
                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors border ${selectedTemplate
                     ? 'border-accent text-accent hover:bg-accent/10'
-                    : 'border-white/10 text-text-muted cursor-not-allowed'
+                    : 'border-overlay-light text-text-muted cursor-not-allowed'
                   }`}
               >
                 Schedule Recurring
@@ -264,7 +264,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
               onClick={handleSelect}
               disabled={!selectedTemplate}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${selectedTemplate
-                  ? 'bg-accent text-white hover:bg-accent/90'
+                  ? 'bg-accent text-text-primary hover:bg-accent/90'
                   : 'bg-white/10 text-text-muted cursor-not-allowed'
                 }`}
             >

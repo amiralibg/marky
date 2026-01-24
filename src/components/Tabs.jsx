@@ -50,7 +50,7 @@ const Tabs = () => {
                                     closeNote(note.id);
                                 }}
                                 className={`
-                  p-0.5 rounded-md hover:bg-white/10 transition-colors
+                  p-0.5 rounded-md hover:bg-overlay-light transition-colors
                   ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
                 `}
                             >

@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import useNotesStore from '../../store/notesStore';
 import useUIStore from '../../store/uiStore';
+import ConfirmDialog from '../ConfirmDialog';
 
 const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
     const { createFolder, deleteItem, togglePinNote, isPinned } = useNotesStore();
     const { addNotification } = useUIStore();
     const isNotePinned = item.type === 'note' && isPinned(item.id);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const handleAction = async (action) => {
         try {
@@ -22,18 +25,35 @@ const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
                 onClose();
                 return;
             } else if (action === 'delete') {
-                const confirmed = window.confirm(`Are you sure you want to delete ${item.type} "${item.name}"? This action cannot be undone.`);
-                if (confirmed) {
-                    await deleteItem(item.id);
-                    addNotification(`${item.type === 'note' ? 'Note' : 'Folder'} deleted successfully`, 'success');
-                }
+                setShowDeleteConfirm(true);
+                return; // Don't close menu yet, wait for confirmation
             }
         } catch (error) {
             console.error('Context menu action failed:', error);
             addNotification('Action failed: ' + error.message, 'error');
         } finally {
+            if (action !== 'delete') {
+                onClose();
+            }
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        try {
+            await deleteItem(item.id);
+            addNotification(`${item.type === 'note' ? 'Note' : 'Folder'} deleted successfully`, 'success');
+        } catch (error) {
+            console.error('Delete failed:', error);
+            addNotification('Delete failed: ' + error.message, 'error');
+        } finally {
+            setShowDeleteConfirm(false);
             onClose();
         }
+    };
+
+    const handleCancelDelete = () => {
+        setShowDeleteConfirm(false);
+        onClose();
     };
 
     return (
@@ -49,7 +69,7 @@ const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
                 {(item.type === 'folder' || item.type === 'note') && (
                     <>
                         <button
-                            className="w-full px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10 flex items-center gap-2 transition-colors"
+                            className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
                             onClick={() => handleAction('newNote')}
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -58,7 +78,7 @@ const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
                             New Note
                         </button>
                         <button
-                            className="w-full px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10 flex items-center gap-2 transition-colors"
+                            className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
                             onClick={() => handleAction('newFolder')}
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -66,9 +86,9 @@ const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
                             </svg>
                             New Folder
                         </button>
-                        <div className="my-1 border-t border-white/10" />
+                        <div className="my-1 border-t border-glass-border" />
                         <button
-                            className="w-full px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10 flex items-center gap-2 transition-colors"
+                            className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
                             onClick={() => handleAction('rename')}
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -78,7 +98,7 @@ const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
                         </button>
                         {item.type === 'note' && (
                             <button
-                                className="w-full px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10 flex items-center gap-2 transition-colors"
+                                className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
                                 onClick={() => handleAction('pin')}
                             >
                                 <svg className={`w-4 h-4 ${isNotePinned ? 'text-amber-400 fill-amber-400' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,7 +107,7 @@ const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
                                 {isNotePinned ? 'Unpin' : 'Pin to top'}
                             </button>
                         )}
-                        <div className="my-1 border-t border-white/10" />
+                        <div className="my-1 border-t border-glass-border" />
                         <button
                             className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
                             onClick={() => handleAction('delete')}
@@ -100,6 +120,17 @@ const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
                     </>
                 )}
             </div>
+
+            <ConfirmDialog
+                isOpen={showDeleteConfirm}
+                title={`Delete ${item.type === 'folder' ? 'Folder' : 'Note'}`}
+                message={`Are you sure you want to delete "${item.name}"? This action cannot be undone.`}
+                confirmLabel="Delete"
+                cancelLabel="Cancel"
+                variant="danger"
+                onConfirm={handleConfirmDelete}
+                onCancel={handleCancelDelete}
+            />
         </>
     );
 };

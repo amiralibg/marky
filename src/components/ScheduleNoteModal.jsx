@@ -376,7 +376,7 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                 <select
                   value={selectedFolderId}
                   onChange={(event) => setSelectedFolderId(event.target.value)}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                  className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary focus:outline-none focus:border-accent"
                 >
                   {folderOptions.map((option) => (
                     <option key={option.value} value={option.value} className="bg-bg-sidebar">
@@ -393,7 +393,7 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                   value={noteName}
                   onChange={(event) => setNoteName(event.target.value)}
                   placeholder={template.suggestedTitle || template.name}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                  className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
                 />
                 <span className="text-xs text-text-muted">Leave blank to use the template’s suggested title each time.</span>
               </label>
@@ -405,7 +405,7 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                 <select
                   value={frequency}
                   onChange={(event) => setFrequency(event.target.value)}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                  className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary focus:outline-none focus:border-accent"
                 >
                   <option value="daily" className="bg-bg-sidebar">Daily</option>
                   <option value="weekly" className="bg-bg-sidebar">Weekly</option>
@@ -419,7 +419,7 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                   type="date"
                   value={startDate}
                   onChange={(event) => setStartDate(event.target.value)}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent color-scheme-dark"
+                  className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary focus:outline-none focus:border-accent color-scheme-dark"
                 />
               </label>
 
@@ -429,14 +429,14 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                   type="time"
                   value={timeOfDay}
                   onChange={(event) => setTimeOfDay(event.target.value)}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent color-scheme-dark"
+                  className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary focus:outline-none focus:border-accent color-scheme-dark"
                 />
               </label>
             </div>
 
             {frequency === 'weekly' && (
               <div>
-                <p className="text-sm font-medium text-white mb-2">Repeat on</p>
+                <p className="text-sm font-medium text-text-primary mb-2">Repeat on</p>
                 <div className="flex flex-wrap gap-2">
                   {DAYS_OF_WEEK.map((day) => {
                     const isSelected = daysOfWeek.includes(day.value);
@@ -446,8 +446,8 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                         type="button"
                         onClick={() => handleToggleDay(day.value)}
                         className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${isSelected
-                            ? 'bg-accent text-white'
-                            : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white'
+                            ? 'bg-accent text-text-primary'
+                            : 'bg-overlay-subtle text-text-secondary hover:bg-overlay-light hover:text-text-primary'
                           }`}
                       >
                         {day.label}
@@ -462,36 +462,36 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
             {frequency === 'monthly' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label className="flex flex-col gap-2">
-                  <span className="text-sm font-medium text-white">Day of month</span>
+                  <span className="text-sm font-medium text-text-primary">Day of month</span>
                   <input
                     type="number"
                     min="1"
                     max="31"
                     value={dayOfMonth}
                     onChange={(event) => setDayOfMonth(event.target.value)}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-accent"
+                    className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary focus:outline-none focus:border-accent"
                   />
                   <span className="text-xs text-text-muted">Notes will be created on this day each month.</span>
                 </label>
               </div>
             )}
 
-            <div className="bg-white/5 border border-white/10 rounded-lg px-4 py-3">
-              <p className="text-sm text-white font-medium">Next run preview</p>
+            <div className="bg-overlay-subtle border border-overlay-light rounded-lg px-4 py-3">
+              <p className="text-sm text-text-primary font-medium">Next run preview</p>
               <p className="text-sm text-text-muted">
                 {previewLabel}
               </p>
               {activeFolderOption && (
                 <p className="text-xs text-text-muted mt-2">
-                  Notes will be saved to <span className="text-white">{activeFolderOption.label}</span>.
+                  Notes will be saved to <span className="text-text-primary">{activeFolderOption.label}</span>.
                 </p>
               )}
-              <label className="mt-3 flex items-center gap-2 text-sm text-white">
+              <label className="mt-3 flex items-center gap-2 text-sm text-text-primary">
                 <input
                   type="checkbox"
                   checked={createImmediately}
                   onChange={(event) => setCreateImmediately(event.target.checked)}
-                  className="h-4 w-4 rounded border-white/20 bg-white/10"
+                  className="h-4 w-4 rounded border-overlay-medium bg-overlay-light"
                 />
                 <span>Create the first note right away</span>
               </label>
@@ -504,11 +504,11 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
             )}
           </div>
 
-          <div className="border-t border-white/10 px-6 py-4 flex justify-end gap-2">
+          <div className="border-t border-overlay-light px-6 py-4 flex justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-light rounded-lg transition-colors"
             >
               Cancel
             </button>
@@ -516,8 +516,8 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
               type="submit"
               disabled={isSaving}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isSaving
-                  ? 'bg-white/10 text-text-muted cursor-not-allowed'
-                  : 'bg-accent text-white hover:bg-accent/90'
+                  ? 'bg-overlay-light text-text-muted cursor-not-allowed'
+                  : 'bg-accent text-text-primary hover:bg-accent/90'
                 }`}
             >
               {isSaving ? 'Saving…' : 'Save schedule'}

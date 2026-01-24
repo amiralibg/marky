@@ -4,31 +4,26 @@
   "version": "0.0.1",
   "identifier": "com.marky.app",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "label": "main",
-        "title": "Marky - Markdown Notes",
-        "width": 1200,
-        "height": 800,
-        "minWidth": 800,
-        "minHeight": 600,
-        "resizable": true,
-        "fullscreen": false,
-        "visible": false,
-        "backgroundColor": "#1e1e1e"
+        "title": "Marky - Markdown Editor",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "devtools": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       }
     ],
     "security": {
-      "csp": null,
-      "capabilities": [
-        "default"
-      ]
+      "csp": null
     }
   },
   "bundle": {

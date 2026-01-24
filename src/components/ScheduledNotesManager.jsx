@@ -110,7 +110,7 @@ const ScheduledNotesManager = () => {
   if (!scheduledNotes || scheduledNotes.length === 0) {
     return (
       <div className="border border-border rounded-xl bg-sidebar-bg/40 px-6 py-10 text-center text-text-muted">
-        <p className="text-lg font-semibold text-white mb-2">No scheduled notes yet</p>
+        <p className="text-lg font-semibold text-text-primary mb-2">No scheduled notes yet</p>
         <p className="text-sm">Create a schedule from the template picker to have Marky create notes automatically.</p>
       </div>
     );
@@ -127,23 +127,23 @@ const ScheduledNotesManager = () => {
         return (
           <div
             key={schedule.id}
-            className="border border-white/10 bg-sidebar-bg/60 rounded-xl px-5 py-4 flex flex-col gap-3"
+            className="border border-overlay-light bg-sidebar-bg/60 rounded-xl px-5 py-4 flex flex-col gap-3"
           >
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div className="flex items-start gap-3">
                 <span className="text-2xl" aria-hidden="true">{schedule.templateIcon || '📝'}</span>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">{schedule.templateName || 'Template'}</h3>
+                  <h3 className="text-lg font-semibold text-text-primary">{schedule.templateName || 'Template'}</h3>
                   <p className="text-sm text-text-muted">{summary}</p>
-                  <p className="text-sm text-text-muted">Next run: <span className="text-white/90">{nextRun}</span></p>
+                  <p className="text-sm text-text-muted">Next run: <span className="text-text-primary/90">{nextRun}</span></p>
                   <p className="text-xs text-text-muted">
-                    Destination: <span className="text-white/80">{folderLabel}</span>
+                    Destination: <span className="text-text-primary/80">{folderLabel}</span>
                     {schedule.noteName && (
-                      <span> · Title override: <span className="text-white/70">{schedule.noteName}</span></span>
+                      <span> · Title override: <span className="text-text-primary/70">{schedule.noteName}</span></span>
                     )}
                   </p>
                   {lastRun && (
-                    <p className="text-xs text-text-muted">Last run: <span className="text-white/70">{lastRun}</span></p>
+                    <p className="text-xs text-text-muted">Last run: <span className="text-text-primary/70">{lastRun}</span></p>
                   )}
                 </div>
               </div>
@@ -154,7 +154,7 @@ const ScheduledNotesManager = () => {
                   onClick={() => setScheduledNoteEnabled(schedule.id, !schedule.enabled)}
                   className={`px-3 py-1.5 text-sm rounded-lg transition-colors border ${
                     schedule.enabled
-                      ? 'border-white/15 text-white hover:bg-white/10'
+                      ? 'border-overlay-medium text-text-primary hover:bg-overlay-light'
                       : 'border-accent text-accent hover:bg-accent/10'
                   }`}
                 >

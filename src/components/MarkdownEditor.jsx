@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { marked } from "marked";
+import hljs from "highlight.js";
 import Toolbar from "./Toolbar";
 import ExportModal from "./ExportModal";
 import useNotesStore from "../store/notesStore";
@@ -76,6 +77,34 @@ if (!wikiExtensionRegistered) {
         const state = useNotesStore.getState();
         const note = state.findNoteByLinkTarget?.(token.target);
         token.exists = Boolean(note);
+      }
+    },
+    renderer: {
+      code(code, language) {
+        const text = typeof code === 'object' ? code.text : code;
+        const lang = typeof code === 'object' ? code.lang : language;
+        const validLang = lang && hljs.getLanguage(lang);
+        const highlighted = validLang
+          ? hljs.highlight(text, { language: lang }).value
+          : hljs.highlightAuto(text).value;
+        const langLabel = lang || 'text';
+        const escapedCode = text.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+        return `<div class="code-block-wrapper">
+          <div class="code-block-header">
+            <span class="code-block-lang">${escapeHtml(langLabel)}</span>
+            <button class="code-copy-btn" data-code="${escapedCode}" title="Copy code">
+              <svg class="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <svg class="check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </button>
+          </div>
+          <pre><code class="hljs language-${escapeHtml(langLabel)}">${highlighted}</code></pre>
+        </div>`;
       }
     }
   });
@@ -269,6 +298,39 @@ const MarkdownEditor = forwardRef((props, ref) => {
     };
   }, [markdown, viewMode]);
 
+  // Handle copy button clicks on code blocks
+  useEffect(() => {
+    const container = document.querySelector('.markdown-preview');
+    if (!container) return;
+
+    const handleCopyClick = async (e) => {
+      const btn = e.target.closest('.code-copy-btn');
+      if (!btn) return;
+
+      const code = btn.getAttribute('data-code');
+      if (!code) return;
+
+      try {
+        await navigator.clipboard.writeText(code);
+        const copyIcon = btn.querySelector('.copy-icon');
+        const checkIcon = btn.querySelector('.check-icon');
+        if (copyIcon && checkIcon) {
+          copyIcon.style.display = 'none';
+          checkIcon.style.display = 'block';
+          setTimeout(() => {
+            copyIcon.style.display = 'block';
+            checkIcon.style.display = 'none';
+          }, 2000);
+        }
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
+    };
+
+    container.addEventListener('click', handleCopyClick);
+    return () => container.removeEventListener('click', handleCopyClick);
+  }, [markdown, viewMode]);
+
   const handlePreviewClick = useCallback(async (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
@@ -328,7 +390,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
           </p>
 
           <div className="grid grid-cols-1 gap-3 text-left">
-            <div className="p-3 bg-white/5 border border-white/5 rounded-xl hover:border-white/10 transition-colors flex items-center gap-3 group">
+            <div className="p-3 bg-overlay-subtle border border-overlay-subtle rounded-xl hover:border-overlay-light transition-colors flex items-center gap-3 group">
               <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent group-hover:bg-accent/20 transition-colors">
                 <span className="text-xs font-bold">N</span>
               </div>
@@ -338,7 +400,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
               </div>
             </div>
 
-            <div className="p-3 bg-white/5 border border-white/5 rounded-xl hover:border-white/10 transition-colors flex items-center gap-3 group">
+            <div className="p-3 bg-overlay-subtle border border-overlay-subtle rounded-xl hover:border-overlay-light transition-colors flex items-center gap-3 group">
               <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-blue-500/20 transition-colors">
                 <span className="text-xs font-bold">O</span>
               </div>
@@ -348,7 +410,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
               </div>
             </div>
 
-            <div className="p-3 bg-white/5 border border-white/5 rounded-xl hover:border-white/10 transition-colors flex items-center gap-3 group">
+            <div className="p-3 bg-overlay-subtle border border-overlay-subtle rounded-xl hover:border-overlay-light transition-colors flex items-center gap-3 group">
               <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-colors">
                 <span className="text-xs font-bold">G</span>
               </div>
@@ -361,11 +423,11 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
           <div className="mt-12 text-[11px] text-text-muted flex items-center justify-center gap-4 opacity-70">
             <div className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-md">⌘</kbd>
-              <kbd className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-md">K</kbd>
+              <kbd className="px-1.5 py-0.5 bg-overlay-subtle border border-overlay-light rounded-md">⌘</kbd>
+              <kbd className="px-1.5 py-0.5 bg-overlay-subtle border border-overlay-light rounded-md">K</kbd>
               <span>Shortcuts</span>
             </div>
-            <div className="w-1 h-1 bg-white/20 rounded-full" />
+            <div className="w-1 h-1 bg-overlay-medium rounded-full" />
             <span>v1.0.0</span>
           </div>
         </div>
@@ -390,7 +452,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowExportModal(true)}
-            className="px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-white/5 rounded-md transition-colors flex items-center gap-1.5"
+            className="px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-1.5"
             title="Export Note"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -399,12 +461,12 @@ const MarkdownEditor = forwardRef((props, ref) => {
             <span className="hidden sm:inline">Export</span>
           </button>
 
-          <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/5">
+          <div className="flex items-center gap-1 bg-overlay-subtle rounded-lg p-1 border border-overlay-subtle">
             <button
               onClick={() => setViewMode("editor")}
               className={`p-1.5 rounded-md transition-all ${viewMode === "editor"
                 ? "bg-accent text-white shadow-sm"
-                : "text-text-secondary hover:text-text-primary hover:bg-white/5"
+                : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
                 }`}
               title="Editor Only"
             >
@@ -416,7 +478,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
               onClick={() => setViewMode("split")}
               className={`hidden md:block p-1.5 rounded-md transition-all ${viewMode === "split"
                 ? "bg-accent text-white shadow-sm"
-                : "text-text-secondary hover:text-text-primary hover:bg-white/5"
+                : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
                 }`}
               title="Split View"
             >
@@ -428,7 +490,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
               onClick={() => setViewMode("preview")}
               className={`p-1.5 rounded-md transition-all ${viewMode === "preview"
                 ? "bg-accent text-white shadow-sm"
-                : "text-text-secondary hover:text-text-primary hover:bg-white/5"
+                : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
                 }`}
               title="Preview Only"
             >
