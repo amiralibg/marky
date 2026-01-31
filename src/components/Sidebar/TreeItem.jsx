@@ -11,7 +11,8 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
         getChildren,
         renameItem,
         updateNote,
-        isPinned
+        isPinned,
+        getBacklinks
     } = useNotesStore();
     const { addNotification } = useUIStore();
 
@@ -36,6 +37,9 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
 
     // Get cached tags from store
     const noteTags = item.type === 'note' ? (item.tags || []) : [];
+
+    // Get backlinks count for notes
+    const backlinksCount = item.type === 'note' ? getBacklinks(item.id).length : 0;
 
     // Helper to check if target is a descendant of source (prevent dropping folder into itself)
     function isDescendantOf(targetId, sourceId, getChildrenFn) {
@@ -258,6 +262,16 @@ const TreeItem = ({ item, level = 0, onContextMenu, draggedItem, setDraggedItem,
                         <span className="flex-1 text-sm truncate" title={item.filePath || item.name}>
                             {item.name}
                         </span>
+                        {item.type === 'note' && backlinksCount > 0 && (
+                            <div className="flex items-center gap-0.5 ml-2 shrink-0" title={`${backlinksCount} backlink${backlinksCount !== 1 ? 's' : ''}`}>
+                                <svg className="w-3 h-3 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                </svg>
+                                <span className="text-[10px] text-purple-400 font-medium">
+                                    {backlinksCount}
+                                </span>
+                            </div>
+                        )}
                         {item.type === 'note' && noteTags.length > 0 && (
                             <div className="flex items-center gap-1 ml-2">
                                 {noteTags.slice(0, 2).map(tag => (

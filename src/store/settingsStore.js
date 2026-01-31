@@ -162,6 +162,8 @@ export const DEFAULT_KEYMAPS = {
   'newFolder': { key: 'N', modifiers: ['mod', 'shift'], description: 'Create new folder' },
   'openFolder': { key: 'o', modifiers: ['mod'], description: 'Open folder' },
   'save': { key: 's', modifiers: ['mod'], description: 'Save current note' },
+  'commandPalette': { key: 'k', modifiers: ['mod'], description: 'Open command palette' },
+  'search': { key: 'F', modifiers: ['mod', 'shift'], description: 'Search all notes' },
   'toggleSidebar': { key: '/', modifiers: ['mod'], description: 'Toggle sidebar' },
   'showShortcuts': { key: '?', modifiers: ['mod'], description: 'Show keyboard shortcuts' },
   'viewEditor': { key: '1', modifiers: ['mod'], description: 'Editor only view' },
@@ -169,7 +171,7 @@ export const DEFAULT_KEYMAPS = {
   'viewPreview': { key: '3', modifiers: ['mod'], description: 'Preview only view' },
   'bold': { key: 'b', modifiers: ['mod'], description: 'Bold text' },
   'italic': { key: 'i', modifiers: ['mod'], description: 'Italic text' },
-  'link': { key: 'k', modifiers: ['mod'], description: 'Insert link' },
+  'link': { key: 'K', modifiers: ['mod', 'shift'], description: 'Insert link' },
   'codeBlock': { key: 'C', modifiers: ['mod', 'shift'], description: 'Insert code block' },
   'list': { key: 'L', modifiers: ['mod', 'shift'], description: 'Insert list' },
 };
@@ -304,7 +306,22 @@ const useSettingsStore = create(
 
       // Initialize settings (call on app start)
       initializeSettings: () => {
-        const { themeId, accentColorId } = get();
+        const { themeId, accentColorId, keymaps } = get();
+
+        // Merge any new default keymaps with existing user customizations
+        const mergedKeymaps = { ...DEFAULT_KEYMAPS };
+        Object.keys(keymaps).forEach(actionId => {
+          if (DEFAULT_KEYMAPS[actionId]) {
+            // Preserve user customizations
+            mergedKeymaps[actionId] = keymaps[actionId];
+          }
+        });
+
+        // Update if there are new keymaps
+        if (Object.keys(mergedKeymaps).length !== Object.keys(keymaps).length) {
+          set({ keymaps: mergedKeymaps });
+        }
+
         applyTheme(themeId);
         applyAccentColor(accentColorId);
       },

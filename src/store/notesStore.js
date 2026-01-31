@@ -277,6 +277,7 @@ const calculateNextRun = (schedule, referenceDate = new Date()) => {
 };
 
 const pendingWriteTimers = new Map();
+const pendingMetadataTimers = new Map();
 
 const scheduleNoteWrite = (filePath, content) => {
   if (!filePath) return;
@@ -299,6 +300,26 @@ const scheduleNoteWrite = (filePath, content) => {
   pendingWriteTimers.set(key, timer);
 };
 
+const scheduleMetadataUpdate = (noteId, content) => {
+  const existing = pendingMetadataTimers.get(noteId);
+  if (existing) {
+    clearTimeout(existing);
+  }
+
+  const timer = setTimeout(() => {
+    try {
+      const state = useNotesStore.getState();
+      state.updateNoteMetadata(noteId, content);
+    } catch (error) {
+      console.error('Failed to update note metadata:', error);
+    } finally {
+      pendingMetadataTimers.delete(noteId);
+    }
+  }, 1000); // Wait 1 second after typing stops
+
+  pendingMetadataTimers.set(noteId, timer);
+};
+
 const cancelPendingNoteWrite = (filePath) => {
   if (!filePath) return;
   const key = normalizePath(filePath);
@@ -314,6 +335,13 @@ const cancelAllPendingNoteWrites = () => {
     clearTimeout(timer);
   });
   pendingWriteTimers.clear();
+};
+
+const cancelAllPendingMetadataUpdates = () => {
+  pendingMetadataTimers.forEach((timer) => {
+    clearTimeout(timer);
+  });
+  pendingMetadataTimers.clear();
 };
 
 const buildItemsFromFolderData = async ({ folderPath, folderName, files }) => {
@@ -409,6 +437,7 @@ const useNotesStore = create(
       items: [],
       currentNoteId: null,
       openNoteIds: [], // Currently open tabs
+      dirtyNoteIds: [], // Notes with unsaved changes (not persisted)
       sidebarWidth: 280, // Saved sidebar width
       editorSplitRatio: 50, // Saved split ratio percentage
       expandedFolders: [],
@@ -687,25 +716,72 @@ const useNotesStore = create(
       },
 
       updateNote: (noteId, content) => {
-        const state = get();
-        const note = state.items.find(
-          (item) => item.id === noteId && item.type === 'note'
-        );
+        // PERFORMANCE: Update content immediately WITHOUT expensive metadata extraction
+        set((current) => {
+          // Mark note as dirty (has unsaved changes)
+          const dirtyNoteIds = current.dirtyNoteIds.includes(noteId)
+            ? current.dirtyNoteIds
+            : [...current.dirtyNoteIds, noteId];
 
+          return {
+            items: current.items.map((item) =>
+              item.id === noteId && item.type === 'note'
+                ? {
+                  ...item,
+                  content,
+                  updatedAt: new Date().toISOString()
+                }
+                : item
+            ),
+            dirtyNoteIds
+          };
+        });
+
+        // Debounce expensive metadata extraction (tags, links)
+        scheduleMetadataUpdate(noteId, content);
+
+        // Note: Auto-save removed - use saveCurrentNoteToDisk() for manual save
+      },
+
+      updateNoteMetadata: (noteId, content) => {
+        // This does the expensive regex operations, called after typing stops
         set((current) => ({
           items: current.items.map((item) =>
             item.id === noteId && item.type === 'note'
               ? ensureNoteMetadata({
                 ...item,
-                content,
-                updatedAt: new Date().toISOString()
+                content
               })
               : item
           )
         }));
+      },
 
-        if (note?.filePath) {
-          scheduleNoteWrite(note.filePath, content);
+      saveCurrentNoteToDisk: async () => {
+        const state = get();
+        const note = state.items.find(
+          (item) => item.id === state.currentNoteId && item.type === 'note'
+        );
+
+        if (!note?.filePath) {
+          throw new Error('Cannot save: note has no file path');
+        }
+
+        // Cancel any pending write and save immediately
+        cancelPendingNoteWrite(note.filePath);
+
+        try {
+          await writeMarkdownFileOnDisk(note.filePath, note.content);
+
+          // Clear dirty state for this note
+          set((current) => ({
+            dirtyNoteIds: current.dirtyNoteIds.filter(id => id !== note.id)
+          }));
+
+          return true;
+        } catch (error) {
+          console.error('Failed to save note to disk:', error);
+          throw error;
         }
       },
 
@@ -1031,6 +1107,16 @@ const useNotesStore = create(
       getCurrentNote: () => {
         const { items, currentNoteId } = get();
         return items.find((item) => item.id === currentNoteId && item.type === 'note') || null;
+      },
+
+      isNoteDirty: (noteId) => {
+        return get().dirtyNoteIds.includes(noteId);
+      },
+
+      clearNoteDirty: (noteId) => {
+        set((current) => ({
+          dirtyNoteIds: current.dirtyNoteIds.filter(id => id !== noteId)
+        }));
       },
 
       getChildren: (parentId) => {
@@ -1392,6 +1478,7 @@ const useNotesStore = create(
 
       resetStore: () => {
         cancelAllPendingNoteWrites();
+        cancelAllPendingMetadataUpdates();
         set({
           items: [],
           currentNoteId: null,
@@ -1402,6 +1489,7 @@ const useNotesStore = create(
           recentNotes: [],
           pinnedNotes: [],
           openNoteIds: [],
+          dirtyNoteIds: [],
           sidebarWidth: 280,
           editorSplitRatio: 50,
           selectedTags: [],

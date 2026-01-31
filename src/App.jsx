@@ -6,6 +6,8 @@ import ScheduledNotesManager from './components/ScheduledNotesManager';
 import TemplateModal from './components/TemplateModal';
 import ScheduleNoteModal from './components/ScheduleNoteModal';
 import GraphModal from './components/GraphModal';
+import SearchModal from './components/SearchModal';
+import CommandPalette from './components/CommandPalette';
 import NotificationToast from './components/NotificationToast';
 import TitleBar from './components/TitleBar';
 import KeymapsModal from './components/KeymapsModal';
@@ -16,7 +18,7 @@ import useSettingsStore, { matchesKeymap } from './store/settingsStore';
 
 function App() {
   const items = useNotesStore((state) => state.items);
-  const { sidebarWidth, setSidebarWidth, createNote, renameItem } = useNotesStore();
+  const { sidebarWidth, setSidebarWidth, createNote, renameItem, selectNote } = useNotesStore();
   const { keymaps, initializeSettings, isRecordingKeymap } = useSettingsStore();
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
@@ -66,9 +68,12 @@ function App() {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showGraphModal, setShowGraphModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [scheduleTemplate, setScheduleTemplate] = useState(null);
   const [templateParentId, setTemplateParentId] = useState(null);
   const [renamingItem, setRenamingItem] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const sidebarRef = useRef(null);
   const editorRef = useRef(null);
@@ -107,6 +112,69 @@ function App() {
     setRenamingItem(null);
   };
 
+  const handleSearchResultSelect = useCallback((query) => {
+    setSearchQuery(query);
+    // After a short delay, scroll to and highlight the text
+    setTimeout(() => {
+      if (editorRef.current?.scrollToAndHighlight) {
+        editorRef.current.scrollToAndHighlight(query);
+      }
+    }, 100);
+  }, []);
+
+  const handleCommandExecute = useCallback((command) => {
+    const { action, payload } = command;
+
+    switch (action) {
+      case 'selectNote':
+        // Navigate to a note
+        selectNote(payload);
+        break;
+      case 'newNote':
+        sidebarRef.current?.handleNewNote?.();
+        break;
+      case 'newFolder':
+        sidebarRef.current?.handleNewFolder?.();
+        break;
+      case 'openFolder':
+        sidebarRef.current?.handleOpenFolder?.();
+        break;
+      case 'save':
+        // Trigger save in editor
+        editorRef.current?.handleSave?.();
+        break;
+      case 'search':
+        setShowSearchModal(true);
+        break;
+      case 'toggleSidebar':
+        setShowSidebar(prev => !prev);
+        break;
+      case 'viewEditor':
+        editorRef.current?.setViewMode?.('editor');
+        break;
+      case 'viewSplit':
+        editorRef.current?.setViewMode?.('split');
+        break;
+      case 'viewPreview':
+        editorRef.current?.setViewMode?.('preview');
+        break;
+      case 'openGraph':
+        setShowGraphModal(true);
+        break;
+      case 'exportNote':
+        editorRef.current?.handleExport?.();
+        break;
+      case 'openSettings':
+        setView('settings');
+        break;
+      case 'showShortcuts':
+        setShowKeymapsModal(true);
+        break;
+      default:
+        console.warn(`Unknown command action: ${action}`);
+    }
+  }, [selectNote, setShowSidebar, setView]);
+
   const showOnboarding = items.length === 0;
 
   // Global keyboard shortcut listener using configurable keymaps
@@ -117,7 +185,21 @@ function App() {
         return;
       }
 
-      // Don't handle shortcuts when typing in inputs
+      // Command palette - allow even when typing
+      if (matchesKeymap(e, keymaps.commandPalette)) {
+        e.preventDefault();
+        setShowCommandPalette(true);
+        return;
+      }
+
+      // Search modal - allow even when typing
+      if (matchesKeymap(e, keymaps.search)) {
+        e.preventDefault();
+        setShowSearchModal(true);
+        return;
+      }
+
+      // Don't handle other shortcuts when typing in inputs
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
         return;
       }
@@ -357,6 +439,16 @@ function App() {
       <GraphModal
         isOpen={showGraphModal}
         onClose={() => setShowGraphModal(false)}
+      />
+      <SearchModal
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        onSelectResult={handleSearchResultSelect}
+      />
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        onExecuteCommand={handleCommandExecute}
       />
       <NotificationToast />
       {renamingItem && (

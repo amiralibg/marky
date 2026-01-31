@@ -8,8 +8,12 @@ const KEYMAP_CATEGORIES = [
     actions: ['newNote', 'newFolder', 'openFolder', 'save']
   },
   {
+    name: 'Navigation',
+    actions: ['commandPalette', 'search', 'toggleSidebar']
+  },
+  {
     name: 'View',
-    actions: ['toggleSidebar', 'viewEditor', 'viewSplit', 'viewPreview']
+    actions: ['viewEditor', 'viewSplit', 'viewPreview']
   },
   {
     name: 'Editing',

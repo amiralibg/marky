@@ -14,6 +14,7 @@ import {
 
 import TreeItem from './Sidebar/TreeItem';
 import ContextMenu from './Sidebar/ContextMenu';
+import BacklinkItem from './Sidebar/BacklinkItem';
 
 
 const Sidebar = forwardRef(({
@@ -41,7 +42,8 @@ const Sidebar = forwardRef(({
     isPinned,
     toggleTagFilter,
     selectedTags,
-    clearTagFilters
+    clearTagFilters,
+    isLoading
   } = useNotesStore();
   const { addNotification } = useUIStore();
   const [contextMenu, setContextMenu] = useState(null);
@@ -51,6 +53,8 @@ const Sidebar = forwardRef(({
   const [showPinnedNotes, setShowPinnedNotes] = useState(true);
   const [showTags, setShowTags] = useState(false);
   const [showBacklinks, setShowBacklinks] = useState(true);
+  const [sortBy, setSortBy] = useState('name-asc'); // 'name-asc', 'name-desc', 'date-desc', 'date-asc'
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const dropHandledRef = useRef(false);
   const currentNote = getCurrentNote();
   const backlinks = currentNote ? getBacklinks(currentNote.id) : [];
@@ -129,7 +133,28 @@ const Sidebar = forwardRef(({
     filteredItems = filterItemsBySearch(filteredItems, searchQuery);
   }
 
-  const rootItems = filteredItems.filter(item => item.parentId === null);
+  let rootItems = filteredItems.filter(item => item.parentId === null);
+
+  // Sort items based on sortBy state
+  rootItems = rootItems.sort((a, b) => {
+    // Always keep folders first
+    if (a.type !== b.type) {
+      return a.type === 'folder' ? -1 : 1;
+    }
+
+    switch (sortBy) {
+      case 'name-asc':
+        return a.name.localeCompare(b.name);
+      case 'name-desc':
+        return b.name.localeCompare(a.name);
+      case 'date-desc':
+        return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
+      case 'date-asc':
+        return new Date(a.updatedAt || a.createdAt) - new Date(b.updatedAt || b.createdAt);
+      default:
+        return a.name.localeCompare(b.name);
+    }
+  });
 
   const handleContextMenu = (e, item) => {
     e.preventDefault();
@@ -314,32 +339,44 @@ const Sidebar = forwardRef(({
 
   // File watcher effect
   useEffect(() => {
-
     if (!rootFolderPath) {
       return undefined;
     }
 
-
     let isMounted = true;
     let unlistenFileChange = null;
     let unlistenRecentNote = null;
+    let debounceTimer = null;
+
+    // Debounced refresh to handle rapid file changes (git operations, etc.)
+    const debouncedRefresh = () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      debounceTimer = setTimeout(async () => {
+        if (!isMounted) return;
+        try {
+          await refreshRootFromDisk();
+          addNotification('Workspace synced', 'success');
+        } catch (error) {
+          console.error('Failed to refresh folder after file change:', error);
+        }
+      }, 300); // 300ms debounce for rapid file changes
+    };
 
     const setupWatcher = async () => {
       try {
         // Start watching the root folder
         await watchFolder(rootFolderPath);
+        console.log('📂 File watcher started:', rootFolderPath);
 
         // Listen for file change events
         unlistenFileChange = await listen('file-change', async (event) => {
           if (!isMounted) return;
+          console.log('📝 File change detected:', event.payload);
 
-
-          // Refresh the folder tree from disk
-          try {
-            await refreshRootFromDisk();
-          } catch (error) {
-            console.error('Failed to refresh folder after file change:', error);
-          }
+          // Debounced refresh to handle rapid changes gracefully
+          debouncedRefresh();
         });
 
         // Listen for recent note clicks from dock menu
@@ -365,6 +402,11 @@ const Sidebar = forwardRef(({
 
     return () => {
       isMounted = false;
+
+      // Clear debounce timer
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
 
       // Cleanup listeners
       if (unlistenFileChange) {
@@ -421,6 +463,61 @@ const Sidebar = forwardRef(({
         {searchQuery && (
           <div className="mt-2 text-xs text-text-muted px-1">
             Found {filteredItems.filter(i => i.type === 'note').length} notes
+          </div>
+        )}
+        {/* Sort Options */}
+        {!searchQuery && rootFolderPath && (
+          <div className="mt-2 relative">
+            <button
+              onClick={() => setShowSortMenu(!showSortMenu)}
+              className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                </svg>
+                <span>
+                  Sort: {sortBy === 'name-asc' ? 'Name (A-Z)' :
+                         sortBy === 'name-desc' ? 'Name (Z-A)' :
+                         sortBy === 'date-desc' ? 'Date (Newest)' :
+                         'Date (Oldest)'}
+                </span>
+              </div>
+              <svg className={`w-3 h-3 transition-transform ${showSortMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showSortMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />
+                <div className="absolute left-0 right-0 top-full mt-1 glass-panel rounded-lg shadow-xl py-1 z-20 animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    onClick={() => { setSortBy('name-asc'); setShowSortMenu(false); }}
+                    className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === 'name-asc' ? 'bg-accent/10 text-accent' : 'text-text-secondary hover:bg-overlay-light hover:text-text-primary'}`}
+                  >
+                    Name (A-Z)
+                  </button>
+                  <button
+                    onClick={() => { setSortBy('name-desc'); setShowSortMenu(false); }}
+                    className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === 'name-desc' ? 'bg-accent/10 text-accent' : 'text-text-secondary hover:bg-overlay-light hover:text-text-primary'}`}
+                  >
+                    Name (Z-A)
+                  </button>
+                  <button
+                    onClick={() => { setSortBy('date-desc'); setShowSortMenu(false); }}
+                    className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === 'date-desc' ? 'bg-accent/10 text-accent' : 'text-text-secondary hover:bg-overlay-light hover:text-text-primary'}`}
+                  >
+                    Date (Newest First)
+                  </button>
+                  <button
+                    onClick={() => { setSortBy('date-asc'); setShowSortMenu(false); }}
+                    className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === 'date-asc' ? 'bg-accent/10 text-accent' : 'text-text-secondary hover:bg-overlay-light hover:text-text-primary'}`}
+                  >
+                    Date (Oldest First)
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -567,6 +664,45 @@ const Sidebar = forwardRef(({
           </div>
         )}
 
+        {/* Backlinks Section */}
+        {!searchQuery && currentNote && backlinks.length > 0 && (
+          <div className="mb-0.5">
+            <button
+              onClick={() => setShowBacklinks(!showBacklinks)}
+              className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
+            >
+              <div className="flex items-center gap-1.5">
+                <svg className="w-3 h-3 opacity-50 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                <span>Backlinks</span>
+                <span className="ml-1 px-1 py-px bg-accent/20 text-accent text-[9px] rounded-full">
+                  {backlinks.length}
+                </span>
+              </div>
+              <svg
+                className={`w-3 h-3 transition-transform opacity-50 group-hover:opacity-100 ${showBacklinks ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showBacklinks && (
+              <div className="space-y-0.5 mt-0.5">
+                {backlinks.map((backlink) => (
+                  <BacklinkItem
+                    key={backlink.id}
+                    backlink={backlink}
+                    onNavigate={selectNote}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Navigation Buttons Row */}
         {!searchQuery && (
           <div className="grid grid-cols-2 gap-1 px-1 mb-3 pt-2">
@@ -599,7 +735,14 @@ const Sidebar = forwardRef(({
         className={`flex-1 overflow-y-auto px-3 py-2 space-y-0.5 custom-scrollbar bg-transparent ${draggedItem ? 'bg-overlay-subtle rounded-lg mx-2 border border-overlay-light border-dashed' : ''}`}
         onMouseUp={draggedItem ? handleDropToRoot : undefined}
       >
-        {rootItems.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center h-full text-text-muted px-4 animate-pulse">
+            <svg className="w-8 h-8 animate-spin text-accent mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <p className="text-sm">Scanning folder...</p>
+          </div>
+        ) : rootItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-text-muted px-4 animate-in fade-in duration-700">
             <div className="mb-6 relative">
               <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full" />

@@ -98,7 +98,7 @@ const TitleBar = ({
       </div>
 
       {/* Right section - Tabs area */}
-      <div className="flex-1 flex items-center min-w-0 overflow-hidden">
+      <div className="flex-1 flex items-center min-w-0">
         {/* Tabs */}
         {openNotes.length > 0 && (
           <div
@@ -112,7 +112,7 @@ const TitleBar = ({
                 <div
                   key={note.id}
                   className={`
-                    group flex items-center gap-2 px-3 h-8 border-r border-border cursor-pointer transition-all duration-200 min-w-[100px] max-w-[180px]
+                    group flex items-center gap-2 px-3 h-8 border-r border-border cursor-pointer transition-all duration-200 min-w-[120px] max-w-[200px]
                     ${isActive
                       ? 'bg-bg-editor text-accent active-tab'
                       : 'text-text-secondary hover:bg-item-hover hover:text-text-primary'
