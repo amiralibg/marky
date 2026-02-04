@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import MarkdownEditor from './components/MarkdownEditor';
 import OnboardingModal from './components/OnboardingModal';
-import ScheduledNotesManager from './components/ScheduledNotesManager';
 import TemplateModal from './components/TemplateModal';
 import ScheduleNoteModal from './components/ScheduleNoteModal';
 import GraphModal from './components/GraphModal';
@@ -11,15 +10,17 @@ import CommandPalette from './components/CommandPalette';
 import NotificationToast from './components/NotificationToast';
 import TitleBar from './components/TitleBar';
 import KeymapsModal from './components/KeymapsModal';
-import AppearanceSettings from './components/AppearanceSettings';
-import KeymapsSettings from './components/KeymapsSettings';
-import useNotesStore from './store/notesStore';
+import ConfirmDialog from './components/ConfirmDialog';
+import useNotesStore, { SETTINGS_TAB_ID } from './store/notesStore';
 import useSettingsStore, { matchesKeymap } from './store/settingsStore';
+import useUIStore from './store/uiStore';
+import { exportWorkspaceAsZip } from './utils/backup';
 
 function App() {
   const items = useNotesStore((state) => state.items);
-  const { sidebarWidth, setSidebarWidth, createNote, renameItem, selectNote } = useNotesStore();
+  const { sidebarWidth, setSidebarWidth, createNote, renameItem, selectNote, closeNote, currentNoteId } = useNotesStore();
   const { keymaps, initializeSettings, isRecordingKeymap } = useSettingsStore();
+  const { focusMode, toggleFocusMode } = useUIStore();
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
   // Initialize settings (apply accent color) on mount
@@ -60,9 +61,9 @@ function App() {
   }, [isResizingSidebar, resizeSidebar, stopResizingSidebar]);
 
   const processDueSchedules = useNotesStore((state) => state.processDueSchedules);
-  const [view, setView] = useState('editor');
   const [showKeymapsModal, setShowKeymapsModal] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [closeConfirmation, setCloseConfirmation] = useState(null); // { noteId, noteName }
 
   // Modal states
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -111,6 +112,23 @@ function App() {
     }
     setRenamingItem(null);
   };
+
+  const handleCloseTab = useCallback((noteId) => {
+    // Settings tab can be closed directly without confirmation
+    if (noteId === SETTINGS_TAB_ID) {
+      closeNote(noteId);
+      return;
+    }
+
+    // Check if the note has unsaved changes
+    const hasUnsaved = useNotesStore.getState().isNoteDirty(noteId);
+    if (hasUnsaved) {
+      const note = items.find(item => item.id === noteId);
+      setCloseConfirmation({ noteId, noteName: note?.name || 'Untitled' });
+    } else {
+      closeNote(noteId);
+    }
+  }, [closeNote, items]);
 
   const handleSearchResultSelect = useCallback((query) => {
     setSearchQuery(query);
@@ -165,15 +183,38 @@ function App() {
         editorRef.current?.handleExport?.();
         break;
       case 'openSettings':
-        setView('settings');
+        selectNote(SETTINGS_TAB_ID);
         break;
       case 'showShortcuts':
         setShowKeymapsModal(true);
         break;
+      case 'toggleFocusMode':
+        toggleFocusMode();
+        break;
+      case 'backupWorkspace': {
+        const { rootFolderPath, items: storeItems } = useNotesStore.getState();
+        const settings = useSettingsStore.getState();
+        const { addNotification } = useUIStore.getState();
+        if (!rootFolderPath) {
+          addNotification('No workspace folder is open', 'warning');
+          break;
+        }
+        exportWorkspaceAsZip(rootFolderPath, storeItems, {
+          themeId: settings.themeId,
+          accentColorId: settings.accentColorId,
+          vimMode: settings.vimMode,
+        }).then(path => {
+          if (path) addNotification('Workspace backup saved', 'success');
+        }).catch(err => {
+          console.error('Backup failed:', err);
+          addNotification('Backup failed: ' + err.message, 'error');
+        });
+        break;
+      }
       default:
         console.warn(`Unknown command action: ${action}`);
     }
-  }, [selectNote, setShowSidebar, setView]);
+  }, [selectNote, setShowSidebar, toggleFocusMode]);
 
   const showOnboarding = items.length === 0;
 
@@ -196,6 +237,32 @@ function App() {
       if (matchesKeymap(e, keymaps.search)) {
         e.preventDefault();
         setShowSearchModal(true);
+        return;
+      }
+
+      // Close current tab (Cmd/Ctrl+W)
+      // Allow this even when typing in the editor
+      if (matchesKeymap(e, keymaps.closeTab)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        if (currentNoteId) {
+          handleCloseTab(currentNoteId);
+        }
+        return;
+      }
+
+      // Focus mode toggle (Cmd/Ctrl+Shift+Enter) - allow even when typing
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+        e.preventDefault();
+        toggleFocusMode();
+        return;
+      }
+
+      // Escape exits focus mode
+      if (e.key === 'Escape' && focusMode) {
+        e.preventDefault();
+        toggleFocusMode();
         return;
       }
 
@@ -261,7 +328,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [keymaps, isRecordingKeymap]);
+  }, [keymaps, isRecordingKeymap, currentNoteId, handleCloseTab, focusMode, toggleFocusMode]);
 
   useEffect(() => {
     if (typeof processDueSchedules !== 'function') {
@@ -296,45 +363,50 @@ function App() {
   return (
     <div className={`h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden ${isResizingSidebar ? 'select-none cursor-col-resize' : ''}`}>
       {/* Custom Title Bar */}
-      <TitleBar
-        sidebarWidth={sidebarWidth}
-        showSidebar={showSidebar}
-        onNewNote={() => sidebarRef.current?.handleNewNote?.()}
-        onNewFolder={() => sidebarRef.current?.handleNewFolder?.()}
-        onToggleSidebar={() => setShowSidebar(prev => !prev)}
-      />
+      {!focusMode && (
+        <TitleBar
+          sidebarWidth={sidebarWidth}
+          showSidebar={showSidebar}
+          onNewNote={() => sidebarRef.current?.handleNewNote?.()}
+          onNewFolder={() => sidebarRef.current?.handleNewFolder?.()}
+          onToggleSidebar={() => setShowSidebar(prev => !prev)}
+          onCloseTab={handleCloseTab}
+        />
+      )}
 
       <div className="flex-1 flex relative overflow-hidden">
         {/* Sidebar */}
-        <div
-          className={`
-            relative shrink-0
-            ${!showSidebar ? 'hidden' : ''}
-            ${isResizingSidebar ? 'transition-none' : 'transition-transform duration-300 ease-in-out'}
-            flex flex-col border-r border-border overflow-hidden
-          `}
-          style={{ width: `${sidebarWidth}px` }}
-        >
-          {showSidebar && (
-            <Sidebar
-              ref={sidebarRef}
-              onSettingsClick={() => setView('settings')}
-              onOpenGraph={() => setShowGraphModal(true)}
-              onOpenTemplate={(parentId) => {
-                setTemplateParentId(parentId);
-                setShowTemplateModal(true);
-              }}
-              onOpenSchedule={(template) => {
-                setScheduleTemplate(template);
-                setShowScheduleModal(true);
-              }}
-              onRenameItem={(item) => setRenamingItem(item)}
-            />
-          )}
-        </div>
+        {!focusMode && (
+          <div
+            className={`
+              relative shrink-0
+              ${!showSidebar ? 'hidden' : ''}
+              ${isResizingSidebar ? 'transition-none' : 'transition-transform duration-300 ease-in-out'}
+              flex flex-col border-r border-border overflow-hidden
+            `}
+            style={{ width: `${sidebarWidth}px` }}
+          >
+            {showSidebar && (
+              <Sidebar
+                ref={sidebarRef}
+                onSettingsClick={() => selectNote(SETTINGS_TAB_ID)}
+                onOpenGraph={() => setShowGraphModal(true)}
+                onOpenTemplate={(parentId) => {
+                  setTemplateParentId(parentId);
+                  setShowTemplateModal(true);
+                }}
+                onOpenSchedule={(template) => {
+                  setScheduleTemplate(template);
+                  setShowScheduleModal(true);
+                }}
+                onRenameItem={(item) => setRenamingItem(item)}
+              />
+            )}
+          </div>
+        )}
 
         {/* Resize Handle */}
-        {showSidebar && (
+        {showSidebar && !focusMode && (
           <div
             onMouseDown={startResizingSidebar}
             className={`
@@ -346,74 +418,7 @@ function App() {
 
         {/* Main Content */}
         <div className={`flex-1 flex flex-col min-w-0 bg-bg-editor ${isResizingSidebar ? 'pointer-events-none' : ''}`}>
-          {view === 'editor' ? (
-            <MarkdownEditor ref={editorRef} />
-          ) : (
-            <div className="flex-1 flex flex-col overflow-hidden bg-bg-base animate-in fade-in zoom-in-95 duration-200">
-              <div className="flex items-center justify-between px-8 py-6 border-b border-border">
-                <div>
-                  <h1 className="text-2xl font-bold text-text-primary">Settings</h1>
-                  <p className="text-sm text-text-muted">Customize appearance, keyboard shortcuts, and automations.</p>
-                </div>
-                <button
-                  onClick={() => setView('editor')}
-                  className="px-4 py-2 text-sm font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors shadow-lg shadow-accent/20"
-                >
-                  Back to editor
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-8 py-6 space-y-10 custom-scrollbar">
-                {/* Appearance Section */}
-                <section className="space-y-4">
-                  <header>
-                    <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
-                      <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                      </svg>
-                      Appearance
-                    </h2>
-                    <p className="text-sm text-text-muted mt-1">Personalize the look of your workspace.</p>
-                  </header>
-                  <div className="bg-white/5 rounded-xl border border-white/10 p-6">
-                    <AppearanceSettings />
-                  </div>
-                </section>
-
-                {/* Keyboard Shortcuts Section */}
-                <section className="space-y-4">
-                  <header>
-                    <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
-                      <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                      </svg>
-                      Keyboard Shortcuts
-                    </h2>
-                    <p className="text-sm text-text-muted mt-1">Configure keyboard shortcuts for quick actions.</p>
-                  </header>
-                  <div className="bg-white/5 rounded-xl border border-white/10 p-6">
-                    <KeymapsSettings onOpenKeymapsModal={() => setShowKeymapsModal(true)} />
-                  </div>
-                </section>
-
-                {/* Scheduled Notes Section */}
-                <section className="space-y-4">
-                  <header>
-                    <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
-                      <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Scheduled Notes
-                    </h2>
-                    <p className="text-sm text-text-muted mt-1">View and manage recurring note creation.</p>
-                  </header>
-                  <div className="bg-white/5 rounded-xl border border-white/10 p-6">
-                    <ScheduledNotesManager />
-                  </div>
-                </section>
-              </div>
-            </div>
-          )}
+          <MarkdownEditor ref={editorRef} onOpenKeymapsModal={() => setShowKeymapsModal(true)} focusMode={focusMode} />
         </div>
       </div>
       {showOnboarding && <OnboardingModal />}
@@ -456,6 +461,37 @@ function App() {
           item={renamingItem}
           onSubmit={handleRenameSubmit}
           onCancel={() => setRenamingItem(null)}
+        />
+      )}
+      {closeConfirmation && (
+        <ConfirmDialog
+          isOpen={true}
+          title="Unsaved Changes"
+          message={`Do you want to save changes to "${closeConfirmation.noteName}" before closing?`}
+          confirmLabel="Save & Close"
+          cancelLabel="Discard"
+          variant="warning"
+          onConfirm={async () => {
+            try {
+              // Save the note before closing
+              const prevNoteId = currentNoteId;
+              selectNote(closeConfirmation.noteId);
+              await useNotesStore.getState().saveCurrentNoteToDisk();
+              closeNote(closeConfirmation.noteId);
+              // Restore previous selection if it wasn't the one we closed
+              if (prevNoteId !== closeConfirmation.noteId) {
+                selectNote(prevNoteId);
+              }
+              setCloseConfirmation(null);
+            } catch (error) {
+              console.error('Failed to save note:', error);
+              alert('Failed to save: ' + error.message);
+            }
+          }}
+          onCancel={() => {
+            closeNote(closeConfirmation.noteId);
+            setCloseConfirmation(null);
+          }}
         />
       )}
     </div>

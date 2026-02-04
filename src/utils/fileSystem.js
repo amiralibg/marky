@@ -268,6 +268,25 @@ export async function stopWatching() {
 }
 
 /**
+ * Copy files or folders from external sources to a target folder
+ * @param {Array<string>} sourcePaths - Array of file/folder paths to copy
+ * @param {string} destFolderPath - Destination folder path
+ * @returns {Promise<Array<string>>} Array of new paths after copy
+ */
+export async function copyEntriesToFolder(sourcePaths, destFolderPath) {
+  try {
+    const newPaths = await invoke('copy_entries_to_folder', {
+      sourcePaths,
+      destFolderPath
+    });
+    return newPaths;
+  } catch (error) {
+    console.error('Error copying entries:', error);
+    throw error;
+  }
+}
+
+/**
  * Check if running in Tauri environment
  * @returns {boolean}
  */

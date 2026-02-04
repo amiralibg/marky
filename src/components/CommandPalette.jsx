@@ -33,6 +33,12 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
     { id: 'export', name: 'Export Note', category: 'Tools', icon: '📤', action: 'exportNote', keywords: ['download', 'save as'] },
     { id: 'settings', name: 'Open Settings', category: 'Tools', icon: '⚙️', action: 'openSettings', keywords: ['preferences', 'config'] },
     { id: 'shortcuts', name: 'Show Keyboard Shortcuts', category: 'Help', icon: '⌨️', action: 'showShortcuts', keywords: ['help', 'keybindings'] },
+
+    // Focus
+    { id: 'focus-mode', name: 'Toggle Focus Mode', category: 'View', icon: '🎯', action: 'toggleFocusMode', keywords: ['distraction', 'zen', 'write', 'fullscreen'] },
+
+    // Backup
+    { id: 'backup', name: 'Backup Workspace', category: 'Tools', icon: '📦', action: 'backupWorkspace', keywords: ['export', 'zip', 'archive', 'save'] },
   ];
 
   // Get all notes for navigation

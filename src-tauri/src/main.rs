@@ -225,6 +225,67 @@ fn move_entry(source_path: String, dest_folder_path: String) -> Result<String, S
 }
 
 #[tauri::command]
+fn copy_entries_to_folder(source_paths: Vec<String>, dest_folder_path: String) -> Result<Vec<String>, String> {
+    let dest_folder = PathBuf::from(&dest_folder_path);
+
+    if !dest_folder.exists() || !dest_folder.is_dir() {
+        return Err("Destination folder does not exist".to_string());
+    }
+
+    let mut new_paths = Vec::new();
+
+    for source_path in source_paths {
+        let source = PathBuf::from(&source_path);
+
+        if !source.exists() {
+            continue; // Skip non-existent sources
+        }
+
+        let file_name = source
+            .file_name()
+            .ok_or("Invalid source name")?
+            .to_string_lossy()
+            .to_string();
+
+        let is_dir = source.is_dir();
+        let (target, _) = resolve_unique_path(&dest_folder, &file_name, is_dir)?;
+
+        // Copy directory or file
+        if is_dir {
+            copy_dir_all(&source, &target)
+                .map_err(|e| format!("Failed to copy directory: {}", e))?;
+        } else {
+            fs::copy(&source, &target)
+                .map_err(|e| format!("Failed to copy file: {}", e))?;
+        }
+
+        new_paths.push(target.to_string_lossy().to_string());
+    }
+
+    Ok(new_paths)
+}
+
+// Helper function to recursively copy directories
+fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(dst)?;
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if file_type.is_dir() {
+            copy_dir_all(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)?;
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 fn scan_folder_for_markdown(folder_path: String) -> Result<Vec<MarkdownFile>, String> {
     let path = PathBuf::from(&folder_path);
 
@@ -434,8 +495,11 @@ fn main() {
             )?;
             let save_note =
                 MenuItem::with_id(app, "menu://save-note", "Save", true, Some("CmdOrCtrl+S"))?;
+            let close_note =
+                MenuItem::with_id(app, "menu://close-note", "Close Note", true, Some("CmdOrCtrl+W"))?;
             let separator_one = PredefinedMenuItem::separator(app)?;
             let separator_two = PredefinedMenuItem::separator(app)?;
+            let separator_three = PredefinedMenuItem::separator(app)?;
 
             let workspace = Submenu::with_items(
                 app,
@@ -449,6 +513,8 @@ fn main() {
                     &open_folder,
                     &separator_two,
                     &save_note,
+                    &close_note,
+                    &separator_three,
                 ],
             )?;
 
@@ -482,6 +548,9 @@ fn main() {
                 "menu://save-note" => {
                     let _ = app.emit("menu://save-note", ());
                 }
+                "menu://close-note" => {
+                    let _ = app.emit("menu://close-note", ());
+                }
                 _ => {}
             }
         })
@@ -492,6 +561,7 @@ fn main() {
             rename_entry,
             delete_entry,
             move_entry,
+            copy_entries_to_folder,
             watch_folder,
             stop_watching,
             show_main_window,

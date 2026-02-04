@@ -3,8 +3,27 @@ import useNotesStore from '../../store/notesStore';
 import useUIStore from '../../store/uiStore';
 import ConfirmDialog from '../ConfirmDialog';
 
+// Count all descendant notes inside a folder recursively
+const getDescendantCount = (folderId) => {
+    const { getChildren } = useNotesStore.getState();
+    let noteCount = 0;
+    let folderCount = 0;
+    const countRecursive = (parentId) => {
+        const children = getChildren(parentId);
+        children.forEach(child => {
+            if (child.type === 'note') noteCount++;
+            if (child.type === 'folder') {
+                folderCount++;
+                countRecursive(child.id);
+            }
+        });
+    };
+    countRecursive(folderId);
+    return { noteCount, folderCount };
+};
+
 const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
-    const { createFolder, deleteItem, togglePinNote, isPinned } = useNotesStore();
+    const { createFolder, deleteItem, undoLastDelete, togglePinNote, isPinned } = useNotesStore();
     const { addNotification } = useUIStore();
     const isNotePinned = item.type === 'note' && isPinned(item.id);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -40,8 +59,29 @@ const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
 
     const handleConfirmDelete = async () => {
         try {
+            const hasFilePath = !!item.filePath;
             await deleteItem(item.id);
-            addNotification(`${item.type === 'note' ? 'Note' : 'Folder'} deleted successfully`, 'success');
+
+            if (hasFilePath) {
+                addNotification(
+                    `${item.type === 'note' ? 'Note' : 'Folder'} deleted`,
+                    'success',
+                    5000,
+                    {
+                        label: 'Undo',
+                        callback: async () => {
+                            const restored = await undoLastDelete();
+                            if (restored) {
+                                addNotification('Delete undone', 'success');
+                            } else {
+                                addNotification('Failed to undo delete', 'error');
+                            }
+                        }
+                    }
+                );
+            } else {
+                addNotification(`${item.type === 'note' ? 'Note' : 'Folder'} deleted`, 'success');
+            }
         } catch (error) {
             console.error('Delete failed:', error);
             addNotification('Delete failed: ' + error.message, 'error');
@@ -124,7 +164,18 @@ const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
             <ConfirmDialog
                 isOpen={showDeleteConfirm}
                 title={`Delete ${item.type === 'folder' ? 'Folder' : 'Note'}`}
-                message={`Are you sure you want to delete "${item.name}"? This action cannot be undone.`}
+                message={(() => {
+                    if (item.type === 'folder') {
+                        const { noteCount, folderCount } = getDescendantCount(item.id);
+                        const parts = [];
+                        if (noteCount > 0) parts.push(`${noteCount} note${noteCount !== 1 ? 's' : ''}`);
+                        if (folderCount > 0) parts.push(`${folderCount} subfolder${folderCount !== 1 ? 's' : ''}`);
+                        if (parts.length > 0) {
+                            return `Are you sure you want to delete "${item.name}" and its ${parts.join(' and ')}? This action cannot be undone.`;
+                        }
+                    }
+                    return `Are you sure you want to delete "${item.name}"? This action cannot be undone.`;
+                })()}
                 confirmLabel="Delete"
                 cancelLabel="Cancel"
                 variant="danger"

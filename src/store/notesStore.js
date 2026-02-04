@@ -14,6 +14,9 @@ import {
   resolveTemplateById
 } from '../data/templates';
 
+// Special ID for the Settings tab
+export const SETTINGS_TAB_ID = 'settings::special';
+
 const normalizePath = (value) => (value ? value.replace(/\\/g, '/') : '');
 const buildId = (type, path) => `${type}::${normalizePath(path)}`;
 const stripExtension = (name) => name.replace(/\.(md|markdown|txt)$/i, '') || name;
@@ -344,7 +347,7 @@ const cancelAllPendingMetadataUpdates = () => {
   pendingMetadataTimers.clear();
 };
 
-const buildItemsFromFolderData = async ({ folderPath, folderName, files }) => {
+const buildItemsFromFolderData = async ({ folderPath, folderName, files }, onProgress) => {
   const now = new Date().toISOString();
   const normalizedRoot = normalizePath(folderPath);
   const rootId = buildId('folder', folderPath);
@@ -371,8 +374,11 @@ const buildItemsFromFolderData = async ({ folderPath, folderName, files }) => {
 
   // Load all note contents in parallel for tag extraction
   const noteContentMap = new Map();
-  const noteLoadPromises = sortedEntries
-    .filter(entry => !entry.is_dir)
+  const noteEntries = sortedEntries.filter(entry => !entry.is_dir);
+  const total = noteEntries.length;
+  let loaded = 0;
+
+  const noteLoadPromises = noteEntries
     .map(async (entry) => {
       try {
         const content = await readMarkdownFile(entry.path);
@@ -381,6 +387,8 @@ const buildItemsFromFolderData = async ({ folderPath, folderName, files }) => {
         console.error(`Failed to load note content for ${entry.path}:`, error);
         noteContentMap.set(entry.path, ''); // Use empty string as fallback
       }
+      loaded++;
+      if (onProgress) onProgress({ current: loaded, total, phase: 'Loading notes' });
     });
 
   await Promise.all(noteLoadPromises);
@@ -444,6 +452,8 @@ const useNotesStore = create(
       rootFolderPath: null,
       rootFolderId: null,
       isLoading: false,
+      loadingProgress: null, // { current: number, total: number, phase: string }
+      lastDeletedSnapshot: null, // { items: Array<{filePath, content, type, name, parentPath}> }
       recentNotes: [], // Array of {id, name, filePath, lastOpenedAt}
       pinnedNotes: [], // Array of note IDs that are pinned
       selectedTags: [], // Array of tag strings for filtering
@@ -451,7 +461,10 @@ const useNotesStore = create(
       scheduledNotes: [], // Array of scheduled note configurations
 
       setRootFolder: async (folderData) => {
-        const { items: fsItems, rootId } = await buildItemsFromFolderData(folderData);
+        set({ isLoading: true, loadingProgress: null });
+        const { items: fsItems, rootId } = await buildItemsFromFolderData(folderData, (progress) => {
+          set({ loadingProgress: progress });
+        });
         const normalizedRoot = normalizePath(folderData.folderPath);
         const previousItems = get().items;
         const ephemeralItems = previousItems.filter((item) => !item.filePath);
@@ -468,7 +481,9 @@ const useNotesStore = create(
           rootFolderId: rootId,
           items: combinedItems,
           currentNoteId: firstNote ? firstNote.id : null,
-          expandedFolders: [rootId]
+          expandedFolders: [rootId],
+          isLoading: false,
+          loadingProgress: null
         });
 
         return rootId;
@@ -482,7 +497,7 @@ const useNotesStore = create(
         const { rootFolderPath } = state;
         if (!rootFolderPath) return [];
 
-        set({ isLoading: true });
+        set({ isLoading: true, loadingProgress: null });
         try {
           const files = await scanFolder(rootFolderPath);
           const folderData = {
@@ -490,7 +505,9 @@ const useNotesStore = create(
             folderName: folderNameFromPath(rootFolderPath),
             files
           };
-          const { items: fsItems, rootId } = await buildItemsFromFolderData(folderData);
+          const { items: fsItems, rootId } = await buildItemsFromFolderData(folderData, (progress) => {
+            set({ loadingProgress: progress });
+          });
           const normalizedRoot = normalizePath(rootFolderPath);
           const previousItems = state.items;
           const ephemeralItems = previousItems.filter((item) => !item.filePath);
@@ -560,7 +577,7 @@ const useNotesStore = create(
 
           return combinedItems;
         } finally {
-          set({ isLoading: false });
+          set({ isLoading: false, loadingProgress: null });
         }
       },
 
@@ -913,6 +930,38 @@ const useNotesStore = create(
           return;
         }
 
+        // Snapshot items for undo (file-backed items only)
+        const collectDescendants = (id, items) => {
+          const children = items.filter((entry) => entry.parentId === id);
+          return [
+            id,
+            ...children.flatMap((child) => collectDescendants(child.id, items))
+          ];
+        };
+        const idsToSnapshot = collectDescendants(itemId, state.items);
+        const snapshotItems = [];
+
+        for (const id of idsToSnapshot) {
+          const entry = state.items.find((e) => e.id === id);
+          if (!entry || !entry.filePath) continue;
+
+          if (entry.type === 'note') {
+            let content = entry.content || '';
+            if (!content && entry.filePath) {
+              try {
+                content = await readMarkdownFile(entry.filePath);
+              } catch { /* file may already be gone */ }
+            }
+            snapshotItems.push({ filePath: entry.filePath, content, type: 'note', name: entry.name });
+          } else {
+            snapshotItems.push({ filePath: entry.filePath, type: 'folder', name: entry.name });
+          }
+        }
+
+        if (snapshotItems.length > 0) {
+          set({ lastDeletedSnapshot: snapshotItems });
+        }
+
         const parentPath = resolveFolderPath(
           item.parentId,
           state.items,
@@ -939,6 +988,47 @@ const useNotesStore = create(
               set({ currentNoteId: fallback.id });
             }
           }
+        }
+      },
+
+      undoLastDelete: async () => {
+        const state = get();
+        const snapshot = state.lastDeletedSnapshot;
+        if (!snapshot || snapshot.length === 0) return false;
+
+        try {
+          // Restore folders first (sorted by path depth so parents are created first)
+          const folders = snapshot
+            .filter((s) => s.type === 'folder')
+            .sort((a, b) => a.filePath.split('/').length - b.filePath.split('/').length);
+
+          for (const folder of folders) {
+            const parts = folder.filePath.replace(/\/$/, '').split('/');
+            const folderName = parts.pop();
+            const parentPath = parts.join('/');
+            try {
+              await createFolderOnDisk(parentPath, folderName);
+            } catch { /* folder might already exist */ }
+          }
+
+          // Restore notes
+          const notes = snapshot.filter((s) => s.type === 'note');
+          for (const note of notes) {
+            try {
+              await writeMarkdownFileOnDisk(note.filePath, note.content);
+            } catch (err) {
+              console.error('Failed to restore note:', note.filePath, err);
+            }
+          }
+
+          set({ lastDeletedSnapshot: null });
+
+          // Refresh to pick up restored files
+          await get().refreshRootFromDisk();
+          return true;
+        } catch (error) {
+          console.error('Failed to undo delete:', error);
+          return false;
         }
       },
 
@@ -1072,13 +1162,25 @@ const useNotesStore = create(
             ? state.openNoteIds
             : [...state.openNoteIds, noteId];
 
+          // Clear dirty state for this note when selecting it (it's being loaded fresh)
+          const dirtyNoteIds = state.dirtyNoteIds.filter(id => id !== noteId);
+
           set({
             currentNoteId: noteId,
             recentNotes: trimmedRecent,
-            openNoteIds
+            openNoteIds,
+            dirtyNoteIds
           });
         } else {
-          set({ currentNoteId: noteId });
+          // Handle special tabs (like settings) or notes not in items
+          const openNoteIds = state.openNoteIds.includes(noteId)
+            ? state.openNoteIds
+            : [...state.openNoteIds, noteId];
+          
+          set({ 
+            currentNoteId: noteId,
+            openNoteIds
+          });
         }
       },
 

@@ -162,6 +162,7 @@ export const DEFAULT_KEYMAPS = {
   'newFolder': { key: 'N', modifiers: ['mod', 'shift'], description: 'Create new folder' },
   'openFolder': { key: 'o', modifiers: ['mod'], description: 'Open folder' },
   'save': { key: 's', modifiers: ['mod'], description: 'Save current note' },
+  'closeTab': { key: 'w', modifiers: ['mod'], description: 'Close current tab' },
   'commandPalette': { key: 'k', modifiers: ['mod'], description: 'Open command palette' },
   'search': { key: 'F', modifiers: ['mod', 'shift'], description: 'Search all notes' },
   'toggleSidebar': { key: '/', modifiers: ['mod'], description: 'Toggle sidebar' },
@@ -261,6 +262,9 @@ const useSettingsStore = create(
       // Accent color
       accentColorId: 'blue',
 
+      // Editor settings
+      vimMode: false,
+
       // Keymaps (user customizations stored here)
       keymaps: { ...DEFAULT_KEYMAPS },
 
@@ -276,6 +280,14 @@ const useSettingsStore = create(
       setAccentColor: (colorId) => {
         set({ accentColorId: colorId });
         applyAccentColor(colorId);
+      },
+
+      setVimMode: (enabled) => {
+        set({ vimMode: enabled });
+      },
+
+      toggleVimMode: () => {
+        set((state) => ({ vimMode: !state.vimMode }));
       },
 
       setIsRecordingKeymap: (isRecording) => {
@@ -336,6 +348,7 @@ const useSettingsStore = create(
       partialize: (state) => ({
         themeId: state.themeId,
         accentColorId: state.accentColorId,
+        vimMode: state.vimMode,
         keymaps: state.keymaps,
       }),
     }

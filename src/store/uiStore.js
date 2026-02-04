@@ -2,13 +2,17 @@ import { create } from 'zustand';
 
 const useUIStore = create((set) => ({
     notifications: [],
+    focusMode: false,
 
-    addNotification: (message, type = 'info', duration = 3000) => {
+    toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),
+    setFocusMode: (value) => set({ focusMode: value }),
+
+    addNotification: (message, type = 'info', duration = 3000, action = null) => {
         const id = Date.now();
         set((state) => ({
             notifications: [
                 ...state.notifications,
-                { id, message, type, duration }
+                { id, message, type, duration, action }
             ]
         }));
 

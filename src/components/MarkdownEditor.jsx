@@ -1,11 +1,38 @@
 import { useState, useEffect, useCallback, forwardRef, useImperativeHandle, useRef, useMemo } from "react";
 import { marked } from "marked";
 import hljs from "highlight.js";
+import markedFootnote from "marked-footnote";
+import markedKatex from "marked-katex-extension";
+import "katex/dist/katex.min.css";
 import Toolbar from "./Toolbar";
 import ExportModal from "./ExportModal";
-import useNotesStore from "../store/notesStore";
+import CreateNoteModal from "./CreateNoteModal";
+import TableOfContents from "./TableOfContents";
+import SettingsPage from "./SettingsPage";
+import CodeMirrorEditor from "./editor/CodeMirrorEditor";
+import useNotesStore, { SETTINGS_TAB_ID } from "../store/notesStore";
 import useUIStore from "../store/uiStore";
+import useSettingsStore from "../store/settingsStore";
+import { slugify } from "../utils/slugify";
 import "./MarkdownPreview.css";
+
+// Lazy-load mermaid only when needed (large dependency ~1.5MB)
+let mermaidPromise = null;
+const getMermaid = () => {
+  if (!mermaidPromise) {
+    mermaidPromise = import('mermaid').then(m => {
+      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+      m.default.initialize({
+        startOnLoad: false,
+        theme: isDark ? 'dark' : 'default',
+        securityLevel: 'strict',
+        fontFamily: 'inherit',
+      });
+      return m.default;
+    });
+  }
+  return mermaidPromise;
+};
 
 const escapeHtml = (value = "") =>
   value.replace(/[&<>"']/g, (char) => {
@@ -67,9 +94,13 @@ const wikiLinkExtension = {
   }
 };
 
-let wikiExtensionRegistered = false;
+let extensionsRegistered = false;
 
-if (!wikiExtensionRegistered) {
+if (!extensionsRegistered) {
+  // Register footnotes and KaTeX before the custom renderer block
+  marked.use(markedFootnote());
+  marked.use(markedKatex({ throwOnError: false }));
+
   marked.use({
     extensions: [wikiLinkExtension],
     walkTokens(token) {
@@ -80,9 +111,47 @@ if (!wikiExtensionRegistered) {
       }
     },
     renderer: {
+      heading(token) {
+        const text = typeof token === 'object' ? token.text : token;
+        const depth = typeof token === 'object' ? token.depth : arguments[1];
+        const id = slugify(text);
+        return `<h${depth} id="${escapeHtml(id)}" dir="auto">${text}</h${depth}>\n`;
+      },
+      paragraph(token) {
+        const text = typeof token === 'object' ? token.text : token;
+        return `<p dir="auto">${text}</p>\n`;
+      },
+      listitem(token) {
+        const text = typeof token === 'object' ? token.text : token;
+        const isTask = typeof token === 'object' ? token.task : false;
+        const isChecked = typeof token === 'object' ? token.checked : false;
+        if (isTask) {
+          const checkbox = `<input type="checkbox"${isChecked ? ' checked=""' : ''} disabled="">`;
+          return `<li dir="auto">${checkbox} ${text}</li>\n`;
+        }
+        return `<li dir="auto">${text}</li>\n`;
+      },
+      blockquote(token) {
+        const body = typeof token === 'object' ? token.text : token;
+        return `<blockquote dir="auto">${body}</blockquote>\n`;
+      },
+      tablecell(token) {
+        const content = typeof token === 'object' ? token.text : token;
+        const isHeader = typeof token === 'object' ? token.header : false;
+        const tag = isHeader ? 'th' : 'td';
+        const align = typeof token === 'object' ? token.align : '';
+        const alignAttr = align ? ` style="text-align:${align}"` : '';
+        return `<${tag} dir="auto"${alignAttr}>${content}</${tag}>\n`;
+      },
       code(code, language) {
         const text = typeof code === 'object' ? code.text : code;
         const lang = typeof code === 'object' ? code.lang : language;
+
+        // Mermaid diagrams: render as placeholder for post-processing
+        if (lang === 'mermaid') {
+          return `<div class="mermaid-wrapper"><div class="mermaid">${escapeHtml(text)}</div></div>`;
+        }
+
         const validLang = lang && hljs.getLanguage(lang);
         const highlighted = validLang
           ? hljs.highlight(text, { language: lang }).value
@@ -108,10 +177,11 @@ if (!wikiExtensionRegistered) {
       }
     }
   });
-  wikiExtensionRegistered = true;
+  extensionsRegistered = true;
 }
 
 const MarkdownEditor = forwardRef((props, ref) => {
+  const { onOpenKeymapsModal, focusMode = false } = props;
   const {
     currentNoteId,
     updateNote,
@@ -123,15 +193,20 @@ const MarkdownEditor = forwardRef((props, ref) => {
     editorSplitRatio,
     setEditorSplitRatio,
     saveCurrentNoteToDisk,
-    isNoteDirty
+    isNoteDirty,
+    getNotes
   } = useNotesStore();
 
   const { addNotification } = useUIStore();
+  const { vimMode } = useSettingsStore();
 
   const [markdown, setMarkdown] = useState("");
   const [debouncedMarkdown, setDebouncedMarkdown] = useState(""); // Debounced for preview
   const [viewMode, setViewMode] = useState("split"); // "editor", "preview", or "split"
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showCreateNoteModal, setShowCreateNoteModal] = useState(false);
+  const [pendingNoteName, setPendingNoteName] = useState("");
+  const [showTOC, setShowTOC] = useState(false);
   const [isResizingSplit, setIsResizingSplit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedIndicator, setShowSavedIndicator] = useState(false);
@@ -140,11 +215,12 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMatches, setSearchMatches] = useState([]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [vimModeStatus, setVimModeStatus] = useState({ mode: 'normal', keyBuffer: '' });
 
   const updateTimerRef = useRef(null);
   const savedIndicatorTimerRef = useRef(null);
   const previewTimerRef = useRef(null); // Timer for debounced preview updates
-  const textareaRef = useRef(null);
+  const editorRef = useRef(null);
   const highlightTimeoutRef = useRef(null);
 
   // Get dirty state from store (persists across tab switches)
@@ -208,37 +284,23 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   // Function to scroll to and highlight a specific match
   const scrollToMatch = useCallback((matchIndex) => {
-    if (!textareaRef.current || matchIndex < 0 || matchIndex >= searchMatches.length) return;
+    if (!editorRef.current || matchIndex < 0 || matchIndex >= searchMatches.length) return;
 
     const match = searchMatches[matchIndex];
-    const textarea = textareaRef.current;
+    const view = editorRef.current.getView();
+    if (!view) return;
 
-    // Set selection first
-    textarea.focus();
-    textarea.setSelectionRange(match.start, match.end);
-
-    // Use a more accurate scrolling method
-    // Get the line number and calculate scroll position
-    const textBeforeMatch = markdown.substring(0, match.start);
-    const lines = textBeforeMatch.split('\n');
-    const lineNumber = lines.length - 1;
-
-    // Get computed line height from the textarea
-    const computedStyle = window.getComputedStyle(textarea);
-    const fontSize = parseFloat(computedStyle.fontSize);
-    const lineHeight = parseFloat(computedStyle.lineHeight) || fontSize * 1.6;
-    const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
-
-    // Calculate scroll position
-    const targetScrollTop = (lineNumber * lineHeight) + paddingTop - (textarea.clientHeight / 3);
-
-    // Scroll smoothly
-    textarea.scrollTop = Math.max(0, targetScrollTop);
-  }, [markdown, searchMatches]);
+    // Set selection and scroll into view
+    view.dispatch({
+      selection: { anchor: match.start, head: match.end },
+      scrollIntoView: true,
+    });
+    view.focus();
+  }, [searchMatches]);
 
   // Enhanced search function that finds all matches
   const scrollToAndHighlight = useCallback((query) => {
-    if (!query || !textareaRef.current) {
+    if (!query || !editorRef.current) {
       // Clear search
       setSearchQuery("");
       setSearchMatches([]);
@@ -256,29 +318,17 @@ const MarkdownEditor = forwardRef((props, ref) => {
     setSearchMatches(matches);
     setCurrentMatchIndex(0);
 
-    // Scroll to first match using accurate calculation
-    const textarea = textareaRef.current;
+    // Scroll to first match
+    const view = editorRef.current.getView();
+    if (!view) return;
+
     const match = matches[0];
-
-    // Set selection first
-    textarea.focus();
-    textarea.setSelectionRange(match.start, match.end);
-
-    // Calculate accurate scroll position
-    const textBeforeMatch = markdown.substring(0, match.start);
-    const lines = textBeforeMatch.split('\n');
-    const lineNumber = lines.length - 1;
-
-    // Get computed line height from the textarea
-    const computedStyle = window.getComputedStyle(textarea);
-    const fontSize = parseFloat(computedStyle.fontSize);
-    const lineHeight = parseFloat(computedStyle.lineHeight) || fontSize * 1.6;
-    const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
-
-    // Calculate and set scroll position
-    const targetScrollTop = (lineNumber * lineHeight) + paddingTop - (textarea.clientHeight / 3);
-    textarea.scrollTop = Math.max(0, targetScrollTop);
-  }, [markdown, findAllMatches]);
+    view.dispatch({
+      selection: { anchor: match.start, head: match.end },
+      scrollIntoView: true,
+    });
+    view.focus();
+  }, [findAllMatches]);
 
   // Navigate to next match
   const nextMatch = useCallback(() => {
@@ -301,9 +351,14 @@ const MarkdownEditor = forwardRef((props, ref) => {
     setSearchQuery("");
     setSearchMatches([]);
     setCurrentMatchIndex(0);
-    if (textareaRef.current) {
-      const pos = textareaRef.current.selectionStart;
-      textareaRef.current.setSelectionRange(pos, pos);
+    if (editorRef.current) {
+      const view = editorRef.current.getView();
+      if (view) {
+        const pos = view.state.selection.main.from;
+        view.dispatch({
+          selection: { anchor: pos },
+        });
+      }
     }
   }, []);
 
@@ -321,8 +376,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
     if (searchMatches.length === 0) return;
 
     const handleKeyDown = (e) => {
-      // Only handle when textarea is focused
-      if (document.activeElement !== textareaRef.current) return;
+      // Only handle when editor is focused
+      if (!document.activeElement?.closest('.codemirror-wrapper')) return;
 
       // F3 or Cmd/Ctrl+G for next match
       if (e.key === 'F3' || ((e.metaKey || e.ctrlKey) && e.key === 'g' && !e.shiftKey)) {
@@ -395,6 +450,11 @@ const MarkdownEditor = forwardRef((props, ref) => {
         clearTimeout(previewTimerRef.current);
       }
     };
+  }, []);
+
+  // Vim mode status callback handler
+  const handleVimModeChange = useCallback((vimStatus) => {
+    setVimModeStatus(vimStatus);
   }, []);
 
   // Manual save function
@@ -481,30 +541,25 @@ const MarkdownEditor = forwardRef((props, ref) => {
   };
 
   const insertMarkdown = (before, after = "", placeholder = "") => {
-    const textarea = document.querySelector(".editor-textarea");
-    if (!textarea) return;
+    if (!editorRef.current) return;
 
-    const scrollTop = textarea.scrollTop;
-    const scrollLeft = textarea.scrollLeft;
+    const view = editorRef.current.getView();
+    if (!view) return;
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = markdown.substring(start, end);
+    const { from, to } = view.state.selection.main;
+    const selectedText = view.state.sliceDoc(from, to);
     const replacement = before + (selectedText || placeholder) + after;
 
-    const newMarkdown =
-      markdown.substring(0, start) + replacement + markdown.substring(end);
-    setMarkdown(newMarkdown);
-    handleMarkdownChange(newMarkdown);
+    // Calculate new cursor position
+    const newCursorPos = from + before.length + (selectedText || placeholder).length;
 
-    setTimeout(() => {
-      textarea.scrollTop = scrollTop;
-      textarea.scrollLeft = scrollLeft;
-      textarea.focus();
-      const newCursorPos =
-        start + before.length + (selectedText || placeholder).length;
-      textarea.setSelectionRange(newCursorPos, newCursorPos);
-    }, 0);
+    view.dispatch({
+      changes: { from, to, insert: replacement },
+      selection: { anchor: newCursorPos },
+      scrollIntoView: true,
+    });
+
+    view.focus();
   };
 
   // Memoize preview HTML - only recalculate when debouncedMarkdown changes
@@ -609,9 +664,52 @@ const MarkdownEditor = forwardRef((props, ref) => {
     return () => container.removeEventListener('click', handleCopyClick);
   }, [debouncedMarkdown, viewMode]); // Use debouncedMarkdown instead of markdown
 
-  const handlePreviewClick = useCallback(async (event) => {
+  // Render mermaid diagrams after preview HTML is in the DOM
+  useEffect(() => {
+    if (viewMode === 'editor') return;
+
+    const container = document.querySelector('.markdown-preview');
+    if (!container) return;
+
+    const mermaidElements = container.querySelectorAll('.mermaid');
+    if (mermaidElements.length === 0) return;
+
+    getMermaid().then(mermaid => {
+      // Re-initialize with current theme before rendering
+      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: isDark ? 'dark' : 'default',
+        securityLevel: 'strict',
+        fontFamily: 'inherit',
+      });
+      mermaid.run({ nodes: mermaidElements }).catch(err => {
+        console.error('Mermaid rendering failed:', err);
+      });
+    }).catch(err => {
+      console.error('Failed to load mermaid:', err);
+    });
+  }, [debouncedMarkdown, viewMode]);
+
+  const handlePreviewClick = useCallback((event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+
+    // Handle anchor links (e.g., [Text](#heading-id)) — scroll preview to heading
+    const anchorLink = target.closest('a[href^="#"]');
+    if (anchorLink && !anchorLink.hasAttribute('data-wikilink-target')) {
+      event.preventDefault();
+      event.stopPropagation();
+      const targetId = anchorLink.getAttribute('href').substring(1);
+      if (targetId) {
+        const previewContainer = target.closest('.markdown-preview');
+        const targetElement = previewContainer?.querySelector(`#${CSS.escape(targetId)}`);
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+      return;
+    }
 
     const anchor = target.closest("a[data-wikilink-target]");
     if (!anchor) return;
@@ -633,19 +731,52 @@ const MarkdownEditor = forwardRef((props, ref) => {
       return;
     }
 
-    const shouldCreate = window.confirm(`Create new note "${linkTarget}"?`);
-    if (!shouldCreate) return;
+    // Show modal to create new note
+    setPendingNoteName(linkTarget);
+    setShowCreateNoteModal(true);
+  }, [findNoteByLinkTarget, rootFolderPath, selectNote, addNotification]);
 
+  const handleCreateNoteFromLink = useCallback(async (noteName) => {
     try {
-      const newId = await createNote(null, null, linkTarget);
+      const newId = await createNote(null, null, noteName);
       if (newId) {
         selectNote(newId);
+        addNotification(`Note "${noteName}" created successfully`, "success");
       }
     } catch (error) {
       console.error("Failed to create note from link:", error);
       addNotification(`Failed to create note: ${error.message}`, "error");
     }
-  }, [createNote, findNoteByLinkTarget, rootFolderPath, selectNote]);
+  }, [createNote, selectNote, addNotification]);
+
+  // Handle TOC header click - scroll to line in editor and preview
+  const handleTOCHeaderClick = useCallback((header) => {
+    // Scroll editor to the header line
+    if (editorRef.current) {
+      const lines = markdown.split('\n');
+      let position = 0;
+      for (let i = 0; i < header.line - 1 && i < lines.length; i++) {
+        position += lines[i].length + 1; // +1 for newline
+      }
+      editorRef.current.scrollToPosition(position);
+    }
+
+    // Also scroll preview to the heading anchor if visible
+    if (viewMode === 'split' || viewMode === 'preview') {
+      const previewContainer = document.querySelector('.markdown-preview');
+      if (previewContainer && header.id) {
+        const targetElement = previewContainer.querySelector(`#${CSS.escape(header.id)}`);
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    }
+  }, [markdown, viewMode]);
+
+  // Check if we're viewing the settings tab
+  if (currentNoteId === SETTINGS_TAB_ID) {
+    return <SettingsPage onOpenKeymapsModal={onOpenKeymapsModal} />;
+  }
 
   const currentNote = getCurrentNote();
 
@@ -716,6 +847,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
   return (
     <div className="h-full flex flex-col overflow-hidden bg-editor-bg">
       {/* Title Bar - Glass effect */}
+      {!focusMode && (
       <div className="h-12 border-b border-border flex items-center px-4 bg-bg-base/80 backdrop-blur shrink-0 z-10 justify-between">
         <div className="flex items-center gap-2 min-w-0 flex-1 mr-4">
           <div className="flex items-center gap-1.5">
@@ -743,6 +875,21 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
         {/* View Mode Toggles */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowTOC(!showTOC)}
+            className={`px-2 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
+              showTOC
+                ? 'bg-accent/10 text-accent'
+                : 'text-text-secondary hover:text-text-primary hover:bg-overlay-subtle'
+            }`}
+            title="Toggle Table of Contents"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
+            <span className="hidden sm:inline">TOC</span>
+          </button>
+
           <button
             onClick={handleSave}
             disabled={isSaving || !currentNote.filePath}
@@ -811,20 +958,31 @@ const MarkdownEditor = forwardRef((props, ref) => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Toolbar */}
-      {(viewMode === "editor" || viewMode === "split") && (
+      {!focusMode && (viewMode === "editor" || viewMode === "split") && (
         <div className="border-b border-border bg-bg-base/50 backdrop-blur shrink-0 overflow-x-auto custom-scrollbar">
           <Toolbar onInsert={insertMarkdown} />
         </div>
       )}
 
       {/* Content Area */}
-      <div className={`flex-1 min-h-0 overflow-hidden flex editor-container ${isResizingSplit ? 'cursor-col-resize' : ''}`}>
+      <div className={`flex-1 min-h-0 overflow-hidden flex editor-container relative ${isResizingSplit ? 'cursor-col-resize' : ''} ${focusMode ? 'justify-center' : ''}`}>
+        {/* Table of Contents - Floating Panel */}
+        {showTOC && (
+          <div className="absolute top-4 right-4 z-20 w-72 max-w-[calc(100%-2rem)] animate-in slide-in-from-right-4 fade-in duration-200 shadow-2xl">
+            <TableOfContents
+              markdown={markdown}
+              onHeaderClick={handleTOCHeaderClick}
+            />
+          </div>
+        )}
+
         {/* Editor */}
         {(viewMode === "editor" || viewMode === "split") && (
           <div
-            className={`flex flex-col relative ${viewMode === "split" ? "border-r border-border" : "w-full"}`}
+            className={`flex flex-col relative ${viewMode === "split" ? "border-r border-border" : "w-full"} ${focusMode ? 'max-w-3xl mx-auto' : ''}`}
             style={{ width: viewMode === "split" ? `${editorSplitRatio}%` : '100%' }}
           >
             {/* Search Controls */}
@@ -866,15 +1024,16 @@ const MarkdownEditor = forwardRef((props, ref) => {
               </div>
             )}
 
-            <textarea
-              ref={textareaRef}
-              className="w-full h-full bg-bg-editor border-none p-6 font-mono text-[15px] leading-relaxed
-                       text-text-primary resize-none outline-none placeholder-text-muted
-                       editor-textarea"
+            <CodeMirrorEditor
+              ref={editorRef}
               value={markdown}
-              onChange={(e) => handleMarkdownChange(e.target.value)}
+              onChange={handleMarkdownChange}
+              onVimModeChange={handleVimModeChange}
               placeholder="Start typing your markdown here..."
-              spellCheck="false"
+              className="w-full h-full"
+              enableLineNumbers={true}
+              enableVimMode={vimMode}
+              getNotes={getNotes}
             />
           </div>
         )}
@@ -893,13 +1052,14 @@ const MarkdownEditor = forwardRef((props, ref) => {
         {/* Preview */}
         {(viewMode === "preview" || viewMode === "split") && (
           <div
-            className={`flex flex-col bg-bg-editor overflow-y-auto ${isResizingSplit ? 'pointer-events-none' : ''}`}
+            className={`flex flex-col bg-bg-editor overflow-y-auto ${isResizingSplit ? 'pointer-events-none' : ''} ${focusMode ? 'max-w-3xl mx-auto' : ''}`}
             style={{ width: viewMode === "split" ? `${100 - editorSplitRatio}%` : '100%' }}
             onClick={handlePreviewClick}
           >
             <div className="p-6">
               <div
                 className="markdown-preview prose prose-invert max-w-none"
+                dir="auto"
                 dangerouslySetInnerHTML={previewHtml}
               />
             </div>
@@ -908,7 +1068,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
       </div>
 
       {/* Status Bar */}
-      {currentNote && (
+      {currentNote && !focusMode && (
         <div className="shrink-0 px-4 py-1.5 bg-overlay-subtle border-t border-border flex items-center justify-between text-xs text-text-muted">
           <div className="flex items-center gap-4">
             <span>
@@ -923,9 +1083,31 @@ const MarkdownEditor = forwardRef((props, ref) => {
               {statusBarStats.readTime} min read
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-text-muted/50">View:</span>
-            <span className="text-text-secondary capitalize">{viewMode}</span>
+          <div className="flex items-center gap-4">
+            {vimMode && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-text-muted/50">Vim:</span>
+                  <span className={`font-mono font-semibold px-2 py-0.5 rounded ${
+                    vimModeStatus.mode === 'insert' ? 'bg-green-500/20 text-green-400' :
+                    vimModeStatus.mode === 'visual' ? 'bg-blue-500/20 text-blue-400' :
+                    vimModeStatus.mode === 'replace' ? 'bg-amber-500/20 text-amber-400' :
+                    'bg-accent/20 text-accent'
+                  }`}>
+                    {vimModeStatus.mode === 'normal' ? '-- NORMAL --' :
+                     vimModeStatus.mode === 'insert' ? '-- INSERT --' :
+                     vimModeStatus.mode === 'visual' ? '-- VISUAL --' :
+                     vimModeStatus.mode === 'replace' ? '-- REPLACE --' :
+                     `-- ${vimModeStatus.mode.toUpperCase()} --`}
+                  </span>
+                </div>
+                <span className="text-text-muted/50">•</span>
+              </>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="text-text-muted/50">View:</span>
+              <span className="text-text-secondary capitalize">{viewMode}</span>
+            </div>
           </div>
         </div>
       )}
@@ -935,6 +1117,14 @@ const MarkdownEditor = forwardRef((props, ref) => {
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
         note={currentNote}
+      />
+
+      {/* Create Note Modal */}
+      <CreateNoteModal
+        isOpen={showCreateNoteModal}
+        onClose={() => setShowCreateNoteModal(false)}
+        onConfirm={handleCreateNoteFromLink}
+        noteName={pendingNoteName}
       />
     </div>
   );

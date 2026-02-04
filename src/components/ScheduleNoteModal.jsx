@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import useNotesStore from '../store/notesStore';
 
 const ROOT_FOLDER_VALUE = '__workspace_root__';
@@ -150,6 +151,257 @@ const DAYS_OF_WEEK = [
   { value: 5, label: 'Fri' },
   { value: 6, label: 'Sat' }
 ];
+
+const CustomSelect = ({ value, onChange, options, className = '' }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  return (
+    <div className={`relative ${className}`} ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary text-left focus:outline-none focus:border-accent flex items-center justify-between hover:bg-overlay-light transition-colors"
+      >
+        <span>{selectedOption?.label || 'Select...'}</span>
+        <svg
+          className={`w-4 h-4 text-text-secondary transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-60 w-full mt-1 bg-bg-sidebar border border-overlay-light rounded-lg shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+              className={`w-full px-3 py-2 text-left hover:bg-overlay-light transition-colors ${
+                option.value === value
+                  ? 'bg-accent/20 text-accent'
+                  : 'text-text-primary'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CustomDatePicker = ({ value, onChange, className = '' }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => value ? new Date(value) : new Date());
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const dropdownRef = useRef(null);
+  const buttonRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target) &&
+          buttonRef.current && !buttonRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width
+      });
+    }
+  }, [isOpen]);
+
+  const formatDisplayDate = (dateString) => {
+    if (!dateString) return 'Select date';
+    const date = new Date(dateString + 'T00:00:00');
+    return date.toLocaleDateString(undefined, { 
+      weekday: 'short', 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    const days = [];
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(day);
+    }
+    return days;
+  };
+
+  const handlePrevMonth = () => {
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
+  };
+
+  const handleDayClick = (day) => {
+    if (day === null) return;
+    const selectedDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    onChange(formatDateForInput(selectedDate));
+    setIsOpen(false);
+  };
+
+  const days = getDaysInMonth(viewDate);
+  const selectedDate = value ? new Date(value + 'T00:00:00') : null;
+  const monthYear = viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  return (
+    <>
+      <div className={className}>
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary text-left focus:outline-none focus:border-accent flex items-center justify-between hover:bg-overlay-light transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {formatDisplayDate(value)}
+          </span>
+          <svg
+            className={`w-4 h-4 text-text-secondary transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+
+      {isOpen && createPortal(
+        <div 
+          ref={dropdownRef}
+          className="fixed z-60 bg-bg-sidebar border border-overlay-light rounded-lg shadow-xl p-3"
+          style={{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            width: `${dropdownPosition.width}px`
+          }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="p-1 hover:bg-overlay-light rounded transition-colors"
+            >
+              <svg className="w-5 h-5 text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <span className="text-sm font-medium text-text-primary">{monthYear}</span>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="p-1 hover:bg-overlay-light rounded transition-colors"
+            >
+              <svg className="w-5 h-5 text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+              <div key={day} className="text-center text-xs text-text-muted font-medium py-1">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((day, index) => {
+              const isSelected = day && selectedDate && 
+                selectedDate.getDate() === day && 
+                selectedDate.getMonth() === viewDate.getMonth() &&
+                selectedDate.getFullYear() === viewDate.getFullYear();
+              
+              const isToday = day && 
+                new Date().getDate() === day && 
+                new Date().getMonth() === viewDate.getMonth() &&
+                new Date().getFullYear() === viewDate.getFullYear();
+
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => handleDayClick(day)}
+                  disabled={day === null}
+                  className={`
+                    aspect-square text-sm rounded transition-colors
+                    ${day === null ? 'invisible' : ''}
+                    ${isSelected 
+                      ? 'bg-accent text-text-primary font-semibold' 
+                      : isToday
+                      ? 'bg-overlay-light text-accent font-medium'
+                      : 'text-text-primary hover:bg-overlay-light'
+                    }
+                  `}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
+
+
 
 const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
   const addScheduledNote = useNotesStore((state) => state.addScheduledNote);
@@ -373,17 +625,11 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-text-primary">Save to folder</span>
-                <select
+                <CustomSelect
                   value={selectedFolderId}
-                  onChange={(event) => setSelectedFolderId(event.target.value)}
-                  className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary focus:outline-none focus:border-accent"
-                >
-                  {folderOptions.map((option) => (
-                    <option key={option.value} value={option.value} className="bg-bg-sidebar">
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedFolderId}
+                  options={folderOptions}
+                />
               </label>
 
               <label className="flex flex-col gap-2">
@@ -402,24 +648,22 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-text-primary">Frequency</span>
-                <select
+                <CustomSelect
                   value={frequency}
-                  onChange={(event) => setFrequency(event.target.value)}
-                  className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary focus:outline-none focus:border-accent"
-                >
-                  <option value="daily" className="bg-bg-sidebar">Daily</option>
-                  <option value="weekly" className="bg-bg-sidebar">Weekly</option>
-                  <option value="monthly" className="bg-bg-sidebar">Monthly</option>
-                </select>
+                  onChange={setFrequency}
+                  options={[
+                    { value: 'daily', label: 'Daily' },
+                    { value: 'weekly', label: 'Weekly' },
+                    { value: 'monthly', label: 'Monthly' }
+                  ]}
+                />
               </label>
 
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-text-primary">Start date</span>
-                <input
-                  type="date"
+                <CustomDatePicker
                   value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                  className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary focus:outline-none focus:border-accent color-scheme-dark"
+                  onChange={setStartDate}
                 />
               </label>
 

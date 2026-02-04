@@ -10,45 +10,75 @@ const NotificationToast = () => {
                 <div
                     key={n.id}
                     className={`
-            pointer-events-auto
-            flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border min-w-[300px]
+            pointer-events-auto relative overflow-hidden
+            flex flex-col rounded-xl shadow-2xl border min-w-[300px]
             glass-panel animate-in slide-in-from-right-full duration-300
             ${n.type === 'error' ? 'border-red-500/30 bg-red-500/5' :
                             n.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/5' :
                                 'border-blue-500/30 bg-blue-500/5'}
           `}
                 >
-                    <div className={`p-2 rounded-lg ${n.type === 'error' ? 'bg-red-500/10 text-red-400' :
-                            n.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' :
-                                'bg-blue-500/10 text-blue-400'
-                        }`}>
-                        {n.type === 'error' ? (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        ) : n.type === 'success' ? (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                        ) : (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                    <div className="flex items-center gap-3 px-4 py-3">
+                        <div className={`p-2 rounded-lg ${n.type === 'error' ? 'bg-red-500/10 text-red-400' :
+                                n.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' :
+                                    'bg-blue-500/10 text-blue-400'
+                            }`}>
+                            {n.type === 'error' ? (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            ) : n.type === 'success' ? (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                            ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            )}
+                        </div>
+
+                        <div className="flex-1 text-sm font-medium text-text-primary">
+                            {n.message}
+                        </div>
+
+                        {n.action && (
+                            <button
+                                onClick={() => {
+                                    n.action.callback();
+                                    removeNotification(n.id);
+                                }}
+                                className="px-2.5 py-1 text-xs font-medium rounded-md bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
+                            >
+                                {n.action.label}
+                            </button>
                         )}
+
+                        <button
+                            onClick={() => removeNotification(n.id)}
+                            className="p-1 hover:bg-overlay-light rounded-md text-text-muted hover:text-text-primary transition-all"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
                     </div>
 
-                    <div className="flex-1 text-sm font-medium text-text-primary">
-                        {n.message}
-                    </div>
-
-                    <button
-                        onClick={() => removeNotification(n.id)}
-                        className="p-1 hover:bg-overlay-light rounded-md text-text-muted hover:text-text-primary transition-all"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+                    {/* Progress bar - shrinks over the notification duration */}
+                    {n.duration && n.duration !== Infinity && (
+                        <div className="w-full h-0.5 bg-transparent">
+                            <div
+                                className={`h-full rounded-full ${
+                                    n.type === 'error' ? 'bg-red-400/40' :
+                                    n.type === 'success' ? 'bg-emerald-400/40' :
+                                    'bg-blue-400/40'
+                                }`}
+                                style={{
+                                    animation: `shrink-bar ${n.duration}ms linear forwards`,
+                                }}
+                            />
+                        </div>
+                    )}
                 </div>
             ))}
         </div>
