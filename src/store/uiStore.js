@@ -3,6 +3,8 @@ import { create } from 'zustand';
 const useUIStore = create((set) => ({
     notifications: [],
     focusMode: false,
+    showWorkspaceModal: false,
+    setShowWorkspaceModal: (value) => set({ showWorkspaceModal: value }),
 
     toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),
     setFocusMode: (value) => set({ focusMode: value }),

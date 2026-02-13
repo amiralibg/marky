@@ -197,7 +197,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     getNotes
   } = useNotesStore();
 
-  const { addNotification } = useUIStore();
+  const { addNotification, setShowWorkspaceModal } = useUIStore();
   const { vimMode } = useSettingsStore();
 
   const [markdown, setMarkdown] = useState("");
@@ -745,7 +745,11 @@ const MarkdownEditor = forwardRef((props, ref) => {
       }
     } catch (error) {
       console.error("Failed to create note from link:", error);
-      addNotification(`Failed to create note: ${error.message}`, "error");
+      if (/workspace/i.test(error.message)) {
+        setShowWorkspaceModal(true);
+      } else {
+        addNotification(`Failed to create note: ${error.message}`, "error");
+      }
     }
   }, [createNote, selectNote, addNotification]);
 

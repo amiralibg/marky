@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import MarkdownEditor from './components/MarkdownEditor';
 import OnboardingModal from './components/OnboardingModal';
+import WorkspaceRequiredModal from './components/WorkspaceRequiredModal';
 import TemplateModal from './components/TemplateModal';
 import ScheduleNoteModal from './components/ScheduleNoteModal';
 import GraphModal from './components/GraphModal';
@@ -20,7 +21,7 @@ function App() {
   const items = useNotesStore((state) => state.items);
   const { sidebarWidth, setSidebarWidth, createNote, renameItem, selectNote, closeNote, currentNoteId } = useNotesStore();
   const { keymaps, initializeSettings, isRecordingKeymap } = useSettingsStore();
-  const { focusMode, toggleFocusMode } = useUIStore();
+  const { focusMode, toggleFocusMode, showWorkspaceModal, setShowWorkspaceModal } = useUIStore();
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
   // Initialize settings (apply accent color) on mount
@@ -91,7 +92,11 @@ function App() {
         return;
       }
       console.error('Failed to create note:', error);
-      alert('Failed to create note: ' + error.message);
+      if (/workspace/i.test(error.message)) {
+        setShowWorkspaceModal(true);
+      } else {
+        alert('Failed to create note: ' + error.message);
+      }
     }
   }, [createNote, templateParentId]);
 
@@ -216,7 +221,8 @@ function App() {
     }
   }, [selectNote, setShowSidebar, toggleFocusMode]);
 
-  const showOnboarding = items.length === 0;
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  const showOnboarding = items.length === 0 && !onboardingDismissed;
 
   // Global keyboard shortcut listener using configurable keymaps
   useEffect(() => {
@@ -421,7 +427,8 @@ function App() {
           <MarkdownEditor ref={editorRef} onOpenKeymapsModal={() => setShowKeymapsModal(true)} focusMode={focusMode} />
         </div>
       </div>
-      {showOnboarding && <OnboardingModal />}
+      {showOnboarding && <OnboardingModal onSkip={() => setOnboardingDismissed(true)} />}
+      {showWorkspaceModal && <WorkspaceRequiredModal />}
       <KeymapsModal
         isOpen={showKeymapsModal}
         onClose={() => setShowKeymapsModal(false)}

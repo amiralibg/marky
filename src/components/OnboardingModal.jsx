@@ -3,7 +3,7 @@ import { openFolder } from '../utils/fileSystem';
 import useNotesStore from '../store/notesStore';
 import useUIStore from '../store/uiStore';
 
-function OnboardingModal() {
+function OnboardingModal({ onSkip }) {
   const { loadFolderFromSystem } = useNotesStore();
   const { addNotification } = useUIStore();
   const [isLoading, setIsLoading] = useState(false);
@@ -63,7 +63,7 @@ function OnboardingModal() {
         </div>
 
         {/* Tips */}
-        <div className="bg-bg-editor border border-border rounded-lg p-4">
+        <div className="bg-bg-editor border border-border rounded-lg p-4 mb-6">
           <h3 className="text-text-primary font-semibold mb-2 flex items-center gap-2">
             <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -76,6 +76,14 @@ function OnboardingModal() {
             <li>You can change the workspace folder anytime from the sidebar toolbar.</li>
           </ul>
         </div>
+
+        {/* Skip */}
+        <button
+          onClick={onSkip}
+          className="w-full py-2.5 border border-border hover:border-text-muted text-text-primary rounded-lg text-sm transition-all cursor-pointer"
+        >
+          Skip for now — I'll set up my workspace later
+        </button>
       </div>
     </div>
   );

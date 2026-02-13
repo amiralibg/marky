@@ -78,7 +78,7 @@ const Sidebar = forwardRef(
       isLoading,
       loadingProgress,
     } = useNotesStore();
-    const { addNotification } = useUIStore();
+    const { addNotification, setShowWorkspaceModal } = useUIStore();
     const [contextMenu, setContextMenu] = useState(null);
     const [draggedItem, setDraggedItem] = useState(null);
     const [dragPosition, setDragPosition] = useState(null);
@@ -276,7 +276,11 @@ const Sidebar = forwardRef(
           return;
         }
         console.error("Failed to create folder:", error);
-        addNotification("Failed to create folder: " + error.message, "error");
+        if (/workspace/i.test(error.message)) {
+          setShowWorkspaceModal(true);
+        } else {
+          addNotification("Failed to create folder: " + error.message, "error");
+        }
       }
     }, [createFolder]);
 
