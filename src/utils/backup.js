@@ -1,8 +1,6 @@
 import JSZip from 'jszip';
-import { readTextFile } from '@tauri-apps/plugin-fs';
-import { save } from '@tauri-apps/plugin-dialog';
-import { invoke } from '@tauri-apps/api/core';
-import { writeFile } from '@tauri-apps/plugin-fs';
+import { exists, mkdir, readFile, readTextFile, writeFile } from '@tauri-apps/plugin-fs';
+import { open, save } from '@tauri-apps/plugin-dialog';
 
 /**
  * Export the current workspace as a .zip file
@@ -81,4 +79,133 @@ export async function exportWorkspaceAsZip(rootFolderPath, items, settings = nul
   await writeFile(filePath, zipData);
 
   return filePath;
+}
+
+const normalizePath = (value = '') => value.replace(/\\/g, '/');
+
+const joinPath = (basePath, relativePath) => {
+  const base = normalizePath(basePath).replace(/\/+$/, '');
+  const rel = normalizePath(relativePath).replace(/^\/+/, '');
+  return `${base}/${rel}`;
+};
+
+const sanitizeZipEntryPath = (entryName) => {
+  const normalized = normalizePath(entryName || '');
+  if (!normalized || normalized.startsWith('/')) return null;
+
+  const segments = normalized
+    .split('/')
+    .filter(Boolean)
+    .filter((segment) => segment !== '.');
+
+  if (segments.length === 0) return null;
+  if (segments.some((segment) => segment === '..')) return null;
+
+  return segments.join('/');
+};
+
+const getParentPath = (path) => {
+  const normalized = normalizePath(path);
+  const index = normalized.lastIndexOf('/');
+  return index > 0 ? normalized.slice(0, index) : '';
+};
+
+/**
+ * Restore a workspace backup zip into a chosen folder.
+ * Existing files are skipped by default unless overwriteExisting is true.
+ *
+ * @returns {Promise<{
+ *   zipPath: string,
+ *   targetFolderPath: string,
+ *   writtenCount: number,
+ *   skippedExistingCount: number,
+ *   skippedUnsafeCount: number,
+ *   manifest: object | null,
+ *   settings: object | null
+ * } | null>}
+ */
+export async function restoreWorkspaceFromZip(options = {}) {
+  const { overwriteExisting = false } = options;
+
+  const selectedZip = await open({
+    multiple: false,
+    filters: [{
+      name: 'Zip Archive',
+      extensions: ['zip']
+    }]
+  });
+  if (!selectedZip) return null;
+
+  const zipPath = typeof selectedZip === 'string' ? selectedZip : selectedZip.path;
+
+  const targetFolderSelected = await open({
+    multiple: false,
+    directory: true
+  });
+  if (!targetFolderSelected) return null;
+
+  const targetFolderPath = typeof targetFolderSelected === 'string'
+    ? targetFolderSelected
+    : targetFolderSelected.path;
+
+  const zipData = await readFile(zipPath);
+  const zip = await JSZip.loadAsync(zipData);
+
+  let writtenCount = 0;
+  let skippedExistingCount = 0;
+  let skippedUnsafeCount = 0;
+  let manifest = null;
+  let settings = null;
+
+  const entries = Object.values(zip.files);
+  for (const entry of entries) {
+    if (entry.dir) continue;
+
+    const safeRelativePath = sanitizeZipEntryPath(entry.name);
+    if (!safeRelativePath) {
+      skippedUnsafeCount += 1;
+      continue;
+    }
+
+    if (safeRelativePath === '.marky-manifest.json') {
+      try {
+        manifest = JSON.parse(await entry.async('text'));
+      } catch {
+        manifest = null;
+      }
+    }
+
+    if (safeRelativePath === '.marky-settings.json') {
+      try {
+        settings = JSON.parse(await entry.async('text'));
+      } catch {
+        settings = null;
+      }
+    }
+
+    const targetPath = joinPath(targetFolderPath, safeRelativePath);
+    const parentPath = getParentPath(targetPath);
+    if (parentPath) {
+      await mkdir(parentPath, { recursive: true });
+    }
+
+    if (!overwriteExisting && await exists(targetPath)) {
+      skippedExistingCount += 1;
+      continue;
+    }
+
+    const data = await entry.async('uint8array');
+    await writeFile(targetPath, data);
+    writtenCount += 1;
+  }
+
+  return {
+    zipPath,
+    targetFolderPath,
+    writtenCount,
+    skippedExistingCount,
+    skippedUnsafeCount,
+    manifest,
+    settings,
+  };
 }

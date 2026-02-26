@@ -57,6 +57,42 @@ const extractTags = (content) => {
   return Array.from(tags).sort();
 };
 
+const normalizeTagValue = (value) => {
+  const cleaned = (value || '')
+    .trim()
+    .replace(/^#+/, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '');
+  return cleaned;
+};
+
+const replaceTagInContent = (content, sourceTag, targetTag = null) => {
+  if (!content || !sourceTag) return content;
+
+  const normalizedSource = normalizeTagValue(sourceTag);
+  const normalizedTarget = targetTag ? normalizeTagValue(targetTag) : null;
+  const tagRegex = /(^|[\s])#([a-zA-Z0-9_-]+)(?=[\s.,;!?)]|$)/gm;
+
+  let changed = false;
+  const next = content.replace(tagRegex, (full, prefix, tagName) => {
+    if ((tagName || '').toLowerCase() !== normalizedSource) {
+      return full;
+    }
+
+    changed = true;
+    if (!normalizedTarget) {
+      return prefix;
+    }
+
+    return `${prefix}#${normalizedTarget}`;
+  });
+
+  if (!changed) return content;
+  return next;
+};
+
 const normalizeLinkTarget = (value) => (value ? value.trim().toLowerCase() : '');
 const buildNoteLinkKey = (name) => normalizeLinkTarget(stripExtension(name || ''));
 
@@ -1362,6 +1398,96 @@ const useNotesStore = create(
 
       clearTagFilters: () => {
         set({ selectedTags: [] });
+      },
+
+      applyTagOperation: async ({ action, sourceTag, targetTag }) => {
+        const normalizedSource = normalizeTagValue(sourceTag);
+        const normalizedTarget = normalizeTagValue(targetTag);
+
+        if (!normalizedSource) {
+          throw new Error('Source tag is required');
+        }
+
+        if ((action === 'rename' || action === 'merge') && !normalizedTarget) {
+          throw new Error('Target tag is required');
+        }
+
+        if ((action === 'rename' || action === 'merge') && normalizedSource === normalizedTarget) {
+          throw new Error('Source and target tag are the same');
+        }
+
+        const state = get();
+        const notes = state.items.filter((item) => item.type === 'note' && typeof item.content === 'string');
+        const desiredTarget = action === 'delete' ? null : normalizedTarget;
+
+        const candidates = notes
+          .map((note) => {
+            const nextContent = replaceTagInContent(note.content, normalizedSource, desiredTarget);
+            if (nextContent === note.content) return null;
+            return { note, nextContent };
+          })
+          .filter(Boolean);
+
+        if (candidates.length === 0) {
+          return {
+            changedNotes: 0,
+            failedNotes: 0,
+            sourceTag: normalizedSource,
+            targetTag: desiredTarget,
+          };
+        }
+
+        const successfulUpdates = new Map();
+        let failedNotes = 0;
+
+        for (const candidate of candidates) {
+          const { note, nextContent } = candidate;
+          try {
+            if (note.filePath) {
+              cancelPendingNoteWrite(note.filePath);
+              await writeMarkdownFileOnDisk(note.filePath, nextContent);
+            }
+            successfulUpdates.set(note.id, nextContent);
+          } catch (error) {
+            failedNotes += 1;
+            console.error(`Failed to apply tag operation to note ${note.name}:`, error);
+          }
+        }
+
+        if (successfulUpdates.size > 0) {
+          set((current) => {
+            const updatedItems = current.items.map((item) => {
+              if (item.type !== 'note') return item;
+              const nextContent = successfulUpdates.get(item.id);
+              if (nextContent === undefined) return item;
+
+              return ensureNoteMetadata({
+                ...item,
+                content: nextContent,
+                updatedAt: new Date().toISOString()
+              });
+            });
+
+            const dirtyNoteIds = current.dirtyNoteIds.filter((id) => !successfulUpdates.has(id));
+            const selectedTags = current.selectedTags.filter((tag) => tag !== normalizedSource);
+            if (desiredTarget && current.selectedTags.includes(normalizedSource) && !selectedTags.includes(desiredTarget)) {
+              selectedTags.push(desiredTarget);
+            }
+
+            return {
+              items: updatedItems,
+              dirtyNoteIds,
+              selectedTags,
+            };
+          });
+        }
+
+        return {
+          changedNotes: successfulUpdates.size,
+          failedNotes,
+          sourceTag: normalizedSource,
+          targetTag: desiredTarget,
+        };
       },
 
       // Custom template management

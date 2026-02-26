@@ -79,6 +79,7 @@ export function createExtensions(options = {}) {
     enableWikiLinkAutocomplete = true,
     enableVimMode = false,
     getNotes = () => [],
+    getTags = () => [],
   } = options;
 
   const extensions = [
@@ -172,7 +173,7 @@ export function createExtensions(options = {}) {
 
   // Wiki link autocomplete for [[note]] syntax
   if (enableWikiLinkAutocomplete) {
-    extensions.push(createWikiLinkAutocomplete(getNotes));
+    extensions.push(createWikiLinkAutocomplete(getNotes, getTags));
   }
 
   // Vim mode

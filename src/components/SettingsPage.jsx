@@ -3,13 +3,15 @@ import AppearanceSettings from './AppearanceSettings';
 import EditorSettings from './EditorSettings';
 import KeymapsSettings from './KeymapsSettings';
 import ScheduledNotesManager from './ScheduledNotesManager';
+import TagManager from './TagManager';
 import useNotesStore from '../store/notesStore';
 import useSettingsStore from '../store/settingsStore';
 import useUIStore from '../store/uiStore';
-import { exportWorkspaceAsZip } from '../utils/backup';
+import { exportWorkspaceAsZip, restoreWorkspaceFromZip } from '../utils/backup';
 
 const SettingsPage = ({ onOpenKeymapsModal }) => {
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoringBackup, setIsRestoringBackup] = useState(false);
 
   const handleBackup = async () => {
     const { rootFolderPath, items } = useNotesStore.getState();
@@ -36,6 +38,58 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
       addNotification('Backup failed: ' + err.message, 'error');
     } finally {
       setIsBackingUp(false);
+    }
+  };
+
+  const handleRestoreBackup = async () => {
+    const { addNotification } = useUIStore.getState();
+
+    const overwriteExisting = window.confirm(
+      'Overwrite files if they already exist in the destination folder?\n\nChoose Cancel to skip existing files (safer default).'
+    );
+
+    setIsRestoringBackup(true);
+    try {
+      const result = await restoreWorkspaceFromZip({ overwriteExisting });
+      if (!result) return;
+
+      const {
+        targetFolderPath,
+        writtenCount,
+        skippedExistingCount,
+        skippedUnsafeCount,
+        manifest,
+      } = result;
+
+      const parts = [`Restored ${writtenCount} file${writtenCount !== 1 ? 's' : ''}`];
+      if (skippedExistingCount > 0) {
+        parts.push(`skipped ${skippedExistingCount} existing`);
+      }
+      if (skippedUnsafeCount > 0) {
+        parts.push(`ignored ${skippedUnsafeCount} unsafe path${skippedUnsafeCount !== 1 ? 's' : ''}`);
+      }
+
+      addNotification(parts.join(' • '), 'success', 5000);
+
+      // If restored into the currently open workspace, refresh the tree.
+      const state = useNotesStore.getState();
+      const currentRoot = state.rootFolderPath;
+      const normalize = (p) => (p ? p.replace(/\\/g, '/').replace(/\/+$/, '') : '');
+      if (normalize(currentRoot) && normalize(currentRoot) === normalize(targetFolderPath)) {
+        await state.refreshRootFromDisk({ preserveSelection: true });
+        addNotification('Current workspace refreshed after restore', 'info', 3000);
+      } else if (manifest?.noteCount) {
+        addNotification(
+          `Backup manifest: ${manifest.noteCount} note${manifest.noteCount !== 1 ? 's' : ''}`,
+          'info',
+          3500
+        );
+      }
+    } catch (err) {
+      console.error('Restore failed:', err);
+      addNotification('Restore failed: ' + err.message, 'error', 5000);
+    } finally {
+      setIsRestoringBackup(false);
     }
   };
 
@@ -113,6 +167,22 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
           </div>
         </section>
 
+        {/* Tag Manager Section */}
+        <section className="space-y-4">
+          <header>
+            <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              Tag Manager
+            </h2>
+            <p className="text-sm text-text-muted mt-1">Rename, merge, or delete hashtags across your workspace.</p>
+          </header>
+          <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+            <TagManager />
+          </div>
+        </section>
+
         {/* Backup Section */}
         <section className="space-y-4">
           <header>
@@ -125,25 +195,42 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
             <p className="text-sm text-text-muted mt-1">Export your workspace as a zip archive.</p>
           </header>
           <div className="bg-white/5 rounded-xl border border-white/10 p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm text-text-secondary">Export all notes and folder structure as a .zip file.</p>
-                <p className="text-xs text-text-muted mt-1">Includes settings and workspace metadata.</p>
+                <p className="text-xs text-text-muted mt-1">Includes settings and workspace metadata. You can also restore a backup into any folder.</p>
               </div>
-              <button
-                onClick={handleBackup}
-                disabled={isBackingUp}
-                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
-                  isBackingUp
-                    ? 'bg-overlay-light text-text-muted cursor-not-allowed'
-                    : 'bg-accent hover:bg-accent/80 text-white'
-                }`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                {isBackingUp ? 'Exporting...' : 'Export Backup'}
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleRestoreBackup}
+                  disabled={isRestoringBackup || isBackingUp}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 border ${
+                    isRestoringBackup || isBackingUp
+                      ? 'bg-overlay-light text-text-muted cursor-not-allowed border-overlay-subtle'
+                      : 'bg-overlay-subtle hover:bg-overlay-light text-text-primary border-overlay-subtle'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m12-4l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  {isRestoringBackup ? 'Restoring...' : 'Restore Backup'}
+                </button>
+
+                <button
+                  onClick={handleBackup}
+                  disabled={isBackingUp || isRestoringBackup}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
+                    isBackingUp || isRestoringBackup
+                      ? 'bg-overlay-light text-text-muted cursor-not-allowed'
+                      : 'bg-accent hover:bg-accent/80 text-white'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  {isBackingUp ? 'Exporting...' : 'Export Backup'}
+                </button>
+              </div>
             </div>
           </div>
         </section>

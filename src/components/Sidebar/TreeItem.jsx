@@ -182,13 +182,101 @@ const TreeItem = ({
     setIsRenaming(false);
   };
 
-  const handleKeyDown = (e) => {
+  const handleRenameKeyDown = (e) => {
     if (e.key === "Enter") {
       handleRename();
     } else if (e.key === "Escape") {
       setRenamingValue(item.name);
       setIsRenaming(false);
     }
+  };
+
+  const getVisibleTreeRows = (currentRow) => {
+    const treeRoot =
+      currentRow.closest("[data-sidebar-tree-root='true']") || document;
+    return Array.from(treeRoot.querySelectorAll("[data-treeitem-row='true']"));
+  };
+
+  const focusTreeRowByOffset = (currentRow, offset) => {
+    const rows = getVisibleTreeRows(currentRow);
+    const currentIndex = rows.indexOf(currentRow);
+    if (currentIndex === -1) return;
+    const nextIndex = Math.max(
+      0,
+      Math.min(rows.length - 1, currentIndex + offset),
+    );
+    rows[nextIndex]?.focus();
+  };
+
+  const focusTreeBoundary = (currentRow, direction) => {
+    const rows = getVisibleTreeRows(currentRow);
+    if (rows.length === 0) return;
+    (direction === "start" ? rows[0] : rows[rows.length - 1])?.focus();
+  };
+
+  const focusParentTreeRow = (currentRow) => {
+    const rows = getVisibleTreeRows(currentRow);
+    const currentIndex = rows.indexOf(currentRow);
+    if (currentIndex <= 0) return;
+
+    const currentLevel = Number.parseInt(currentRow.dataset.level || "0", 10);
+    for (let i = currentIndex - 1; i >= 0; i -= 1) {
+      const candidateLevel = Number.parseInt(rows[i].dataset.level || "0", 10);
+      if (candidateLevel < currentLevel) {
+        rows[i].focus();
+        return;
+      }
+    }
+  };
+
+  const handleRowKeyDown = (e) => {
+    if (isRenaming) return;
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        focusTreeRowByOffset(e.currentTarget, 1);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        focusTreeRowByOffset(e.currentTarget, -1);
+        break;
+      case "Home":
+        e.preventDefault();
+        focusTreeBoundary(e.currentTarget, "start");
+        break;
+      case "End":
+        e.preventDefault();
+        focusTreeBoundary(e.currentTarget, "end");
+        break;
+      case "ArrowRight":
+        e.preventDefault();
+        if (isFolder && !isExpanded) {
+          toggleFolder(item.id);
+        } else {
+          focusTreeRowByOffset(e.currentTarget, 1);
+        }
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        if (isFolder && isExpanded) {
+          toggleFolder(item.id);
+        } else {
+          focusParentTreeRow(e.currentTarget);
+        }
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        handleClick();
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleRowFocus = (e) => {
+    e.currentTarget.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
 
   const handleMouseEnter = () => {
@@ -271,9 +359,19 @@ const TreeItem = ({
           ${!isBeingDragged && !isRenaming ? "hover:bg-overlay-subtle hover:text-text-primary cursor-pointer" : ""}
           ${showDropHighlight ? "bg-accent/10 text-accent" : ""}
           ${isBeingDragged ? "cursor-grabbing" : "cursor-grab"}
+          focus:outline-none focus:bg-accent/10 focus:text-text-primary focus:ring-2 focus:ring-accent/60 focus:ring-inset
+          focus-visible:outline-none
         `}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
+        data-treeitem-row="true"
+        data-item-id={item.id}
+        data-level={level}
+        tabIndex={isRenaming ? -1 : 0}
+        role="treeitem"
+        aria-expanded={isFolder ? isExpanded : undefined}
         onMouseDown={handleMouseDown}
+        onKeyDown={handleRowKeyDown}
+        onFocus={handleRowFocus}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseUp={handleMouseUp}
@@ -334,7 +432,7 @@ const TreeItem = ({
             value={renamingValue}
             onChange={(e) => setRenamingValue(e.target.value)}
             onBlur={handleRename}
-            onKeyDown={handleKeyDown}
+            onKeyDown={handleRenameKeyDown}
             className="flex-1 bg-overlay-light text-text-primary px-2 py-0.5 rounded outline-none border border-overlay-medium focus:border-accent text-sm"
             autoFocus
             onClick={(e) => e.stopPropagation()}

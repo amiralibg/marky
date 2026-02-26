@@ -23,7 +23,7 @@ export const THEMES = [
       borderLight: '#3f3f46',
       itemHover: '#18181b',
       itemActive: '#27272a',
-      titlebarBg: '#18181b',
+      titlebarBg: '#09090b',
     }
   },
   {
@@ -46,7 +46,7 @@ export const THEMES = [
       borderLight: '#52525b',
       itemHover: '#27272a',
       itemActive: '#3f3f46',
-      titlebarBg: '#27272a',
+      titlebarBg: '#1a1a1e',
     }
   },
   {
@@ -69,7 +69,7 @@ export const THEMES = [
       borderLight: '#475569',
       itemHover: '#1e293b',
       itemActive: '#334155',
-      titlebarBg: '#1e293b',
+      titlebarBg: '#0f172a',
     }
   },
   {
@@ -92,7 +92,7 @@ export const THEMES = [
       borderLight: '#cbd5e1',
       itemHover: '#f1f5f9',
       itemActive: '#e2e8f0',
-      titlebarBg: '#f1f5f9',
+      titlebarBg: '#ffffff',
     }
   },
   {
@@ -115,7 +115,7 @@ export const THEMES = [
       borderLight: '#665c54',
       itemHover: '#3c3836',
       itemActive: '#504945',
-      titlebarBg: '#3c3836',
+      titlebarBg: '#282828',
     }
   },
   {
@@ -138,7 +138,7 @@ export const THEMES = [
       borderLight: '#bdae93',
       itemHover: '#ebdbb2',
       itemActive: '#d5c4a1',
-      titlebarBg: '#ebdbb2',
+      titlebarBg: '#fbf1c7',
     }
   },
 ];
@@ -264,6 +264,7 @@ const useSettingsStore = create(
 
       // Editor settings
       vimMode: false,
+      scrollSyncEnabled: true,
 
       // Keymaps (user customizations stored here)
       keymaps: { ...DEFAULT_KEYMAPS },
@@ -284,6 +285,14 @@ const useSettingsStore = create(
 
       setVimMode: (enabled) => {
         set({ vimMode: enabled });
+      },
+
+      setScrollSyncEnabled: (enabled) => {
+        set({ scrollSyncEnabled: enabled });
+      },
+
+      toggleScrollSync: () => {
+        set((state) => ({ scrollSyncEnabled: !state.scrollSyncEnabled }));
       },
 
       toggleVimMode: () => {
@@ -349,6 +358,7 @@ const useSettingsStore = create(
         themeId: state.themeId,
         accentColorId: state.accentColorId,
         vimMode: state.vimMode,
+        scrollSyncEnabled: state.scrollSyncEnabled,
         keymaps: state.keymaps,
       }),
     }

@@ -13,13 +13,16 @@ const CodeMirrorEditor = forwardRef(({
   enableLineNumbers = true,
   enableVimMode = false,
   getNotes = () => [],
+  getTags = () => [],
 }, ref) => {
   const editorRef = useRef(null);
   const viewRef = useRef(null);
   const updateListenerRef = useRef(null);
   const vimModeChangeListenerRef = useRef(null);
   const getNotesRef = useRef(null);
+  const getTagsRef = useRef(null);
   const suppressOnChangeRef = useRef(false);
+  const vimStatusSyncFrameRef = useRef(null);
 
   // Store onChange, onVimModeChange, and getNotes in refs to avoid recreating extensions
   useEffect(() => {
@@ -33,6 +36,35 @@ const CodeMirrorEditor = forwardRef(({
   useEffect(() => {
     getNotesRef.current = getNotes;
   }, [getNotes]);
+
+  useEffect(() => {
+    getTagsRef.current = getTags;
+  }, [getTags]);
+
+  const emitVimModeStatus = () => {
+    if (!enableVimMode || !viewRef.current || !vimModeChangeListenerRef.current) return;
+
+    try {
+      const cm = getCM(viewRef.current);
+      if (!cm) return;
+      const mode = cm.state.vim?.mode || 'normal';
+      const keyBuffer = cm.state.vim?.inputState?.keyBuffer || '';
+      vimModeChangeListenerRef.current({ mode, keyBuffer });
+    } catch {
+      // Vim not initialized yet
+    }
+  };
+
+  const scheduleVimModeStatusSync = () => {
+    if (!enableVimMode) return;
+    if (vimStatusSyncFrameRef.current !== null) {
+      cancelAnimationFrame(vimStatusSyncFrameRef.current);
+    }
+    vimStatusSyncFrameRef.current = requestAnimationFrame(() => {
+      vimStatusSyncFrameRef.current = null;
+      emitVimModeStatus();
+    });
+  };
 
   // Initialize CodeMirror
   useEffect(() => {
@@ -54,6 +86,7 @@ const CodeMirrorEditor = forwardRef(({
       enableLineNumbers,
       enableVimMode,
       getNotes: () => (getNotesRef.current ? getNotesRef.current() : []),
+      getTags: () => (getTagsRef.current ? getTagsRef.current() : []),
     });
 
     const state = EditorState.create({
@@ -68,11 +101,44 @@ const CodeMirrorEditor = forwardRef(({
 
     viewRef.current = view;
 
+    // Initial mode sync after Vim extension initializes
+    scheduleVimModeStatusSync();
+
     return () => {
+      if (vimStatusSyncFrameRef.current !== null) {
+        cancelAnimationFrame(vimStatusSyncFrameRef.current);
+        vimStatusSyncFrameRef.current = null;
+      }
       view.destroy();
       viewRef.current = null;
     };
   }, [readOnly, placeholder, enableLineNumbers, enableVimMode]);
+
+  // Some Vim mode transitions (notably Insert -> Normal via Esc) may not dispatch
+  // a document-changing transaction immediately, so sync status on editor key events too.
+  useEffect(() => {
+    if (!enableVimMode || !editorRef.current) return;
+
+    const root = editorRef.current;
+    const handleKeyEvent = () => {
+      scheduleVimModeStatusSync();
+      setTimeout(() => {
+        emitVimModeStatus();
+      }, 0);
+    };
+
+    root.addEventListener('keydown', handleKeyEvent, true);
+    root.addEventListener('keyup', handleKeyEvent, true);
+    root.addEventListener('mouseup', handleKeyEvent, true);
+    root.addEventListener('focusin', handleKeyEvent, true);
+
+    return () => {
+      root.removeEventListener('keydown', handleKeyEvent, true);
+      root.removeEventListener('keyup', handleKeyEvent, true);
+      root.removeEventListener('mouseup', handleKeyEvent, true);
+      root.removeEventListener('focusin', handleKeyEvent, true);
+    };
+  }, [enableVimMode]);
 
   // Update document when value changes externally (e.g., switching notes)
   useEffect(() => {
@@ -90,6 +156,7 @@ const CodeMirrorEditor = forwardRef(({
         },
       });
       suppressOnChangeRef.current = false;
+      scheduleVimModeStatusSync();
     }
   }, [value]);
 

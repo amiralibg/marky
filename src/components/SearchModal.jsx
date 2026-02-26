@@ -2,52 +2,204 @@ import { useState, useEffect, useRef } from 'react';
 import Fuse from 'fuse.js';
 import useNotesStore from '../store/notesStore';
 
+const DEFAULT_SEARCH_OPTIONS = {
+  title: true,
+  content: true,
+  tags: false,
+  path: false,
+  caseSensitive: false,
+  exact: false,
+  regex: false,
+};
+
+const normalizeForMatch = (value, caseSensitive) => {
+  const text = value ?? '';
+  return caseSensitive ? text : text.toLowerCase();
+};
+
+const findSubstringIndices = (fieldValue, query, caseSensitive) => {
+  if (!query) return [];
+
+  const original = fieldValue ?? '';
+  const haystack = normalizeForMatch(original, caseSensitive);
+  const needle = normalizeForMatch(query, caseSensitive);
+
+  if (!needle) return [];
+
+  const indices = [];
+  let startIndex = 0;
+  while (startIndex < haystack.length) {
+    const foundAt = haystack.indexOf(needle, startIndex);
+    if (foundAt === -1) break;
+    indices.push([foundAt, foundAt + needle.length - 1]);
+    startIndex = foundAt + Math.max(1, needle.length);
+  }
+
+  return indices;
+};
+
+const findRegexIndices = (fieldValue, regex) => {
+  const text = fieldValue ?? '';
+  const matches = [];
+  let match;
+  let safety = 0;
+  regex.lastIndex = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    const matchedText = match[0] ?? '';
+    if (!matchedText.length) {
+      regex.lastIndex += 1;
+      safety += 1;
+      if (safety > text.length + 5) break;
+      continue;
+    }
+
+    matches.push([match.index, match.index + matchedText.length - 1]);
+    if (!regex.global) break;
+  }
+
+  return matches;
+};
+
+const buildManualMatches = (note, searchQuery, options) => {
+  const fields = [];
+  if (options.title) fields.push({ key: 'name', value: note.name || '' });
+  if (options.content) fields.push({ key: 'content', value: note.content || '' });
+  if (options.tags) fields.push({ key: 'tags', value: (note.tags || []).join(' ') });
+  if (options.path) fields.push({ key: 'filePath', value: note.filePath || '' });
+
+  const matchEntries = [];
+
+  if (options.regex) {
+    const flags = options.caseSensitive ? 'g' : 'gi';
+    let regex;
+    try {
+      regex = new RegExp(searchQuery, flags);
+    } catch (error) {
+      throw new Error(error.message || 'Invalid regular expression');
+    }
+
+    fields.forEach(({ key, value }) => {
+      const indices = findRegexIndices(value, new RegExp(regex.source, regex.flags));
+      if (indices.length > 0) {
+        matchEntries.push({ key, indices });
+      }
+    });
+  } else {
+    fields.forEach(({ key, value }) => {
+      const indices = findSubstringIndices(value, searchQuery, options.caseSensitive);
+      if (indices.length > 0) {
+        matchEntries.push({ key, indices });
+      }
+    });
+  }
+
+  return matchEntries;
+};
+
+const getMatchedFieldLabels = (matches = []) => {
+  const fieldNames = new Set(matches.map((m) => m.key));
+  return [
+    fieldNames.has('name') && 'Title',
+    fieldNames.has('content') && 'Content',
+    fieldNames.has('tags') && 'Tags',
+    fieldNames.has('filePath') && 'Path',
+  ].filter(Boolean);
+};
+
 const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchResults, setSearchResults] = useState([]);
+  const [searchOptions, setSearchOptions] = useState(DEFAULT_SEARCH_OPTIONS);
+  const [searchError, setSearchError] = useState('');
   const searchInputRef = useRef(null);
   const resultsContainerRef = useRef(null);
 
   const { items, selectNote } = useNotesStore();
 
-  // Create Fuse.js instance for fuzzy searching
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
       setSelectedIndex(0);
+      setSearchError('');
       return;
     }
 
-    // Filter only notes (not folders)
     const notes = items.filter(item => item.type === 'note');
+    const enabledScopes = [];
+    if (searchOptions.title) enabledScopes.push({ name: 'name', weight: 2 });
+    if (searchOptions.content) enabledScopes.push({ name: 'content', weight: 1 });
+    if (searchOptions.tags) enabledScopes.push({ name: 'tagsText', weight: 1.1 });
+    if (searchOptions.path) enabledScopes.push({ name: 'filePath', weight: 0.9 });
 
-    // Configure Fuse.js for fuzzy search
-    const fuse = new Fuse(notes, {
-      keys: [
-        { name: 'name', weight: 2 }, // Title has higher weight
-        { name: 'content', weight: 1 }
-      ],
+    if (enabledScopes.length === 0) {
+      setSearchResults([]);
+      setSearchError('Enable at least one search scope (Title, Content, Tags, or Path).');
+      setSelectedIndex(0);
+      return;
+    }
+
+    setSearchError('');
+
+    const normalizedNotes = notes.map((note) => ({
+      ...note,
+      tagsText: Array.isArray(note.tags) ? note.tags.join(' ') : '',
+    }));
+
+    if (searchOptions.regex || searchOptions.exact) {
+      try {
+        const manualResults = normalizedNotes
+          .map((note) => {
+            const matches = buildManualMatches(note, searchQuery, searchOptions);
+            return matches.length > 0 ? { item: note, matches, score: undefined } : null;
+          })
+          .filter(Boolean)
+          .sort((a, b) => {
+            const aName = a.matches.some(m => m.key === 'name') ? 0 : 1;
+            const bName = b.matches.some(m => m.key === 'name') ? 0 : 1;
+            if (aName !== bName) return aName - bName;
+
+            const aContent = a.matches.some(m => m.key === 'content') ? 0 : 1;
+            const bContent = b.matches.some(m => m.key === 'content') ? 0 : 1;
+            if (aContent !== bContent) return aContent - bContent;
+
+            return (a.item.name || '').localeCompare(b.item.name || '');
+          })
+          .slice(0, 20);
+
+        setSearchResults(manualResults);
+        setSelectedIndex(0);
+      } catch (error) {
+        setSearchResults([]);
+        setSearchError(error.message || 'Invalid search query');
+      }
+      return;
+    }
+
+    const fuse = new Fuse(normalizedNotes, {
+      keys: enabledScopes,
       includeScore: true,
       includeMatches: true,
-      threshold: 0.4, // 0 = perfect match, 1 = match anything
+      threshold: 0.4,
       ignoreLocation: true,
       minMatchCharLength: 2,
-      findAllMatches: true
+      findAllMatches: true,
+      isCaseSensitive: searchOptions.caseSensitive,
     });
 
-    const results = fuse.search(searchQuery).slice(0, 20); // Limit to 20 results
+    const results = fuse.search(searchQuery).slice(0, 20);
     setSearchResults(results);
     setSelectedIndex(0);
-  }, [searchQuery, items]);
+  }, [searchQuery, items, searchOptions]);
 
-  // Focus input when modal opens
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
       searchInputRef.current.focus();
       setSearchQuery('');
       setSearchResults([]);
       setSelectedIndex(0);
+      setSearchError('');
     }
   }, [isOpen]);
 
@@ -94,6 +246,22 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
     }
   }, [selectedIndex, searchResults.length]);
 
+  const updateSearchOption = (key) => {
+    setSearchOptions((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+
+      // regex and exact are mutually exclusive modes to keep matching semantics clear
+      if (key === 'regex' && next.regex) {
+        next.exact = false;
+      }
+      if (key === 'exact' && next.exact) {
+        next.regex = false;
+      }
+
+      return next;
+    });
+  };
+
   const handleSelectNote = (note) => {
     selectNote(note.id);
     onClose();
@@ -106,7 +274,8 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
   const getPreviewText = (result) => {
     const { item, matches } = result;
 
-    // Find the best match in content
+    const pathMatch = matches?.find(m => m.key === 'filePath');
+    const tagMatch = matches?.find(m => m.key === 'tags');
     const contentMatch = matches?.find(m => m.key === 'content');
 
     if (contentMatch && contentMatch.indices && contentMatch.indices.length > 0) {
@@ -121,7 +290,17 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
       return preview;
     }
 
-    // Fallback to first 150 characters
+    if (tagMatch) {
+      const tagsLabel = Array.isArray(item.tags) && item.tags.length > 0
+        ? item.tags.map(tag => `#${tag}`).join(' ')
+        : 'No tags';
+      return `Matched in tags: ${tagsLabel}`;
+    }
+
+    if (pathMatch) {
+      return `Matched in path: ${item.filePath || 'No path'}`;
+    }
+
     const preview = item.content?.slice(0, 150) || 'No content';
     return preview + (item.content?.length > 150 ? '...' : '');
   };
@@ -153,6 +332,19 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
 
     return parts;
   };
+
+  const scopeButtons = [
+    { key: 'title', label: 'Title' },
+    { key: 'content', label: 'Content' },
+    { key: 'tags', label: 'Tags' },
+    { key: 'path', label: 'Path' },
+  ];
+
+  const modeButtons = [
+    { key: 'caseSensitive', label: 'Case' },
+    { key: 'exact', label: 'Exact' },
+    { key: 'regex', label: 'Regex' },
+  ];
 
   if (!isOpen) return null;
 
@@ -207,10 +399,55 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
               <div className="mt-2 text-xs text-text-muted px-1">
                 {searchResults.length > 0
                   ? `Found ${searchResults.length} note${searchResults.length !== 1 ? 's' : ''}`
-                  : 'No results found'
+                  : (searchError || 'No results found')
                 }
               </div>
             )}
+
+            {/* Filters / toggles */}
+            <div className="mt-3 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wide text-text-muted">Scopes</span>
+                {scopeButtons.map((btn) => {
+                  const enabled = searchOptions[btn.key];
+                  return (
+                    <button
+                      key={btn.key}
+                      type="button"
+                      onClick={() => updateSearchOption(btn.key)}
+                      className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
+                        enabled
+                          ? 'border-accent/40 bg-accent/10 text-accent'
+                          : 'border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light'
+                      }`}
+                    >
+                      {btn.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wide text-text-muted">Mode</span>
+                {modeButtons.map((btn) => {
+                  const enabled = searchOptions[btn.key];
+                  return (
+                    <button
+                      key={btn.key}
+                      type="button"
+                      onClick={() => updateSearchOption(btn.key)}
+                      className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
+                        enabled
+                          ? 'border-accent/40 bg-accent/10 text-accent'
+                          : 'border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light'
+                      }`}
+                    >
+                      {btn.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Search Results */}
@@ -242,6 +479,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
               const titleParts = highlightMatches(result.item.name, result.matches, 'name');
               const preview = getPreviewText(result);
               const isSelected = index === selectedIndex;
+              const matchedFields = getMatchedFieldLabels(result.matches);
 
               return (
                 <button
@@ -278,6 +516,19 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                       <p className="text-xs text-text-muted line-clamp-2">
                         {preview}
                       </p>
+
+                      {matchedFields.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {matchedFields.map((field) => (
+                            <span
+                              key={field}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-overlay-subtle border border-overlay-subtle text-text-muted"
+                            >
+                              {field}
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Match score indicator */}
                       {result.score !== undefined && (

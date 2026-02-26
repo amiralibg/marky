@@ -1,67 +1,128 @@
-# 🖋️ Marky
+# Marky
 
-**Marky** is an offline-first Markdown note-taking application built with Tauri, React, and Rust. It provides a simple, clean interface with features like wiki-linking, multi-tab support, and a dynamic graph view of your notes.
+Marky is an offline-first Markdown notes app built with Tauri, React, and Rust.
+It is designed for local folder-based note-taking with wiki links, graph navigation, a modern editor, and strong customization.
 
-## ✨ Features
+## Highlights
 
-- **📄 Multi-Tab Interface**: Open and switch between multiple notes.
-- **🎨 Live Preview**: Real-time markdown rendering with a resizable split-pane editor.
-- **🔗 WikiLinks**: Connect notes using `[[WikiLink]]` syntax.
-- **🕸️ Interactive Graph View**: Visualize note connections with zoom and pan support.
-- **📁 Local First**: Works directly with your local files. Changes in your folder are reflected in the app.
-- **⌨️ Keyboard Shortcuts**: Support for core actions like New Note, Save, and Search.
+- Local-first workspace (notes are normal files in your folder)
+- CodeMirror 6 editor with split/preview modes
+- Wiki links (`[[Note]]`) with backlink tracking
+- Interactive graph view for note connections
+- Global fuzzy search across note titles and content
+- Command palette for quick actions and note switching
+- Templates and scheduled note creation (daily/weekly/monthly)
+- Markdown extensions: Mermaid, KaTeX math, footnotes, code highlighting
+- Themes, accent colors, customizable keyboard shortcuts, Vim mode
+- Workspace ZIP backup export
+- File watcher sync for external changes (other editors, git pulls, etc.)
 
-## 🛠️ Technology Stack
+## Features
 
-- **Frontend**: React (v18), Vite, TailwindCSS (v4)
-- **State Management**: Zustand
-- **Backend**: Rust, Tauri (v2)
-- **Markdown**: Marked.js with custom WikiLink extension
-- **File Watching**: `notify` (Rust)
+### Notes and workspace
+- Open a local folder as your workspace
+- Nested folders and notes tree
+- Multi-tab editing
+- Create, rename, move, and delete notes/folders
+- Drag-and-drop reorganization
+- Recent notes and pinned notes
+- Undo last delete
 
-## 🚀 Getting Started
+### Editor and preview
+- CodeMirror 6 markdown editor
+- Editor-only / split / preview-only layouts
+- Unsaved changes indicator + manual save shortcut
+- In-editor search and replace
+- Wiki-link autocomplete and broken-link note creation flow
+- Table of contents panel for headings
+- Focus mode (distraction-free writing)
+- Automatic BiDi/RTL rendering for mixed-language notes
+
+### Discovery and navigation
+- Global search modal (Fuse.js fuzzy search)
+- Command palette (`Cmd/Ctrl+K`)
+- Backlinks panel with context previews
+- Interactive graph modal (force-directed)
+- Sidebar search, sorting, and tag filtering
+
+### Templates, scheduling, export
+- Built-in templates and custom templates
+- Scheduled note generation (daily/weekly/monthly)
+- Scheduled notes management UI in Settings
+- Export note as Markdown or HTML
+- Print-friendly HTML export for PDF workflow
+- Copy rendered HTML to clipboard
+- Export workspace backup as ZIP (with metadata/settings)
+
+## Tech Stack
+
+- Frontend: React 18 + Vite
+- Desktop runtime: Tauri 2 (Rust backend)
+- State: Zustand
+- Editor: CodeMirror 6 (+ Vim mode via `@replit/codemirror-vim`)
+- Markdown rendering: `marked` + extensions
+- Search: Fuse.js
+- Diagrams: Mermaid
+- Math: KaTeX
+- Archive export: JSZip
+
+## Getting Started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (latest LTS recommended)
-- [Rust](https://www.rust-lang.org/tools/install)
-- [pnpm](https://pnpm.io/) (used in this project)
+- Node.js (latest LTS recommended)
+- Rust toolchain ([rustup](https://rustup.rs/))
+- `pnpm`
 
-### Installation
+### Install
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/marky.git
-   cd marky
-   ```
+```bash
+pnpm install
+```
 
-2. Install dependencies:
-   ```bash
-   pnpm install
-   ```
+### Run (desktop app)
 
-3. Run in development mode:
-   ```bash
-   pnpm tauri:dev
-   ```
+```bash
+pnpm tauri:dev
+```
 
-## 📦 Building for Production
+### Run frontend only (optional)
 
-To create a production-ready installer for your operating system:
+```bash
+pnpm dev
+```
+
+## Build
+
+Build a production desktop app:
 
 ```bash
 pnpm tauri:build
 ```
 
-The output will be found in:
-- **macOS**: `src-tauri/target/release/bundle/dmg/` or `.../macos/`
-- **Windows**: `src-tauri/target/release/bundle/msi/` or `.../nsis/`
-- **Linux**: `src-tauri/target/release/bundle/deb/` or `.../appimage/`
+Typical outputs are generated under `src-tauri/target/release/bundle/` (platform-specific subfolders such as `dmg`, `msi`, `deb`, etc.).
 
-## 📄 License
+## Keyboard Shortcuts (defaults)
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- `Cmd/Ctrl+K`: Command palette
+- `Cmd/Ctrl+Shift+F`: Search all notes
+- `Cmd/Ctrl+N`: New note
+- `Cmd/Ctrl+Shift+N`: New folder
+- `Cmd/Ctrl+S`: Save note
+- `Cmd/Ctrl+W`: Close tab
+- `Cmd/Ctrl+1/2/3`: Editor / Split / Preview views
 
-## 🤝 Contributing
+Shortcuts are customizable in Settings.
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Project Structure
+
+- `/src` - React UI, stores, editor, components
+- `/src-tauri` - Rust/Tauri backend and desktop config
+
+## Roadmap
+
+See `/Users/amiralibg/Programming/Git/marky/TODO.md` for the current audit-based roadmap and prioritized next work.
+
+## License
+
+MIT. See `/Users/amiralibg/Programming/Git/marky/LICENSE`.

@@ -1,10 +1,45 @@
 import useSettingsStore from '../store/settingsStore';
 
 const EditorSettings = () => {
-  const { vimMode, toggleVimMode } = useSettingsStore();
+  const {
+    vimMode,
+    toggleVimMode,
+    scrollSyncEnabled,
+    toggleScrollSync,
+  } = useSettingsStore();
 
   return (
     <div className="space-y-6">
+      {/* Preview Scroll Sync Toggle */}
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-text-primary mb-1">
+            Preview Scroll Sync
+          </h3>
+          <p className="text-xs text-text-muted leading-relaxed">
+            Sync scrolling between the editor and preview in split view. This is approximate and may drift on notes with heavy formatting or diagrams.
+          </p>
+        </div>
+        <button
+          onClick={toggleScrollSync}
+          className={`
+            relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0
+            ${scrollSyncEnabled
+              ? 'bg-accent shadow-lg shadow-accent/30'
+              : 'bg-overlay-light hover:bg-overlay-medium'
+            }
+          `}
+          aria-label="Toggle Preview Scroll Sync"
+        >
+          <span
+            className={`
+              absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200
+              ${scrollSyncEnabled ? 'translate-x-7' : 'translate-x-0'}
+            `}
+          />
+        </button>
+      </div>
+
       {/* Vim Mode Toggle */}
       <div className="flex items-start justify-between">
         <div className="flex-1">

@@ -194,11 +194,12 @@ const MarkdownEditor = forwardRef((props, ref) => {
     setEditorSplitRatio,
     saveCurrentNoteToDisk,
     isNoteDirty,
-    getNotes
+    getNotes,
+    getAllTags
   } = useNotesStore();
 
   const { addNotification, setShowWorkspaceModal } = useUIStore();
-  const { vimMode } = useSettingsStore();
+  const { vimMode, scrollSyncEnabled } = useSettingsStore();
 
   const [markdown, setMarkdown] = useState("");
   const [debouncedMarkdown, setDebouncedMarkdown] = useState(""); // Debounced for preview
@@ -221,7 +222,10 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const savedIndicatorTimerRef = useRef(null);
   const previewTimerRef = useRef(null); // Timer for debounced preview updates
   const editorRef = useRef(null);
+  const previewPaneRef = useRef(null);
   const highlightTimeoutRef = useRef(null);
+  const ignoreNextEditorSyncScrollRef = useRef(false);
+  const ignoreNextPreviewSyncScrollRef = useRef(false);
 
   // Get dirty state from store (persists across tab switches)
   const hasUnsavedChanges = isNoteDirty(currentNoteId);
@@ -574,6 +578,242 @@ const MarkdownEditor = forwardRef((props, ref) => {
     }
   }, [debouncedMarkdown]);
 
+  // Split-view scroll sync between CodeMirror and preview
+  useEffect(() => {
+    if (viewMode !== 'split' || !scrollSyncEnabled) return;
+
+    const editorView = editorRef.current?.getView?.();
+    const editorScroller = editorView?.scrollDOM;
+    const previewScroller = previewPaneRef.current;
+
+    if (!editorScroller || !previewScroller) return;
+
+    const setScrollByRatio = (sourceEl, targetEl) => {
+      const sourceScrollable = sourceEl.scrollHeight - sourceEl.clientHeight;
+      const targetScrollable = targetEl.scrollHeight - targetEl.clientHeight;
+      if (sourceScrollable <= 0 || targetScrollable <= 0) return;
+
+      const ratio = sourceEl.scrollTop / sourceScrollable;
+      const nextScrollTop = ratio * targetScrollable;
+      if (Math.abs(targetEl.scrollTop - nextScrollTop) < 1) return;
+      targetEl.scrollTop = nextScrollTop;
+    };
+
+    const parseMarkdownHeadings = (text) => {
+      const headings = [];
+      const lines = (text || '').split('\n');
+
+      for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i];
+        const atx = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+        if (atx) {
+          headings.push({
+            line: i + 1,
+            level: atx[1].length,
+            text: atx[2].trim(),
+            id: slugify(atx[2].trim()),
+          });
+        }
+      }
+
+      return headings;
+    };
+
+    const getPreviewHeadingMap = () => {
+      const headingEls = Array.from(
+        previewScroller.querySelectorAll('.markdown-preview h1[id], .markdown-preview h2[id], .markdown-preview h3[id], .markdown-preview h4[id], .markdown-preview h5[id], .markdown-preview h6[id]')
+      );
+
+      const offsetAdjustment = 24; // preview container top padding alignment
+      return headingEls.map((el) => ({
+        id: el.id,
+        top: Math.max(0, el.offsetTop - offsetAdjustment),
+      }));
+    };
+
+    let editorToPreviewSections = [];
+    let previewToEditorSections = [];
+    let syncFrameId = null;
+
+    const rebuildSectionMaps = () => {
+      const headings = parseMarkdownHeadings(debouncedMarkdown);
+      const previewHeadings = getPreviewHeadingMap();
+      if (headings.length === 0 || previewHeadings.length === 0) {
+        editorToPreviewSections = [];
+        previewToEditorSections = [];
+        return;
+      }
+
+      const previewById = new Map(previewHeadings.map((h) => [h.id, h]));
+      const sourceById = new Map(headings.map((h) => [h.id, h]));
+
+      editorToPreviewSections = headings
+        .map((heading) => {
+          const previewHeading = previewById.get(heading.id);
+          if (!previewHeading) return null;
+          return {
+            line: heading.line,
+            id: heading.id,
+            previewTop: previewHeading.top,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.line - b.line);
+
+      previewToEditorSections = previewHeadings
+        .map((heading) => {
+          const sourceHeading = sourceById.get(heading.id);
+          if (!sourceHeading) return null;
+          return {
+            line: sourceHeading.line,
+            id: heading.id,
+            previewTop: heading.top,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.previewTop - b.previewTop);
+    };
+
+    const syncPreviewFromEditorBySections = () => {
+      const sectionPairs = editorToPreviewSections;
+      if (sectionPairs.length === 0) return false;
+
+      const topDocY = -editorView.documentTop;
+      const topBlock = editorView.lineBlockAtHeight(topDocY);
+      const topLine = editorView.state.doc.lineAt(topBlock.from).number;
+
+      let sectionIndex = 0;
+      for (let i = 0; i < sectionPairs.length; i += 1) {
+        if (sectionPairs[i].line <= topLine) sectionIndex = i;
+        else break;
+      }
+
+      const current = sectionPairs[sectionIndex];
+      const next = sectionPairs[sectionIndex + 1];
+      const currentLine = current.line;
+      const nextLine = next ? next.line : editorView.state.doc.lines + 1;
+      const lineSpan = Math.max(1, nextLine - currentLine);
+      const lineRatio = Math.min(1, Math.max(0, (topLine - currentLine) / lineSpan));
+
+      const currentPreviewTop = current.previewTop;
+      const nextPreviewTop = next
+        ? next.previewTop
+        : Math.max(currentPreviewTop, previewScroller.scrollHeight - previewScroller.clientHeight);
+      const previewSpan = Math.max(0, nextPreviewTop - currentPreviewTop);
+      const targetScrollTop = currentPreviewTop + previewSpan * lineRatio;
+
+      if (Math.abs(previewScroller.scrollTop - targetScrollTop) < 2) return true;
+      previewScroller.scrollTop = targetScrollTop;
+      return true;
+    };
+
+    const syncEditorFromPreviewBySections = () => {
+      const sectionPairs = previewToEditorSections;
+      if (sectionPairs.length === 0) return false;
+
+      const previewTop = previewScroller.scrollTop;
+      let sectionIndex = 0;
+      for (let i = 0; i < sectionPairs.length; i += 1) {
+        if (sectionPairs[i].previewTop <= previewTop) sectionIndex = i;
+        else break;
+      }
+
+      const current = sectionPairs[sectionIndex];
+      const next = sectionPairs[sectionIndex + 1];
+      const currentPreviewTop = current.previewTop;
+      const nextPreviewTop = next
+        ? next.previewTop
+        : Math.max(currentPreviewTop, previewScroller.scrollHeight - previewScroller.clientHeight);
+      const previewSpan = Math.max(1, nextPreviewTop - currentPreviewTop);
+      const previewRatio = Math.min(1, Math.max(0, (previewTop - currentPreviewTop) / previewSpan));
+
+      const currentLine = current.line;
+      const nextLine = next ? next.line : editorView.state.doc.lines + 1;
+      const lineSpan = Math.max(1, nextLine - currentLine);
+      const targetLine = Math.min(
+        editorView.state.doc.lines,
+        Math.max(1, Math.round(currentLine + lineSpan * previewRatio))
+      );
+
+      const targetLineInfo = editorView.state.doc.line(targetLine);
+      const targetBlock = editorView.lineBlockAt(targetLineInfo.from);
+      const nextLineInfo = targetLine < editorView.state.doc.lines
+        ? editorView.state.doc.line(targetLine + 1)
+        : null;
+      const nextBlock = nextLineInfo ? editorView.lineBlockAt(nextLineInfo.from) : null;
+      const lineBlockHeight = Math.max(1, (nextBlock?.top ?? (targetBlock.top + 20)) - targetBlock.top);
+      const targetEditorScrollTop = targetBlock.top + lineBlockHeight * previewRatio;
+
+      if (Math.abs(editorScroller.scrollTop - targetEditorScrollTop) < 2) return true;
+      editorScroller.scrollTop = targetEditorScrollTop;
+      return true;
+    };
+
+    const queueSync = (fn) => {
+      if (syncFrameId !== null) return;
+      syncFrameId = window.requestAnimationFrame(() => {
+        syncFrameId = null;
+        fn();
+      });
+    };
+
+    const handleEditorScroll = () => {
+      if (ignoreNextEditorSyncScrollRef.current) {
+        ignoreNextEditorSyncScrollRef.current = false;
+        return;
+      }
+      queueSync(() => {
+        ignoreNextPreviewSyncScrollRef.current = true;
+        const didSync = syncPreviewFromEditorBySections();
+        if (!didSync) {
+          setScrollByRatio(editorScroller, previewScroller);
+        }
+      });
+    };
+
+    const handlePreviewScroll = () => {
+      if (ignoreNextPreviewSyncScrollRef.current) {
+        ignoreNextPreviewSyncScrollRef.current = false;
+        return;
+      }
+      queueSync(() => {
+        ignoreNextEditorSyncScrollRef.current = true;
+        const didSync = syncEditorFromPreviewBySections();
+        if (!didSync) {
+          setScrollByRatio(previewScroller, editorScroller);
+        }
+      });
+    };
+
+    rebuildSectionMaps();
+
+    editorScroller.addEventListener('scroll', handleEditorScroll, { passive: true });
+    previewScroller.addEventListener('scroll', handlePreviewScroll, { passive: true });
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => rebuildSectionMaps())
+      : null;
+    if (resizeObserver) {
+      resizeObserver.observe(previewScroller);
+      const previewContentEl = previewScroller.querySelector('.markdown-preview');
+      if (previewContentEl) resizeObserver.observe(previewContentEl);
+    }
+
+    // Align preview to current editor position when entering split mode or changing notes
+    if (!syncPreviewFromEditorBySections()) {
+      setScrollByRatio(editorScroller, previewScroller);
+    }
+
+    return () => {
+      if (syncFrameId !== null) {
+        window.cancelAnimationFrame(syncFrameId);
+      }
+      resizeObserver?.disconnect();
+      editorScroller.removeEventListener('scroll', handleEditorScroll);
+      previewScroller.removeEventListener('scroll', handlePreviewScroll);
+    };
+  }, [viewMode, debouncedMarkdown, currentNoteId, scrollSyncEnabled]);
+
   // Memoize status bar calculations - only recalculate when debouncedMarkdown changes
   const statusBarStats = useMemo(() => {
     const text = debouncedMarkdown || "";
@@ -777,12 +1017,22 @@ const MarkdownEditor = forwardRef((props, ref) => {
     }
   }, [markdown, viewMode]);
 
+  const currentNote = getCurrentNote();
+
+  // Sync editor content when external actions (e.g. Tag Manager / restore) update the current note.
+  useEffect(() => {
+    if (!currentNote || hasUnsavedChanges) return;
+    const nextContent = currentNote.content || '';
+    if (nextContent !== markdown) {
+      setMarkdown(nextContent);
+      setDebouncedMarkdown(nextContent);
+    }
+  }, [currentNoteId, currentNote?.content, hasUnsavedChanges, markdown]);
+
   // Check if we're viewing the settings tab
   if (currentNoteId === SETTINGS_TAB_ID) {
     return <SettingsPage onOpenKeymapsModal={onOpenKeymapsModal} />;
   }
-
-  const currentNote = getCurrentNote();
 
   if (!currentNote) {
     return (
@@ -1038,6 +1288,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
               enableLineNumbers={true}
               enableVimMode={vimMode}
               getNotes={getNotes}
+              getTags={getAllTags}
             />
           </div>
         )}
@@ -1056,6 +1307,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
         {/* Preview */}
         {(viewMode === "preview" || viewMode === "split") && (
           <div
+            ref={previewPaneRef}
             className={`flex flex-col bg-bg-editor overflow-y-auto ${isResizingSplit ? 'pointer-events-none' : ''} ${focusMode ? 'max-w-3xl mx-auto' : ''}`}
             style={{ width: viewMode === "split" ? `${100 - editorSplitRatio}%` : '100%' }}
             onClick={handlePreviewClick}

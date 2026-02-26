@@ -1,14 +1,14 @@
 import { autocompletion } from '@codemirror/autocomplete';
-import { syntaxTree } from '@codemirror/language';
 
 /**
  * Creates a wiki link autocomplete extension for CodeMirror
  * Triggers when typing [[ and shows available notes as completions
  *
  * @param {Function} getNotes - Function that returns array of notes with {id, name} properties
+ * @param {Function} getTags - Function that returns tags (array of strings or {tag} objects)
  * @returns {Extension} CodeMirror extension
  */
-export function createWikiLinkAutocomplete(getNotes) {
+export function createWikiLinkAutocomplete(getNotes, getTags = () => []) {
   const wikiLinkCompletions = (context) => {
     const { state, pos } = context;
     const textBefore = state.sliceDoc(Math.max(0, pos - 100), pos);
@@ -68,8 +68,53 @@ export function createWikiLinkAutocomplete(getNotes) {
     };
   };
 
+  const tagCompletions = (context) => {
+    const { state, pos } = context;
+    const textBefore = state.sliceDoc(Math.max(0, pos - 80), pos);
+
+    // Trigger on hashtags but avoid markdown headings (line start # / ## ...)
+    const tagMatch = /(?:^|[\s(])#([a-zA-Z0-9_-]*)$/.exec(textBefore);
+    if (!tagMatch) return null;
+
+    const searchText = tagMatch[1] || '';
+    const from = pos - searchText.length;
+
+    const rawTags = getTags() || [];
+    const tags = rawTags
+      .map((entry) => (typeof entry === 'string' ? entry : entry?.tag))
+      .filter(Boolean);
+
+    if (tags.length === 0) return null;
+
+    const uniqueSortedTags = Array.from(new Set(tags.map((t) => t.toLowerCase())))
+      .sort((a, b) => a.localeCompare(b));
+
+    const options = uniqueSortedTags
+      .filter((tag) => !searchText || tag.includes(searchText.toLowerCase()))
+      .slice(0, 20)
+      .map((tag) => ({
+        label: tag,
+        type: 'keyword',
+        detail: 'Tag',
+        apply: (view, completion, applyFrom, applyTo) => {
+          view.dispatch({
+            changes: { from: applyFrom, to: applyTo, insert: tag },
+            selection: { anchor: applyFrom + tag.length }
+          });
+        },
+      }));
+
+    if (options.length === 0) return null;
+
+    return {
+      from,
+      options,
+      validFor: /^[a-zA-Z0-9_-]*$/
+    };
+  };
+
   return autocompletion({
-    override: [wikiLinkCompletions],
+    override: [wikiLinkCompletions, tagCompletions],
     activateOnTyping: true,
     closeOnBlur: true,
     defaultKeymap: true,

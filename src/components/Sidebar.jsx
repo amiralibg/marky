@@ -1169,6 +1169,7 @@ const Sidebar = forwardRef(
         {/* Main Folder Tree */}
         <div
           ref={sidebarRef}
+          data-sidebar-tree-root="true"
           className={`flex-1 overflow-y-auto px-3 py-2 space-y-0.5 custom-scrollbar bg-transparent relative
             ${draggedItem ? "bg-overlay-subtle/50 rounded-lg mx-2" : ""}
             ${isExternalDragging && !dropTargetFolder ? "ring-2 ring-accent/40 ring-inset rounded-lg bg-accent/5" : ""}
@@ -1260,7 +1261,7 @@ const Sidebar = forwardRef(
                     New Note
                   </button>
                   <button
-                    onClick={() => loadFolderFromSystem({ folderPath: null })} // Trigger system dialog
+                    onClick={handleOpenFolder}
                     className="w-full py-2 bg-overlay-subtle hover:bg-overlay-light text-text-secondary text-xs font-semibold rounded-lg border border-overlay-subtle transition-all flex items-center justify-center gap-2"
                   >
                     <svg

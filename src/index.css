@@ -38,8 +38,8 @@
   /* Zinc 900 */
   --color-item-active: #27272a;
   /* Zinc 800 */
-  --color-titlebar-bg: #18181b;
-  /* Title bar background - slightly lighter than base */
+  --color-titlebar-bg: #09090b;
+  /* Title bar background - matches base */
 
   /* Theme-aware overlay colors (dark mode defaults) */
   --color-overlay-subtle: rgba(255, 255, 255, 0.05);
