@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import useSettingsStore, { matchesKeymap, formatKeymap } from '../store/settingsStore';
 
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
 
@@ -153,7 +154,7 @@ const TABLE_TEMPLATE = '\n| Header 1 | Header 2 | Header 3 |\n| -------- | -----
 
 const TAB_BUTTONS = {
   text: [
-    { id: 'bold', label: 'Bold', icon: ICONS.bold, before: '**', after: '**', placeholder: 'bold text', tooltip: 'Bold (**text**)', shortcut: 'Ctrl+B' },
+    { id: 'bold', label: 'Bold', icon: ICONS.bold, before: '**', after: '**', placeholder: 'bold text', tooltip: 'Bold (**text**)', shortcut: 'Ctrl+Shift+B' },
     { id: 'italic', label: 'Italic', icon: ICONS.italic, before: '*', after: '*', placeholder: 'italic text', tooltip: 'Italic (*text*)', shortcut: 'Ctrl+I' },
     { id: 'strikethrough', label: 'Strike', icon: ICONS.strikethrough, before: '~~', after: '~~', placeholder: 'text', tooltip: 'Strikethrough (~~text~~)' },
     { id: 'inlineCode', label: 'Code', icon: ICONS.inlineCode, before: '`', after: '`', placeholder: 'code', tooltip: 'Inline code (`code`)' },
@@ -184,30 +185,29 @@ const TAB_BUTTONS = {
 
 const Toolbar = ({ onInsert }) => {
   const [activeTab, setActiveTab] = useState('text');
+  const keymaps = useSettingsStore((state) => state.keymaps);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      const isMod = e.metaKey || e.ctrlKey;
-
-      if (!isMod) return;
-
       const textarea = document.querySelector('.editor-textarea');
       if (!textarea || document.activeElement !== textarea) return;
 
-      if (e.key === 'b') {
+      const keymaps = useSettingsStore.getState().keymaps;
+
+      if (matchesKeymap(e, keymaps.bold)) {
         e.preventDefault();
         onInsert('**', '**', 'bold text');
-      } else if (e.key === 'i') {
+      } else if (matchesKeymap(e, keymaps.italic)) {
         e.preventDefault();
         onInsert('*', '*', 'italic text');
-      } else if (e.key === 'k') {
+      } else if (matchesKeymap(e, keymaps.link)) {
         e.preventDefault();
         onInsert('[', '](https://)', 'link text');
-      } else if (e.shiftKey && e.key === 'C') {
+      } else if (matchesKeymap(e, keymaps.codeBlock)) {
         e.preventDefault();
         onInsert('```\n', '\n```', 'code');
-      } else if (e.shiftKey && e.key === 'L') {
+      } else if (matchesKeymap(e, keymaps.list)) {
         e.preventDefault();
         onInsert('- ', '', 'item');
       }
@@ -218,13 +218,14 @@ const Toolbar = ({ onInsert }) => {
   }, [onInsert]);
 
   const buttons = TAB_BUTTONS[activeTab];
-  const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
 
   const getTooltip = (btn) => {
     let tip = btn.tooltip;
-    if (btn.shortcut) {
-      const shortcut = isMac ? btn.shortcut.replace('Ctrl', '⌘') : btn.shortcut;
-      tip += ` — ${shortcut}`;
+    // Use live keymap from store if this button has a matching action
+    const actionKeymap = btn.id && keymaps[btn.id] ? keymaps[btn.id] : null;
+    if (actionKeymap) {
+      const keys = formatKeymap(actionKeymap);
+      tip += ` — ${keys.join('+')}`;
     }
     return tip;
   };

@@ -5,9 +5,9 @@ import {
   useRef,
   forwardRef,
   useImperativeHandle,
+  useMemo,
 } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import useNotesStore from "../store/notesStore";
 import useUIStore from "../store/uiStore";
@@ -16,7 +16,6 @@ import {
   openMarkdownFile,
   saveMarkdownFile,
   openFolder,
-  readMarkdownFile,
   watchFolder,
   stopWatching,
   copyEntriesToFolder,
@@ -25,58 +24,97 @@ import {
 import TreeItem from "./Sidebar/TreeItem";
 import ContextMenu from "./Sidebar/ContextMenu";
 import BacklinkItem from "./Sidebar/BacklinkItem";
+import ConfirmDialog from "./ConfirmDialog";
+
+const VIRTUAL_TREE_THRESHOLD = 250;
+const VIRTUAL_TREE_ROW_HEIGHT = 36;
+const VIRTUAL_TREE_OVERSCAN = 8;
+
+const sortSidebarItems = (entries, sortBy, isRootLevel = false) => {
+  const items = [...entries];
+  return items.sort((a, b) => {
+    if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+
+    if (!isRootLevel) {
+      if (a.order !== undefined && b.order !== undefined) {
+        return a.order - b.order;
+      }
+      return a.name.localeCompare(b.name);
+    }
+
+    switch (sortBy) {
+      case "name-desc":
+        return b.name.localeCompare(a.name);
+      case "date-desc":
+        return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
+      case "date-asc":
+        return new Date(a.updatedAt || a.createdAt) - new Date(b.updatedAt || b.createdAt);
+      case "name-asc":
+      default:
+        return a.name.localeCompare(b.name);
+    }
+  });
+};
 
 // Helper to find the folder element at given coordinates
 const findFolderAtPosition = (x, y, sidebarElement) => {
   if (!sidebarElement) return null;
 
-  // Get all folder elements within the sidebar
-  const folderElements = sidebarElement.querySelectorAll("[data-folder-path]");
-
-  for (const el of folderElements) {
+  const folderElements = Array.from(
+    sidebarElement.querySelectorAll("[data-treeitem-row='true'][data-folder-path]"),
+  );
+  const matchingElements = folderElements.filter((el) => {
     const rect = el.getBoundingClientRect();
-    if (
+    return (
       x >= rect.left &&
       x <= rect.right &&
       y >= rect.top &&
       y <= rect.bottom
-    ) {
-      return {
-        id: el.dataset.folderId,
-        path: el.dataset.folderPath,
-        name: el.dataset.folderName,
-        element: el,
-      };
-    }
+    );
+  });
+
+  if (matchingElements.length === 0) {
+    return null;
   }
 
-  return null;
+  matchingElements.sort((a, b) => {
+    const aRect = a.getBoundingClientRect();
+    const bRect = b.getBoundingClientRect();
+    return (aRect.width * aRect.height) - (bRect.width * bRect.height);
+  });
+
+  const target = matchingElements[0];
+  return {
+    id: target.dataset.folderId,
+    path: target.dataset.folderPath,
+    name: target.dataset.folderName,
+    element: target,
+  };
 };
 
 const Sidebar = forwardRef(
   ({ onSettingsClick, onOpenGraph, onOpenTemplate, onRenameItem }, ref) => {
     const {
       items,
-      createNote,
       createFolder,
       getCurrentNote,
       updateNotePath,
       loadFolderFromSystem,
       moveItem,
       moveItemToRoot,
-      renameItem,
       rootFolderPath,
       refreshRootFromDisk,
       getRecentNotes,
       getBacklinks,
       selectNote,
       getPinnedNotes,
-      isPinned,
+      expandedFolders,
       toggleTagFilter,
       selectedTags,
       clearTagFilters,
       isLoading,
       loadingProgress,
+      recentWorkspaces,
     } = useNotesStore();
     const { addNotification, setShowWorkspaceModal } = useUIStore();
     const [contextMenu, setContextMenu] = useState(null);
@@ -87,32 +125,48 @@ const Sidebar = forwardRef(
     const [showPinnedNotes, setShowPinnedNotes] = useState(true);
     const [showTags, setShowTags] = useState(false);
     const [showBacklinks, setShowBacklinks] = useState(true);
+    const [tagSortMode, setTagSortMode] = useState('frequency'); // 'frequency' | 'alpha' | 'recent'
     const [sortBy, setSortBy] = useState("name-asc"); // 'name-asc', 'name-desc', 'date-desc', 'date-asc'
     const [showSortMenu, setShowSortMenu] = useState(false);
+    const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
     const [dropTargetFolder, setDropTargetFolder] = useState(null);
     const [isExternalDragging, setIsExternalDragging] = useState(false);
+    const [isRootDropActive, setIsRootDropActive] = useState(false);
+    const [pendingDeleteItem, setPendingDeleteItem] = useState(null);
+    const [treeScrollTop, setTreeScrollTop] = useState(0);
+    const [treeViewportHeight, setTreeViewportHeight] = useState(0);
     const dropHandledRef = useRef(false);
     const dropTargetRef = useRef(null);
     const sidebarRef = useRef(null);
     const currentNote = getCurrentNote();
-    const backlinks = currentNote ? getBacklinks(currentNote.id) : [];
+    const backlinks = useMemo(
+      () => (currentNote ? getBacklinks(currentNote.id) : []),
+      [currentNote?.id, items]
+    );
 
     // Compute all tags from items - this will re-compute when items change
-    const allTags = items
-      .filter((item) => item.type === "note" && item.content)
-      .reduce((acc, note) => {
-        const tags = (
-          note.content.match(/(?:^|[\s])#([a-zA-Z0-9_-]+)/g) || []
-        ).map((t) => t.trim().substring(1).toLowerCase());
-        tags.forEach((tag) => {
-          acc[tag] = (acc[tag] || 0) + 1;
+    const allTagsArray = useMemo(() => {
+      const tagCounts = items
+        .filter((item) => item.type === "note" && item.content)
+        .reduce((acc, note) => {
+          const tags = (
+            note.content.match(/(?:^|[\s])#([a-zA-Z0-9_-]+)/g) || []
+          ).map((t) => t.trim().substring(1).toLowerCase());
+          tags.forEach((tag) => { acc[tag] = (acc[tag] || 0) + 1; });
+          return acc;
+        }, {});
+      const arr = Object.entries(tagCounts).map(([tag, count]) => ({ tag, count }));
+      if (tagSortMode === 'alpha') return arr.sort((a, b) => a.tag.localeCompare(b.tag));
+      if (tagSortMode === 'recent') {
+        const recentTagSet = new Map();
+        [...items].reverse().forEach((item) => {
+          if (item.type !== 'note' || !item.tags) return;
+          item.tags.forEach((tag) => { if (!recentTagSet.has(tag)) recentTagSet.set(tag, recentTagSet.size); });
         });
-        return acc;
-      }, {});
-
-    const allTagsArray = Object.entries(allTags)
-      .map(([tag, count]) => ({ tag, count }))
-      .sort((a, b) => b.count - a.count);
+        return arr.sort((a, b) => (recentTagSet.get(a.tag) ?? Infinity) - (recentTagSet.get(b.tag) ?? Infinity));
+      }
+      return arr.sort((a, b) => b.count - a.count);
+    }, [items, tagSortMode]);
 
     // Search filtering function
     const filterItemsBySearch = useCallback((items, query) => {
@@ -146,65 +200,96 @@ const Sidebar = forwardRef(
     }, []);
 
     // Apply combined filters: search + tags
-    let filteredItems = items;
+    const filteredItems = useMemo(() => {
+      let result = items;
 
-    // Apply tag filtering first
-    if (selectedTags.length > 0) {
-      const tagFilteredNotes = new Set();
-      items.forEach((item) => {
-        if (item.type === "note" && item.content) {
-          const noteTags =
-            item.content
-              .match(/(?:^|[\s])#([a-zA-Z0-9_-]+)/g)
-              ?.map((t) => t.trim().substring(1).toLowerCase()) || [];
-          if (selectedTags.every((tag) => noteTags.includes(tag))) {
-            tagFilteredNotes.add(item.id);
-            // Add ancestors
-            let current = item;
-            while (current.parentId) {
-              tagFilteredNotes.add(current.parentId);
-              current = items.find((i) => i.id === current.parentId);
-              if (!current) break;
+      // Apply tag filtering first
+      if (selectedTags.length > 0) {
+        const tagFilteredNotes = new Set();
+        items.forEach((item) => {
+          if (item.type === "note" && item.content) {
+            const noteTags =
+              item.content
+                .match(/(?:^|[\s])#([a-zA-Z0-9_-]+)/g)
+                ?.map((t) => t.trim().substring(1).toLowerCase()) || [];
+            if (selectedTags.every((tag) => noteTags.includes(tag))) {
+              tagFilteredNotes.add(item.id);
+              let current = item;
+              while (current.parentId) {
+                tagFilteredNotes.add(current.parentId);
+                current = items.find((i) => i.id === current.parentId);
+                if (!current) break;
+              }
             }
           }
-        }
+        });
+        result = items.filter((item) => tagFilteredNotes.has(item.id));
+      }
+
+      // Then apply search filtering
+      if (searchQuery) {
+        result = filterItemsBySearch(result, searchQuery);
+      }
+
+      return result;
+    }, [items, selectedTags, searchQuery, filterItemsBySearch]);
+
+    const isTreeFiltered = searchQuery || selectedTags.length > 0;
+    const treeSourceItems = useMemo(
+      () => (isTreeFiltered ? filteredItems : items),
+      [filteredItems, isTreeFiltered, items]
+    );
+
+    const treeChildrenByParent = useMemo(() => {
+      const childrenMap = new Map();
+      treeSourceItems.forEach((item) => {
+        const key = item.parentId ?? "__root__";
+        const bucket = childrenMap.get(key) || [];
+        bucket.push(item);
+        childrenMap.set(key, bucket);
       });
-      filteredItems = items.filter((item) => tagFilteredNotes.has(item.id));
-    }
+      return childrenMap;
+    }, [treeSourceItems]);
 
-    // Then apply search filtering
-    if (searchQuery) {
-      filteredItems = filterItemsBySearch(filteredItems, searchQuery);
-    }
+    const rootItems = useMemo(() => {
+      return sortSidebarItems(treeChildrenByParent.get("__root__") || [], sortBy, true);
+    }, [treeChildrenByParent, sortBy]);
 
-    let rootItems = filteredItems.filter((item) => item.parentId === null);
+    const flattenedTreeRows = useMemo(() => {
+      const rows = [];
+      const expandedSet = new Set(expandedFolders);
 
-    // Sort items based on sortBy state
-    rootItems = rootItems.sort((a, b) => {
-      // Always keep folders first
-      if (a.type !== b.type) {
-        return a.type === "folder" ? -1 : 1;
-      }
+      const visit = (branchItems, level) => {
+        branchItems.forEach((entry) => {
+          rows.push({ item: entry, level });
+          if (entry.type === "folder" && expandedSet.has(entry.id)) {
+            const children = sortSidebarItems(
+              treeChildrenByParent.get(entry.id) || [],
+              sortBy,
+              false
+            );
+            visit(children, level + 1);
+          }
+        });
+      };
 
-      switch (sortBy) {
-        case "name-asc":
-          return a.name.localeCompare(b.name);
-        case "name-desc":
-          return b.name.localeCompare(a.name);
-        case "date-desc":
-          return (
-            new Date(b.updatedAt || b.createdAt) -
-            new Date(a.updatedAt || a.createdAt)
-          );
-        case "date-asc":
-          return (
-            new Date(a.updatedAt || a.createdAt) -
-            new Date(b.updatedAt || b.createdAt)
-          );
-        default:
-          return a.name.localeCompare(b.name);
-      }
-    });
+      visit(rootItems, 0);
+      return rows;
+    }, [expandedFolders, rootItems, sortBy, treeChildrenByParent]);
+
+    const useVirtualizedTree = flattenedTreeRows.length > VIRTUAL_TREE_THRESHOLD;
+    const virtualStartIndex = useVirtualizedTree
+      ? Math.max(0, Math.floor(treeScrollTop / VIRTUAL_TREE_ROW_HEIGHT) - VIRTUAL_TREE_OVERSCAN)
+      : 0;
+    const virtualEndIndex = useVirtualizedTree
+      ? Math.min(
+        flattenedTreeRows.length,
+        Math.ceil((treeScrollTop + treeViewportHeight) / VIRTUAL_TREE_ROW_HEIGHT) + VIRTUAL_TREE_OVERSCAN
+      )
+      : flattenedTreeRows.length;
+    const virtualRows = useVirtualizedTree
+      ? flattenedTreeRows.slice(virtualStartIndex, virtualEndIndex)
+      : flattenedTreeRows;
 
     const handleContextMenu = (e, item) => {
       e.preventDefault();
@@ -228,6 +313,7 @@ const Sidebar = forwardRef(
 
       // Clear drag state immediately to prevent double-move
       setDraggedItem(null);
+      setIsRootDropActive(false);
 
       try {
         await moveItem(draggedItem.id, targetFolder.id);
@@ -296,9 +382,9 @@ const Sidebar = forwardRef(
         }
       } catch (error) {
         console.error("Failed to open file:", error);
-        alert("Failed to open file: " + error.message);
+        addNotification("Failed to open file: " + error.message, "error");
       }
-    }, []);
+    }, [addNotification]);
 
     const handleOpenFolder = useCallback(async () => {
       try {
@@ -308,9 +394,9 @@ const Sidebar = forwardRef(
         }
       } catch (error) {
         console.error("Failed to open folder:", error);
-        alert("Failed to open folder: " + error.message);
+        addNotification("Failed to open folder: " + error.message, "error");
       }
-    }, [loadFolderFromSystem]);
+    }, [addNotification, loadFolderFromSystem]);
 
     // Expose methods to parent via ref
     useImperativeHandle(
@@ -349,12 +435,177 @@ const Sidebar = forwardRef(
       onRenameItem(item);
     };
 
-    const handleDropToRoot = async () => {
+    const getFolderMoveTarget = useCallback((item, currentRow, rowIndex = null) => {
+      const descendants = new Set();
+      const collectDescendants = (parentId) => {
+        items
+          .filter((entry) => entry.parentId === parentId)
+          .forEach((entry) => {
+            descendants.add(entry.id);
+            if (entry.type === "folder") {
+              collectDescendants(entry.id);
+            }
+          });
+      };
+
+      if (item.type === "folder") {
+        collectDescendants(item.id);
+      }
+
+      if (Number.isInteger(rowIndex)) {
+        for (let index = rowIndex - 1; index >= 0; index -= 1) {
+          const candidate = flattenedTreeRows[index]?.item;
+          if (!candidate || candidate.type !== "folder") continue;
+          if (candidate.id === item.id || descendants.has(candidate.id)) continue;
+          return candidate;
+        }
+        return null;
+      }
+
+      const treeRoot =
+        currentRow?.closest("[data-sidebar-tree-root='true']") || sidebarRef.current;
+      if (!treeRoot) return null;
+
+      const rows = Array.from(
+        treeRoot.querySelectorAll("[data-treeitem-row='true']"),
+      );
+      const currentIndex = rows.indexOf(currentRow);
+      if (currentIndex <= 0) return null;
+
+      for (let index = currentIndex - 1; index >= 0; index -= 1) {
+        const candidateId = rows[index]?.dataset?.itemId;
+        const candidate = items.find((entry) => entry.id === candidateId);
+        if (!candidate || candidate.type !== "folder") continue;
+        if (candidate.id === item.id || descendants.has(candidate.id)) continue;
+        return candidate;
+      }
+
+      return null;
+    }, [flattenedTreeRows, items]);
+
+    const handleMoveItemOut = useCallback(async (item) => {
+      if (!item?.parentId) return;
+
+      const parent = items.find((entry) => entry.id === item.parentId);
+      if (!parent) return;
+
+      try {
+        if (parent.parentId) {
+          await moveItem(item.id, parent.parentId);
+        } else {
+          await moveItemToRoot(item.id);
+        }
+      } catch (error) {
+        console.error("Failed to move item outward:", error);
+        addNotification("Failed to move item: " + error.message, "error");
+      }
+    }, [addNotification, items, moveItem, moveItemToRoot]);
+
+    const handleMoveItemIn = useCallback(async (item, currentRow, rowIndex = null) => {
+      const targetFolder = getFolderMoveTarget(item, currentRow, rowIndex);
+      if (!targetFolder) {
+        addNotification("No valid previous folder to move into", "info", 1800);
+        return;
+      }
+
+      try {
+        await moveItem(item.id, targetFolder.id);
+      } catch (error) {
+        console.error("Failed to move item inward:", error);
+        addNotification("Failed to move item: " + error.message, "error");
+      }
+    }, [addNotification, getFolderMoveTarget, moveItem]);
+
+    const getDeleteMessage = useCallback((item) => {
+      if (!item) return;
+
+      const collectDescendants = (id) => {
+        const children = items.filter((entry) => entry.parentId === id);
+        let noteCount = 0;
+        let folderCount = 0;
+
+        children.forEach((child) => {
+          if (child.type === "note") {
+            noteCount += 1;
+          } else if (child.type === "folder") {
+            folderCount += 1;
+            const descendantCounts = collectDescendants(child.id);
+            noteCount += descendantCounts.noteCount;
+            folderCount += descendantCounts.folderCount;
+          }
+        });
+
+        return { noteCount, folderCount };
+      };
+
+      if (item.type !== "folder") {
+        return `Are you sure you want to delete "${item.name}"? This action cannot be undone.`;
+      }
+
+      const { noteCount, folderCount } = collectDescendants(item.id);
+      const parts = [];
+      if (noteCount > 0) parts.push(`${noteCount} note${noteCount !== 1 ? "s" : ""}`);
+      if (folderCount > 0) parts.push(`${folderCount} subfolder${folderCount !== 1 ? "s" : ""}`);
+      return parts.length > 0
+        ? `Are you sure you want to delete "${item.name}" and its ${parts.join(" and ")}? This action cannot be undone.`
+        : `Are you sure you want to delete "${item.name}"? This action cannot be undone.`;
+    }, [items]);
+
+    const requestDeleteItem = useCallback((item) => {
+      if (!item) return;
+      setPendingDeleteItem(item);
+    }, []);
+
+    const handleDeleteItem = useCallback(async (item) => {
+      if (!item) return;
+
+      try {
+        const { undoLastDelete } = useNotesStore.getState();
+        const hasFilePath = Boolean(item.filePath);
+        await useNotesStore.getState().deleteItem(item.id);
+
+        addNotification(
+          `${item.type === "note" ? "Note" : "Folder"} deleted`,
+          "success",
+          hasFilePath ? 5000 : 3000,
+          hasFilePath
+            ? {
+                label: "Undo",
+                callback: async () => {
+                  const restored = await undoLastDelete();
+                  addNotification(
+                    restored ? "Delete undone" : "Failed to undo delete",
+                    restored ? "success" : "error",
+                  );
+                },
+              }
+            : null,
+        );
+      } catch (error) {
+        console.error("Delete failed:", error);
+        addNotification("Delete failed: " + error.message, "error");
+      } finally {
+        setPendingDeleteItem(null);
+      }
+    }, [addNotification]);
+
+    const handleDropToRoot = async (event) => {
       if (!draggedItem) return;
+
+      const rowTarget =
+        event?.target instanceof Element
+          ? event.target.closest("[data-treeitem-row='true']")
+          : null;
+
+      if (rowTarget || !isRootDropActive) {
+        setIsRootDropActive(false);
+        return;
+      }
 
       // If drop was already handled by a folder, don't process root drop
       if (dropHandledRef.current) {
         setDraggedItem(null);
+        setIsRootDropActive(false);
         return;
       }
 
@@ -362,16 +613,18 @@ const Sidebar = forwardRef(
         await moveItemToRoot(draggedItem.id);
       } catch (error) {
         console.error("❌ Failed to move item:", error);
-        alert("Failed to move item: " + error.message);
+        addNotification("Failed to move item: " + error.message, "error");
       }
 
       setDraggedItem(null);
+      setIsRootDropActive(false);
     };
 
     // Track mouse position while dragging for ghost element
     useEffect(() => {
       if (!draggedItem) {
         setDragPosition(null);
+        setIsRootDropActive(false);
         return;
       }
 
@@ -382,6 +635,77 @@ const Sidebar = forwardRef(
       document.addEventListener("mousemove", handleMouseMove);
       return () => document.removeEventListener("mousemove", handleMouseMove);
     }, [draggedItem]);
+
+    const handleTreeMouseMove = useCallback((event) => {
+      if (!draggedItem) return;
+
+      const rowTarget =
+        event.target instanceof Element
+          ? event.target.closest("[data-treeitem-row='true']")
+          : null;
+
+      const nextValue = !rowTarget;
+      setIsRootDropActive((current) => (current === nextValue ? current : nextValue));
+    }, [draggedItem]);
+
+    const handleTreeMouseLeave = useCallback(() => {
+      setIsRootDropActive(false);
+    }, []);
+
+    useEffect(() => {
+      const viewport = sidebarRef.current;
+      if (!viewport) return undefined;
+
+      const updateViewport = () => {
+        setTreeViewportHeight(viewport.clientHeight);
+      };
+
+      updateViewport();
+
+      const observer = new ResizeObserver(updateViewport);
+      observer.observe(viewport);
+
+      return () => {
+        observer.disconnect();
+      };
+    }, [useVirtualizedTree]);
+
+    useEffect(() => {
+      const viewport = sidebarRef.current;
+      if (!viewport) return;
+
+      if (!useVirtualizedTree) {
+        setTreeScrollTop(0);
+        return;
+      }
+
+      setTreeScrollTop(viewport.scrollTop);
+    }, [flattenedTreeRows.length, useVirtualizedTree]);
+
+    const focusTreeIndex = useCallback((index) => {
+      const viewport = sidebarRef.current;
+      if (!viewport || flattenedTreeRows.length === 0) return;
+
+      const clampedIndex = Math.max(0, Math.min(flattenedTreeRows.length - 1, index));
+      const targetTop = clampedIndex * VIRTUAL_TREE_ROW_HEIGHT;
+      const targetBottom = targetTop + VIRTUAL_TREE_ROW_HEIGHT;
+      const visibleTop = viewport.scrollTop;
+      const visibleBottom = visibleTop + viewport.clientHeight;
+
+      if (targetTop < visibleTop) {
+        viewport.scrollTop = targetTop;
+      } else if (targetBottom > visibleBottom) {
+        viewport.scrollTop = targetBottom - viewport.clientHeight;
+      }
+
+      setTreeScrollTop(viewport.scrollTop);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          viewport.querySelector(`[data-tree-index="${clampedIndex}"]`)?.focus();
+        });
+      });
+    }, [flattenedTreeRows.length]);
 
     useEffect(() => {
       if (typeof window === "undefined" || !window.__TAURI__) {
@@ -465,9 +789,9 @@ const Sidebar = forwardRef(
           if (!isMounted) return;
           try {
             await refreshRootFromDisk();
-            addNotification("Workspace synced", "success");
           } catch (error) {
             console.error("Failed to refresh folder after file change:", error);
+            addNotification("Failed to sync workspace: " + error.message, "error");
           }
         }, 300); // 300ms debounce for rapid file changes
       };
@@ -775,6 +1099,80 @@ const Sidebar = forwardRef(
           )}
           {/* Sort Options */}
           {!searchQuery && rootFolderPath && (
+            <>
+            {/* Workspace switcher header */}
+            <div className="mt-1 mb-1 relative">
+              <button
+                onClick={() => setShowWorkspaceSwitcher((v) => !v)}
+                className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors group"
+                title="Switch workspace"
+              >
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                  <span
+                    className="font-medium truncate text-text-secondary"
+                    title={rootFolderPath}
+                  >
+                    {rootFolderPath.split('/').filter(Boolean).pop() || rootFolderPath}
+                  </span>
+                </div>
+                <svg
+                  className={`w-3 h-3 shrink-0 transition-transform ${showWorkspaceSwitcher ? "rotate-180" : ""}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showWorkspaceSwitcher && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowWorkspaceSwitcher(false)} />
+                  <div className="absolute left-0 right-0 z-20 mt-1 bg-bg-sidebar border border-glass-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                    {recentWorkspaces.length > 1 && (
+                      <>
+                        <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">Recent</p>
+                        {recentWorkspaces
+                          .filter((ws) => ws.path !== rootFolderPath)
+                          .map((ws) => (
+                            <button
+                              key={ws.path}
+                              onClick={async () => {
+                                setShowWorkspaceSwitcher(false);
+                                try {
+                                  const { invoke } = await import('@tauri-apps/api/core');
+                                  const files = await invoke('scan_folder_for_markdown', { folderPath: ws.path });
+                                  await loadFolderFromSystem({ folderPath: ws.path, folderName: ws.name, files });
+                                } catch (err) {
+                                  addNotification('Could not open workspace: ' + err.message, 'error');
+                                }
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+                            >
+                              <svg className="w-3.5 h-3.5 shrink-0 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                              </svg>
+                              <span className="truncate" title={ws.path || ws.name}>
+                                {ws.name}
+                              </span>
+                            </button>
+                          ))}
+                        <div className="mx-3 my-1 border-t border-glass-border" />
+                      </>
+                    )}
+                    <button
+                      onClick={() => { setShowWorkspaceSwitcher(false); handleOpenFolder(); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-accent hover:bg-accent/10 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Open another folder…
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <div className="mt-2 relative">
               <button
                 onClick={() => setShowSortMenu(!showSortMenu)}
@@ -866,6 +1264,7 @@ const Sidebar = forwardRef(
                 </>
               )}
             </div>
+            </>
           )}
         </div>
 
@@ -910,7 +1309,9 @@ const Sidebar = forwardRef(
                       onClick={() => selectNote(note.id)}
                       className="w-full px-3 py-1.5 text-left text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-2 group"
                     >
-                      <span className="truncate">{note.name}</span>
+                      <span className="truncate" title={note.name}>
+                        {note.name}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -966,7 +1367,9 @@ const Sidebar = forwardRef(
                         className="w-full px-3 py-1.5 text-left text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-2 group"
                         title={recent.filePath || recent.name}
                       >
-                        <span className="truncate">{recent.name}</span>
+                        <span className="truncate" title={recent.filePath || recent.name}>
+                          {recent.name}
+                        </span>
                       </button>
                     ))}
                 </div>
@@ -1018,27 +1421,39 @@ const Sidebar = forwardRef(
               </button>
               {showTags && (
                 <div className="px-2 mt-1">
-                  {selectedTags.length > 0 && (
-                    <button
-                      onClick={clearTagFilters}
-                      className="w-full mb-1.5 text-[10px] text-accent hover:text-accent-hover text-left flex items-center gap-1"
-                    >
-                      <svg
-                        className="w-2.5 h-2.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                  {/* Sort mode tabs */}
+                  <div className="flex items-center gap-1 mb-2">
+                    {[
+                      { id: 'frequency', label: '#' },
+                      { id: 'alpha', label: 'A–Z' },
+                      { id: 'recent', label: 'Recent' },
+                    ].map(({ id, label }) => (
+                      <button
+                        key={id}
+                        onClick={() => setTagSortMode(id)}
+                        className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
+                          tagSortMode === id
+                            ? 'bg-accent/15 text-accent border border-accent/20'
+                            : 'text-text-muted hover:text-text-secondary hover:bg-overlay-subtle border border-transparent'
+                        }`}
+                        title={id === 'frequency' ? 'Sort by frequency' : id === 'alpha' ? 'Sort A–Z' : 'Sort by recent use'}
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                      Clear filters
-                    </button>
-                  )}
+                        {label}
+                      </button>
+                    ))}
+                    {selectedTags.length > 0 && (
+                      <button
+                        onClick={clearTagFilters}
+                        className="ml-auto text-[10px] text-accent hover:text-accent-hover flex items-center gap-0.5"
+                        title="Clear tag filters"
+                      >
+                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Clear
+                      </button>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {allTagsArray.map(({ tag, count }) => {
                       const isSelected = selectedTags.includes(tag);
@@ -1046,6 +1461,7 @@ const Sidebar = forwardRef(
                         <button
                           key={tag}
                           onClick={() => toggleTagFilter(tag)}
+                          title={`${count} note${count !== 1 ? "s" : ""}`}
                           className={`
                           px-2 py-0.5 text-[10px] rounded-full border transition-all
                           ${
@@ -1171,11 +1587,27 @@ const Sidebar = forwardRef(
           ref={sidebarRef}
           data-sidebar-tree-root="true"
           className={`flex-1 overflow-y-auto px-3 py-2 space-y-0.5 custom-scrollbar bg-transparent relative
-            ${draggedItem ? "bg-overlay-subtle/50 rounded-lg mx-2" : ""}
+            ${draggedItem ? "rounded-lg mx-2" : ""}
+            ${isRootDropActive ? "bg-overlay-subtle/40 ring-1 ring-accent/25 ring-inset" : ""}
             ${isExternalDragging && !dropTargetFolder ? "ring-2 ring-accent/40 ring-inset rounded-lg bg-accent/5" : ""}
           `}
+          onScroll={useVirtualizedTree ? (event) => setTreeScrollTop(event.currentTarget.scrollTop) : undefined}
+          onMouseMove={draggedItem ? handleTreeMouseMove : undefined}
+          onMouseLeave={draggedItem ? handleTreeMouseLeave : undefined}
           onMouseUp={draggedItem ? handleDropToRoot : undefined}
         >
+          {draggedItem && isRootDropActive && (
+            <div className="sticky top-0 z-10 mb-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-accent backdrop-blur-sm">
+              Drop to move "{draggedItem.name}" to the workspace root
+            </div>
+          )}
+
+          {isExternalDragging && !dropTargetFolder && rootFolderPath && (
+            <div className="sticky top-0 z-10 mb-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-accent backdrop-blur-sm">
+              Drop files here to copy them into the workspace root
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-full text-text-muted px-4">
               <svg
@@ -1282,6 +1714,49 @@ const Sidebar = forwardRef(
                 </div>
               </div>
             </div>
+          ) : useVirtualizedTree ? (
+            <div
+              className="relative"
+              style={{ height: flattenedTreeRows.length * VIRTUAL_TREE_ROW_HEIGHT }}
+            >
+              {virtualRows.map((row, offset) => {
+                const treeIndex = virtualStartIndex + offset;
+                return (
+                  <div
+                    key={row.item.id}
+                    className="absolute left-0 right-0"
+                    style={{
+                      top: treeIndex * VIRTUAL_TREE_ROW_HEIGHT,
+                      minHeight: VIRTUAL_TREE_ROW_HEIGHT
+                    }}
+                  >
+                    <TreeItem
+                      item={row.item}
+                      level={row.level}
+                      treeIndex={treeIndex}
+                      virtualTree={{
+                        index: treeIndex,
+                        rows: flattenedTreeRows,
+                        focusIndex: focusTreeIndex
+                      }}
+                      renderChildren={false}
+                      onContextMenu={handleContextMenu}
+                      draggedItem={draggedItem}
+                      setDraggedItem={setDraggedItem}
+                      onItemMove={handleItemMove}
+                      onSetDropTarget={handleSetDropTarget}
+                      onClearDropTarget={handleClearDropTarget}
+                      dropTargetFolderId={dropTargetFolder?.id}
+                      isExternalDragging={isExternalDragging}
+                      onRequestDelete={requestDeleteItem}
+                      onMoveItemOut={handleMoveItemOut}
+                      onMoveItemIn={handleMoveItemIn}
+                      filteredItems={null}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             rootItems.map((item) => (
               <TreeItem
@@ -1296,9 +1771,10 @@ const Sidebar = forwardRef(
                 onClearDropTarget={handleClearDropTarget}
                 dropTargetFolderId={dropTargetFolder?.id}
                 isExternalDragging={isExternalDragging}
-                filteredItems={
-                  searchQuery || selectedTags.length > 0 ? filteredItems : null
-                }
+                onRequestDelete={requestDeleteItem}
+                onMoveItemOut={handleMoveItemOut}
+                onMoveItemIn={handleMoveItemIn}
+                filteredItems={isTreeFiltered ? filteredItems : null}
               />
             ))
           )}
@@ -1376,6 +1852,16 @@ const Sidebar = forwardRef(
             }}
           />
         )}
+        <ConfirmDialog
+          isOpen={Boolean(pendingDeleteItem)}
+          title={`Delete ${pendingDeleteItem?.type === "folder" ? "Folder" : "Note"}`}
+          message={getDeleteMessage(pendingDeleteItem) || ""}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          variant="danger"
+          onConfirm={() => handleDeleteItem(pendingDeleteItem)}
+          onCancel={() => setPendingDeleteItem(null)}
+        />
       </div>
     );
   },

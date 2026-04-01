@@ -1,33 +1,58 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import Sidebar from './components/Sidebar';
-import MarkdownEditor from './components/MarkdownEditor';
-import OnboardingModal from './components/OnboardingModal';
-import WorkspaceRequiredModal from './components/WorkspaceRequiredModal';
-import TemplateModal from './components/TemplateModal';
-import ScheduleNoteModal from './components/ScheduleNoteModal';
-import GraphModal from './components/GraphModal';
-import SearchModal from './components/SearchModal';
-import CommandPalette from './components/CommandPalette';
-import NotificationToast from './components/NotificationToast';
-import TitleBar from './components/TitleBar';
-import KeymapsModal from './components/KeymapsModal';
-import ConfirmDialog from './components/ConfirmDialog';
-import useNotesStore, { SETTINGS_TAB_ID } from './store/notesStore';
-import useSettingsStore, { matchesKeymap } from './store/settingsStore';
-import useUIStore from './store/uiStore';
-import { exportWorkspaceAsZip } from './utils/backup';
+import { useState, useEffect, useRef, useCallback } from "react";
+import Sidebar from "./components/Sidebar";
+import MarkdownEditor from "./components/MarkdownEditor";
+import OnboardingModal from "./components/OnboardingModal";
+import WorkspaceRequiredModal from "./components/WorkspaceRequiredModal";
+import TemplateModal from "./components/TemplateModal";
+import ScheduleNoteModal from "./components/ScheduleNoteModal";
+import GraphModal from "./components/GraphModal";
+import SearchModal from "./components/SearchModal";
+import CommandPalette from "./components/CommandPalette";
+import NotificationToast from "./components/NotificationToast";
+import TitleBar from "./components/TitleBar";
+import KeymapsModal from "./components/KeymapsModal";
+import ConfirmDialog from "./components/ConfirmDialog";
+import useNotesStore, { SETTINGS_TAB_ID } from "./store/notesStore";
+import useSettingsStore, { matchesKeymap } from "./store/settingsStore";
+import useUIStore from "./store/uiStore";
+import { exportWorkspaceAsZip } from "./utils/backup";
+import { listen } from "@tauri-apps/api/event";
 
 function App() {
   const items = useNotesStore((state) => state.items);
-  const { sidebarWidth, setSidebarWidth, createNote, renameItem, selectNote, closeNote, currentNoteId } = useNotesStore();
+  const {
+    sidebarWidth,
+    setSidebarWidth,
+    createNote,
+    renameItem,
+    selectNote,
+    closeNote,
+    currentNoteId,
+    rootFolderPath,
+  } = useNotesStore();
   const { keymaps, initializeSettings, isRecordingKeymap } = useSettingsStore();
-  const { focusMode, toggleFocusMode, showWorkspaceModal, setShowWorkspaceModal } = useUIStore();
+  const {
+    focusMode,
+    toggleFocusMode,
+    showWorkspaceModal,
+    setShowWorkspaceModal,
+    addNotification,
+  } = useUIStore();
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
   // Initialize settings (apply accent color) on mount
   useEffect(() => {
     initializeSettings();
   }, [initializeSettings]);
+
+  useEffect(() => {
+    const settingsState = useSettingsStore.getState();
+    if (rootFolderPath) {
+      settingsState.syncWorkspaceSettings(rootFolderPath);
+    } else {
+      settingsState.clearActiveWorkspaceSettings();
+    }
+  }, [rootFolderPath]);
 
   const startResizingSidebar = useCallback((e) => {
     e.preventDefault();
@@ -38,30 +63,35 @@ function App() {
     setIsResizingSidebar(false);
   }, []);
 
-  const resizeSidebar = useCallback((e) => {
-    if (isResizingSidebar) {
-      const newWidth = e.clientX;
-      if (newWidth >= 160 && newWidth <= 600) {
-        setSidebarWidth(newWidth);
+  const resizeSidebar = useCallback(
+    (e) => {
+      if (isResizingSidebar) {
+        const newWidth = e.clientX;
+        if (newWidth >= 160 && newWidth <= 600) {
+          setSidebarWidth(newWidth);
+        }
       }
-    }
-  }, [isResizingSidebar, setSidebarWidth]);
+    },
+    [isResizingSidebar, setSidebarWidth],
+  );
 
   useEffect(() => {
     if (isResizingSidebar) {
-      window.addEventListener('mousemove', resizeSidebar);
-      window.addEventListener('mouseup', stopResizingSidebar);
+      window.addEventListener("mousemove", resizeSidebar);
+      window.addEventListener("mouseup", stopResizingSidebar);
     } else {
-      window.removeEventListener('mousemove', resizeSidebar);
-      window.removeEventListener('mouseup', stopResizingSidebar);
+      window.removeEventListener("mousemove", resizeSidebar);
+      window.removeEventListener("mouseup", stopResizingSidebar);
     }
     return () => {
-      window.removeEventListener('mousemove', resizeSidebar);
-      window.removeEventListener('mouseup', stopResizingSidebar);
+      window.removeEventListener("mousemove", resizeSidebar);
+      window.removeEventListener("mouseup", stopResizingSidebar);
     };
   }, [isResizingSidebar, resizeSidebar, stopResizingSidebar]);
 
-  const processDueSchedules = useNotesStore((state) => state.processDueSchedules);
+  const processDueSchedules = useNotesStore(
+    (state) => state.processDueSchedules,
+  );
   const [showKeymapsModal, setShowKeymapsModal] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [closeConfirmation, setCloseConfirmation] = useState(null); // { noteId, noteName }
@@ -75,30 +105,32 @@ function App() {
   const [scheduleTemplate, setScheduleTemplate] = useState(null);
   const [templateParentId, setTemplateParentId] = useState(null);
   const [renamingItem, setRenamingItem] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const sidebarRef = useRef(null);
   const editorRef = useRef(null);
 
-  const handleTemplateSelect = useCallback(async (template) => {
-    try {
-      await createNote(
-        templateParentId,
-        template.content,
-        template.suggestedTitle || template.name
-      );
-    } catch (error) {
-      if (error?.message && /exists/i.test(error.message)) {
-        return;
+  const handleTemplateSelect = useCallback(
+    async (template) => {
+      try {
+        await createNote(
+          templateParentId,
+          template.content,
+          template.suggestedTitle || template.name,
+        );
+      } catch (error) {
+        if (error?.message && /exists/i.test(error.message)) {
+          return;
+        }
+        console.error("Failed to create note:", error);
+        if (/workspace/i.test(error.message)) {
+          setShowWorkspaceModal(true);
+        } else {
+          addNotification("Failed to create note: " + error.message, "error");
+        }
       }
-      console.error('Failed to create note:', error);
-      if (/workspace/i.test(error.message)) {
-        setShowWorkspaceModal(true);
-      } else {
-        alert('Failed to create note: ' + error.message);
-      }
-    }
-  }, [createNote, templateParentId]);
+    },
+    [createNote, templateParentId, addNotification, setShowWorkspaceModal],
+  );
 
   const handleScheduleTemplate = useCallback((template) => {
     setScheduleTemplate(template);
@@ -111,32 +143,34 @@ function App() {
       try {
         await renameItem(renamingItem.id, trimmed);
       } catch (error) {
-        console.error('Failed to rename item:', error);
-        alert('Failed to rename: ' + error.message);
+        console.error("Failed to rename item:", error);
+        addNotification("Failed to rename: " + error.message, "error");
       }
     }
     setRenamingItem(null);
   };
 
-  const handleCloseTab = useCallback((noteId) => {
-    // Settings tab can be closed directly without confirmation
-    if (noteId === SETTINGS_TAB_ID) {
-      closeNote(noteId);
-      return;
-    }
+  const handleCloseTab = useCallback(
+    (noteId) => {
+      // Settings tab can be closed directly without confirmation
+      if (noteId === SETTINGS_TAB_ID) {
+        closeNote(noteId);
+        return;
+      }
 
-    // Check if the note has unsaved changes
-    const hasUnsaved = useNotesStore.getState().isNoteDirty(noteId);
-    if (hasUnsaved) {
-      const note = items.find(item => item.id === noteId);
-      setCloseConfirmation({ noteId, noteName: note?.name || 'Untitled' });
-    } else {
-      closeNote(noteId);
-    }
-  }, [closeNote, items]);
+      // Check if the note has unsaved changes
+      const hasUnsaved = useNotesStore.getState().isNoteDirty(noteId);
+      if (hasUnsaved) {
+        const note = items.find((item) => item.id === noteId);
+        setCloseConfirmation({ noteId, noteName: note?.name || "Untitled" });
+      } else {
+        closeNote(noteId);
+      }
+    },
+    [closeNote, items],
+  );
 
   const handleSearchResultSelect = useCallback((query) => {
-    setSearchQuery(query);
     // After a short delay, scroll to and highlight the text
     setTimeout(() => {
       if (editorRef.current?.scrollToAndHighlight) {
@@ -145,81 +179,87 @@ function App() {
     }, 100);
   }, []);
 
-  const handleCommandExecute = useCallback((command) => {
-    const { action, payload } = command;
+  const handleCommandExecute = useCallback(
+    (command) => {
+      const { action, payload } = command;
 
-    switch (action) {
-      case 'selectNote':
-        // Navigate to a note
-        selectNote(payload);
-        break;
-      case 'newNote':
-        sidebarRef.current?.handleNewNote?.();
-        break;
-      case 'newFolder':
-        sidebarRef.current?.handleNewFolder?.();
-        break;
-      case 'openFolder':
-        sidebarRef.current?.handleOpenFolder?.();
-        break;
-      case 'save':
-        // Trigger save in editor
-        editorRef.current?.handleSave?.();
-        break;
-      case 'search':
-        setShowSearchModal(true);
-        break;
-      case 'toggleSidebar':
-        setShowSidebar(prev => !prev);
-        break;
-      case 'viewEditor':
-        editorRef.current?.setViewMode?.('editor');
-        break;
-      case 'viewSplit':
-        editorRef.current?.setViewMode?.('split');
-        break;
-      case 'viewPreview':
-        editorRef.current?.setViewMode?.('preview');
-        break;
-      case 'openGraph':
-        setShowGraphModal(true);
-        break;
-      case 'exportNote':
-        editorRef.current?.handleExport?.();
-        break;
-      case 'openSettings':
-        selectNote(SETTINGS_TAB_ID);
-        break;
-      case 'showShortcuts':
-        setShowKeymapsModal(true);
-        break;
-      case 'toggleFocusMode':
-        toggleFocusMode();
-        break;
-      case 'backupWorkspace': {
-        const { rootFolderPath, items: storeItems } = useNotesStore.getState();
-        const settings = useSettingsStore.getState();
-        const { addNotification } = useUIStore.getState();
-        if (!rootFolderPath) {
-          addNotification('No workspace folder is open', 'warning');
+      switch (action) {
+        case "selectNote":
+          // Navigate to a note
+          selectNote(payload);
+          break;
+        case "newNote":
+          sidebarRef.current?.handleNewNote?.();
+          break;
+        case "newFolder":
+          sidebarRef.current?.handleNewFolder?.();
+          break;
+        case "openFolder":
+          sidebarRef.current?.handleOpenFolder?.();
+          break;
+        case "save":
+          // Trigger save in editor
+          editorRef.current?.handleSave?.();
+          break;
+        case "search":
+          setShowSearchModal(true);
+          break;
+        case "toggleSidebar":
+          setShowSidebar((prev) => !prev);
+          break;
+        case "viewEditor":
+          editorRef.current?.setViewMode?.("editor");
+          break;
+        case "viewSplit":
+          editorRef.current?.setViewMode?.("split");
+          break;
+        case "viewPreview":
+          editorRef.current?.setViewMode?.("preview");
+          break;
+        case "openGraph":
+          setShowGraphModal(true);
+          break;
+        case "exportNote":
+          editorRef.current?.handleExport?.();
+          break;
+        case "openSettings":
+          selectNote(SETTINGS_TAB_ID);
+          break;
+        case "showShortcuts":
+          setShowKeymapsModal(true);
+          break;
+        case "toggleFocusMode":
+          toggleFocusMode();
+          break;
+        case "backupWorkspace": {
+          const { rootFolderPath, items: storeItems } =
+            useNotesStore.getState();
+          const settings = useSettingsStore.getState();
+          const { addNotification } = useUIStore.getState();
+          if (!rootFolderPath) {
+            addNotification("No workspace folder is open", "warning");
+            break;
+          }
+          exportWorkspaceAsZip(rootFolderPath, storeItems, {
+            themeId: settings.themeId,
+            accentColorId: settings.accentColorId,
+            vimMode: settings.vimMode,
+          })
+            .then((path) => {
+              if (path) addNotification("Workspace backup saved", "success");
+            })
+            .catch((err) => {
+              console.error("Backup failed:", err);
+              addNotification("Backup failed: " + err.message, "error");
+            });
           break;
         }
-        exportWorkspaceAsZip(rootFolderPath, storeItems, {
-          themeId: settings.themeId,
-          accentColorId: settings.accentColorId,
-          vimMode: settings.vimMode,
-        }).then(path => {
-          if (path) addNotification('Workspace backup saved', 'success');
-        }).catch(err => {
-          console.error('Backup failed:', err);
-          addNotification('Backup failed: ' + err.message, 'error');
-        });
-        break;
+        default:
+          console.warn(`Unknown command action: ${action}`);
       }
-      default:
-        console.warn(`Unknown command action: ${action}`);
-    }
-  }, [selectNote, setShowSidebar, toggleFocusMode]);
+    },
+    [selectNote, setShowSidebar, toggleFocusMode],
+  );
 
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const showOnboarding = items.length === 0 && !onboardingDismissed;
@@ -227,6 +267,15 @@ function App() {
   // Global keyboard shortcut listener using configurable keymaps
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const key = e.key?.toLowerCase();
+      const isNativeEditShortcut =
+        (e.metaKey || e.ctrlKey) &&
+        ["c", "v", "x", "a", "z", "y"].includes(key);
+
+      if (isNativeEditShortcut) {
+        return;
+      }
+
       // Don't handle shortcuts when recording a new keymap
       if (isRecordingKeymap) {
         return;
@@ -259,21 +308,21 @@ function App() {
       }
 
       // Focus mode toggle (Cmd/Ctrl+Shift+Enter) - allow even when typing
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
         e.preventDefault();
         toggleFocusMode();
         return;
       }
 
       // Escape exits focus mode
-      if (e.key === 'Escape' && focusMode) {
+      if (e.key === "Escape" && focusMode) {
         e.preventDefault();
         toggleFocusMode();
         return;
       }
 
       // Don't handle other shortcuts when typing in inputs
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
         return;
       }
 
@@ -287,7 +336,7 @@ function App() {
       // Toggle sidebar
       if (matchesKeymap(e, keymaps.toggleSidebar)) {
         e.preventDefault();
-        setShowSidebar(prev => !prev);
+        setShowSidebar((prev) => !prev);
         return;
       }
 
@@ -315,29 +364,129 @@ function App() {
       // View modes
       if (matchesKeymap(e, keymaps.viewEditor)) {
         e.preventDefault();
-        editorRef.current?.setViewMode?.('editor');
+        editorRef.current?.setViewMode?.("editor");
         return;
       }
 
       if (matchesKeymap(e, keymaps.viewSplit)) {
         e.preventDefault();
-        editorRef.current?.setViewMode?.('split');
+        editorRef.current?.setViewMode?.("split");
         return;
       }
 
       if (matchesKeymap(e, keymaps.viewPreview)) {
         e.preventDefault();
-        editorRef.current?.setViewMode?.('preview');
+        editorRef.current?.setViewMode?.("preview");
+        return;
+      }
+
+      // Toggle Focus Mode
+      if (matchesKeymap(e, keymaps.toggleFocusMode)) {
+        e.preventDefault();
+        toggleFocusMode();
         return;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [keymaps, isRecordingKeymap, currentNoteId, handleCloseTab, focusMode, toggleFocusMode]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    keymaps,
+    isRecordingKeymap,
+    currentNoteId,
+    handleCloseTab,
+    focusMode,
+    toggleFocusMode,
+  ]);
+
+  // Native macOS menu-bar event listeners
+  useEffect(() => {
+    let isMounted = true;
+    const unlisteners = [];
+
+    const attach = async (eventName, handler) => {
+      try {
+        const unlisten = await listen(eventName, () => {
+          if (isMounted) handler();
+        });
+        if (isMounted) {
+          unlisteners.push(unlisten);
+        } else {
+          unlisten();
+        }
+      } catch (err) {
+        console.error(`Failed to attach menu listener for ${eventName}:`, err);
+      }
+    };
+
+    const register = async () => {
+      await attach("menu://search", () => setShowSearchModal(true));
+      await attach("menu://command-palette", () => setShowCommandPalette(true));
+      await attach("menu://toggle-sidebar", () =>
+        setShowSidebar((prev) => !prev),
+      );
+      await attach("menu://view-editor", () =>
+        editorRef.current?.setViewMode?.("editor"),
+      );
+      await attach("menu://view-split", () =>
+        editorRef.current?.setViewMode?.("split"),
+      );
+      await attach("menu://view-preview", () =>
+        editorRef.current?.setViewMode?.("preview"),
+      );
+      await attach("menu://focus-mode", () => toggleFocusMode());
+      await attach("menu://open-graph", () => setShowGraphModal(true));
+      await attach("menu://open-settings", () => selectNote(SETTINGS_TAB_ID));
+      await attach("menu://show-shortcuts", () => setShowKeymapsModal(true));
+      await attach("menu://export-note", () =>
+        editorRef.current?.handleExport?.(),
+      );
+      await attach("menu://backup-workspace", () => {
+        const { rootFolderPath, items: storeItems } = useNotesStore.getState();
+        const settings = useSettingsStore.getState();
+        if (!rootFolderPath) {
+          addNotification("No workspace folder is open", "warning");
+          return;
+        }
+        exportWorkspaceAsZip(rootFolderPath, storeItems, {
+          themeId: settings.themeId,
+          accentColorId: settings.accentColorId,
+          vimMode: settings.vimMode,
+        })
+          .then((path) => {
+            if (path) addNotification("Workspace backup saved", "success");
+          })
+          .catch((err) => {
+            addNotification("Backup failed: " + err.message, "error");
+          });
+      });
+    };
+
+    register();
+
+    return () => {
+      isMounted = false;
+      unlisteners.forEach((fn) => {
+        try {
+          fn();
+        } catch (_error) {
+          // Ignore listener cleanup failures during teardown.
+        }
+      });
+    };
+  }, [
+    toggleFocusMode,
+    selectNote,
+    addNotification,
+    setShowSidebar,
+    setShowSearchModal,
+    setShowCommandPalette,
+    setShowGraphModal,
+    setShowKeymapsModal,
+  ]);
 
   useEffect(() => {
-    if (typeof processDueSchedules !== 'function') {
+    if (typeof processDueSchedules !== "function") {
       return undefined;
     }
 
@@ -347,7 +496,7 @@ function App() {
       try {
         await processDueSchedules();
       } catch (error) {
-        console.error('Scheduled note processing failed:', error);
+        console.error("Scheduled note processing failed:", error);
       }
     };
 
@@ -356,7 +505,7 @@ function App() {
     const interval = setInterval(() => {
       processDueSchedules().catch((error) => {
         if (!isMounted) return;
-        console.error('Scheduled note processing failed:', error);
+        console.error("Scheduled note processing failed:", error);
       });
     }, 60 * 1000);
 
@@ -367,15 +516,17 @@ function App() {
   }, [processDueSchedules]);
 
   return (
-    <div className={`h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden ${isResizingSidebar ? 'select-none cursor-col-resize' : ''}`}>
+    <div
+      className={`h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden ${isResizingSidebar ? "select-none cursor-col-resize" : ""}`}
+    >
       {/* Custom Title Bar */}
       {!focusMode && (
         <TitleBar
-          sidebarWidth={sidebarWidth}
+          sidebarWidth={sidebarWidth + 5}
           showSidebar={showSidebar}
           onNewNote={() => sidebarRef.current?.handleNewNote?.()}
           onNewFolder={() => sidebarRef.current?.handleNewFolder?.()}
-          onToggleSidebar={() => setShowSidebar(prev => !prev)}
+          onToggleSidebar={() => setShowSidebar((prev) => !prev)}
           onCloseTab={handleCloseTab}
         />
       )}
@@ -383,51 +534,60 @@ function App() {
       <div className="flex-1 flex relative overflow-hidden">
         {/* Sidebar */}
         {!focusMode && (
-          <div
-            className={`
+          <div className="flex border-r border-border">
+            <div
+              className={`
               relative shrink-0
-              ${!showSidebar ? 'hidden' : ''}
-              ${isResizingSidebar ? 'transition-none' : 'transition-transform duration-300 ease-in-out'}
-              flex flex-col border-r border-border overflow-hidden
+              ${!showSidebar ? "hidden" : ""}
+              ${isResizingSidebar ? "transition-none" : "transition-transform duration-300 ease-in-out"}
+              flex flex-col overflow-hidden
             `}
-            style={{ width: `${sidebarWidth}px` }}
-          >
-            {showSidebar && (
-              <Sidebar
-                ref={sidebarRef}
-                onSettingsClick={() => selectNote(SETTINGS_TAB_ID)}
-                onOpenGraph={() => setShowGraphModal(true)}
-                onOpenTemplate={(parentId) => {
-                  setTemplateParentId(parentId);
-                  setShowTemplateModal(true);
-                }}
-                onOpenSchedule={(template) => {
-                  setScheduleTemplate(template);
-                  setShowScheduleModal(true);
-                }}
-                onRenameItem={(item) => setRenamingItem(item)}
+              style={{ width: `${sidebarWidth}px` }}
+            >
+              {showSidebar && (
+                <Sidebar
+                  ref={sidebarRef}
+                  onSettingsClick={() => selectNote(SETTINGS_TAB_ID)}
+                  onOpenGraph={() => setShowGraphModal(true)}
+                  onOpenTemplate={(parentId) => {
+                    setTemplateParentId(parentId);
+                    setShowTemplateModal(true);
+                  }}
+                  onOpenSchedule={(template) => {
+                    setScheduleTemplate(template);
+                    setShowScheduleModal(true);
+                  }}
+                  onRenameItem={(item) => setRenamingItem(item)}
+                />
+              )}
+            </div>
+            {/* Resize Handle */}
+            {showSidebar && !focusMode && (
+              <div
+                onMouseDown={startResizingSidebar}
+                className={`
+              w-1 h-full cursor-col-resize hover:bg-accent/50 transition-colors z-20 shrink-0
+              ${isResizingSidebar ? "bg-accent opacity-100" : "bg-transparent opacity-0"}
+            `}
               />
             )}
           </div>
         )}
 
-        {/* Resize Handle */}
-        {showSidebar && !focusMode && (
-          <div
-            onMouseDown={startResizingSidebar}
-            className={`
-              w-1.5 h-full cursor-col-resize hover:bg-accent/50 transition-colors z-20 shrink-0
-              ${isResizingSidebar ? 'bg-accent opacity-100' : 'bg-transparent opacity-0'}
-            `}
-          />
-        )}
-
         {/* Main Content */}
-        <div className={`flex-1 flex flex-col min-w-0 bg-bg-editor ${isResizingSidebar ? 'pointer-events-none' : ''}`}>
-          <MarkdownEditor ref={editorRef} onOpenKeymapsModal={() => setShowKeymapsModal(true)} focusMode={focusMode} />
+        <div
+          className={`flex-1 flex flex-col min-w-0 bg-bg-editor ${isResizingSidebar ? "pointer-events-none" : ""}`}
+        >
+          <MarkdownEditor
+            ref={editorRef}
+            onOpenKeymapsModal={() => setShowKeymapsModal(true)}
+            focusMode={focusMode}
+          />
         </div>
       </div>
-      {showOnboarding && <OnboardingModal onSkip={() => setOnboardingDismissed(true)} />}
+      {showOnboarding && (
+        <OnboardingModal onSkip={() => setOnboardingDismissed(true)} />
+      )}
       {showWorkspaceModal && <WorkspaceRequiredModal />}
       <KeymapsModal
         isOpen={showKeymapsModal}
@@ -491,8 +651,8 @@ function App() {
               }
               setCloseConfirmation(null);
             } catch (error) {
-              console.error('Failed to save note:', error);
-              alert('Failed to save: ' + error.message);
+              console.error("Failed to save note:", error);
+              addNotification("Failed to save: " + error.message, "error");
             }
           }}
           onCancel={() => {
@@ -514,7 +674,7 @@ const RenameDialog = ({ item, onSubmit, onCancel }) => {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       onCancel();
     }
   };
@@ -523,7 +683,7 @@ const RenameDialog = ({ item, onSubmit, onCancel }) => {
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-titlebar-bg border border-border rounded-lg shadow-2xl p-6 w-96 animate-in zoom-in-95 duration-200">
         <h2 className="text-lg font-semibold text-text-primary mb-4">
-          Rename {item.type === 'folder' ? 'Folder' : 'Note'}
+          Rename {item.type === "folder" ? "Folder" : "Note"}
         </h2>
         <form onSubmit={handleSubmit}>
           <input

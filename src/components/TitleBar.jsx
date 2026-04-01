@@ -168,7 +168,10 @@ const TitleBar = ({
                     </svg>
                   )}
 
-                  <span className="text-xs font-medium truncate flex-1">
+                  <span
+                    className="text-xs font-medium truncate flex-1"
+                    title={note.name}
+                  >
                     {note.name}
                   </span>
 

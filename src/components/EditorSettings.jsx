@@ -6,10 +6,62 @@ const EditorSettings = () => {
     toggleVimMode,
     scrollSyncEnabled,
     toggleScrollSync,
+    autosaveEnabled,
+    autosaveDelay,
+    setAutosaveEnabled,
+    setAutosaveDelay,
+    typewriterMode: typewriterModeEnabled,
+    setTypewriterMode,
   } = useSettingsStore();
+
+  const delayOptions = [
+    { label: '1 second', value: 1000 },
+    { label: '2 seconds', value: 2000 },
+    { label: '5 seconds', value: 5000 },
+    { label: '10 seconds', value: 10000 },
+  ];
 
   return (
     <div className="space-y-6">
+      {/* Autosave Toggle */}
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-text-primary mb-1">Autosave</h3>
+          <p className="text-xs text-text-muted leading-relaxed">
+            Automatically save the current note to disk after you stop typing. A status chip in the title bar shows when a save is pending or complete.
+          </p>
+          {autosaveEnabled && (
+            <div className="mt-3 flex items-center gap-3">
+              <span className="text-xs text-text-secondary">Save after</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {delayOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setAutosaveDelay(opt.value)}
+                    className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
+                      autosaveDelay === opt.value
+                        ? 'border-accent/40 bg-accent/10 text-accent'
+                        : 'border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => setAutosaveEnabled(!autosaveEnabled)}
+          className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
+            autosaveEnabled ? 'bg-accent shadow-lg shadow-accent/30' : 'bg-overlay-light hover:bg-overlay-medium'
+          }`}
+          aria-label="Toggle Autosave"
+        >
+          <span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${autosaveEnabled ? 'translate-x-7' : 'translate-x-0'}`} />
+        </button>
+      </div>
+
       {/* Preview Scroll Sync Toggle */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
@@ -41,6 +93,34 @@ const EditorSettings = () => {
       </div>
 
       {/* Vim Mode Toggle */}
+      {/* Typewriter Mode Toggle */}
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-text-primary mb-1 flex items-center gap-2">
+            Typewriter Mode
+            <span className="px-2 py-0.5 text-[10px] font-medium bg-accent/10 text-accent rounded border border-accent/20">
+              Focus Mode
+            </span>
+          </h3>
+          <p className="text-xs text-text-muted leading-relaxed">
+            Keep the current line vertically centered in the editor while you type. Works best in Focus Mode for a distraction-free writing experience.
+          </p>
+        </div>
+        <button
+          onClick={() => setTypewriterMode(!typewriterModeEnabled)}
+          className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
+            typewriterModeEnabled ? 'bg-accent shadow-lg shadow-accent/30' : 'bg-overlay-light hover:bg-overlay-medium'
+          }`}
+          aria-label="Toggle Typewriter Mode"
+        >
+          <span
+            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
+              typewriterModeEnabled ? 'translate-x-7' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h3 className="text-sm font-semibold text-text-primary mb-1 flex items-center gap-2">

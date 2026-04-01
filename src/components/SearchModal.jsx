@@ -1,6 +1,31 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Fuse from 'fuse.js';
 import useNotesStore from '../store/notesStore';
+import useModalAccessibility from '../hooks/useModalAccessibility';
+
+const RECENT_SEARCHES_KEY = 'marky-recent-searches';
+const MAX_RECENT_SEARCHES = 8;
+
+const readRecentSearches = () => {
+  try {
+    const raw = window.localStorage.getItem(RECENT_SEARCHES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+};
+
+const saveRecentSearch = (query) => {
+  if (!query || !query.trim()) return;
+  const trimmed = query.trim();
+  try {
+    const prev = readRecentSearches().filter((q) => q !== trimmed);
+    const next = [trimmed, ...prev].slice(0, MAX_RECENT_SEARCHES);
+    window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+  } catch { /* quota */ }
+};
+
+const clearRecentSearches = () => {
+  try { window.localStorage.removeItem(RECENT_SEARCHES_KEY); } catch { /* */ }
+};
 
 const DEFAULT_SEARCH_OPTIONS = {
   title: true,
@@ -107,16 +132,67 @@ const getMatchedFieldLabels = (matches = []) => {
   ].filter(Boolean);
 };
 
+const ResultRow = ({ result, titleParts, preview, isSelected, matchedFields, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`w-full text-left px-4 py-3 border-b border-overlay-subtle hover:bg-overlay-light transition-colors ${
+      isSelected ? 'bg-overlay-light border-l-2 border-l-accent' : ''
+    }`}
+  >
+    <div className="flex items-start gap-3">
+      <svg className="w-5 h-5 text-text-muted shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-text-primary mb-1">
+          {Array.isArray(titleParts) ? (
+            titleParts.map((part, i) => (
+              <span key={i} className={part.highlight ? 'bg-accent/30 text-accent' : ''}>{part.text}</span>
+            ))
+          ) : result.item.name}
+        </div>
+        <p className="text-xs text-text-muted line-clamp-2">{preview}</p>
+        {matchedFields.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {matchedFields.map((field) => (
+              <span key={field} className="text-[10px] px-1.5 py-0.5 rounded bg-overlay-subtle border border-overlay-subtle text-text-muted">
+                {field}
+              </span>
+            ))}
+          </div>
+        )}
+        {result.score !== undefined && (
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex-1 h-1 bg-overlay-subtle rounded-full overflow-hidden max-w-[100px]">
+              <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${Math.max(10, (1 - result.score) * 100)}%` }} />
+            </div>
+            <span className="text-[10px] text-text-muted">{Math.round((1 - result.score) * 100)}% match</span>
+          </div>
+        )}
+      </div>
+      {isSelected && (
+        <svg className="w-5 h-5 text-accent shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+        </svg>
+      )}
+    </div>
+  </button>
+);
+
 const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchResults, setSearchResults] = useState([]);
   const [searchOptions, setSearchOptions] = useState(DEFAULT_SEARCH_OPTIONS);
   const [searchError, setSearchError] = useState('');
+  const [groupByFolder, setGroupByFolder] = useState(false);
+  const [recentSearches, setRecentSearches] = useState(() => readRecentSearches());
   const searchInputRef = useRef(null);
   const resultsContainerRef = useRef(null);
+  const dialogRef = useRef(null);
 
   const { items, selectNote } = useNotesStore();
+  useModalAccessibility(isOpen, dialogRef, searchInputRef);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -263,6 +339,10 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
   };
 
   const handleSelectNote = (note) => {
+    if (searchQuery.trim()) {
+      saveRecentSearch(searchQuery);
+      setRecentSearches(readRecentSearches());
+    }
     selectNote(note.id);
     onClose();
     // Call the callback to scroll and highlight the search text
@@ -346,6 +426,26 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
     { key: 'regex', label: 'Regex' },
   ];
 
+  // Group results by parent folder path for display
+  const groupedResults = useMemo(() => {
+    if (!groupByFolder || searchResults.length === 0) return null;
+    const groups = new Map();
+    searchResults.forEach((result) => {
+      const fp = result.item.filePath || '';
+      const parts = fp.replace(/\\/g, '/').split('/');
+      parts.pop(); // remove filename
+      const folderPath = parts.join('/') || '/';
+      const folderName = parts[parts.length - 1] || 'Root';
+      const key = folderPath;
+      if (!groups.has(key)) groups.set(key, { folderName, folderPath, results: [] });
+      groups.get(key).results.push(result);
+    });
+    return Array.from(groups.values());
+  }, [groupByFolder, searchResults]);
+
+  // Flat ordered list used for keyboard navigation (consistent regardless of grouping)
+  const flatResults = searchResults;
+
   if (!isOpen) return null;
 
   return (
@@ -354,16 +454,25 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] p-4 pointer-events-none">
         <div
+          ref={dialogRef}
           className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-2xl pointer-events-auto animate-slideUp overflow-hidden"
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="search-modal-title"
+          tabIndex={-1}
         >
           {/* Search Input */}
           <div className="border-b border-glass-border p-4">
+            <h2 id="search-modal-title" className="sr-only">
+              Search notes
+            </h2>
             <div className="relative">
               <svg
                 className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
@@ -447,6 +556,22 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                   );
                 })}
               </div>
+              {searchResults.length > 0 && (
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[10px] uppercase tracking-wide text-text-muted">View</span>
+                  <button
+                    type="button"
+                    onClick={() => setGroupByFolder((v) => !v)}
+                    className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
+                      groupByFolder
+                        ? 'border-accent/40 bg-accent/10 text-accent'
+                        : 'border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light'
+                    }`}
+                  >
+                    Group by folder
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -466,96 +591,98 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
             )}
 
             {searchResults.length === 0 && searchQuery.trim() === '' && (
-              <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                <svg className="w-16 h-16 text-accent opacity-50 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <p className="text-text-secondary font-medium">Search your notes</p>
-                <p className="text-sm text-text-muted mt-1">Type to search by title or content</p>
-              </div>
+              recentSearches.length > 0 ? (
+                <div className="px-4 py-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] uppercase tracking-wide text-text-muted">Recent searches</span>
+                    <button
+                      onClick={() => { clearRecentSearches(); setRecentSearches([]); }}
+                      className="text-[10px] text-text-muted hover:text-text-secondary transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {recentSearches.map((q) => (
+                      <button
+                        key={q}
+                        onClick={() => setSearchQuery(q)}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-full bg-overlay-subtle border border-overlay-subtle text-text-secondary hover:text-text-primary hover:border-overlay-light transition-colors"
+                      >
+                        <svg className="w-3 h-3 text-text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                  <svg className="w-16 h-16 text-accent opacity-50 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <p className="text-text-secondary font-medium">Search your notes</p>
+                  <p className="text-sm text-text-muted mt-1">Type to search by title or content</p>
+                </div>
+              )
             )}
 
-            {searchResults.map((result, index) => {
-              const titleParts = highlightMatches(result.item.name, result.matches, 'name');
-              const preview = getPreviewText(result);
-              const isSelected = index === selectedIndex;
-              const matchedFields = getMatchedFieldLabels(result.matches);
-
-              return (
-                <button
-                  key={result.item.id}
-                  onClick={() => handleSelectNote(result.item)}
-                  className={`w-full text-left px-4 py-3 border-b border-overlay-subtle hover:bg-overlay-light transition-colors ${
-                    isSelected ? 'bg-overlay-light border-l-2 border-l-accent' : ''
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {/* Note Icon */}
-                    <svg className="w-5 h-5 text-text-muted shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            {/* Render results: flat or grouped */}
+            {groupedResults ? (
+              groupedResults.map((group) => (
+                <div key={group.folderPath}>
+                  <div className="px-4 py-1.5 flex items-center gap-1.5 bg-overlay-subtle/60 border-b border-overlay-subtle sticky top-0 z-10">
+                    <svg className="w-3.5 h-3.5 text-text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
                     </svg>
-
-                    <div className="flex-1 min-w-0">
-                      {/* Title with highlighting */}
-                      <div className="font-medium text-text-primary mb-1">
-                        {Array.isArray(titleParts) ? (
-                          titleParts.map((part, i) => (
-                            <span
-                              key={i}
-                              className={part.highlight ? 'bg-accent/30 text-accent' : ''}
-                            >
-                              {part.text}
-                            </span>
-                          ))
-                        ) : (
-                          result.item.name
-                        )}
-                      </div>
-
-                      {/* Preview */}
-                      <p className="text-xs text-text-muted line-clamp-2">
-                        {preview}
-                      </p>
-
-                      {matchedFields.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {matchedFields.map((field) => (
-                            <span
-                              key={field}
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-overlay-subtle border border-overlay-subtle text-text-muted"
-                            >
-                              {field}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Match score indicator */}
-                      {result.score !== undefined && (
-                        <div className="mt-2 flex items-center gap-2">
-                          <div className="flex-1 h-1 bg-overlay-subtle rounded-full overflow-hidden max-w-[100px]">
-                            <div
-                              className="h-full bg-accent rounded-full transition-all"
-                              style={{ width: `${Math.max(10, (1 - result.score) * 100)}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] text-text-muted">
-                            {Math.round((1 - result.score) * 100)}% match
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Selected indicator */}
-                    {isSelected && (
-                      <svg className="w-5 h-5 text-accent shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
+                    <span
+                      className="text-[11px] text-text-muted font-medium truncate"
+                      title={group.folderPath}
+                    >
+                      {group.folderName}
+                    </span>
+                    <span className="text-[10px] text-text-muted ml-auto shrink-0">{group.results.length}</span>
                   </div>
-                </button>
-              );
-            })}
+                  {group.results.map((result) => {
+                    const index = flatResults.indexOf(result);
+                    const titleParts = highlightMatches(result.item.name, result.matches, 'name');
+                    const preview = getPreviewText(result);
+                    const isSelected = index === selectedIndex;
+                    const matchedFields = getMatchedFieldLabels(result.matches);
+                    return (
+                      <ResultRow
+                        key={result.item.id}
+                        result={result}
+                        titleParts={titleParts}
+                        preview={preview}
+                        isSelected={isSelected}
+                        matchedFields={matchedFields}
+                        onClick={() => handleSelectNote(result.item)}
+                      />
+                    );
+                  })}
+                </div>
+              ))
+            ) : (
+              searchResults.map((result, index) => {
+                const titleParts = highlightMatches(result.item.name, result.matches, 'name');
+                const preview = getPreviewText(result);
+                const isSelected = index === selectedIndex;
+                const matchedFields = getMatchedFieldLabels(result.matches);
+                return (
+                  <ResultRow
+                    key={result.item.id}
+                    result={result}
+                    titleParts={titleParts}
+                    preview={preview}
+                    isSelected={isSelected}
+                    matchedFields={matchedFields}
+                    onClick={() => handleSelectNote(result.item)}
+                  />
+                );
+              })
+            )}
           </div>
 
           {/* Footer with keyboard hints */}

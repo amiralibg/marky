@@ -2,6 +2,77 @@ import { EditorView } from '@codemirror/view';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
 
+// Syntax highlight palettes keyed by theme type.
+// Each palette defines colors for the main token categories.
+export const SYNTAX_PALETTES = {
+  dark: {
+    emphasis: '#d4d4d4',
+    strong: '#d4d4d4',
+    monospace: '#ce9178',
+    quote: '#858585',
+    list: '#d4d4d4',
+    meta: '#858585',
+    keyword: '#569cd6',
+    string: '#ce9178',
+    comment: '#858585',
+  },
+  light: {
+    emphasis: '#374151',
+    strong: '#374151',
+    monospace: '#b45309',
+    quote: '#6b7280',
+    list: '#374151',
+    meta: '#9ca3af',
+    keyword: '#1d4ed8',
+    string: '#b45309',
+    comment: '#9ca3af',
+  },
+  'gruvbox-dark': {
+    emphasis: '#ebdbb2',
+    strong: '#ebdbb2',
+    monospace: '#d65d0e',
+    quote: '#928374',
+    list: '#ebdbb2',
+    meta: '#928374',
+    keyword: '#458588',
+    string: '#d65d0e',
+    comment: '#928374',
+  },
+  'gruvbox-light': {
+    emphasis: '#3c3836',
+    strong: '#3c3836',
+    monospace: '#af3a03',
+    quote: '#7c6f64',
+    list: '#3c3836',
+    meta: '#7c6f64',
+    keyword: '#076678',
+    string: '#af3a03',
+    comment: '#7c6f64',
+  },
+};
+
+// Returns a syntaxHighlighting extension built from the given palette.
+// The `accentColor` CSS variable value is used for links/URLs.
+export const buildSyntaxHighlighting = (paletteKey = 'dark', accentColor = 'var(--color-accent)') => {
+  const palette = SYNTAX_PALETTES[paletteKey] || SYNTAX_PALETTES.dark;
+  return syntaxHighlighting(
+    HighlightStyle.define([
+      { tag: t.heading, color: 'var(--color-text-primary)', fontWeight: 'bold' },
+      { tag: t.emphasis, fontStyle: 'italic', color: palette.emphasis },
+      { tag: t.strong, fontWeight: 'bold', color: palette.strong },
+      { tag: t.link, color: accentColor, textDecoration: 'underline' },
+      { tag: t.url, color: accentColor },
+      { tag: t.monospace, color: palette.monospace },
+      { tag: t.quote, color: palette.quote, fontStyle: 'italic' },
+      { tag: t.list, color: palette.list },
+      { tag: t.meta, color: palette.meta },
+      { tag: t.keyword, color: palette.keyword },
+      { tag: t.string, color: palette.string },
+      { tag: t.comment, color: palette.comment, fontStyle: 'italic' },
+    ])
+  );
+};
+
 // Theme using Marky's CSS variables for dynamic theme support
 export const markyTheme = EditorView.theme({
   '&': {
@@ -104,138 +175,226 @@ export const markyTheme = EditorView.theme({
     },
   },
 
-  // Search panel styling to match Marky's design
+  // Search panel styling for CodeMirror's built-in find/replace UI
+  '.cm-panels-top, .cm-panels-bottom': {
+    padding: '0.75rem',
+    border: 'none',
+    background: 'transparent',
+  },
+  '.cm-panel.cm-search': {
+    width: 'min(760px, calc(100% - 1rem))',
+    margin: '0 auto',
+    padding: '16px',
+  },
   '.cm-search': {
+    position: 'relative',
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.625rem',
+    '--search-accent': 'var(--color-accent)',
+    '--search-accent-hover': 'var(--color-accent-hover)',
     backgroundColor: 'var(--color-bg-sidebar)',
     border: '1px solid var(--color-border)',
-    borderRadius: '8px',
-    padding: '0.75rem',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3)',
+    borderRadius: '14px',
+    padding: '3.75rem 5.5rem 1rem 0.875rem',
+    boxShadow: '0 10px 24px rgba(0, 0, 0, 0.2)',
   },
-  '.cm-search input': {
-    backgroundColor: 'var(--color-bg-editor)',
-    border: '1px solid var(--color-border)',
-    borderRadius: '6px',
-    color: 'var(--color-text-primary)',
-    padding: '0.5rem 0.875rem',
-    fontSize: '13px',
-    outline: 'none',
-    transition: 'all 0.15s ease',
-  },
-  '.cm-search input:focus': {
-    borderColor: 'var(--color-accent)',
-    boxShadow: '0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent)',
-  },
-  '.cm-search button': {
-    background: 'linear-gradient(180deg, var(--color-accent) 0%, color-mix(in srgb, var(--color-accent) 85%, black) 100%)',
-    border: 'none',
-    borderRadius: '6px',
-    color: '#ffffff',
-    padding: '0.375rem 0.75rem',
-    fontSize: '12px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 0 1px color-mix(in srgb, var(--color-accent) 70%, black)',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  '.cm-search button::before': {
+  '.cm-search br': {
+    flexBasis: '100%',
+    height: 0,
     content: '""',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 100%)',
-    pointerEvents: 'none',
   },
-  '.cm-search button:hover': {
-    background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 110%, white) 0%, var(--color-accent) 100%)',
-    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 0 1px color-mix(in srgb, var(--color-accent) 70%, black)',
-    transform: 'translateY(-1px)',
+  '.cm-search input:not([type="checkbox"])': {
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    height: '2.5rem',
+    backgroundColor: 'var(--color-overlay-subtle)',
+    border: '1px solid var(--color-overlay-subtle)',
+    borderRadius: '10px',
+    color: 'var(--color-text-primary)',
+    padding: '0 0.95rem',
+    fontSize: '13px',
+    fontWeight: '400',
+    outline: 'none',
+    transition: 'border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease',
   },
-  '.cm-search button:active': {
-    background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 80%, black) 0%, color-mix(in srgb, var(--color-accent) 90%, black) 100%)',
-    boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.2)',
-    transform: 'translateY(0px)',
+  '.cm-search input[name="search"]': {
+    flex: '1 1 18rem',
+    minWidth: '12rem',
   },
-  '.cm-search button[name="close"]': {
-    position: 'absolute',
-    top: '0.5rem',
-    right: '0.5rem',
-    padding: '0.25rem',
-    width: '20px',
-    height: '20px',
-    borderRadius: '4px',
-    background: 'transparent',
-    border: 'none',
-    boxShadow: 'none',
+  '.cm-search input[name="replace"]': {
+    flex: '1 1 16rem',
+    minWidth: '12rem',
+  },
+  '.cm-search input:not([type="checkbox"])::placeholder': {
     color: 'var(--color-text-muted)',
   },
-  '.cm-search button[name="close"]::before': {
+  '.cm-search input:not([type="checkbox"]):hover': {
+    backgroundColor: 'var(--color-overlay-light)',
+    borderColor: 'var(--color-overlay-light)',
+  },
+  '.cm-search input:not([type="checkbox"]):focus': {
+    backgroundColor: 'color-mix(in srgb, var(--color-overlay-light) 88%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--search-accent) 50%, transparent)',
+    boxShadow: '0 0 0 3px color-mix(in srgb, var(--search-accent) 12%, transparent)',
+  },
+  '.cm-search button': {
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    backgroundImage: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '2.5rem',
+    borderRadius: '14px',
+    border: '1px solid var(--color-overlay-subtle)',
+    backgroundColor: 'var(--color-overlay-subtle)',
+    color: 'var(--color-text-primary)',
+    padding: '0 1.2rem',
+    fontSize: '11px',
+    fontWeight: '600',
+    letterSpacing: '0.04em',
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+    transition: 'transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease',
+    boxShadow: 'none',
+  },
+  '.cm-search button:hover': {
+    transform: 'none',
+    borderColor: 'var(--color-overlay-light)',
+    backgroundColor: 'var(--color-overlay-light)',
+  },
+  '.cm-search button:active': {
+    transform: 'translateY(0)',
+    boxShadow: 'none',
+  },
+  '.cm-search button:focus-visible': {
+    outline: 'none',
+    borderColor: 'color-mix(in srgb, var(--search-accent) 50%, transparent)',
+    boxShadow: '0 0 0 3px color-mix(in srgb, var(--search-accent) 12%, transparent)',
+  },
+  '.cm-search button[name="next"], .cm-search button[name="replace"]': {
+    minWidth: '8.75rem',
+    borderColor: 'var(--search-accent)',
+    backgroundColor: 'var(--search-accent)',
+    color: '#ffffff',
+  },
+  '.cm-search button[name="next"]:hover, .cm-search button[name="replace"]:hover': {
+    borderColor: 'var(--search-accent-hover)',
+    backgroundColor: 'var(--search-accent-hover)',
+  },
+  '.cm-search button[name="prev"], .cm-search button[name="replaceAll"]': {
+    minWidth: '11rem',
+    borderColor: 'color-mix(in srgb, var(--search-accent) 28%, transparent)',
+    backgroundColor: 'var(--color-overlay-subtle)',
+    color: 'var(--search-accent)',
+  },
+  '.cm-search button[name="prev"]:hover, .cm-search button[name="replaceAll"]:hover': {
+    borderColor: 'color-mix(in srgb, var(--search-accent) 36%, transparent)',
+    backgroundColor: 'var(--color-overlay-light)',
+    color: 'color-mix(in srgb, var(--search-accent) 90%, white)',
+  },
+  '.cm-search button[name="select"]': {
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
+    color: 'var(--search-accent)',
+    paddingInline: '0.25rem',
+  },
+  '.cm-search button[name="select"]:hover': {
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
+    color: 'color-mix(in srgb, var(--search-accent) 90%, white)',
+  },
+  '.cm-search button[name="close"]': {
     display: 'none',
   },
   '.cm-search button[name="close"]:hover': {
-    background: 'var(--color-overlay-medium)',
+    background: 'var(--color-overlay-light)',
     color: 'var(--color-text-primary)',
     transform: 'none',
     boxShadow: 'none',
   },
   '.cm-search label': {
-    color: 'var(--color-text-secondary)',
-    fontSize: '12px',
-    fontWeight: '500',
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.5rem',
+    minHeight: '2.25rem',
+    padding: '0.4rem 0.7rem',
+    borderRadius: '999px',
+    border: '1px solid var(--color-overlay-subtle)',
+    background: 'var(--color-overlay-subtle)',
+    color: 'var(--color-text-secondary)',
+    fontSize: '11px',
+    fontWeight: '600',
+    letterSpacing: '0.05em',
+    textTransform: 'uppercase',
+    whiteSpace: 'nowrap',
     cursor: 'pointer',
-    padding: '0.25rem 0',
-    transition: 'color 0.15s ease',
+    transition: 'border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, transform 0.16s ease',
   },
   '.cm-search label:hover': {
     color: 'var(--color-text-primary)',
+    borderColor: 'var(--color-overlay-light)',
+    background: 'var(--color-overlay-light)',
+  },
+  '.cm-search label:has(input:checked)': {
+    color: 'var(--search-accent)',
+    borderColor: 'color-mix(in srgb, var(--search-accent) 28%, transparent)',
+    background: 'color-mix(in srgb, var(--search-accent) 14%, transparent)',
   },
   '.cm-search label input[type="checkbox"]': {
+    appearance: 'none',
+    margin: 0,
     width: '1rem',
     height: '1rem',
-    accentColor: 'var(--color-accent)',
+    borderRadius: '999px',
+    border: '1px solid var(--color-overlay-medium)',
+    background: 'transparent',
+    display: 'grid',
+    placeItems: 'center',
     cursor: 'pointer',
+    transition: 'border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease',
+  },
+  '.cm-search label input[type="checkbox"]::before': {
+    content: '""',
+    width: '0.45rem',
+    height: '0.45rem',
+    borderRadius: '999px',
+    background: '#ffffff',
+    transform: 'scale(0)',
+    transition: 'transform 0.16s ease',
+  },
+  '.cm-search label input[type="checkbox"]:checked': {
+    background: 'var(--search-accent)',
+    borderColor: 'var(--search-accent)',
+    boxShadow: '0 0 0 3px color-mix(in srgb, var(--search-accent) 10%, transparent)',
+  },
+  '.cm-search label input[type="checkbox"]:checked::before': {
+    transform: 'scale(1)',
+  },
+  '.cm-search label input[type="checkbox"]:focus-visible': {
+    outline: 'none',
+    boxShadow: '0 0 0 3px color-mix(in srgb, var(--search-accent) 10%, transparent)',
   },
   '.cm-panels-bottom': {
-    borderRadius: "8px",
+    borderRadius: '14px',
   }
 }, { dark: true });
 
 // Markdown syntax highlighting - using only well-defined tags
-export const markySyntaxHighlighting = syntaxHighlighting(
-  HighlightStyle.define([
-    // Headings
-    { tag: t.heading, color: 'var(--color-text-primary)', fontWeight: 'bold' },
+// Default syntax highlighting (dark palette) — used as initial value before theme is applied.
+// Use buildSyntaxHighlighting(paletteKey) to get a theme-matched instance.
+export const markySyntaxHighlighting = buildSyntaxHighlighting('dark');
+// Map a Marky theme ID to the corresponding syntax palette key
+export const themeIdToPaletteKey = (themeId) => {
+  if (themeId === 'gruvbox-dark') return 'gruvbox-dark';
+  if (themeId === 'gruvbox-light') return 'gruvbox-light';
+  // light-type themes (Snow, Gruvbox Light, etc.)
+  const lightThemes = ['light'];
+  if (lightThemes.includes(themeId)) return 'light';
+  return 'dark';
+};
 
-    // Emphasis
-    { tag: t.emphasis, fontStyle: 'italic', color: '#d4d4d4' },
-    { tag: t.strong, fontWeight: 'bold', color: '#d4d4d4' },
-
-    // Links and URLs
-    { tag: t.link, color: 'var(--color-accent)', textDecoration: 'underline' },
-    { tag: t.url, color: 'var(--color-accent)' },
-
-    // Code
-    { tag: t.monospace, color: '#ce9178' },
-
-    // Quotes
-    { tag: t.quote, color: '#858585', fontStyle: 'italic' },
-
-    // Lists
-    { tag: t.list, color: '#d4d4d4' },
-
-    // Meta
-    { tag: t.meta, color: '#858585' },
-
-    // Keywords and special
-    { tag: t.keyword, color: '#569cd6' },
-    { tag: t.string, color: '#ce9178' },
-    { tag: t.comment, color: '#858585', fontStyle: 'italic' },
-  ])
-);
+// Default syntax highlighting (dark palette) — used as initial value before theme is applied.

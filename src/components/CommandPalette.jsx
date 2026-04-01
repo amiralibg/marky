@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Fuse from 'fuse.js';
 import useNotesStore from '../store/notesStore';
+import useModalAccessibility from '../hooks/useModalAccessibility';
 
 const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   const [query, setQuery] = useState('');
@@ -8,8 +9,10 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   const [results, setResults] = useState([]);
   const inputRef = useRef(null);
   const resultsContainerRef = useRef(null);
+  const dialogRef = useRef(null);
 
   const { items } = useNotesStore();
+  useModalAccessibility(isOpen, dialogRef, inputRef);
 
   // Define available commands
   const commands = [
@@ -179,16 +182,25 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] p-4 pointer-events-none">
         <div
+          ref={dialogRef}
           className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-2xl pointer-events-auto animate-slideUp overflow-hidden"
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="command-palette-title"
+          tabIndex={-1}
         >
           {/* Search Input */}
           <div className="border-b border-glass-border p-4">
+            <h2 id="command-palette-title" className="sr-only">
+              Command palette
+            </h2>
             <div className="relative">
               <svg
                 className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-accent pointer-events-none"
@@ -265,7 +277,9 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
                     <div className="flex-1 min-w-0">
                       {/* Title */}
                       <div className="font-medium text-text-primary flex items-center gap-2">
-                        <span className="truncate">{item.name}</span>
+                        <span className="truncate" title={item.name}>
+                          {item.name}
+                        </span>
                         {isNote && (
                           <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded uppercase font-semibold">
                             Note
@@ -274,7 +288,14 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
                       </div>
 
                       {/* Subtitle */}
-                      <p className="text-xs text-text-muted truncate">
+                      <p
+                        className="text-xs text-text-muted truncate"
+                        title={
+                          isNote
+                            ? (item.content || 'Empty note')
+                            : `${getCategoryIcon(item.category)} ${item.category}`
+                        }
+                      >
                         {isNote
                           ? (item.content?.slice(0, 80) || 'Empty note')
                           : `${getCategoryIcon(item.category)} ${item.category}`

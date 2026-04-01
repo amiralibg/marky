@@ -4,24 +4,71 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#09090b" />
     <title>Marky - Beautiful Markdown Notes</title>
     <style>
       /* Prevent white flash before CSS loads */
       body, html {
         margin: 0;
         padding: 0;
-        background-color: #1e1e1e;
+        background-color: var(--color-bg-base, #09090b);
         overflow: hidden;
       }
       #root {
         width: 100%;
         height: 100%;
-        background-color: #1e1e1e;
+        background-color: var(--color-bg-base, #09090b);
       }
     </style>
+    <script>
+      (() => {
+        const themes = {
+          midnight: { type: 'dark', bgBase: '#09090b', textPrimary: '#f4f4f5', textSecondary: '#a1a1aa', textMuted: '#52525b', border: '#27272a' },
+          charcoal: { type: 'dark', bgBase: '#1a1a1e', textPrimary: '#f4f4f5', textSecondary: '#a1a1aa', textMuted: '#71717a', border: '#3f3f46' },
+          slate: { type: 'dark', bgBase: '#0f172a', textPrimary: '#f1f5f9', textSecondary: '#94a3b8', textMuted: '#64748b', border: '#334155' },
+          light: { type: 'light', bgBase: '#ffffff', textPrimary: '#0f172a', textSecondary: '#475569', textMuted: '#94a3b8', border: '#e2e8f0' },
+          'gruvbox-dark': { type: 'dark', bgBase: '#282828', textPrimary: '#ebdbb2', textSecondary: '#d5c4a1', textMuted: '#928374', border: '#504945' },
+          'gruvbox-light': { type: 'light', bgBase: '#fbf1c7', textPrimary: '#3c3836', textSecondary: '#504945', textMuted: '#928374', border: '#d5c4a1' },
+        };
+
+        const accents = {
+          blue: { value: '#3b82f6', hover: '#2563eb' },
+          purple: { value: '#8b5cf6', hover: '#7c3aed' },
+          pink: { value: '#ec4899', hover: '#db2777' },
+          red: { value: '#ef4444', hover: '#dc2626' },
+          orange: { value: '#f97316', hover: '#ea580c' },
+          amber: { value: '#f59e0b', hover: '#d97706' },
+          green: { value: '#22c55e', hover: '#16a34a' },
+          teal: { value: '#14b8a6', hover: '#0d9488' },
+          cyan: { value: '#06b6d4', hover: '#0891b2' },
+        };
+
+        try {
+          const raw = localStorage.getItem('marky-settings');
+          const parsed = raw ? JSON.parse(raw) : null;
+          const state = parsed?.state || {};
+          const theme = themes[state.themeId] || themes.midnight;
+          const accent = accents[state.accentColorId] || accents.blue;
+
+          document.documentElement.setAttribute('data-theme', theme.type);
+          document.documentElement.style.setProperty('--color-bg-base', theme.bgBase);
+          document.documentElement.style.setProperty('--color-bg-sidebar', theme.bgBase);
+          document.documentElement.style.setProperty('--color-bg-editor', theme.bgBase);
+          document.documentElement.style.setProperty('--color-text-primary', theme.textPrimary);
+          document.documentElement.style.setProperty('--color-text-secondary', theme.textSecondary);
+          document.documentElement.style.setProperty('--color-text-muted', theme.textMuted);
+          document.documentElement.style.setProperty('--color-border', theme.border);
+          document.documentElement.style.setProperty('--color-accent', accent.value);
+          document.documentElement.style.setProperty('--color-accent-hover', accent.hover);
+          document.documentElement.style.setProperty('--color-accent-dim', `${accent.value}1a`);
+          document
+            .querySelector('meta[name="theme-color"]')
+            ?.setAttribute('content', theme.bgBase);
+        } catch (error) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

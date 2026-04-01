@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import useModalAccessibility from '../hooks/useModalAccessibility';
 
 const ConfirmDialog = ({
   isOpen,
@@ -10,6 +11,9 @@ const ConfirmDialog = ({
   onConfirm,
   onCancel
 }) => {
+  const dialogRef = useRef(null);
+  useModalAccessibility(isOpen, dialogRef);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!isOpen) return;
@@ -64,13 +68,20 @@ const ConfirmDialog = ({
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-100 animate-fadeIn"
         onClick={onCancel}
+        aria-hidden="true"
       />
 
       {/* Dialog */}
       <div className="fixed inset-0 z-100 flex items-center justify-center p-4 pointer-events-none">
         <div
+          ref={dialogRef}
           className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-md pointer-events-auto animate-slideUp"
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-dialog-title"
+          aria-describedby="confirm-dialog-message"
+          tabIndex={-1}
         >
           <div className="p-6">
             {/* Icon and content */}
@@ -79,10 +90,16 @@ const ConfirmDialog = ({
                 {styles.icon}
               </div>
               <div className="flex-1 pt-1">
-                <h3 className="text-lg font-semibold text-text-primary">
+                <h3
+                  id="confirm-dialog-title"
+                  className="text-lg font-semibold text-text-primary"
+                >
                   {title}
                 </h3>
-                <p className="mt-2 text-sm text-text-secondary">
+                <p
+                  id="confirm-dialog-message"
+                  className="mt-2 text-sm text-text-secondary"
+                >
                   {message}
                 </p>
               </div>

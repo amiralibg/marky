@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import AppearanceSettings from './AppearanceSettings';
+import BatchExportModal from './BatchExportModal';
 import EditorSettings from './EditorSettings';
 import KeymapsSettings from './KeymapsSettings';
 import ScheduledNotesManager from './ScheduledNotesManager';
@@ -7,11 +8,35 @@ import TagManager from './TagManager';
 import useNotesStore from '../store/notesStore';
 import useSettingsStore from '../store/settingsStore';
 import useUIStore from '../store/uiStore';
-import { exportWorkspaceAsZip, restoreWorkspaceFromZip } from '../utils/backup';
+import {
+  exportWorkspaceAsZip, restoreWorkspaceFromZip,
+  exportSettingsAsJson, importSettingsFromJson,
+} from '../utils/backup';
+
+const normalizeWorkspacePath = (value) => (value ? value.replace(/\\/g, '/') : '');
 
 const SettingsPage = ({ onOpenKeymapsModal }) => {
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoringBackup, setIsRestoringBackup] = useState(false);
+  const [showBatchExport, setShowBatchExport] = useState(false);
+  const [isExportingSettings, setIsExportingSettings] = useState(false);
+  const [isImportingSettings, setIsImportingSettings] = useState(false);
+
+  const {
+    openRecentOnStartup,
+    setOpenRecentOnStartup,
+    workspaceProfiles,
+    setWorkspaceSettingsEnabled,
+    getSettingsExportPayload,
+    importSettingsPayload,
+  } = useSettingsStore();
+  const rootFolderPath = useNotesStore((state) => state.rootFolderPath);
+  const currentWorkspaceName = rootFolderPath
+    ? normalizeWorkspacePath(rootFolderPath).split('/').filter(Boolean).pop()
+    : null;
+  const hasWorkspaceProfile = rootFolderPath
+    ? Boolean(workspaceProfiles[normalizeWorkspacePath(rootFolderPath)])
+    : false;
 
   const handleBackup = async () => {
     const { rootFolderPath, items } = useNotesStore.getState();
@@ -93,8 +118,43 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
     }
   };
 
+  const handleExportSettings = async () => {
+    const { addNotification } = useUIStore.getState();
+
+    setIsExportingSettings(true);
+    try {
+      const path = await exportSettingsAsJson(getSettingsExportPayload());
+      if (path) {
+        addNotification('Settings exported', 'success');
+      }
+    } catch (err) {
+      console.error('Export settings failed:', err);
+      addNotification('Export failed: ' + err.message, 'error');
+    } finally {
+      setIsExportingSettings(false);
+    }
+  };
+
+  const handleImportSettings = async () => {
+    const { addNotification } = useUIStore.getState();
+
+    setIsImportingSettings(true);
+    try {
+      const imported = await importSettingsFromJson();
+      if (!imported) return;
+
+      importSettingsPayload(imported);
+      addNotification('Settings imported successfully', 'success');
+    } catch (err) {
+      console.error('Import settings failed:', err);
+      addNotification('Import failed: ' + err.message, 'error');
+    } finally {
+      setIsImportingSettings(false);
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-bg-base animate-in fade-in zoom-in-95 duration-200">
+    <><div className="flex-1 flex flex-col overflow-hidden bg-bg-base animate-in fade-in zoom-in-95 duration-200">
       <div className="flex items-center justify-between px-8 py-6 border-b border-border">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Settings</h1>
@@ -184,6 +244,79 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
         </section>
 
         {/* Backup Section */}
+        {/* Workspace Section */}
+        <section className="space-y-4">
+          <header>
+            <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              Workspace
+            </h2>
+            <p className="text-sm text-text-muted mt-1">Control how Marky handles your workspace on launch.</p>
+          </header>
+          <div className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-text-secondary">Reopen last workspace on startup</p>
+                <p className="text-xs text-text-muted mt-0.5">Automatically load the most recently used folder when Marky launches.</p>
+              </div>
+              <button
+                onClick={() => setOpenRecentOnStartup(!openRecentOnStartup)}
+                className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
+                  openRecentOnStartup ? 'bg-accent shadow-lg shadow-accent/30' : 'bg-overlay-light hover:bg-overlay-medium'
+                }`}
+                aria-checked={openRecentOnStartup}
+                role="switch"
+                title={openRecentOnStartup ? 'Disable reopen on startup' : 'Enable reopen on startup'}
+              >
+                <span
+                  className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                    openRecentOnStartup ? 'translate-x-7' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 border-t border-overlay-subtle pt-4">
+              <div>
+                <p className="text-sm font-medium text-text-secondary">Workspace-specific settings profile</p>
+                <p className="text-xs text-text-muted mt-0.5">
+                  {rootFolderPath
+                    ? `Keep theme, editor behavior, and keymaps specific to ${currentWorkspaceName}.`
+                    : 'Open a workspace to create a per-workspace settings profile.'}
+                </p>
+              </div>
+              <button
+                onClick={() => rootFolderPath && setWorkspaceSettingsEnabled(rootFolderPath, !hasWorkspaceProfile)}
+                disabled={!rootFolderPath}
+                className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
+                  !rootFolderPath
+                    ? 'bg-overlay-subtle cursor-not-allowed opacity-50'
+                    : hasWorkspaceProfile
+                      ? 'bg-accent shadow-lg shadow-accent/30'
+                      : 'bg-overlay-light hover:bg-overlay-medium'
+                }`}
+                aria-checked={hasWorkspaceProfile}
+                role="switch"
+                title={
+                  !rootFolderPath
+                    ? 'Open a workspace first'
+                    : hasWorkspaceProfile
+                      ? 'Disable workspace-specific settings'
+                      : 'Enable workspace-specific settings'
+                }
+              >
+                <span
+                  className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                    hasWorkspaceProfile ? 'translate-x-7' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </section>
+
         <section className="space-y-4">
           <header>
             <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
@@ -234,9 +367,94 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
             </div>
           </div>
         </section>
+
+        {/* Batch Export Section */}
+        <section className="space-y-4">
+          <header>
+            <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Batch Export
+            </h2>
+            <p className="text-sm text-text-muted mt-1">Export multiple notes at once as Markdown or HTML files.</p>
+          </header>
+          <div className="bg-white/5 rounded-xl border border-white/10 p-6 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-text-secondary">Choose a selection of notes (or all notes) and download them as a ZIP.</p>
+              <p className="text-xs text-text-muted mt-1">Folder structure is preserved inside the archive.</p>
+            </div>
+            <button
+              onClick={() => setShowBatchExport(true)}
+              className="px-4 py-2 rounded-lg font-medium text-sm bg-accent hover:bg-accent/80 text-white transition-all shrink-0 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Batch Export
+            </button>
+          </div>
+        </section>
+
+        {/* Settings JSON Section */}
+        <section className="space-y-4">
+          <header>
+            <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Settings Portability
+            </h2>
+            <p className="text-sm text-text-muted mt-1">Export your preferences and keyboard shortcuts, or restore them from a previous export.</p>
+          </header>
+          <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm text-text-secondary">Save or load theme, editor preferences, and key bindings as a JSON file.</p>
+                <p className="text-xs text-text-muted mt-1">Useful for sharing settings between workspaces or machines.</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleImportSettings}
+                  disabled={isImportingSettings || isExportingSettings}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 border ${
+                    isImportingSettings || isExportingSettings
+                      ? 'bg-overlay-light text-text-muted cursor-not-allowed border-overlay-subtle'
+                      : 'bg-overlay-subtle hover:bg-overlay-light text-text-primary border-overlay-subtle'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m12-4l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  {isImportingSettings ? 'Importing...' : 'Import Settings'}
+                </button>
+                <button
+                  onClick={handleExportSettings}
+                  disabled={isExportingSettings || isImportingSettings}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
+                    isExportingSettings || isImportingSettings
+                      ? 'bg-overlay-light text-text-muted cursor-not-allowed'
+                      : 'bg-accent hover:bg-accent/80 text-white'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  {isExportingSettings ? 'Exporting...' : 'Export Settings'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
-  );
+
+    <BatchExportModal
+      isOpen={showBatchExport}
+      onClose={() => setShowBatchExport(false)}
+    />
+  </>);
 };
 
 export default SettingsPage;

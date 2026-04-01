@@ -1,7 +1,6 @@
 # Marky TODO (Audit-Based Roadmap)
 
-Last reviewed: 2026-02-26
-
+Last reviewed: 2026-03-27
 This file is a forward-looking roadmap based on the current codebase state (not a historical changelog).
 It separates already-shipped features from the next recommended work.
 
@@ -61,50 +60,52 @@ It separates already-shipped features from the next recommended work.
 ## Recommended Roadmap (What We Should Build Next)
 
 ## P0: Data safety and trust (highest impact)
-- [ ] Note history snapshots and restore UI
-- [ ] Backup restore (import workspace ZIP back into a folder)
-- [ ] Crash-safe recovery for unsaved edits (draft/session recovery)
-- [ ] Conflict handling for external file changes while note has unsaved edits
-- [ ] Clearer file-operation error messages (permissions, missing files, name conflicts)
+- [x] Note history snapshots and restore UI
+- [x] Backup restore (import workspace ZIP back into a folder)
+- [x] Crash-safe recovery for unsaved edits (draft/session recovery)
+- [x] Conflict handling for external file changes while note has unsaved edits
+- [x] Clearer file-operation error messages (permissions, missing files, name conflicts)
 
 Why first:
 - These improve trust and reduce risk of data loss, which matters more than adding new UI features.
 
 ## P1: Search and organization upgrades (build on existing infrastructure)
-- [ ] Search filters (title/content/tags/path)
-- [ ] Case-sensitive and exact-match toggles in search
-- [ ] Regex search option (advanced mode)
-- [ ] Search result grouping by note/path
-- [ ] Saved searches / recent searches
-- [ ] Tag manager UI (rename/merge/delete tags across notes)
-- [ ] Tag autocomplete while typing `#tags`
-- [ ] Tag panel counts + sort modes (A-Z / frequency / recent)
+- [x] Search filters (title/content/tags/path)
+- [x] Case-sensitive and exact-match toggles in search
+- [x] Regex search option (advanced mode)
+- [x] Search result grouping by note/path
+- [x] Saved searches / recent searches
+- [x] Tag manager UI (rename/merge/delete tags across notes)
+- [x] Tag autocomplete while typing `#tags`
+- [x] Tag panel counts
+- [x] Tag panel sort modes (A-Z / frequency / recent)
 
 Why next:
 - Tag extraction/filtering and Fuse search already exist, so these are high leverage improvements.
 
 ## P2: Editing workflow polish
-- [ ] True autosave setting (configurable debounce) with visible status
-- [ ] Double-click to rename note/folder in sidebar
-- [ ] Better drag-and-drop feedback (drop targets, insertion markers)
-- [ ] Sidebar keyboard navigation (arrows, rename, delete, move)
-- [ ] Preview scroll sync with editor (basic line/heading sync)
-- [ ] Typewriter mode in Focus Mode
-- [ ] Better empty states (no notes, no results, no tags)
+- [x] True autosave setting (configurable debounce) with visible status
+- [x] Double-click to rename note/folder in sidebar
+- [x] Better drag-and-drop feedback (drop targets, insertion markers)
+- [x] Sidebar keyboard navigation (arrows)
+- [x] Sidebar keyboard actions (rename, delete, move)
+- [x] Preview scroll sync with editor (basic line/heading sync)
+- [x] Typewriter mode in Focus Mode
+- [x] Better empty states (no notes, no results, no tags)
 
 ## P3: Export and portability
-- [ ] Native PDF export (real PDF generation, not print-HTML workaround)
-- [ ] Batch export (selected notes / whole folder)
-- [ ] Restore/export settings-only JSON
-- [ ] Graph export as PNG/SVG
-- [ ] Import/export custom templates collection
+- [x] Native PDF export (real PDF generation, not print-HTML workaround)
+- [x] Batch export (selected notes / whole folder)
+- [x] Restore/export settings-only JSON
+- [x] Graph export as PNG/SVG — _doable without new packages via Canvas/SVG DOM serialisation; a library like `html-to-image` would make it significantly cleaner_
+- [x] Import/export custom templates collection
 
 ## P4: Workspace and scale
-- [ ] Multi-workspace switcher (recent workspaces list)
-- [ ] Workspace-specific settings profiles
-- [ ] Open recent workspace on startup (optional)
-- [ ] Performance pass for very large vaults (incremental indexing / memoized selectors)
-- [ ] Virtualized sidebar tree for large note collections
+- [x] Multi-workspace switcher (recent workspaces list)
+- [x] Workspace-specific settings profiles
+- [x] Open recent workspace on startup (optional)
+- [x] Performance pass for very large vaults (incremental indexing / memoized selectors)
+- [x] Virtualized sidebar tree for large note collections
 
 ## P5: Developer quality / maintainability
 - [ ] Test setup (Vitest + React Testing Library)
@@ -114,14 +115,19 @@ Why next:
 - [ ] Lint/format consistency and CI pipeline
 
 ## Bugs and UX Polish (Keep Updated)
-- [ ] Drag/drop edge cases (nested drops, root drops, external file drop feedback)
-- [ ] Long file names truncation + tooltip consistency
-- [ ] Special character / unicode filename edge cases on rename/move
-- [ ] Theme switch flicker/performance polish
-- [ ] Accessibility pass: focus visibility, ARIA labels, modal trap checks
-- [ ] Reduce noisy success toasts for frequent file watcher sync events (optional throttle)
+- [x] External file drop feedback for workspace root/folders
+- [x] Internal drag/drop edge cases (nested drops, root-drop precision, insertion-marker polish)
+- [x] Long file names truncation + tooltip coverage in core note tree/views
+- [x] Long file names tooltip consistency audit across secondary UI
+- [x] Special character / unicode filename edge cases on rename/move
+- [x] Theme switch flicker/performance polish
+- [x] Accessibility basics: focus visibility in tree/navigation and key ARIA labels
+- [x] Modal focus trap + dialog semantics for core modals
+- [ ] Broader screen reader audit across settings/sidebar/editor flows
+- [x] Reduce noisy success toasts for frequent file watcher sync events (optional throttle)
 
 ## Nice-to-Have / Future Exploration
+- [ ] Replace remaining native `window.confirm` prompts with in-app dialogs for UX consistency
 - [ ] Note version diff viewer
 - [ ] Emacs keybindings mode
 - [ ] Workspace statistics dashboard (local only)
@@ -130,8 +136,6 @@ Why next:
 - [ ] Optional cloud sync (only after conflict/history model is robust)
 
 ## Not Prioritized Right Now
-- [ ] Mobile app
-- [ ] Collaboration / multi-user editing
 - [ ] AI features (summaries, suggestions)
 
 Reason:

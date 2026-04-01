@@ -1,12 +1,15 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import useNotesStore from '../store/notesStore';
+import useUIStore from '../store/uiStore';
+import { buildGraphSvg, saveGraphPng, saveGraphSvg } from '../utils/graphExport';
+import useModalAccessibility from '../hooks/useModalAccessibility';
 
 const escapeTitle = (value = '') => value.replace(/\s+/g, ' ').trim();
 const linkTargetKey = (value = '') => value.replace(/\.(md|markdown|txt)$/i, '').trim().toLowerCase();
 
 const extractWikiLinks = (content) => {
   if (!content) return [];
-  const wikiLinkRegex = /\[\[([^\[\]]+)\]\]/g;
+  const wikiLinkRegex = /\[\[([^\]]+)\]\]/g;
   const links = [];
   const seen = new Set();
   let match;
@@ -176,9 +179,11 @@ const GraphModal = ({ isOpen, onClose }) => {
   const items = useNotesStore((state) => state.items);
   const selectNote = useNotesStore((state) => state.selectNote);
   const currentNoteId = useNotesStore((state) => state.currentNoteId);
+  const addNotification = useUIStore((state) => state.addNotification);
 
   const [hoveredNode, setHoveredNode] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all', 'connected', 'orphaned'
+  const [exportingFormat, setExportingFormat] = useState(null);
 
   const notes = useMemo(() => {
     return items
@@ -283,6 +288,8 @@ const GraphModal = ({ isOpen, onClose }) => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const svgRef = useRef(null);
+  const dialogRef = useRef(null);
+  useModalAccessibility(isOpen, dialogRef);
 
   const handleWheel = useCallback((e) => {
     e.preventDefault();
@@ -373,8 +380,6 @@ const GraphModal = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const getNodeColor = (node) => {
     const isActive = node.id === currentNoteId;
     const isHovered = hoveredNode === node.id;
@@ -396,18 +401,62 @@ const GraphModal = ({ isOpen, onClose }) => {
     };
   };
 
+  const handleExport = useCallback(async (format) => {
+    if (nodes.length === 0) {
+      addNotification('There is no graph data to export', 'warning');
+      return;
+    }
+
+    setExportingFormat(format);
+    try {
+      const titleSuffix = filter === 'all' ? 'All Notes' : filter === 'connected' ? 'Connected Notes' : 'Orphaned Notes';
+      const { svg, width, height } = buildGraphSvg({
+        nodes,
+        edges,
+        currentNoteId,
+        title: `Marky Graph • ${titleSuffix}`
+      });
+
+      const filePath = format === 'svg'
+        ? await saveGraphSvg(svg)
+        : await saveGraphPng(svg, width, height);
+
+      if (filePath) {
+        addNotification(`Graph exported as ${format.toUpperCase()}`, 'success');
+      }
+    } catch (error) {
+      console.error(`Failed to export graph as ${format}:`, error);
+      addNotification(`Graph export failed: ${error.message}`, 'error');
+    } finally {
+      setExportingFormat(null);
+    }
+  }, [addNotification, currentNoteId, edges, filter, nodes]);
+
+  if (!isOpen) return null;
+
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn" onClick={onClose} />
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
+          ref={dialogRef}
           className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col pointer-events-auto animate-slideUp overflow-hidden"
           onClick={(event) => event.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="graph-modal-title"
+          tabIndex={-1}
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-glass-border px-6 py-4 shrink-0 bg-bg-base/40 backdrop-blur-md">
             <div>
-              <h2 className="text-xl font-semibold text-text-primary">Note Graph</h2>
+              <h2 id="graph-modal-title" className="text-xl font-semibold text-text-primary">
+                Note Graph
+              </h2>
               <p className="text-sm text-text-muted mt-1">
                 {stats.totalNotes} notes &middot; {stats.totalEdges} connections &middot; {stats.orphaned} orphaned
               </p>
@@ -467,6 +516,37 @@ const GraphModal = ({ isOpen, onClose }) => {
                   className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
                 >
                   Reset
+                </button>
+              </div>
+
+              <div className="flex items-center bg-overlay-subtle rounded-lg p-1 border border-overlay-light">
+                <button
+                  onClick={() => handleExport('svg')}
+                  disabled={exportingFormat !== null}
+                  className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                    exportingFormat === 'svg'
+                      ? 'bg-accent text-white'
+                      : exportingFormat
+                        ? 'text-text-muted cursor-not-allowed'
+                        : 'text-text-secondary hover:text-text-primary hover:bg-overlay-light'
+                  }`}
+                  title="Export graph as SVG"
+                >
+                  {exportingFormat === 'svg' ? 'Saving...' : 'SVG'}
+                </button>
+                <button
+                  onClick={() => handleExport('png')}
+                  disabled={exportingFormat !== null}
+                  className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                    exportingFormat === 'png'
+                      ? 'bg-accent text-white'
+                      : exportingFormat
+                        ? 'text-text-muted cursor-not-allowed'
+                        : 'text-text-secondary hover:text-text-primary hover:bg-overlay-light'
+                  }`}
+                  title="Export graph as PNG"
+                >
+                  {exportingFormat === 'png' ? 'Saving...' : 'PNG'}
                 </button>
               </div>
 
@@ -614,7 +694,9 @@ const GraphModal = ({ isOpen, onClose }) => {
               if (!node) return null;
               return (
                 <div className="absolute top-4 left-4 bg-bg-sidebar/95 backdrop-blur border border-border rounded-lg px-4 py-3 shadow-xl max-w-xs pointer-events-none">
-                  <p className="text-sm font-semibold text-text-primary truncate">{node.name}</p>
+                  <p className="text-sm font-semibold text-text-primary truncate" title={node.name}>
+                    {node.name}
+                  </p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
                     <span>{node.links.length} outgoing</span>
                     <span>&middot;</span>

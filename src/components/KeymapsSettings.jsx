@@ -1,29 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import useSettingsStore, { formatKeymap, DEFAULT_KEYMAPS } from '../store/settingsStore';
-
-// Group keymaps by category
-const KEYMAP_CATEGORIES = [
-  {
-    name: 'File Operations',
-    actions: ['newNote', 'newFolder', 'openFolder', 'save']
-  },
-  {
-    name: 'Navigation',
-    actions: ['commandPalette', 'search', 'toggleSidebar']
-  },
-  {
-    name: 'View',
-    actions: ['viewEditor', 'viewSplit', 'viewPreview']
-  },
-  {
-    name: 'Editing',
-    actions: ['bold', 'italic', 'link', 'codeBlock', 'list']
-  },
-  {
-    name: 'Help',
-    actions: ['showShortcuts']
-  }
-];
+import useSettingsStore, { formatKeymap, DEFAULT_KEYMAPS, KEYMAP_CATEGORIES } from '../store/settingsStore';
 
 const KeymapsSettings = ({ onOpenKeymapsModal }) => {
   const { keymaps, resetKeymaps, resetKeymap, updateKeymap, setIsRecordingKeymap } = useSettingsStore();

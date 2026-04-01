@@ -9,7 +9,8 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { autocompletion, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { vim, getCM } from '@replit/codemirror-vim';
 import { markyTheme, markySyntaxHighlighting } from './theme';
-import { markyKeymaps } from './keymaps';
+import { typewriterMode } from './typewriterMode';
+import { buildMarkyKeymaps } from './keymaps';
 import { createWikiLinkAutocomplete } from './wikiLinkAutocomplete';
 
 // Regex matching RTL Unicode ranges (Arabic, Hebrew, Persian, Thaana, Syriac, etc.)
@@ -75,12 +76,16 @@ export function createExtensions(options = {}) {
     onVimModeChange = () => {},
     enableLineNumbers = true,
     enableSearch = true,
+    editorSearchKeymap = null,
     enableAutocomplete = false,
     enableWikiLinkAutocomplete = true,
     enableVimMode = false,
+    enableTypewriterMode = false,
     getNotes = () => [],
     getTags = () => [],
   } = options;
+
+  const filteredSearchKeymap = searchKeymap.filter((binding) => binding.key !== 'Mod-f');
 
   const extensions = [
     // Theme and highlighting
@@ -181,9 +186,14 @@ export function createExtensions(options = {}) {
     extensions.push(vim());
   }
 
+  // Typewriter mode
+  if (enableTypewriterMode) {
+    extensions.push(...typewriterMode());
+  }
+
   // Keymaps (order matters - later overrides earlier)
   extensions.push(
-    Prec.high(keymap.of(markyKeymaps)), // Custom keymaps highest priority
+    Prec.high(keymap.of(buildMarkyKeymaps(editorSearchKeymap))), // Custom keymaps highest priority
     keymap.of(closeBracketsKeymap),
     keymap.of(foldKeymap),
     keymap.of(historyKeymap),
@@ -192,7 +202,7 @@ export function createExtensions(options = {}) {
   );
 
   if (enableSearch) {
-    extensions.push(keymap.of(searchKeymap));
+    extensions.push(keymap.of(filteredSearchKeymap));
   }
 
   return extensions;

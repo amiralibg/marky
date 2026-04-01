@@ -15,6 +15,12 @@ const TreeItem = ({
   onClearDropTarget,
   dropTargetFolderId,
   isExternalDragging,
+  onRequestDelete,
+  onMoveItemOut,
+  onMoveItemIn,
+  renderChildren = true,
+  treeIndex = null,
+  virtualTree = null,
 }) => {
   const {
     currentNoteId,
@@ -182,6 +188,11 @@ const TreeItem = ({
     setIsRenaming(false);
   };
 
+  const beginRename = () => {
+    setRenamingValue(item.name);
+    setIsRenaming(true);
+  };
+
   const handleRenameKeyDown = (e) => {
     if (e.key === "Enter") {
       handleRename();
@@ -198,6 +209,11 @@ const TreeItem = ({
   };
 
   const focusTreeRowByOffset = (currentRow, offset) => {
+    if (virtualTree) {
+      virtualTree.focusIndex(virtualTree.index + offset);
+      return;
+    }
+
     const rows = getVisibleTreeRows(currentRow);
     const currentIndex = rows.indexOf(currentRow);
     if (currentIndex === -1) return;
@@ -209,12 +225,28 @@ const TreeItem = ({
   };
 
   const focusTreeBoundary = (currentRow, direction) => {
+    if (virtualTree) {
+      virtualTree.focusIndex(direction === "start" ? 0 : virtualTree.rows.length - 1);
+      return;
+    }
+
     const rows = getVisibleTreeRows(currentRow);
     if (rows.length === 0) return;
     (direction === "start" ? rows[0] : rows[rows.length - 1])?.focus();
   };
 
   const focusParentTreeRow = (currentRow) => {
+    if (virtualTree) {
+      const currentLevel = virtualTree.rows[virtualTree.index]?.level ?? 0;
+      for (let i = virtualTree.index - 1; i >= 0; i -= 1) {
+        if ((virtualTree.rows[i]?.level ?? 0) < currentLevel) {
+          virtualTree.focusIndex(i);
+          return;
+        }
+      }
+      return;
+    }
+
     const rows = getVisibleTreeRows(currentRow);
     const currentIndex = rows.indexOf(currentRow);
     if (currentIndex <= 0) return;
@@ -231,6 +263,35 @@ const TreeItem = ({
 
   const handleRowKeyDown = (e) => {
     if (isRenaming) return;
+
+    if (e.key === "F2") {
+      e.preventDefault();
+      beginRename();
+      return;
+    }
+
+    if (e.key === "Delete" || e.key === "Backspace") {
+      const isTextInputTarget =
+        e.target instanceof HTMLElement &&
+        e.target.closest("input, textarea, [contenteditable='true']");
+      if (!isTextInputTarget && onRequestDelete) {
+        e.preventDefault();
+        onRequestDelete(item);
+        return;
+      }
+    }
+
+    if (e.altKey && e.shiftKey && e.key === "ArrowLeft") {
+      e.preventDefault();
+      onMoveItemOut?.(item);
+      return;
+    }
+
+    if (e.altKey && e.shiftKey && e.key === "ArrowRight") {
+      e.preventDefault();
+      onMoveItemIn?.(item, e.currentTarget, virtualTree?.index ?? null);
+      return;
+    }
 
     switch (e.key) {
       case "ArrowDown":
@@ -276,7 +337,9 @@ const TreeItem = ({
   };
 
   const handleRowFocus = (e) => {
-    e.currentTarget.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (!virtualTree) {
+      e.currentTarget.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   };
 
   const handleMouseEnter = () => {
@@ -318,17 +381,15 @@ const TreeItem = ({
     }
   };
 
+  const handleDoubleClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    beginRename();
+  };
+
   return (
     <div
       className={`relative ${isBeingDragged ? "opacity-40" : ""} transition-opacity`}
-      // Data attributes for external drop detection via Tauri events
-      {...(isFolder
-        ? {
-            "data-folder-id": item.id,
-            "data-folder-path": item.filePath,
-            "data-folder-name": item.name,
-          }
-        : {})}
     >
       {/* Drop indicator line */}
       {showDropHighlight && (
@@ -364,8 +425,16 @@ const TreeItem = ({
         `}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         data-treeitem-row="true"
+        data-tree-index={treeIndex ?? undefined}
         data-item-id={item.id}
         data-level={level}
+        {...(isFolder
+          ? {
+              "data-folder-id": item.id,
+              "data-folder-path": item.filePath,
+              "data-folder-name": item.name,
+            }
+          : {})}
         tabIndex={isRenaming ? -1 : 0}
         role="treeitem"
         aria-expanded={isFolder ? isExpanded : undefined}
@@ -375,6 +444,7 @@ const TreeItem = ({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseUp={handleMouseUp}
+        onDoubleClick={handleDoubleClick}
         onContextMenu={(e) => onContextMenu(e, item)}
         title={item.filePath || item.name}
       >
@@ -510,7 +580,7 @@ const TreeItem = ({
       </div>
 
       {/* Children */}
-      {isFolder && isExpanded && (
+      {renderChildren && isFolder && isExpanded && (
         <div>
           {children
             .sort((a, b) => {
@@ -535,6 +605,10 @@ const TreeItem = ({
                 onClearDropTarget={onClearDropTarget}
                 dropTargetFolderId={dropTargetFolderId}
                 isExternalDragging={isExternalDragging}
+                onRequestDelete={onRequestDelete}
+                onMoveItemOut={onMoveItemOut}
+                onMoveItemIn={onMoveItemIn}
+                renderChildren={renderChildren}
               />
             ))}
         </div>

@@ -22,6 +22,14 @@ const buildId = (type, path) => `${type}::${normalizePath(path)}`;
 const stripExtension = (name) => name.replace(/\.(md|markdown|txt)$/i, '') || name;
 const sanitizeNoteTitle = (value) =>
   (value ? value.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() : '');
+const normalizeItemNameInput = (value) =>
+  Array.from((value || '').normalize('NFC'))
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join('')
+    .trim();
 const folderNameFromPath = (path) => {
   const normalized = normalizePath(path);
   if (!normalized) return path;
@@ -100,7 +108,7 @@ const extractWikiLinks = (content) => {
   if (!content) return [];
 
   const cleanContent = stripCodeBlocks(content);
-  const wikiLinkRegex = /\[\[([^\[\]]+)\]\]/g;
+  const wikiLinkRegex = /\[\[([^\]]+)\]\]/g;
   const links = [];
   const seen = new Set();
   let match;
@@ -317,26 +325,134 @@ const calculateNextRun = (schedule, referenceDate = new Date()) => {
 
 const pendingWriteTimers = new Map();
 const pendingMetadataTimers = new Map();
+const DRAFT_STORAGE_KEY = 'marky-draft-cache';
+const NOTE_HISTORY_KEY = 'marky-note-history';
+const NOTE_HISTORY_MAX_SNAPSHOTS = 20;
 
-const scheduleNoteWrite = (filePath, content) => {
+const readNoteHistory = () => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(NOTE_HISTORY_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeNoteHistory = (history) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(NOTE_HISTORY_KEY, JSON.stringify(history));
+  } catch {
+    // localStorage quota exceeded - silently skip
+  }
+};
+
+export const addNoteHistorySnapshot = (filePath, content) => {
+  if (!filePath || content == null) return;
+  const key = normalizePath(filePath);
+  const history = readNoteHistory();
+  const snapshots = Array.isArray(history[key]) ? history[key] : [];
+  const newSnapshot = { content, savedAt: new Date().toISOString() };
+  const next = [newSnapshot, ...snapshots].slice(0, NOTE_HISTORY_MAX_SNAPSHOTS);
+  history[key] = next;
+  writeNoteHistory(history);
+};
+
+export const getNoteHistorySnapshots = (filePath) => {
+  if (!filePath) return [];
+  const key = normalizePath(filePath);
+  const history = readNoteHistory();
+  return Array.isArray(history[key]) ? history[key] : [];
+};
+
+export const removeNoteHistory = (filePath) => {
   if (!filePath) return;
   const key = normalizePath(filePath);
-  const existing = pendingWriteTimers.get(key);
-  if (existing) {
-    clearTimeout(existing);
+  const history = readNoteHistory();
+  delete history[key];
+  writeNoteHistory(history);
+};
+
+export const moveNoteHistory = (oldPath, newPath) => {
+  if (!oldPath || !newPath) return;
+  const oldKey = normalizePath(oldPath);
+  const newKey = normalizePath(newPath);
+  const history = readNoteHistory();
+  if (!(oldKey in history)) return;
+  history[newKey] = history[oldKey];
+  delete history[oldKey];
+  writeNoteHistory(history);
+};
+
+
+const readDraftCache = () => {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (error) {
+    console.error('Failed to read draft cache:', error);
+    return {};
   }
+};
 
-  const timer = setTimeout(async () => {
-    try {
-      await writeMarkdownFileOnDisk(filePath, content);
-    } catch (error) {
-      console.error('Failed to save note to disk:', error);
-    } finally {
-      pendingWriteTimers.delete(key);
-    }
-  }, 500);
+const writeDraftCache = (cache) => {
+  if (typeof window === 'undefined') return;
 
-  pendingWriteTimers.set(key, timer);
+  try {
+    window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error('Failed to write draft cache:', error);
+  }
+};
+
+const setDraftCacheEntry = (filePath, content, updatedAt = new Date().toISOString()) => {
+  if (!filePath) return;
+  const key = normalizePath(filePath);
+  const cache = readDraftCache();
+  cache[key] = { content, updatedAt };
+  writeDraftCache(cache);
+};
+
+const getDraftCacheEntry = (filePath) => {
+  if (!filePath) return null;
+  const key = normalizePath(filePath);
+  return readDraftCache()[key] || null;
+};
+
+const removeDraftCacheEntry = (filePath) => {
+  if (!filePath) return;
+  const key = normalizePath(filePath);
+  const cache = readDraftCache();
+  if (!(key in cache)) return;
+  delete cache[key];
+  writeDraftCache(cache);
+};
+
+const moveDraftCacheEntry = (oldPath, newPath) => {
+  if (!oldPath || !newPath) return;
+  const oldKey = normalizePath(oldPath);
+  const newKey = normalizePath(newPath);
+  const cache = readDraftCache();
+  if (!(oldKey in cache)) return;
+  cache[newKey] = cache[oldKey];
+  delete cache[oldKey];
+  writeDraftCache(cache);
+};
+
+const clearDraftCache = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch (error) {
+    console.error('Failed to clear draft cache:', error);
+  }
 };
 
 const scheduleMetadataUpdate = (noteId, content) => {
@@ -482,6 +598,8 @@ const useNotesStore = create(
       currentNoteId: null,
       openNoteIds: [], // Currently open tabs
       dirtyNoteIds: [], // Notes with unsaved changes (not persisted)
+      noteConflicts: {}, // { [noteId]: { diskContent, detectedAt, filePath } } for external-change conflicts
+      recoveredDrafts: {}, // { [noteId]: { filePath, recoveredAt, savedAt } }
       sidebarWidth: 280, // Saved sidebar width
       editorSplitRatio: 50, // Saved split ratio percentage
       expandedFolders: [],
@@ -495,6 +613,7 @@ const useNotesStore = create(
       selectedTags: [], // Array of tag strings for filtering
       customTemplates: [], // Array of {id, name, icon, description, content}
       scheduledNotes: [], // Array of scheduled note configurations
+      recentWorkspaces: [], // Array of { path, name, lastOpenedAt }
 
       setRootFolder: async (folderData) => {
         set({ isLoading: true, loadingProgress: null });
@@ -522,6 +641,21 @@ const useNotesStore = create(
           loadingProgress: null
         });
 
+        // Record in recent workspaces (most-recent first, capped at 10)
+        const workspacePath = normalizePath(folderData.folderPath);
+        const workspaceName = folderData.folderName || workspacePath.split('/').pop() || workspacePath;
+        set((state) => {
+          const filtered = state.recentWorkspaces.filter(
+            (ws) => normalizePath(ws.path) !== workspacePath
+          );
+          return {
+            recentWorkspaces: [
+              { path: folderData.folderPath, name: workspaceName, lastOpenedAt: new Date().toISOString() },
+              ...filtered,
+            ].slice(0, 10),
+          };
+        });
+
         return rootId;
       },
 
@@ -544,22 +678,61 @@ const useNotesStore = create(
           const { items: fsItems, rootId } = await buildItemsFromFolderData(folderData, (progress) => {
             set({ loadingProgress: progress });
           });
-          const normalizedRoot = normalizePath(rootFolderPath);
           const previousItems = state.items;
           const ephemeralItems = previousItems.filter((item) => !item.filePath);
-
-          // Preserve content of the currently open note to avoid overwriting while typing
-          const currentNote = state.currentNoteId
-            ? previousItems.find(item => item.id === state.currentNoteId && item.type === 'note')
-            : null;
+          const previousNotesById = new Map(
+            previousItems
+              .filter((item) => item.type === 'note')
+              .map((item) => [item.id, item])
+          );
+          const dirtyNoteIdsSet = new Set(state.dirtyNoteIds);
+          const nextConflicts = {};
+          const nextRecoveredDrafts = {};
+          const recoveredDirtyIds = new Set(state.dirtyNoteIds);
 
           const combinedItems = fsItems
             .map((item) => {
-              if (currentNote && item.id === currentNote.id && item.type === 'note') {
+              const draftEntry = item.type === 'note' ? getDraftCacheEntry(item.filePath) : null;
+
+              if (item.type === 'note' && draftEntry && draftEntry.content !== (item.content || '')) {
+                nextRecoveredDrafts[item.id] = {
+                  filePath: item.filePath,
+                  recoveredAt: new Date().toISOString(),
+                  savedAt: draftEntry.updatedAt
+                };
+                recoveredDirtyIds.add(item.id);
                 return ensureNoteMetadata({
                   ...item,
-                  content: currentNote.content,
-                  updatedAt: currentNote.updatedAt
+                  content: draftEntry.content,
+                  updatedAt: draftEntry.updatedAt || item.updatedAt || new Date().toISOString()
+                });
+              }
+
+              if (item.type === 'note' && dirtyNoteIdsSet.has(item.id)) {
+                const previousNote = previousNotesById.get(item.id);
+                if (previousNote) {
+                  const diskContent = item.content || '';
+                  const localContent = previousNote.content || '';
+
+                  if (diskContent !== localContent) {
+                    nextConflicts[item.id] = {
+                      diskContent,
+                      detectedAt: new Date().toISOString(),
+                      filePath: item.filePath
+                    };
+                  }
+
+                  return ensureNoteMetadata({
+                    ...item,
+                    content: localContent,
+                    updatedAt: previousNote.updatedAt
+                  });
+                }
+              }
+
+              if (item.type === 'note') {
+                return ensureNoteMetadata({
+                  ...item
                 });
               }
               return ensureNoteMetadata(item);
@@ -608,7 +781,10 @@ const useNotesStore = create(
             items: combinedItems,
             rootFolderId: rootId,
             expandedFolders: Array.from(expandedSet),
-            currentNoteId
+            currentNoteId,
+            noteConflicts: nextConflicts,
+            dirtyNoteIds: Array.from(recoveredDirtyIds),
+            recoveredDrafts: nextRecoveredDrafts
           });
 
           return combinedItems;
@@ -775,17 +951,22 @@ const useNotesStore = create(
           const dirtyNoteIds = current.dirtyNoteIds.includes(noteId)
             ? current.dirtyNoteIds
             : [...current.dirtyNoteIds, noteId];
+          const nextItems = current.items.map((item) =>
+            item.id === noteId && item.type === 'note'
+              ? {
+                ...item,
+                content,
+                updatedAt: new Date().toISOString()
+              }
+              : item
+          );
+          const nextNote = nextItems.find((item) => item.id === noteId && item.type === 'note');
+          if (nextNote?.filePath) {
+            setDraftCacheEntry(nextNote.filePath, content, nextNote.updatedAt);
+          }
 
           return {
-            items: current.items.map((item) =>
-              item.id === noteId && item.type === 'note'
-                ? {
-                  ...item,
-                  content,
-                  updatedAt: new Date().toISOString()
-                }
-                : item
-            ),
+            items: nextItems,
             dirtyNoteIds
           };
         });
@@ -826,10 +1007,20 @@ const useNotesStore = create(
         try {
           await writeMarkdownFileOnDisk(note.filePath, note.content);
 
+          // Record history snapshot before clearing dirty state
+          addNoteHistorySnapshot(note.filePath, note.content);
+
           // Clear dirty state for this note
           set((current) => ({
-            dirtyNoteIds: current.dirtyNoteIds.filter(id => id !== note.id)
+            dirtyNoteIds: current.dirtyNoteIds.filter(id => id !== note.id),
+            noteConflicts: Object.fromEntries(
+              Object.entries(current.noteConflicts).filter(([id]) => id !== String(note.id))
+            ),
+            recoveredDrafts: Object.fromEntries(
+              Object.entries(current.recoveredDrafts).filter(([id]) => id !== String(note.id))
+            )
           }));
+          removeDraftCacheEntry(note.filePath);
 
           return true;
         } catch (error) {
@@ -847,6 +1038,8 @@ const useNotesStore = create(
         );
         if (existing?.filePath) {
           cancelPendingNoteWrite(existing.filePath);
+          moveDraftCacheEntry(existing.filePath, filePath);
+          moveNoteHistory(existing.filePath, filePath);
         }
 
         set((state) => {
@@ -863,13 +1056,25 @@ const useNotesStore = create(
           );
 
           const currentNoteId = state.currentNoteId === noteId ? replacementId : state.currentNoteId;
+          const noteConflicts = Object.fromEntries(
+            Object.entries(state.noteConflicts).map(([id, conflict]) => {
+              if (id !== String(noteId)) return [id, conflict];
+              return [String(replacementId), { ...conflict, filePath }];
+            })
+          );
+          const recoveredDrafts = Object.fromEntries(
+            Object.entries(state.recoveredDrafts).map(([id, draft]) => {
+              if (id !== String(noteId)) return [id, draft];
+              return [String(replacementId), { ...draft, filePath }];
+            })
+          );
 
-          return { items, currentNoteId };
+          return { items, currentNoteId, noteConflicts, recoveredDrafts };
         });
       },
 
       renameItem: async (itemId, newName) => {
-        const trimmed = newName?.trim();
+        const trimmed = normalizeItemNameInput(newName);
         if (!trimmed) return;
 
         const state = get();
@@ -938,6 +1143,7 @@ const useNotesStore = create(
 
         if (item.filePath) {
           cancelPendingNoteWrite(item.filePath);
+          removeDraftCacheEntry(item.filePath);
         }
 
         if (!item.filePath) {
@@ -1198,14 +1404,10 @@ const useNotesStore = create(
             ? state.openNoteIds
             : [...state.openNoteIds, noteId];
 
-          // Clear dirty state for this note when selecting it (it's being loaded fresh)
-          const dirtyNoteIds = state.dirtyNoteIds.filter(id => id !== noteId);
-
           set({
             currentNoteId: noteId,
             recentNotes: trimmedRecent,
-            openNoteIds,
-            dirtyNoteIds
+            openNoteIds
           });
         } else {
           // Handle special tabs (like settings) or notes not in items
@@ -1252,9 +1454,77 @@ const useNotesStore = create(
       },
 
       clearNoteDirty: (noteId) => {
+        const note = get().items.find((item) => item.id === noteId && item.type === 'note');
+        if (note?.filePath) {
+          removeDraftCacheEntry(note.filePath);
+        }
         set((current) => ({
-          dirtyNoteIds: current.dirtyNoteIds.filter(id => id !== noteId)
+          dirtyNoteIds: current.dirtyNoteIds.filter(id => id !== noteId),
+          noteConflicts: Object.fromEntries(
+            Object.entries(current.noteConflicts).filter(([id]) => id !== String(noteId))
+          ),
+          recoveredDrafts: Object.fromEntries(
+            Object.entries(current.recoveredDrafts).filter(([id]) => id !== String(noteId))
+          )
         }));
+      },
+
+      getNoteConflict: (noteId) => {
+        return get().noteConflicts[noteId] || null;
+      },
+
+      resolveNoteConflict: (noteId, resolution = 'keepLocal') => {
+        const conflict = get().noteConflicts[noteId];
+        if (!conflict) return false;
+
+        if (resolution === 'useDisk') {
+          set((current) => ({
+            items: current.items.map((item) =>
+              item.id === noteId && item.type === 'note'
+                ? ensureNoteMetadata({
+                    ...item,
+                    content: conflict.diskContent,
+                    updatedAt: new Date().toISOString()
+                  })
+                : item
+            ),
+            dirtyNoteIds: current.dirtyNoteIds.filter((id) => id !== noteId),
+            noteConflicts: Object.fromEntries(
+              Object.entries(current.noteConflicts).filter(([id]) => id !== String(noteId))
+            )
+          }));
+          return true;
+        }
+
+        set((current) => ({
+          noteConflicts: Object.fromEntries(
+            Object.entries(current.noteConflicts).filter(([id]) => id !== String(noteId))
+          )
+        }));
+        return true;
+      },
+
+      getRecoveredDraft: (noteId) => {
+        return get().recoveredDrafts[noteId] || null;
+      },
+
+      discardRecoveredDraft: (noteId) => {
+        const state = get();
+        const note = state.items.find((item) => item.id === noteId && item.type === 'note');
+        if (note?.filePath) {
+          removeDraftCacheEntry(note.filePath);
+        }
+
+        set((current) => ({
+          dirtyNoteIds: current.dirtyNoteIds.filter((id) => id !== noteId),
+          recoveredDrafts: Object.fromEntries(
+            Object.entries(current.recoveredDrafts).filter(([id]) => id !== String(noteId))
+          )
+        }));
+
+        state.refreshRootFromDisk?.({
+          preserveSelection: true
+        });
       },
 
       getChildren: (parentId) => {
@@ -1718,6 +1988,8 @@ const useNotesStore = create(
           pinnedNotes: [],
           openNoteIds: [],
           dirtyNoteIds: [],
+          noteConflicts: {},
+          recoveredDrafts: {},
           sidebarWidth: 280,
           editorSplitRatio: 50,
           selectedTags: [],
@@ -1728,6 +2000,8 @@ const useNotesStore = create(
         if (typeof window !== 'undefined') {
           try {
             window.localStorage.removeItem('marky-storage');
+            clearDraftCache();
+            window.localStorage.removeItem(NOTE_HISTORY_KEY);
           } catch (error) {
             console.error('Failed to clear persisted store:', error);
           }
@@ -1746,11 +2020,21 @@ const useNotesStore = create(
         pinnedNotes: state.pinnedNotes,
         openNoteIds: state.openNoteIds,
         sidebarWidth: state.sidebarWidth,
-        editorSplitRatio: state.editorSplitRatio
+        editorSplitRatio: state.editorSplitRatio,
+        recentWorkspaces: state.recentWorkspaces,
       }),
       onRehydrateStorage: () => (state) => {
-        if (state?.rootFolderPath) {
+        if (!state?.rootFolderPath) return;
+        // Dynamically read the setting so we don't create a circular dep
+        const { openRecentOnStartup } = (window.__markySettings?.getState?.() ?? {});
+        const shouldReopen = openRecentOnStartup !== false; // default true if setting not yet loaded
+        if (shouldReopen) {
           state.refreshRootFromDisk?.();
+        } else {
+          // Clear the persisted workspace so the workspace-required modal shows
+          state.rootFolderPath = null;
+          state.rootFolderId = null;
+          state.items = [];
         }
       }
     }

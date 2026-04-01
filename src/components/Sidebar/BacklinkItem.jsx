@@ -10,7 +10,7 @@ const BacklinkItem = ({ backlink, onNavigate }) => {
     if (!backlink.content) return null;
 
     // Try to find wiki link patterns that might reference the target
-    const wikiLinkPattern = /\[\[([^\[\]]+)\]\]/g;
+    const wikiLinkPattern = /\[\[([^\]]+)\]\]/g;
     let match;
     const matches = [];
 

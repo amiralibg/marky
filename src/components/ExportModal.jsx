@@ -1,192 +1,26 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { marked } from 'marked';
 import useUIStore from '../store/uiStore';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { buildStandaloneHtml, exportMarkdownToPdf } from '../utils/noteExport';
+import useModalAccessibility from '../hooks/useModalAccessibility';
 
 const ExportModal = ({ isOpen, onClose, note }) => {
   const [exportFormat, setExportFormat] = useState('html');
   const [isExporting, setIsExporting] = useState(false);
   const { addNotification } = useUIStore();
+  const dialogRef = useRef(null);
+  useModalAccessibility(isOpen, dialogRef);
 
   if (!isOpen || !note) return null;
-
-  const generateHTML = () => {
-    const htmlContent = marked(note.content || '');
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${note.name}</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-      line-height: 1.6;
-      color: #1e1e1e;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 40px 20px;
-      background: #ffffff;
-    }
-    h1, h2, h3, h4, h5, h6 {
-      margin-top: 24px;
-      margin-bottom: 16px;
-      font-weight: 600;
-      line-height: 1.25;
-      color: #1a1a1a;
-    }
-    h1 { font-size: 2em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
-    h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
-    h3 { font-size: 1.25em; }
-    h4 { font-size: 1em; }
-    p { margin-bottom: 16px; }
-    a { color: #0969da; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    code {
-      background-color: rgba(175, 184, 193, 0.2);
-      padding: 0.2em 0.4em;
-      border-radius: 6px;
-      font-size: 85%;
-      font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-    }
-    pre {
-      background-color: #f6f8fa;
-      border-radius: 6px;
-      padding: 16px;
-      overflow: auto;
-      margin-bottom: 16px;
-    }
-    pre code {
-      background-color: transparent;
-      padding: 0;
-      font-size: 100%;
-    }
-    blockquote {
-      border-left: 4px solid #d0d7de;
-      padding-left: 16px;
-      color: #656d76;
-      margin-bottom: 16px;
-    }
-    ul, ol {
-      margin-bottom: 16px;
-      padding-left: 2em;
-    }
-    li { margin-bottom: 4px; }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-bottom: 16px;
-    }
-    table th, table td {
-      border: 1px solid #d0d7de;
-      padding: 6px 13px;
-    }
-    table th {
-      background-color: #f6f8fa;
-      font-weight: 600;
-    }
-    hr {
-      height: 0.25em;
-      padding: 0;
-      margin: 24px 0;
-      background-color: #d0d7de;
-      border: 0;
-    }
-    img {
-      max-width: 100%;
-      height: auto;
-    }
-    input[type="checkbox"] {
-      margin-right: 0.5em;
-    }
-  </style>
-</head>
-<body>
-  ${htmlContent}
-</body>
-</html>`;
-  };
-
-  const generatePDFHTML = () => {
-    const htmlContent = marked(note.content || '');
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>${note.name}</title>
-  <style>
-    @page { margin: 2cm; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-      line-height: 1.6;
-      color: #000;
-      font-size: 12pt;
-    }
-    h1 { font-size: 24pt; margin-top: 0; margin-bottom: 16px; }
-    h2 { font-size: 20pt; margin-top: 20px; margin-bottom: 12px; }
-    h3 { font-size: 16pt; margin-top: 16px; margin-bottom: 10px; }
-    h4 { font-size: 14pt; margin-top: 14px; margin-bottom: 8px; }
-    p { margin-bottom: 12px; }
-    code {
-      background-color: #f0f0f0;
-      padding: 2px 4px;
-      border-radius: 3px;
-      font-family: 'Courier New', monospace;
-      font-size: 10pt;
-    }
-    pre {
-      background-color: #f6f6f6;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 12px;
-      overflow-x: auto;
-      page-break-inside: avoid;
-    }
-    pre code {
-      background-color: transparent;
-      padding: 0;
-      font-size: 9pt;
-    }
-    blockquote {
-      border-left: 4px solid #ccc;
-      padding-left: 12px;
-      color: #666;
-      margin: 12px 0;
-    }
-    ul, ol { padding-left: 24px; margin-bottom: 12px; }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-bottom: 12px;
-      page-break-inside: avoid;
-    }
-    table th, table td {
-      border: 1px solid #ddd;
-      padding: 6px 10px;
-      text-align: left;
-    }
-    table th { background-color: #f0f0f0; font-weight: bold; }
-    img { max-width: 100%; height: auto; page-break-inside: avoid; }
-  </style>
-</head>
-<body>
-  ${htmlContent}
-</body>
-</html>`;
-  };
 
   const handleExport = async () => {
     setIsExporting(true);
     try {
       if (exportFormat === 'html') {
-        const html = generateHTML();
+        const html = buildStandaloneHtml(note.name, note.content || '', marked);
         const filePath = await save({
           defaultPath: `${note.name}.html`,
           filters: [{
@@ -201,19 +35,9 @@ const ExportModal = ({ isOpen, onClose, note }) => {
           onClose();
         }
       } else if (exportFormat === 'pdf') {
-        // For PDF, we'll generate HTML and let the user print to PDF
-        const pdfHTML = generatePDFHTML();
-        const filePath = await save({
-          defaultPath: `${note.name}-print.html`,
-          filters: [{
-            name: 'HTML',
-            extensions: ['html']
-          }]
-        });
-
+        const filePath = await exportMarkdownToPdf(note.name, note.content || '');
         if (filePath) {
-          await writeTextFile(filePath, pdfHTML);
-          addNotification('HTML file created for PDF export! Open it and Print > Save as PDF', 'info', 5000);
+          addNotification('PDF exported successfully!', 'success');
           onClose();
         }
       } else if (exportFormat === 'copy-html') {
@@ -250,19 +74,29 @@ const ExportModal = ({ isOpen, onClose, note }) => {
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
+          ref={dialogRef}
           className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-md pointer-events-auto animate-slideUp"
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="export-modal-title"
+          tabIndex={-1}
         >
           {/* Header */}
           <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-text-primary">Export Note</h2>
-              <p className="text-sm text-text-muted mt-1">{note.name}</p>
+              <h2 id="export-modal-title" className="text-xl font-semibold text-text-primary">
+                Export Note
+              </h2>
+              <p className="text-sm text-text-muted mt-1" title={note.name}>
+                {note.name}
+              </p>
             </div>
             <button
               onClick={onClose}
@@ -312,8 +146,8 @@ const ExportModal = ({ isOpen, onClose, note }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-text-primary">PDF (via Print)</h3>
-                  <p className="text-xs text-text-muted">Create HTML optimized for printing to PDF</p>
+                  <h3 className="font-semibold text-text-primary">PDF File</h3>
+                  <p className="text-xs text-text-muted">Generate and save a real PDF document</p>
                 </div>
                 {exportFormat === 'pdf' && (
                   <svg className="w-5 h-5 text-accent" fill="currentColor" viewBox="0 0 20 20">

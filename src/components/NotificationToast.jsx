@@ -1,4 +1,3 @@
-import React from 'react';
 import useUIStore from '../store/uiStore';
 
 const NotificationToast = () => {

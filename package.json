@@ -35,6 +35,7 @@
     "marked-footnote": "^1.4.0",
     "marked-katex-extension": "^5.1.6",
     "mermaid": "^11.12.2",
+    "pdf-lib": "^1.17.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "zustand": "^4.4.7"

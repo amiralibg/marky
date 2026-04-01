@@ -10,6 +10,7 @@ import CreateNoteModal from "./CreateNoteModal";
 import TableOfContents from "./TableOfContents";
 import SettingsPage from "./SettingsPage";
 import CodeMirrorEditor from "./editor/CodeMirrorEditor";
+import NoteHistoryModal from "./NoteHistoryModal";
 import useNotesStore, { SETTINGS_TAB_ID } from "../store/notesStore";
 import useUIStore from "../store/uiStore";
 import useSettingsStore from "../store/settingsStore";
@@ -59,7 +60,7 @@ const wikiLinkExtension = {
     return src.indexOf("[[");
   },
   tokenizer(src) {
-    const rule = /^\[\[([^\[\]]+)\]\]/;
+    const rule = /^\[\[([^\]]+)\]\]/;
     const match = rule.exec(src);
     if (match) {
       const inner = match[1].trim();
@@ -194,32 +195,46 @@ const MarkdownEditor = forwardRef((props, ref) => {
     setEditorSplitRatio,
     saveCurrentNoteToDisk,
     isNoteDirty,
+    getNoteConflict,
+    resolveNoteConflict,
+    getRecoveredDraft,
+    discardRecoveredDraft,
     getNotes,
     getAllTags
   } = useNotesStore();
 
   const { addNotification, setShowWorkspaceModal } = useUIStore();
-  const { vimMode, scrollSyncEnabled } = useSettingsStore();
+  const {
+    vimMode,
+    scrollSyncEnabled,
+    autosaveEnabled,
+    autosaveDelay,
+    typewriterMode: typewriterModeEnabled,
+    keymaps,
+  } = useSettingsStore();
 
   const [markdown, setMarkdown] = useState("");
   const [debouncedMarkdown, setDebouncedMarkdown] = useState(""); // Debounced for preview
   const [viewMode, setViewMode] = useState("split"); // "editor", "preview", or "split"
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showCreateNoteModal, setShowCreateNoteModal] = useState(false);
   const [pendingNoteName, setPendingNoteName] = useState("");
   const [showTOC, setShowTOC] = useState(false);
   const [isResizingSplit, setIsResizingSplit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedIndicator, setShowSavedIndicator] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState('idle'); // 'idle' | 'pending' | 'saving' | 'saved'
 
   // Search state
-  const [searchQuery, setSearchQuery] = useState("");
   const [searchMatches, setSearchMatches] = useState([]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [vimModeStatus, setVimModeStatus] = useState({ mode: 'normal', keyBuffer: '' });
 
   const updateTimerRef = useRef(null);
   const savedIndicatorTimerRef = useRef(null);
+  const autosaveTimerRef = useRef(null);
+  const autosaveClearTimerRef = useRef(null);
   const previewTimerRef = useRef(null); // Timer for debounced preview updates
   const editorRef = useRef(null);
   const previewPaneRef = useRef(null);
@@ -229,6 +244,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   // Get dirty state from store (persists across tab switches)
   const hasUnsavedChanges = isNoteDirty(currentNoteId);
+  const noteConflict = currentNoteId ? getNoteConflict(currentNoteId) : null;
+  const recoveredDraft = currentNoteId ? getRecoveredDraft(currentNoteId) : null;
 
   const startResizingSplit = useCallback((e) => {
     e.preventDefault();
@@ -306,7 +323,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const scrollToAndHighlight = useCallback((query) => {
     if (!query || !editorRef.current) {
       // Clear search
-      setSearchQuery("");
       setSearchMatches([]);
       setCurrentMatchIndex(0);
       return;
@@ -318,7 +334,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
     if (matches.length === 0) return;
 
     // Update state
-    setSearchQuery(query);
     setSearchMatches(matches);
     setCurrentMatchIndex(0);
 
@@ -352,7 +367,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   // Clear search
   const clearSearch = useCallback(() => {
-    setSearchQuery("");
     setSearchMatches([]);
     setCurrentMatchIndex(0);
     if (editorRef.current) {
@@ -471,6 +485,11 @@ const MarkdownEditor = forwardRef((props, ref) => {
       return;
     }
 
+    if (noteConflict) {
+      addNotification('Resolve the external file conflict before saving', 'info');
+      return;
+    }
+
     setIsSaving(true);
     try {
       await saveCurrentNoteToDisk();
@@ -492,7 +511,79 @@ const MarkdownEditor = forwardRef((props, ref) => {
     } finally {
       setIsSaving(false);
     }
-  }, [currentNoteId, isSaving, markdown, getCurrentNote, saveCurrentNoteToDisk, addNotification]);
+  }, [currentNoteId, isSaving, markdown, getCurrentNote, saveCurrentNoteToDisk, addNotification, noteConflict]);
+
+  // Autosave effect: schedule a disk write after typing stops when autosave is enabled
+  useEffect(() => {
+    if (!autosaveEnabled) {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+      setAutosaveStatus('idle');
+      return;
+    }
+    const note = getCurrentNote();
+    if (!note?.filePath || !isNoteDirty(currentNoteId) || noteConflict) {
+      return;
+    }
+    setAutosaveStatus('pending');
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(async () => {
+      setAutosaveStatus('saving');
+      try {
+        await saveCurrentNoteToDisk();
+        setAutosaveStatus('saved');
+        if (autosaveClearTimerRef.current) clearTimeout(autosaveClearTimerRef.current);
+        autosaveClearTimerRef.current = setTimeout(() => setAutosaveStatus('idle'), 2000);
+      } catch {
+        setAutosaveStatus('idle');
+      }
+    }, autosaveDelay);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [markdown, autosaveEnabled, autosaveDelay, currentNoteId]);
+
+  const handleUseDiskVersion = useCallback(() => {
+    if (!currentNoteId) return;
+    const resolved = resolveNoteConflict(currentNoteId, 'useDisk');
+    if (resolved) {
+      addNotification('Loaded the version from disk', 'info');
+    }
+  }, [currentNoteId, resolveNoteConflict, addNotification]);
+
+  const handleOverwriteDiskVersion = useCallback(async () => {
+    if (!currentNoteId) return;
+    const resolved = resolveNoteConflict(currentNoteId, 'keepLocal');
+    if (!resolved) return;
+
+    const currentNote = getCurrentNote();
+    if (!currentNote?.filePath || isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await saveCurrentNoteToDisk();
+      setShowSavedIndicator(true);
+      if (savedIndicatorTimerRef.current) {
+        clearTimeout(savedIndicatorTimerRef.current);
+      }
+      savedIndicatorTimerRef.current = setTimeout(() => {
+        setShowSavedIndicator(false);
+      }, 2000);
+      addNotification('Draft saved and disk version overwritten', 'success');
+    } catch (error) {
+      console.error('Overwrite save failed:', error);
+      addNotification(`Failed to overwrite disk version: ${error.message}`, 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [currentNoteId, resolveNoteConflict, getCurrentNote, isSaving, saveCurrentNoteToDisk, addNotification]);
+
+  const handleDiscardRecoveredDraft = useCallback(() => {
+    if (!currentNoteId) return;
+    discardRecoveredDraft(currentNoteId);
+    addNotification('Recovered draft dismissed', 'info');
+  }, [currentNoteId, discardRecoveredDraft, addNotification]);
 
   // Keyboard shortcut for save (Ctrl+S / Cmd+S)
   useEffect(() => {
@@ -1121,6 +1212,24 @@ const MarkdownEditor = forwardRef((props, ref) => {
                   Saved
                 </span>
               )}
+              {autosaveEnabled && autosaveStatus === 'pending' && (
+                <span className="text-[10px] text-text-muted bg-overlay-subtle border border-overlay-subtle px-2 py-0.5 rounded-full">
+                  Autosave…
+                </span>
+              )}
+              {autosaveEnabled && autosaveStatus === 'saving' && (
+                <span className="text-[10px] text-text-muted bg-overlay-subtle border border-overlay-subtle px-2 py-0.5 rounded-full animate-pulse">
+                  Saving…
+                </span>
+              )}
+              {autosaveEnabled && autosaveStatus === 'saved' && !showSavedIndicator && (
+                <span className="text-[10px] text-green-300 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 animate-in fade-in duration-200">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Autosaved
+                </span>
+              )}
             </>
           ) : (
             <span className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">Unsaved</span>
@@ -1152,13 +1261,32 @@ const MarkdownEditor = forwardRef((props, ref) => {
                 ? 'text-text-muted cursor-not-allowed opacity-50'
                 : 'text-text-secondary hover:text-text-primary hover:bg-overlay-subtle'
             }`}
-            title={currentNote.filePath ? 'Save (Ctrl+S / Cmd+S)' : 'Cannot save: no file path'}
+            title={
+              noteConflict
+                ? 'Resolve external conflict first'
+                : currentNote.filePath
+                  ? 'Save (Ctrl+S / Cmd+S)'
+                  : 'Cannot save: no file path'
+            }
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
             </svg>
             <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save'}</span>
           </button>
+
+          {currentNote.filePath && (
+            <button
+              onClick={() => setShowHistoryModal(true)}
+              className="px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-1.5"
+              title="Note History"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="hidden sm:inline">History</span>
+            </button>
+          )}
 
           <button
             onClick={() => setShowExportModal(true)}
@@ -1218,6 +1346,71 @@ const MarkdownEditor = forwardRef((props, ref) => {
       {!focusMode && (viewMode === "editor" || viewMode === "split") && (
         <div className="border-b border-border bg-bg-base/50 backdrop-blur shrink-0 overflow-x-auto custom-scrollbar">
           <Toolbar onInsert={insertMarkdown} />
+        </div>
+      )}
+
+      {noteConflict && (
+        <div className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-3 shrink-0">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-200">
+                This note changed on disk while you had unsaved edits.
+              </p>
+              <p className="text-xs text-amber-100/80 mt-1">
+                Choose whether to load the disk version or overwrite it with your current draft.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleUseDiskVersion}
+                className="px-3 py-1.5 text-xs rounded-md border border-overlay-light bg-overlay-subtle text-text-primary hover:bg-overlay-light transition-colors"
+              >
+                Load Disk Version
+              </button>
+              <button
+                onClick={handleOverwriteDiskVersion}
+                className="px-3 py-1.5 text-xs rounded-md bg-amber-500 text-black hover:bg-amber-400 transition-colors font-medium"
+              >
+                Overwrite Disk
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {recoveredDraft && !noteConflict && (
+        <div className="border-b border-blue-500/20 bg-blue-500/10 px-4 py-3 shrink-0">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-blue-200">
+                Unsaved draft recovered
+              </p>
+              <p className="text-xs text-blue-100/80 mt-1">
+                Marky recovered unsaved changes from your last session.
+                {recoveredDraft.savedAt && (
+                  <span className="ml-1">
+                    Draft from {new Date(recoveredDraft.savedAt).toLocaleString()}.
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleDiscardRecoveredDraft}
+                className="px-3 py-1.5 text-xs rounded-md border border-overlay-light bg-overlay-subtle text-text-primary hover:bg-overlay-light transition-colors"
+              >
+                Discard Draft
+              </button>
+              <button
+                onClick={() => {
+                  if (currentNoteId) saveCurrentNoteToDisk().then(() => addNotification("Recovered draft saved", "success")).catch(() => {});
+                }}
+                className="px-3 py-1.5 text-xs rounded-md bg-blue-500 text-white hover:bg-blue-400 transition-colors font-medium"
+              >
+                Save Draft
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1287,6 +1480,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
               className="w-full h-full"
               enableLineNumbers={true}
               enableVimMode={vimMode}
+              enableTypewriterMode={typewriterModeEnabled && focusMode}
+              editorSearchKeymap={keymaps.editorSearch}
               getNotes={getNotes}
               getTags={getAllTags}
             />
@@ -1381,6 +1576,19 @@ const MarkdownEditor = forwardRef((props, ref) => {
         onClose={() => setShowCreateNoteModal(false)}
         onConfirm={handleCreateNoteFromLink}
         noteName={pendingNoteName}
+      />
+
+      {/* Note History Modal */}
+      <NoteHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        note={currentNote}
+        onRestore={(content) => {
+          if (!currentNoteId) return;
+          updateNote(currentNoteId, content);
+          setShowHistoryModal(false);
+          addNotification('Restored snapshot into editor — save to persist', 'success');
+        }}
       />
     </div>
   );

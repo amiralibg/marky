@@ -134,7 +134,9 @@ const TagManager = () => {
                     : 'border-overlay-subtle bg-overlay-subtle/40 text-text-secondary hover:text-text-primary hover:border-overlay-light'
                 }`}
               >
-                <span className="truncate text-sm">#{entry.tag}</span>
+                <span className="truncate text-sm" title={`#${entry.tag}`}>
+                  #{entry.tag}
+                </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-overlay-subtle border border-overlay-subtle text-text-muted">
                   {entry.count}
                 </span>

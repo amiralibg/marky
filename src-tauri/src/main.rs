@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     Emitter, Manager, State,
 };
 
@@ -38,8 +38,20 @@ fn ensure_valid_name(name: &str) -> Result<(), String> {
         return Err("Name cannot be empty".to_string());
     }
 
+    if name == "." || name == ".." {
+        return Err("Name contains invalid characters".to_string());
+    }
+
+    if name.ends_with(' ') || name.ends_with('.') {
+        return Err("Name cannot end with trailing spaces or dots".to_string());
+    }
+
     if name.contains(['/', '\\']) {
         return Err("Name cannot contain path separators".to_string());
+    }
+
+    if name.chars().any(|c| c.is_control()) {
+        return Err("Name contains invalid characters".to_string());
     }
 
     if name
@@ -47,6 +59,17 @@ fn ensure_valid_name(name: &str) -> Result<(), String> {
         .any(|c| matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*'))
     {
         return Err("Name contains invalid characters".to_string());
+    }
+
+    let uppercase = name.to_uppercase();
+    let stem = uppercase.split('.').next().unwrap_or(&uppercase);
+    const RESERVED_NAMES: [&str; 22] = [
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5",
+        "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4",
+        "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+    if RESERVED_NAMES.contains(&stem) {
+        return Err("Name is a reserved system name".to_string());
     }
 
     Ok(())
@@ -470,87 +493,123 @@ fn main() {
         .menu(|app| {
             let menu = Menu::default(app)?;
 
-            let new_note = MenuItem::with_id(
-                app,
-                "menu://new-note",
-                "New Note",
-                true,
-                Some("CmdOrCtrl+N"),
-            )?;
-            let new_folder =
-                MenuItem::with_id(app, "menu://new-folder", "New Folder", true, None::<&str>)?;
-            let open_file = MenuItem::with_id(
-                app,
-                "menu://open-file",
-                "Open File...",
-                true,
-                Some("CmdOrCtrl+O"),
-            )?;
-            let open_folder = MenuItem::with_id(
-                app,
-                "menu://open-folder",
-                "Open Folder...",
-                true,
-                None::<&str>,
-            )?;
-            let save_note =
-                MenuItem::with_id(app, "menu://save-note", "Save", true, Some("CmdOrCtrl+S"))?;
-            let close_note =
-                MenuItem::with_id(app, "menu://close-note", "Close Note", true, Some("CmdOrCtrl+W"))?;
-            let separator_one = PredefinedMenuItem::separator(app)?;
-            let separator_two = PredefinedMenuItem::separator(app)?;
-            let separator_three = PredefinedMenuItem::separator(app)?;
+            // Build all items upfront so they can be injected into the
+            // existing default submenus (File / Edit / View / Window).
 
-            let workspace = Submenu::with_items(
-                app,
-                "Workspace",
-                true,
-                &[
-                    &new_note,
-                    &new_folder,
-                    &separator_one,
-                    &open_file,
-                    &open_folder,
-                    &separator_two,
-                    &save_note,
-                    &close_note,
-                    &separator_three,
-                ],
-            )?;
+            // File items — prepended before the default "Close Window"
+            let new_note       = MenuItem::with_id(app, "menu://new-note",         "New Note",                   true, Some("CmdOrCtrl+N"))?;
+            let new_folder     = MenuItem::with_id(app, "menu://new-folder",       "New Folder",                 true, Some("CmdOrCtrl+Shift+N"))?;
+            let sep_f1         = PredefinedMenuItem::separator(app)?;
+            let open_file      = MenuItem::with_id(app, "menu://open-file",        "Open File\u{2026}",          true, Some("CmdOrCtrl+O"))?;
+            let open_folder    = MenuItem::with_id(app, "menu://open-folder",      "Open Folder\u{2026}",        true, Some("CmdOrCtrl+Shift+O"))?;
+            let sep_f2         = PredefinedMenuItem::separator(app)?;
+            let save_note      = MenuItem::with_id(app, "menu://save-note",        "Save",                       true, Some("CmdOrCtrl+S"))?;
+            let sep_f3         = PredefinedMenuItem::separator(app)?;
+            let export_note    = MenuItem::with_id(app, "menu://export-note",      "Export Note\u{2026}",        true, None::<&str>)?;
+            let backup_ws      = MenuItem::with_id(app, "menu://backup-workspace", "Backup Workspace\u{2026}",   true, None::<&str>)?;
+            let sep_f4         = PredefinedMenuItem::separator(app)?;
+            // (Close Window stays as the last item from the default menu)
 
-            menu.append(&workspace)?;
+            // Edit extras — appended after the default Undo/Redo/Cut/Copy/Paste
+            let sep_e1         = PredefinedMenuItem::separator(app)?;
+            let find_in_notes  = MenuItem::with_id(app, "menu://search",           "Find in Notes\u{2026}",      true, Some("CmdOrCtrl+Shift+F"))?;
+            let cmd_palette    = MenuItem::with_id(app, "menu://command-palette",  "Command Palette\u{2026}",    true, Some("CmdOrCtrl+K"))?;
+
+            // View items — prepended before the default "Enter Full Screen"
+            let toggle_sidebar = MenuItem::with_id(app, "menu://toggle-sidebar",   "Toggle Sidebar",             true, Some("CmdOrCtrl+B"))?;
+            let sep_v1         = PredefinedMenuItem::separator(app)?;
+            let view_editor    = MenuItem::with_id(app, "menu://view-editor",      "Editor Only",                true, Some("CmdOrCtrl+1"))?;
+            let view_split     = MenuItem::with_id(app, "menu://view-split",       "Split View",                 true, Some("CmdOrCtrl+2"))?;
+            let view_preview   = MenuItem::with_id(app, "menu://view-preview",     "Preview Only",               true, Some("CmdOrCtrl+3"))?;
+            let sep_v2         = PredefinedMenuItem::separator(app)?;
+            let focus_mode     = MenuItem::with_id(app, "menu://focus-mode",       "Focus Mode",                 true, Some("CmdOrCtrl+Alt+F"))?;
+            let open_graph     = MenuItem::with_id(app, "menu://open-graph",       "Graph View",                 true, None::<&str>)?;
+            let sep_v3         = PredefinedMenuItem::separator(app)?;
+            // (Enter Full Screen stays as the last item from the default menu)
+
+            // Window extras — appended after default Minimize/Maximize/Close
+            let sep_w1         = PredefinedMenuItem::separator(app)?;
+            let open_settings  = MenuItem::with_id(app, "menu://open-settings",   "Preferences\u{2026}",        true, Some("CmdOrCtrl+,"))?;
+            let show_shortcuts = MenuItem::with_id(app, "menu://show-shortcuts",  "Keyboard Shortcuts\u{2026}", true, Some("CmdOrCtrl+?"))?;
+
+            // Inject into every existing default submenu by title.
+            for item in menu.items()?.iter() {
+                if let Some(sub) = item.as_submenu() {
+                    match sub.text().as_deref().unwrap_or("") {
+                        "File" => {
+                            // Prepend Marky items so they sit above "Close Window"
+                            sub.prepend_items(&[
+                                &new_note, &new_folder,
+                                &sep_f1,
+                                &open_file, &open_folder,
+                                &sep_f2,
+                                &save_note,
+                                &sep_f3,
+                                &export_note, &backup_ws,
+                                &sep_f4,
+                            ])?;
+                        }
+                        "Edit" => {
+                            sub.append_items(&[
+                                &sep_e1 as &dyn tauri::menu::IsMenuItem<_>,
+                                &find_in_notes,
+                                &cmd_palette,
+                            ])?;
+                        }
+                        "View" => {
+                            // Prepend Marky items so "Enter Full Screen" stays last
+                            sub.prepend_items(&[
+                                &toggle_sidebar,
+                                &sep_v1,
+                                &view_editor, &view_split, &view_preview,
+                                &sep_v2,
+                                &focus_mode, &open_graph,
+                                &sep_v3,
+                            ])?;
+                        }
+                        "Window" => {
+                            sub.append_items(&[
+                                &sep_w1 as &dyn tauri::menu::IsMenuItem<_>,
+                                &open_settings,
+                                &show_shortcuts,
+                            ])?;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
             Ok(menu)
         })
         .on_menu_event(|app, event| {
             let event_id = event.id().as_ref();
-            
-            // Handle recent note clicks
+
+            // recent note clicks (future use)
             if event_id.starts_with("recent://") {
                 let path = event_id.strip_prefix("recent://").unwrap_or("");
                 let _ = app.emit("open-recent-note", path.to_string());
                 return;
             }
-            
-            // Handle regular menu items
+
             match event_id {
-                "menu://new-note" => {
-                    let _ = app.emit("menu://new-note", ());
-                }
-                "menu://new-folder" => {
-                    let _ = app.emit("menu://new-folder", ());
-                }
-                "menu://open-file" => {
-                    let _ = app.emit("menu://open-file", ());
-                }
-                "menu://open-folder" => {
-                    let _ = app.emit("menu://open-folder", ());
-                }
-                "menu://save-note" => {
-                    let _ = app.emit("menu://save-note", ());
-                }
-                "menu://close-note" => {
-                    let _ = app.emit("menu://close-note", ());
-                }
+                "menu://new-note"         => { let _ = app.emit("menu://new-note", ()); }
+                "menu://new-folder"       => { let _ = app.emit("menu://new-folder", ()); }
+                "menu://open-file"        => { let _ = app.emit("menu://open-file", ()); }
+                "menu://open-folder"      => { let _ = app.emit("menu://open-folder", ()); }
+                "menu://save-note"        => { let _ = app.emit("menu://save-note", ()); }
+                "menu://close-note"       => { let _ = app.emit("menu://close-note", ()); }
+                "menu://export-note"      => { let _ = app.emit("menu://export-note", ()); }
+                "menu://backup-workspace" => { let _ = app.emit("menu://backup-workspace", ()); }
+                "menu://search"           => { let _ = app.emit("menu://search", ()); }
+                "menu://command-palette"  => { let _ = app.emit("menu://command-palette", ()); }
+                "menu://toggle-sidebar"   => { let _ = app.emit("menu://toggle-sidebar", ()); }
+                "menu://view-editor"      => { let _ = app.emit("menu://view-editor", ()); }
+                "menu://view-split"       => { let _ = app.emit("menu://view-split", ()); }
+                "menu://view-preview"     => { let _ = app.emit("menu://view-preview", ()); }
+                "menu://focus-mode"       => { let _ = app.emit("menu://focus-mode", ()); }
+                "menu://open-graph"       => { let _ = app.emit("menu://open-graph", ()); }
+                "menu://open-settings"    => { let _ = app.emit("menu://open-settings", ()); }
+                "menu://show-shortcuts"   => { let _ = app.emit("menu://show-shortcuts", ()); }
                 _ => {}
             }
         })

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { EditorView } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
+import { getCM } from '@replit/codemirror-vim';
 import { createExtensions } from './extensions';
 
 const CodeMirrorEditor = forwardRef(({
@@ -12,6 +13,8 @@ const CodeMirrorEditor = forwardRef(({
   className = '',
   enableLineNumbers = true,
   enableVimMode = false,
+  enableTypewriterMode = false,
+  editorSearchKeymap = null,
   getNotes = () => [],
   getTags = () => [],
 }, ref) => {
@@ -85,6 +88,8 @@ const CodeMirrorEditor = forwardRef(({
       },
       enableLineNumbers,
       enableVimMode,
+      enableTypewriterMode,
+      editorSearchKeymap,
       getNotes: () => (getNotesRef.current ? getNotesRef.current() : []),
       getTags: () => (getTagsRef.current ? getTagsRef.current() : []),
     });
@@ -112,7 +117,7 @@ const CodeMirrorEditor = forwardRef(({
       view.destroy();
       viewRef.current = null;
     };
-  }, [readOnly, placeholder, enableLineNumbers, enableVimMode]);
+  }, [readOnly, placeholder, enableLineNumbers, enableVimMode, enableTypewriterMode, editorSearchKeymap]);
 
   // Some Vim mode transitions (notably Insert -> Normal via Esc) may not dispatch
   // a document-changing transaction immediately, so sync status on editor key events too.

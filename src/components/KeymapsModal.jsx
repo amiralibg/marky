@@ -1,57 +1,11 @@
-import { useEffect } from 'react';
-import useSettingsStore, { formatKeymap, DEFAULT_KEYMAPS } from '../store/settingsStore';
-
-// Group keymaps by category
-const KEYMAP_CATEGORIES = [
-  {
-    name: 'File Operations',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-      </svg>
-    ),
-    actions: ['newNote', 'newFolder', 'openFolder', 'save']
-  },
-  {
-    name: 'Navigation',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
-    ),
-    actions: ['commandPalette', 'search', 'toggleSidebar']
-  },
-  {
-    name: 'View',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-      </svg>
-    ),
-    actions: ['viewEditor', 'viewSplit', 'viewPreview']
-  },
-  {
-    name: 'Editing',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-      </svg>
-    ),
-    actions: ['bold', 'italic', 'link', 'codeBlock', 'list']
-  },
-  {
-    name: 'Help',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-    actions: ['showShortcuts']
-  }
-];
+import { useEffect, useRef } from 'react';
+import useSettingsStore, { formatKeymap, DEFAULT_KEYMAPS, KEYMAP_CATEGORIES } from '../store/settingsStore';
+import useModalAccessibility from '../hooks/useModalAccessibility';
 
 const KeymapsModal = ({ isOpen, onClose }) => {
   const { keymaps } = useSettingsStore();
+  const dialogRef = useRef(null);
+  useModalAccessibility(isOpen, dialogRef);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -79,18 +33,24 @@ const KeymapsModal = ({ isOpen, onClose }) => {
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
-          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col pointer-events-auto animate-slideUp"
+          ref={dialogRef}
+          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col pointer-events-auto animate-slideUp"
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="keymaps-modal-title"
+          tabIndex={-1}
         >
           {/* Header */}
           <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between shrink-0">
             <div>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 id="keymaps-modal-title" className="text-xl font-semibold text-text-primary flex items-center gap-2">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                 </svg>
@@ -122,7 +82,9 @@ const KeymapsModal = ({ isOpen, onClose }) => {
                   {/* Category header */}
                   <div className="flex items-center gap-3 px-4 py-3 bg-overlay-subtle border-b border-overlay-light">
                     <div className="text-accent">
-                      {category.icon}
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={category.iconPath} />
+                      </svg>
                     </div>
                     <h3 className="text-sm font-semibold text-text-primary">
                       {category.name}
@@ -143,12 +105,12 @@ const KeymapsModal = ({ isOpen, onClose }) => {
                           key={actionId}
                           className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-overlay-subtle transition-colors"
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="relative flex items-center gap-2">
                             <span className="text-sm text-text-secondary">
                               {keymap.description}
                             </span>
                             {modified && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Custom shortcut" />
+                              <span className="absolute -left-3 w-1.5 h-1.5 rounded-full bg-amber-400" title="Custom shortcut" />
                             )}
                           </div>
                           <div className="flex items-center gap-1">

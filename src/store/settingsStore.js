@@ -165,17 +165,80 @@ export const DEFAULT_KEYMAPS = {
   'closeTab': { key: 'w', modifiers: ['mod'], description: 'Close current tab' },
   'commandPalette': { key: 'k', modifiers: ['mod'], description: 'Open command palette' },
   'search': { key: 'F', modifiers: ['mod', 'shift'], description: 'Search all notes' },
-  'toggleSidebar': { key: '/', modifiers: ['mod'], description: 'Toggle sidebar' },
-  'showShortcuts': { key: '?', modifiers: ['mod'], description: 'Show keyboard shortcuts' },
+  'editorSearch': { key: 'f', modifiers: ['mod'], description: 'Find in editor' },
+  'toggleSidebar': { key: 'b', modifiers: ['mod'], description: 'Toggle sidebar' },
+  'showShortcuts': { key: '/', modifiers: ['mod'], description: 'Show keyboard shortcuts' },
   'viewEditor': { key: '1', modifiers: ['mod'], description: 'Editor only view' },
   'viewSplit': { key: '2', modifiers: ['mod'], description: 'Split view' },
   'viewPreview': { key: '3', modifiers: ['mod'], description: 'Preview only view' },
-  'bold': { key: 'b', modifiers: ['mod'], description: 'Bold text' },
+  'toggleFocusMode': { key: 'F', modifiers: ['mod', 'alt'], description: 'Toggle Focus Mode' },
+  'bold': { key: 'B', modifiers: ['mod', 'shift'], description: 'Bold text' },
   'italic': { key: 'i', modifiers: ['mod'], description: 'Italic text' },
   'link': { key: 'K', modifiers: ['mod', 'shift'], description: 'Insert link' },
   'codeBlock': { key: 'C', modifiers: ['mod', 'shift'], description: 'Insert code block' },
   'list': { key: 'L', modifiers: ['mod', 'shift'], description: 'Insert list' },
 };
+
+const LEGACY_DEFAULT_KEYMAPS = {
+  toggleSidebar: { key: '/', modifiers: ['mod'] },
+  bold: { key: 'b', modifiers: ['mod'] },
+};
+
+const areKeymapsEqual = (left, right) =>
+  left?.key === right?.key &&
+  JSON.stringify(left?.modifiers || []) === JSON.stringify(right?.modifiers || []);
+
+const migrateLegacyKeymaps = (keymaps = {}) => {
+  const nextKeymaps = { ...keymaps };
+  const usesLegacySidebarDefault = areKeymapsEqual(
+    nextKeymaps.toggleSidebar,
+    LEGACY_DEFAULT_KEYMAPS.toggleSidebar,
+  );
+  const usesLegacyBoldDefault = areKeymapsEqual(
+    nextKeymaps.bold,
+    LEGACY_DEFAULT_KEYMAPS.bold,
+  );
+
+  if (usesLegacySidebarDefault) {
+    nextKeymaps.toggleSidebar = { ...DEFAULT_KEYMAPS.toggleSidebar };
+
+    if (usesLegacyBoldDefault) {
+      nextKeymaps.bold = { ...DEFAULT_KEYMAPS.bold };
+    }
+  }
+
+  return nextKeymaps;
+};
+
+// Centralized keymap category definitions (icons + action groupings)
+// Used by KeymapsModal and KeymapsSettings to render shortcuts consistently
+export const KEYMAP_CATEGORIES = [
+  {
+    name: 'File Operations',
+    iconPath: 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
+    actions: ['newNote', 'newFolder', 'openFolder', 'save']
+  },
+  {
+    name: 'Navigation',
+    iconPath: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
+    actions: ['commandPalette', 'search', 'toggleSidebar']
+  },
+  {
+    name: 'View',
+    iconPath: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z',
+    actions: ['viewEditor', 'viewSplit', 'viewPreview', 'toggleFocusMode']
+  },
+  {
+    name: 'Editing',
+    iconPath: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+    actions: ['editorSearch', 'bold', 'italic', 'link', 'codeBlock', 'list']
+  },
+  {
+    name: 'Help',
+    iconPath: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+    actions: ['showShortcuts']
+  }
+];
 
 // Helper to apply theme to CSS variables
 export const applyTheme = (themeId) => {
@@ -236,6 +299,36 @@ export const formatKeymap = (keymap) => {
   return parts;
 };
 
+const normalizeWorkspacePath = (value) => (value ? value.replace(/\\/g, '/') : '');
+
+const createDefaultProfileSettings = () => ({
+  themeId: 'midnight',
+  accentColorId: 'blue',
+  vimMode: false,
+  scrollSyncEnabled: true,
+  autosaveEnabled: false,
+  autosaveDelay: 2000,
+  typewriterMode: false,
+  keymaps: { ...DEFAULT_KEYMAPS },
+});
+
+const buildProfileSettingsSnapshot = (state) => ({
+  themeId: state.themeId,
+  accentColorId: state.accentColorId,
+  vimMode: state.vimMode,
+  scrollSyncEnabled: state.scrollSyncEnabled,
+  autosaveEnabled: state.autosaveEnabled,
+  autosaveDelay: state.autosaveDelay,
+  typewriterMode: state.typewriterMode,
+  keymaps: { ...DEFAULT_KEYMAPS, ...(state.keymaps || {}) },
+});
+
+const mergeProfileSettings = (profile = {}) => ({
+  ...createDefaultProfileSettings(),
+  ...profile,
+  keymaps: { ...DEFAULT_KEYMAPS, ...migrateLegacyKeymaps(profile?.keymaps || {}) },
+});
+
 // Helper to check if a keyboard event matches a keymap
 export const matchesKeymap = (event, keymap) => {
   const isMod = event.metaKey || event.ctrlKey;
@@ -265,38 +358,80 @@ const useSettingsStore = create(
       // Editor settings
       vimMode: false,
       scrollSyncEnabled: true,
+      autosaveEnabled: false,
+      autosaveDelay: 2000, // ms after last keystroke to auto-save
+      typewriterMode: false,
+      openRecentOnStartup: true,
 
       // Keymaps (user customizations stored here)
       keymaps: { ...DEFAULT_KEYMAPS },
 
+      // Shared settings are used when a workspace has no dedicated profile
+      sharedSettings: createDefaultProfileSettings(),
+      workspaceProfiles: {},
+      activeWorkspacePath: null,
+
       // Recording state (not persisted)
       isRecordingKeymap: false,
 
+      syncProfileState: (updater) => {
+        set((state) => {
+          const updates = typeof updater === 'function' ? updater(state) : updater;
+          if (!updates || typeof updates !== 'object') {
+            return {};
+          }
+
+          const previewState = { ...state, ...updates };
+          const snapshot = buildProfileSettingsSnapshot(previewState);
+          const activeWorkspacePath = normalizeWorkspacePath(state.activeWorkspacePath);
+          const hasWorkspaceProfile = activeWorkspacePath && state.workspaceProfiles[activeWorkspacePath];
+
+          return {
+            ...updates,
+            ...(hasWorkspaceProfile
+              ? {
+                workspaceProfiles: {
+                  ...state.workspaceProfiles,
+                  [activeWorkspacePath]: snapshot
+                }
+              }
+              : {
+                sharedSettings: snapshot
+              })
+          };
+        });
+      },
+
       // Actions
       setTheme: (themeId) => {
-        set({ themeId });
+        get().syncProfileState({ themeId });
         applyTheme(themeId);
       },
 
       setAccentColor: (colorId) => {
-        set({ accentColorId: colorId });
+        get().syncProfileState({ accentColorId: colorId });
         applyAccentColor(colorId);
       },
 
       setVimMode: (enabled) => {
-        set({ vimMode: enabled });
+        get().syncProfileState({ vimMode: enabled });
       },
 
+      setAutosaveEnabled: (enabled) => { get().syncProfileState({ autosaveEnabled: enabled }); },
+      setAutosaveDelay: (delay) => { get().syncProfileState({ autosaveDelay: delay }); },
+      setTypewriterMode: (enabled) => { get().syncProfileState({ typewriterMode: enabled }); },
+      setOpenRecentOnStartup: (enabled) => { set({ openRecentOnStartup: enabled }); },
+
       setScrollSyncEnabled: (enabled) => {
-        set({ scrollSyncEnabled: enabled });
+        get().syncProfileState({ scrollSyncEnabled: enabled });
       },
 
       toggleScrollSync: () => {
-        set((state) => ({ scrollSyncEnabled: !state.scrollSyncEnabled }));
+        get().syncProfileState((state) => ({ scrollSyncEnabled: !state.scrollSyncEnabled }));
       },
 
       toggleVimMode: () => {
-        set((state) => ({ vimMode: !state.vimMode }));
+        get().syncProfileState((state) => ({ vimMode: !state.vimMode }));
       },
 
       setIsRecordingKeymap: (isRecording) => {
@@ -304,7 +439,7 @@ const useSettingsStore = create(
       },
 
       updateKeymap: (actionId, newKeymap) => {
-        set((state) => ({
+        get().syncProfileState((state) => ({
           keymaps: {
             ...state.keymaps,
             [actionId]: { ...state.keymaps[actionId], ...newKeymap }
@@ -313,11 +448,11 @@ const useSettingsStore = create(
       },
 
       resetKeymaps: () => {
-        set({ keymaps: { ...DEFAULT_KEYMAPS } });
+        get().syncProfileState({ keymaps: { ...DEFAULT_KEYMAPS } });
       },
 
       resetKeymap: (actionId) => {
-        set((state) => ({
+        get().syncProfileState((state) => ({
           keymaps: {
             ...state.keymaps,
             [actionId]: { ...DEFAULT_KEYMAPS[actionId] }
@@ -325,26 +460,158 @@ const useSettingsStore = create(
         }));
       },
 
-      // Initialize settings (call on app start)
-      initializeSettings: () => {
-        const { themeId, accentColorId, keymaps } = get();
+      hasWorkspaceSettingsProfile: (workspacePath) => {
+        const normalizedPath = normalizeWorkspacePath(workspacePath);
+        if (!normalizedPath) return false;
+        return Boolean(get().workspaceProfiles[normalizedPath]);
+      },
 
-        // Merge any new default keymaps with existing user customizations
-        const mergedKeymaps = { ...DEFAULT_KEYMAPS };
-        Object.keys(keymaps).forEach(actionId => {
-          if (DEFAULT_KEYMAPS[actionId]) {
-            // Preserve user customizations
-            mergedKeymaps[actionId] = keymaps[actionId];
-          }
-        });
+      setWorkspaceSettingsEnabled: (workspacePath, enabled) => {
+        const normalizedPath = normalizeWorkspacePath(workspacePath);
+        if (!normalizedPath) return;
 
-        // Update if there are new keymaps
-        if (Object.keys(mergedKeymaps).length !== Object.keys(keymaps).length) {
-          set({ keymaps: mergedKeymaps });
+        if (enabled) {
+          set((state) => ({
+            workspaceProfiles: {
+              ...state.workspaceProfiles,
+              [normalizedPath]: state.workspaceProfiles[normalizedPath]
+                ? mergeProfileSettings(state.workspaceProfiles[normalizedPath])
+                : buildProfileSettingsSnapshot(state)
+            }
+          }));
+
+          get().syncWorkspaceSettings(normalizedPath);
+          return;
         }
 
-        applyTheme(themeId);
-        applyAccentColor(accentColorId);
+        const state = get();
+        const nextProfiles = { ...state.workspaceProfiles };
+        delete nextProfiles[normalizedPath];
+
+        const shouldApplySharedSettings =
+          normalizeWorkspacePath(state.activeWorkspacePath) === normalizedPath;
+        const sharedSettings = mergeProfileSettings(state.sharedSettings);
+
+        set({
+          workspaceProfiles: nextProfiles,
+          ...(shouldApplySharedSettings
+            ? {
+              ...sharedSettings,
+              activeWorkspacePath: normalizedPath
+            }
+            : {})
+        });
+
+        if (shouldApplySharedSettings) {
+          applyTheme(sharedSettings.themeId);
+          applyAccentColor(sharedSettings.accentColorId);
+        }
+      },
+
+      syncWorkspaceSettings: (workspacePath) => {
+        const normalizedPath = normalizeWorkspacePath(workspacePath);
+        const state = get();
+        const sharedSettings = mergeProfileSettings(state.sharedSettings);
+        const workspaceSettings = normalizedPath
+          ? state.workspaceProfiles[normalizedPath]
+          : null;
+        const snapshot = mergeProfileSettings(workspaceSettings || sharedSettings);
+
+        set({
+          ...snapshot,
+          sharedSettings,
+          activeWorkspacePath: normalizedPath || null
+        });
+
+        applyTheme(snapshot.themeId);
+        applyAccentColor(snapshot.accentColorId);
+      },
+
+      clearActiveWorkspaceSettings: () => {
+        const sharedSettings = mergeProfileSettings(get().sharedSettings);
+        set({
+          ...sharedSettings,
+          activeWorkspacePath: null
+        });
+        applyTheme(sharedSettings.themeId);
+        applyAccentColor(sharedSettings.accentColorId);
+      },
+
+      getSettingsExportPayload: () => {
+        const state = get();
+        const sharedSettings = mergeProfileSettings(state.sharedSettings);
+        const workspaceProfiles = Object.fromEntries(
+          Object.entries(state.workspaceProfiles || {}).map(([path, profile]) => [
+            normalizeWorkspacePath(path),
+            mergeProfileSettings(profile)
+          ])
+        );
+
+        return {
+          version: 2,
+          ...sharedSettings,
+          openRecentOnStartup: state.openRecentOnStartup,
+          sharedSettings,
+          workspaceProfiles
+        };
+      },
+
+      importSettingsPayload: (payload = {}) => {
+        const currentState = get();
+        const sharedSettings = mergeProfileSettings(
+          payload.sharedSettings && typeof payload.sharedSettings === 'object'
+            ? payload.sharedSettings
+            : payload
+        );
+        const workspaceProfiles = Object.fromEntries(
+          Object.entries(payload.workspaceProfiles || {}).map(([path, profile]) => [
+            normalizeWorkspacePath(path),
+            mergeProfileSettings(profile)
+          ])
+        );
+        const activeWorkspacePath = normalizeWorkspacePath(currentState.activeWorkspacePath);
+        const activeSnapshot = activeWorkspacePath && workspaceProfiles[activeWorkspacePath]
+          ? workspaceProfiles[activeWorkspacePath]
+          : sharedSettings;
+
+        set({
+          ...activeSnapshot,
+          sharedSettings,
+          workspaceProfiles,
+          openRecentOnStartup:
+            typeof payload.openRecentOnStartup === 'boolean'
+              ? payload.openRecentOnStartup
+              : currentState.openRecentOnStartup
+        });
+
+        applyTheme(activeSnapshot.themeId);
+        applyAccentColor(activeSnapshot.accentColorId);
+      },
+
+      // Initialize settings (call on app start)
+      initializeSettings: () => {
+        const state = get();
+        const sharedSettings = mergeProfileSettings(state.sharedSettings || buildProfileSettingsSnapshot(state));
+        const workspaceProfiles = Object.fromEntries(
+          Object.entries(state.workspaceProfiles || {}).map(([path, profile]) => [
+            normalizeWorkspacePath(path),
+            mergeProfileSettings(profile)
+          ])
+        );
+        const activeWorkspacePath = normalizeWorkspacePath(state.activeWorkspacePath);
+        const snapshot = activeWorkspacePath && workspaceProfiles[activeWorkspacePath]
+          ? workspaceProfiles[activeWorkspacePath]
+          : sharedSettings;
+
+        set({
+          ...snapshot,
+          sharedSettings,
+          workspaceProfiles,
+          activeWorkspacePath: activeWorkspacePath || null
+        });
+
+        applyTheme(snapshot.themeId);
+        applyAccentColor(snapshot.accentColorId);
       },
 
       // Get keymap by action ID
@@ -359,10 +626,21 @@ const useSettingsStore = create(
         accentColorId: state.accentColorId,
         vimMode: state.vimMode,
         scrollSyncEnabled: state.scrollSyncEnabled,
+        autosaveEnabled: state.autosaveEnabled,
+        autosaveDelay: state.autosaveDelay,
+        typewriterMode: state.typewriterMode,
         keymaps: state.keymaps,
+        openRecentOnStartup: state.openRecentOnStartup,
+        sharedSettings: state.sharedSettings,
+        workspaceProfiles: state.workspaceProfiles,
+        activeWorkspacePath: state.activeWorkspacePath,
       }),
     }
   )
 );
+
+if (typeof window !== 'undefined') {
+  window.__markySettings = useSettingsStore;
+}
 
 export default useSettingsStore;

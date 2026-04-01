@@ -109,6 +109,7 @@ Typical outputs are generated under `src-tauri/target/release/bundle/` (platform
 - `Cmd/Ctrl+N`: New note
 - `Cmd/Ctrl+Shift+N`: New folder
 - `Cmd/Ctrl+S`: Save note
+- `Cmd/Ctrl+B`: Toggle sidebar
 - `Cmd/Ctrl+W`: Close tab
 - `Cmd/Ctrl+1/2/3`: Editor / Split / Preview views
 

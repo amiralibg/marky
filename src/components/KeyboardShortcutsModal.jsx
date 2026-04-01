@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import useModalAccessibility from '../hooks/useModalAccessibility';
 
 const SHORTCUTS = [
   {
@@ -13,7 +14,7 @@ const SHORTCUTS = [
   {
     category: 'Editing',
     items: [
-      { keys: ['Cmd/Ctrl', 'B'], description: 'Bold text' },
+      { keys: ['Cmd/Ctrl', 'Shift', 'B'], description: 'Bold text' },
       { keys: ['Cmd/Ctrl', 'I'], description: 'Italic text' },
       { keys: ['Cmd/Ctrl', 'K'], description: 'Insert link' },
       { keys: ['Cmd/Ctrl', 'Shift', 'C'], description: 'Insert code block' },
@@ -26,7 +27,8 @@ const SHORTCUTS = [
       { keys: ['Cmd/Ctrl', '1'], description: 'Editor only' },
       { keys: ['Cmd/Ctrl', '2'], description: 'Split view' },
       { keys: ['Cmd/Ctrl', '3'], description: 'Preview only' },
-      { keys: ['Cmd/Ctrl', '/'], description: 'Toggle sidebar' },
+      { keys: ['Cmd/Ctrl', 'B'], description: 'Toggle sidebar' },
+      { keys: ['Cmd/Ctrl', 'Alt', 'F'], description: 'Toggle Focus Mode' },
     ]
   },
   {
@@ -39,6 +41,9 @@ const SHORTCUTS = [
 ];
 
 const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
+  const dialogRef = useRef(null);
+  useModalAccessibility(isOpen, dialogRef);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && isOpen) {
@@ -63,18 +68,24 @@ const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
+          ref={dialogRef}
           className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col pointer-events-auto animate-slideUp"
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="keyboard-shortcuts-title"
+          tabIndex={-1}
         >
           {/* Header */}
           <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between shrink-0">
             <div>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 id="keyboard-shortcuts-title" className="text-xl font-semibold text-text-primary flex items-center gap-2">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                 </svg>
