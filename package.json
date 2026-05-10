@@ -7,6 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext js,jsx --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "prepare": "husky",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
@@ -23,10 +27,10 @@
     "@codemirror/view": "^6.39.12",
     "@lezer/highlight": "^1.2.3",
     "@replit/codemirror-vim": "^6.3.0",
-    "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/api": "2.10.1",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
-    "@tauri-apps/plugin-dialog": "^2.4.2",
-    "@tauri-apps/plugin-fs": "^2.4.4",
+    "@tauri-apps/plugin-dialog": "2.6.0",
+    "@tauri-apps/plugin-fs": "2.4.5",
     "fuse.js": "^7.1.0",
     "highlight.js": "^11.11.1",
     "jszip": "^3.10.1",
@@ -50,7 +54,17 @@
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.4",
+    "prettier": "^3.8.3",
     "tailwindcss": "^4.0.0-alpha.25",
     "vite": "^5.0.8"
+  },
+  "lint-staged": {
+    "*.{js,jsx}": [
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
+    ],
+    "*.{css,html,json,md,yml,yaml}": "prettier --write"
   }
 }

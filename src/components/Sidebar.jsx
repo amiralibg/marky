@@ -61,16 +61,11 @@ const findFolderAtPosition = (x, y, sidebarElement) => {
   if (!sidebarElement) return null;
 
   const folderElements = Array.from(
-    sidebarElement.querySelectorAll("[data-treeitem-row='true'][data-folder-path]"),
+    sidebarElement.querySelectorAll("[data-treeitem-row='true'][data-folder-path]")
   );
   const matchingElements = folderElements.filter((el) => {
     const rect = el.getBoundingClientRect();
-    return (
-      x >= rect.left &&
-      x <= rect.right &&
-      y >= rect.top &&
-      y <= rect.bottom
-    );
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
   });
 
   if (matchingElements.length === 0) {
@@ -80,7 +75,7 @@ const findFolderAtPosition = (x, y, sidebarElement) => {
   matchingElements.sort((a, b) => {
     const aRect = a.getBoundingClientRect();
     const bRect = b.getBoundingClientRect();
-    return (aRect.width * aRect.height) - (bRect.width * bRect.height);
+    return aRect.width * aRect.height - bRect.width * bRect.height;
   });
 
   const target = matchingElements[0];
@@ -125,7 +120,7 @@ const Sidebar = forwardRef(
     const [showPinnedNotes, setShowPinnedNotes] = useState(true);
     const [showTags, setShowTags] = useState(false);
     const [showBacklinks, setShowBacklinks] = useState(true);
-    const [tagSortMode, setTagSortMode] = useState('frequency'); // 'frequency' | 'alpha' | 'recent'
+    const [tagSortMode, setTagSortMode] = useState("frequency"); // 'frequency' | 'alpha' | 'recent'
     const [sortBy, setSortBy] = useState("name-asc"); // 'name-asc', 'name-desc', 'date-desc', 'date-asc'
     const [showSortMenu, setShowSortMenu] = useState(false);
     const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
@@ -149,21 +144,27 @@ const Sidebar = forwardRef(
       const tagCounts = items
         .filter((item) => item.type === "note" && item.content)
         .reduce((acc, note) => {
-          const tags = (
-            note.content.match(/(?:^|[\s])#([a-zA-Z0-9_-]+)/g) || []
-          ).map((t) => t.trim().substring(1).toLowerCase());
-          tags.forEach((tag) => { acc[tag] = (acc[tag] || 0) + 1; });
+          const tags = (note.content.match(/(?:^|[\s])#([a-zA-Z0-9_-]+)/g) || []).map((t) =>
+            t.trim().substring(1).toLowerCase()
+          );
+          tags.forEach((tag) => {
+            acc[tag] = (acc[tag] || 0) + 1;
+          });
           return acc;
         }, {});
       const arr = Object.entries(tagCounts).map(([tag, count]) => ({ tag, count }));
-      if (tagSortMode === 'alpha') return arr.sort((a, b) => a.tag.localeCompare(b.tag));
-      if (tagSortMode === 'recent') {
+      if (tagSortMode === "alpha") return arr.sort((a, b) => a.tag.localeCompare(b.tag));
+      if (tagSortMode === "recent") {
         const recentTagSet = new Map();
         [...items].reverse().forEach((item) => {
-          if (item.type !== 'note' || !item.tags) return;
-          item.tags.forEach((tag) => { if (!recentTagSet.has(tag)) recentTagSet.set(tag, recentTagSet.size); });
+          if (item.type !== "note" || !item.tags) return;
+          item.tags.forEach((tag) => {
+            if (!recentTagSet.has(tag)) recentTagSet.set(tag, recentTagSet.size);
+          });
         });
-        return arr.sort((a, b) => (recentTagSet.get(a.tag) ?? Infinity) - (recentTagSet.get(b.tag) ?? Infinity));
+        return arr.sort(
+          (a, b) => (recentTagSet.get(a.tag) ?? Infinity) - (recentTagSet.get(b.tag) ?? Infinity)
+        );
       }
       return arr.sort((a, b) => b.count - a.count);
     }, [items, tagSortMode]);
@@ -179,9 +180,7 @@ const Sidebar = forwardRef(
       items.forEach((item) => {
         const nameMatch = item.name.toLowerCase().includes(searchLower);
         const contentMatch =
-          item.type === "note" &&
-          item.content &&
-          item.content.toLowerCase().includes(searchLower);
+          item.type === "note" && item.content && item.content.toLowerCase().includes(searchLower);
 
         if (nameMatch || contentMatch) {
           matchedIds.add(item.id);
@@ -283,9 +282,10 @@ const Sidebar = forwardRef(
       : 0;
     const virtualEndIndex = useVirtualizedTree
       ? Math.min(
-        flattenedTreeRows.length,
-        Math.ceil((treeScrollTop + treeViewportHeight) / VIRTUAL_TREE_ROW_HEIGHT) + VIRTUAL_TREE_OVERSCAN
-      )
+          flattenedTreeRows.length,
+          Math.ceil((treeScrollTop + treeViewportHeight) / VIRTUAL_TREE_ROW_HEIGHT) +
+            VIRTUAL_TREE_OVERSCAN
+        )
       : flattenedTreeRows.length;
     const virtualRows = useVirtualizedTree
       ? flattenedTreeRows.slice(virtualStartIndex, virtualEndIndex)
@@ -330,11 +330,7 @@ const Sidebar = forwardRef(
 
     const handleSetDropTarget = (targetFolder) => {
       // Set the drop target for the Tauri file drop event to use
-      if (
-        targetFolder &&
-        targetFolder.type === "folder" &&
-        targetFolder.filePath
-      ) {
+      if (targetFolder && targetFolder.type === "folder" && targetFolder.filePath) {
         dropTargetRef.current = targetFolder;
         setDropTargetFolder(targetFolder);
       }
@@ -406,7 +402,7 @@ const Sidebar = forwardRef(
         handleNewFolder,
         handleOpenFolder,
       }),
-      [handleNewNote, handleNewFolder, handleOpenFolder],
+      [handleNewNote, handleNewFolder, handleOpenFolder]
     );
 
     const handleSave = useCallback(async () => {
@@ -414,10 +410,7 @@ const Sidebar = forwardRef(
         const currentNote = getCurrentNote();
         if (!currentNote) return;
 
-        const savedPath = await saveMarkdownFile(
-          currentNote.content,
-          currentNote.filePath,
-        );
+        const savedPath = await saveMarkdownFile(currentNote.content, currentNote.filePath);
         if (savedPath) {
           updateNotePath(currentNote.id, savedPath);
         }
@@ -435,159 +428,172 @@ const Sidebar = forwardRef(
       onRenameItem(item);
     };
 
-    const getFolderMoveTarget = useCallback((item, currentRow, rowIndex = null) => {
-      const descendants = new Set();
-      const collectDescendants = (parentId) => {
-        items
-          .filter((entry) => entry.parentId === parentId)
-          .forEach((entry) => {
-            descendants.add(entry.id);
-            if (entry.type === "folder") {
-              collectDescendants(entry.id);
-            }
-          });
-      };
+    const getFolderMoveTarget = useCallback(
+      (item, currentRow, rowIndex = null) => {
+        const descendants = new Set();
+        const collectDescendants = (parentId) => {
+          items
+            .filter((entry) => entry.parentId === parentId)
+            .forEach((entry) => {
+              descendants.add(entry.id);
+              if (entry.type === "folder") {
+                collectDescendants(entry.id);
+              }
+            });
+        };
 
-      if (item.type === "folder") {
-        collectDescendants(item.id);
-      }
+        if (item.type === "folder") {
+          collectDescendants(item.id);
+        }
 
-      if (Number.isInteger(rowIndex)) {
-        for (let index = rowIndex - 1; index >= 0; index -= 1) {
-          const candidate = flattenedTreeRows[index]?.item;
+        if (Number.isInteger(rowIndex)) {
+          for (let index = rowIndex - 1; index >= 0; index -= 1) {
+            const candidate = flattenedTreeRows[index]?.item;
+            if (!candidate || candidate.type !== "folder") continue;
+            if (candidate.id === item.id || descendants.has(candidate.id)) continue;
+            return candidate;
+          }
+          return null;
+        }
+
+        const treeRoot =
+          currentRow?.closest("[data-sidebar-tree-root='true']") || sidebarRef.current;
+        if (!treeRoot) return null;
+
+        const rows = Array.from(treeRoot.querySelectorAll("[data-treeitem-row='true']"));
+        const currentIndex = rows.indexOf(currentRow);
+        if (currentIndex <= 0) return null;
+
+        for (let index = currentIndex - 1; index >= 0; index -= 1) {
+          const candidateId = rows[index]?.dataset?.itemId;
+          const candidate = items.find((entry) => entry.id === candidateId);
           if (!candidate || candidate.type !== "folder") continue;
           if (candidate.id === item.id || descendants.has(candidate.id)) continue;
           return candidate;
         }
+
         return null;
-      }
+      },
+      [flattenedTreeRows, items]
+    );
 
-      const treeRoot =
-        currentRow?.closest("[data-sidebar-tree-root='true']") || sidebarRef.current;
-      if (!treeRoot) return null;
+    const handleMoveItemOut = useCallback(
+      async (item) => {
+        if (!item?.parentId) return;
 
-      const rows = Array.from(
-        treeRoot.querySelectorAll("[data-treeitem-row='true']"),
-      );
-      const currentIndex = rows.indexOf(currentRow);
-      if (currentIndex <= 0) return null;
+        const parent = items.find((entry) => entry.id === item.parentId);
+        if (!parent) return;
 
-      for (let index = currentIndex - 1; index >= 0; index -= 1) {
-        const candidateId = rows[index]?.dataset?.itemId;
-        const candidate = items.find((entry) => entry.id === candidateId);
-        if (!candidate || candidate.type !== "folder") continue;
-        if (candidate.id === item.id || descendants.has(candidate.id)) continue;
-        return candidate;
-      }
-
-      return null;
-    }, [flattenedTreeRows, items]);
-
-    const handleMoveItemOut = useCallback(async (item) => {
-      if (!item?.parentId) return;
-
-      const parent = items.find((entry) => entry.id === item.parentId);
-      if (!parent) return;
-
-      try {
-        if (parent.parentId) {
-          await moveItem(item.id, parent.parentId);
-        } else {
-          await moveItemToRoot(item.id);
-        }
-      } catch (error) {
-        console.error("Failed to move item outward:", error);
-        addNotification("Failed to move item: " + error.message, "error");
-      }
-    }, [addNotification, items, moveItem, moveItemToRoot]);
-
-    const handleMoveItemIn = useCallback(async (item, currentRow, rowIndex = null) => {
-      const targetFolder = getFolderMoveTarget(item, currentRow, rowIndex);
-      if (!targetFolder) {
-        addNotification("No valid previous folder to move into", "info", 1800);
-        return;
-      }
-
-      try {
-        await moveItem(item.id, targetFolder.id);
-      } catch (error) {
-        console.error("Failed to move item inward:", error);
-        addNotification("Failed to move item: " + error.message, "error");
-      }
-    }, [addNotification, getFolderMoveTarget, moveItem]);
-
-    const getDeleteMessage = useCallback((item) => {
-      if (!item) return;
-
-      const collectDescendants = (id) => {
-        const children = items.filter((entry) => entry.parentId === id);
-        let noteCount = 0;
-        let folderCount = 0;
-
-        children.forEach((child) => {
-          if (child.type === "note") {
-            noteCount += 1;
-          } else if (child.type === "folder") {
-            folderCount += 1;
-            const descendantCounts = collectDescendants(child.id);
-            noteCount += descendantCounts.noteCount;
-            folderCount += descendantCounts.folderCount;
+        try {
+          if (parent.parentId) {
+            await moveItem(item.id, parent.parentId);
+          } else {
+            await moveItemToRoot(item.id);
           }
-        });
+        } catch (error) {
+          console.error("Failed to move item outward:", error);
+          addNotification("Failed to move item: " + error.message, "error");
+        }
+      },
+      [addNotification, items, moveItem, moveItemToRoot]
+    );
 
-        return { noteCount, folderCount };
-      };
+    const handleMoveItemIn = useCallback(
+      async (item, currentRow, rowIndex = null) => {
+        const targetFolder = getFolderMoveTarget(item, currentRow, rowIndex);
+        if (!targetFolder) {
+          addNotification("No valid previous folder to move into", "info", 1800);
+          return;
+        }
 
-      if (item.type !== "folder") {
-        return `Are you sure you want to delete "${item.name}"? This action cannot be undone.`;
-      }
+        try {
+          await moveItem(item.id, targetFolder.id);
+        } catch (error) {
+          console.error("Failed to move item inward:", error);
+          addNotification("Failed to move item: " + error.message, "error");
+        }
+      },
+      [addNotification, getFolderMoveTarget, moveItem]
+    );
 
-      const { noteCount, folderCount } = collectDescendants(item.id);
-      const parts = [];
-      if (noteCount > 0) parts.push(`${noteCount} note${noteCount !== 1 ? "s" : ""}`);
-      if (folderCount > 0) parts.push(`${folderCount} subfolder${folderCount !== 1 ? "s" : ""}`);
-      return parts.length > 0
-        ? `Are you sure you want to delete "${item.name}" and its ${parts.join(" and ")}? This action cannot be undone.`
-        : `Are you sure you want to delete "${item.name}"? This action cannot be undone.`;
-    }, [items]);
+    const getDeleteMessage = useCallback(
+      (item) => {
+        if (!item) return;
+
+        const collectDescendants = (id) => {
+          const children = items.filter((entry) => entry.parentId === id);
+          let noteCount = 0;
+          let folderCount = 0;
+
+          children.forEach((child) => {
+            if (child.type === "note") {
+              noteCount += 1;
+            } else if (child.type === "folder") {
+              folderCount += 1;
+              const descendantCounts = collectDescendants(child.id);
+              noteCount += descendantCounts.noteCount;
+              folderCount += descendantCounts.folderCount;
+            }
+          });
+
+          return { noteCount, folderCount };
+        };
+
+        if (item.type !== "folder") {
+          return `Are you sure you want to delete "${item.name}"? This action cannot be undone.`;
+        }
+
+        const { noteCount, folderCount } = collectDescendants(item.id);
+        const parts = [];
+        if (noteCount > 0) parts.push(`${noteCount} note${noteCount !== 1 ? "s" : ""}`);
+        if (folderCount > 0) parts.push(`${folderCount} subfolder${folderCount !== 1 ? "s" : ""}`);
+        return parts.length > 0
+          ? `Are you sure you want to delete "${item.name}" and its ${parts.join(" and ")}? This action cannot be undone.`
+          : `Are you sure you want to delete "${item.name}"? This action cannot be undone.`;
+      },
+      [items]
+    );
 
     const requestDeleteItem = useCallback((item) => {
       if (!item) return;
       setPendingDeleteItem(item);
     }, []);
 
-    const handleDeleteItem = useCallback(async (item) => {
-      if (!item) return;
+    const handleDeleteItem = useCallback(
+      async (item) => {
+        if (!item) return;
 
-      try {
-        const { undoLastDelete } = useNotesStore.getState();
-        const hasFilePath = Boolean(item.filePath);
-        await useNotesStore.getState().deleteItem(item.id);
+        try {
+          const { undoLastDelete } = useNotesStore.getState();
+          const hasFilePath = Boolean(item.filePath);
+          await useNotesStore.getState().deleteItem(item.id);
 
-        addNotification(
-          `${item.type === "note" ? "Note" : "Folder"} deleted`,
-          "success",
-          hasFilePath ? 5000 : 3000,
-          hasFilePath
-            ? {
-                label: "Undo",
-                callback: async () => {
-                  const restored = await undoLastDelete();
-                  addNotification(
-                    restored ? "Delete undone" : "Failed to undo delete",
-                    restored ? "success" : "error",
-                  );
-                },
-              }
-            : null,
-        );
-      } catch (error) {
-        console.error("Delete failed:", error);
-        addNotification("Delete failed: " + error.message, "error");
-      } finally {
-        setPendingDeleteItem(null);
-      }
-    }, [addNotification]);
+          addNotification(
+            `${item.type === "note" ? "Note" : "Folder"} deleted`,
+            "success",
+            hasFilePath ? 5000 : 3000,
+            hasFilePath
+              ? {
+                  label: "Undo",
+                  callback: async () => {
+                    const restored = await undoLastDelete();
+                    addNotification(
+                      restored ? "Delete undone" : "Failed to undo delete",
+                      restored ? "success" : "error"
+                    );
+                  },
+                }
+              : null
+          );
+        } catch (error) {
+          console.error("Delete failed:", error);
+          addNotification("Delete failed: " + error.message, "error");
+        } finally {
+          setPendingDeleteItem(null);
+        }
+      },
+      [addNotification]
+    );
 
     const handleDropToRoot = async (event) => {
       if (!draggedItem) return;
@@ -636,17 +642,20 @@ const Sidebar = forwardRef(
       return () => document.removeEventListener("mousemove", handleMouseMove);
     }, [draggedItem]);
 
-    const handleTreeMouseMove = useCallback((event) => {
-      if (!draggedItem) return;
+    const handleTreeMouseMove = useCallback(
+      (event) => {
+        if (!draggedItem) return;
 
-      const rowTarget =
-        event.target instanceof Element
-          ? event.target.closest("[data-treeitem-row='true']")
-          : null;
+        const rowTarget =
+          event.target instanceof Element
+            ? event.target.closest("[data-treeitem-row='true']")
+            : null;
 
-      const nextValue = !rowTarget;
-      setIsRootDropActive((current) => (current === nextValue ? current : nextValue));
-    }, [draggedItem]);
+        const nextValue = !rowTarget;
+        setIsRootDropActive((current) => (current === nextValue ? current : nextValue));
+      },
+      [draggedItem]
+    );
 
     const handleTreeMouseLeave = useCallback(() => {
       setIsRootDropActive(false);
@@ -682,30 +691,33 @@ const Sidebar = forwardRef(
       setTreeScrollTop(viewport.scrollTop);
     }, [flattenedTreeRows.length, useVirtualizedTree]);
 
-    const focusTreeIndex = useCallback((index) => {
-      const viewport = sidebarRef.current;
-      if (!viewport || flattenedTreeRows.length === 0) return;
+    const focusTreeIndex = useCallback(
+      (index) => {
+        const viewport = sidebarRef.current;
+        if (!viewport || flattenedTreeRows.length === 0) return;
 
-      const clampedIndex = Math.max(0, Math.min(flattenedTreeRows.length - 1, index));
-      const targetTop = clampedIndex * VIRTUAL_TREE_ROW_HEIGHT;
-      const targetBottom = targetTop + VIRTUAL_TREE_ROW_HEIGHT;
-      const visibleTop = viewport.scrollTop;
-      const visibleBottom = visibleTop + viewport.clientHeight;
+        const clampedIndex = Math.max(0, Math.min(flattenedTreeRows.length - 1, index));
+        const targetTop = clampedIndex * VIRTUAL_TREE_ROW_HEIGHT;
+        const targetBottom = targetTop + VIRTUAL_TREE_ROW_HEIGHT;
+        const visibleTop = viewport.scrollTop;
+        const visibleBottom = visibleTop + viewport.clientHeight;
 
-      if (targetTop < visibleTop) {
-        viewport.scrollTop = targetTop;
-      } else if (targetBottom > visibleBottom) {
-        viewport.scrollTop = targetBottom - viewport.clientHeight;
-      }
+        if (targetTop < visibleTop) {
+          viewport.scrollTop = targetTop;
+        } else if (targetBottom > visibleBottom) {
+          viewport.scrollTop = targetBottom - viewport.clientHeight;
+        }
 
-      setTreeScrollTop(viewport.scrollTop);
+        setTreeScrollTop(viewport.scrollTop);
 
-      requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          viewport.querySelector(`[data-tree-index="${clampedIndex}"]`)?.focus();
+          requestAnimationFrame(() => {
+            viewport.querySelector(`[data-tree-index="${clampedIndex}"]`)?.focus();
+          });
         });
-      });
-    }, [flattenedTreeRows.length]);
+      },
+      [flattenedTreeRows.length]
+    );
 
     useEffect(() => {
       if (typeof window === "undefined" || !window.__TAURI__) {
@@ -732,10 +744,7 @@ const Sidebar = forwardRef(
               unlisten();
             }
           } catch (error) {
-            console.error(
-              `Failed to register menu listener for ${eventName}:`,
-              error,
-            );
+            console.error(`Failed to register menu listener for ${eventName}:`, error);
           }
         };
 
@@ -812,24 +821,19 @@ const Sidebar = forwardRef(
           });
 
           // Listen for recent note clicks from dock menu
-          unlistenRecentNote = await listen(
-            "open-recent-note",
-            async (event) => {
-              if (!isMounted) return;
+          unlistenRecentNote = await listen("open-recent-note", async (event) => {
+            if (!isMounted) return;
 
-              const filePath = event.payload;
+            const filePath = event.payload;
 
-              // Find the note by file path
-              const { items, selectNote } = useNotesStore.getState();
-              const note = items.find(
-                (item) => item.filePath === filePath && item.type === "note",
-              );
+            // Find the note by file path
+            const { items, selectNote } = useNotesStore.getState();
+            const note = items.find((item) => item.filePath === filePath && item.type === "note");
 
-              if (note) {
-                selectNote(note.id);
-              }
-            },
-          );
+            if (note) {
+              selectNote(note.id);
+            }
+          });
         } catch (error) {
           console.error("Failed to setup file watcher:", error);
         }
@@ -924,7 +928,7 @@ const Sidebar = forwardRef(
                 const folderAtPos = findFolderAtPosition(
                   logicalPos.x,
                   logicalPos.y,
-                  sidebarRef.current,
+                  sidebarRef.current
                 );
                 if (folderAtPos) {
                   const targetFolder = {
@@ -973,7 +977,7 @@ const Sidebar = forwardRef(
                 const folderAtPos = findFolderAtPosition(
                   logicalPos.x,
                   logicalPos.y,
-                  sidebarRef.current,
+                  sidebarRef.current
                 );
                 if (folderAtPos) {
                   targetFolder = {
@@ -992,29 +996,20 @@ const Sidebar = forwardRef(
                     await refreshRootFromDisk();
                     addNotification(
                       `Copied ${paths.length} item(s) to ${targetFolder.name}`,
-                      "success",
+                      "success"
                     );
                   }
                 } else if (rootFolderPath) {
                   // If no specific folder target, copy to root
                   await copyEntriesToFolder(paths, rootFolderPath);
                   await refreshRootFromDisk();
-                  addNotification(
-                    `Copied ${paths.length} item(s) to workspace root`,
-                    "success",
-                  );
+                  addNotification(`Copied ${paths.length} item(s) to workspace root`, "success");
                 } else {
-                  addNotification(
-                    "Open a workspace folder first to drop files into it",
-                    "info",
-                  );
+                  addNotification("Open a workspace folder first to drop files into it", "info");
                 }
               } catch (error) {
                 console.error("Failed to copy files:", error);
-                addNotification(
-                  "Failed to copy files: " + error.message,
-                  "error",
-                );
+                addNotification("Failed to copy files: " + error.message, "error");
               } finally {
                 dropTargetRef.current = null;
                 setDropTargetFolder(null);
@@ -1075,12 +1070,7 @@ const Sidebar = forwardRef(
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-overlay-light rounded text-text-muted hover:text-text-primary transition-colors"
                 title="Clear search"
               >
-                <svg
-                  className="w-3 h-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -1093,94 +1083,42 @@ const Sidebar = forwardRef(
           </div>
           {searchQuery && (
             <div className="mt-2 text-xs text-text-muted px-1">
-              Found {filteredItems.filter((i) => i.type === "note").length}{" "}
-              notes
+              Found {filteredItems.filter((i) => i.type === "note").length} notes
             </div>
           )}
           {/* Sort Options */}
           {!searchQuery && rootFolderPath && (
             <>
-            {/* Workspace switcher header */}
-            <div className="mt-1 mb-1 relative">
-              <button
-                onClick={() => setShowWorkspaceSwitcher((v) => !v)}
-                className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors group"
-                title="Switch workspace"
-              >
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                  </svg>
-                  <span
-                    className="font-medium truncate text-text-secondary"
-                    title={rootFolderPath}
-                  >
-                    {rootFolderPath.split('/').filter(Boolean).pop() || rootFolderPath}
-                  </span>
-                </div>
-                <svg
-                  className={`w-3 h-3 shrink-0 transition-transform ${showWorkspaceSwitcher ? "rotate-180" : ""}`}
-                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              {/* Workspace switcher header */}
+              <div className="mt-4 mb-1 relative">
+                <button
+                  onClick={() => setShowWorkspaceSwitcher((v) => !v)}
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors group"
+                  title="Switch workspace"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showWorkspaceSwitcher && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowWorkspaceSwitcher(false)} />
-                  <div className="absolute left-0 right-0 z-20 mt-1 bg-bg-sidebar border border-glass-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                    {recentWorkspaces.length > 1 && (
-                      <>
-                        <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">Recent</p>
-                        {recentWorkspaces
-                          .filter((ws) => ws.path !== rootFolderPath)
-                          .map((ws) => (
-                            <button
-                              key={ws.path}
-                              onClick={async () => {
-                                setShowWorkspaceSwitcher(false);
-                                try {
-                                  const { invoke } = await import('@tauri-apps/api/core');
-                                  const files = await invoke('scan_folder_for_markdown', { folderPath: ws.path });
-                                  await loadFolderFromSystem({ folderPath: ws.path, folderName: ws.name, files });
-                                } catch (err) {
-                                  addNotification('Could not open workspace: ' + err.message, 'error');
-                                }
-                              }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
-                            >
-                              <svg className="w-3.5 h-3.5 shrink-0 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                              </svg>
-                              <span className="truncate" title={ws.path || ws.name}>
-                                {ws.name}
-                              </span>
-                            </button>
-                          ))}
-                        <div className="mx-3 my-1 border-t border-glass-border" />
-                      </>
-                    )}
-                    <button
-                      onClick={() => { setShowWorkspaceSwitcher(false); handleOpenFolder(); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-accent hover:bg-accent/10 transition-colors"
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <svg
+                      className="w-3 h-3 shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
                     >
-                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Open another folder…
-                    </button>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                      />
+                    </svg>
+                    <span
+                      className="font-medium truncate text-text-secondary"
+                      title={rootFolderPath}
+                    >
+                      {rootFolderPath.split("/").filter(Boolean).pop() || rootFolderPath}
+                    </span>
                   </div>
-                </>
-              )}
-            </div>
-            <div className="mt-2 relative">
-              <button
-                onClick={() => setShowSortMenu(!showSortMenu)}
-                className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors"
-              >
-                <div className="flex items-center gap-2">
                   <svg
-                    className="w-3 h-3"
+                    className={`w-3 h-3 shrink-0 transition-transform ${showWorkspaceSwitcher ? "rotate-180" : ""}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -1189,81 +1127,178 @@ const Sidebar = forwardRef(
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"
+                      d="M19 9l-7 7-7-7"
                     />
                   </svg>
-                  <span>
-                    Sort:{" "}
-                    {sortBy === "name-asc"
-                      ? "Name (A-Z)"
-                      : sortBy === "name-desc"
-                        ? "Name (Z-A)"
-                        : sortBy === "date-desc"
-                          ? "Date (Newest)"
-                          : "Date (Oldest)"}
-                  </span>
-                </div>
-                <svg
-                  className={`w-3 h-3 transition-transform ${showSortMenu ? "rotate-180" : ""}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                </button>
+                {showWorkspaceSwitcher && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowWorkspaceSwitcher(false)}
+                    />
+                    <div className="absolute left-0 right-0 z-20 mt-1 bg-bg-sidebar border border-glass-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                      {recentWorkspaces.length > 1 && (
+                        <>
+                          <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                            Recent
+                          </p>
+                          {recentWorkspaces
+                            .filter((ws) => ws.path !== rootFolderPath)
+                            .map((ws) => (
+                              <button
+                                key={ws.path}
+                                onClick={async () => {
+                                  setShowWorkspaceSwitcher(false);
+                                  try {
+                                    const { invoke } = await import("@tauri-apps/api/core");
+                                    const files = await invoke("scan_folder_for_markdown", {
+                                      folderPath: ws.path,
+                                    });
+                                    await loadFolderFromSystem({
+                                      folderPath: ws.path,
+                                      folderName: ws.name,
+                                      files,
+                                    });
+                                  } catch (err) {
+                                    addNotification(
+                                      "Could not open workspace: " + err.message,
+                                      "error"
+                                    );
+                                  }
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+                              >
+                                <svg
+                                  className="w-3.5 h-3.5 shrink-0 text-text-muted"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                                  />
+                                </svg>
+                                <span className="truncate" title={ws.path || ws.name}>
+                                  {ws.name}
+                                </span>
+                              </button>
+                            ))}
+                          <div className="mx-3 my-1 border-t border-glass-border" />
+                        </>
+                      )}
+                      <button
+                        onClick={() => {
+                          setShowWorkspaceSwitcher(false);
+                          handleOpenFolder();
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-accent hover:bg-accent/10 transition-colors"
+                      >
+                        <svg
+                          className="w-3.5 h-3.5 shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 4v16m8-8H4"
+                          />
+                        </svg>
+                        Open another folder…
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="mt-2 relative">
+                <button
+                  onClick={() => setShowSortMenu(!showSortMenu)}
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              {showSortMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowSortMenu(false)}
-                  />
-                  <div className="absolute left-0 right-0 top-full mt-1 glass-panel rounded-lg shadow-xl py-1 z-20 animate-in fade-in zoom-in-95 duration-100">
-                    <button
-                      onClick={() => {
-                        setSortBy("name-asc");
-                        setShowSortMenu(false);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "name-asc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
-                    >
-                      Name (A-Z)
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSortBy("name-desc");
-                        setShowSortMenu(false);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "name-desc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
-                    >
-                      Name (Z-A)
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSortBy("date-desc");
-                        setShowSortMenu(false);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "date-desc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
-                    >
-                      Date (Newest First)
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSortBy("date-asc");
-                        setShowSortMenu(false);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "date-asc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
-                    >
-                      Date (Oldest First)
-                    </button>
+                  <div className="flex items-center gap-2">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"
+                      />
+                    </svg>
+                    <span>
+                      Sort:{" "}
+                      {sortBy === "name-asc"
+                        ? "Name (A-Z)"
+                        : sortBy === "name-desc"
+                          ? "Name (Z-A)"
+                          : sortBy === "date-desc"
+                            ? "Date (Newest)"
+                            : "Date (Oldest)"}
+                    </span>
                   </div>
-                </>
-              )}
-            </div>
+                  <svg
+                    className={`w-3 h-3 transition-transform ${showSortMenu ? "rotate-180" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                {showSortMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />
+                    <div className="absolute left-0 right-0 top-full mt-1 glass-panel rounded-lg shadow-xl py-1 z-20 animate-in fade-in zoom-in-95 duration-100">
+                      <button
+                        onClick={() => {
+                          setSortBy("name-asc");
+                          setShowSortMenu(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "name-asc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
+                      >
+                        Name (A-Z)
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSortBy("name-desc");
+                          setShowSortMenu(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "name-desc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
+                      >
+                        Name (Z-A)
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSortBy("date-desc");
+                          setShowSortMenu(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "date-desc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
+                      >
+                        Date (Newest First)
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSortBy("date-asc");
+                          setShowSortMenu(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "date-asc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
+                      >
+                        Date (Oldest First)
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </>
           )}
         </div>
@@ -1424,19 +1459,25 @@ const Sidebar = forwardRef(
                   {/* Sort mode tabs */}
                   <div className="flex items-center gap-1 mb-2">
                     {[
-                      { id: 'frequency', label: '#' },
-                      { id: 'alpha', label: 'A–Z' },
-                      { id: 'recent', label: 'Recent' },
+                      { id: "frequency", label: "#" },
+                      { id: "alpha", label: "A–Z" },
+                      { id: "recent", label: "Recent" },
                     ].map(({ id, label }) => (
                       <button
                         key={id}
                         onClick={() => setTagSortMode(id)}
                         className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
                           tagSortMode === id
-                            ? 'bg-accent/15 text-accent border border-accent/20'
-                            : 'text-text-muted hover:text-text-secondary hover:bg-overlay-subtle border border-transparent'
+                            ? "bg-accent/15 text-accent border border-accent/20"
+                            : "text-text-muted hover:text-text-secondary hover:bg-overlay-subtle border border-transparent"
                         }`}
-                        title={id === 'frequency' ? 'Sort by frequency' : id === 'alpha' ? 'Sort A–Z' : 'Sort by recent use'}
+                        title={
+                          id === "frequency"
+                            ? "Sort by frequency"
+                            : id === "alpha"
+                              ? "Sort A–Z"
+                              : "Sort by recent use"
+                        }
                       >
                         {label}
                       </button>
@@ -1447,8 +1488,18 @@ const Sidebar = forwardRef(
                         className="ml-auto text-[10px] text-accent hover:text-accent-hover flex items-center gap-0.5"
                         title="Clear tag filters"
                       >
-                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        <svg
+                          className="w-2.5 h-2.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
                         </svg>
                         Clear
                       </button>
@@ -1524,11 +1575,7 @@ const Sidebar = forwardRef(
               {showBacklinks && (
                 <div className="space-y-0.5 mt-0.5">
                   {backlinks.map((backlink) => (
-                    <BacklinkItem
-                      key={backlink.id}
-                      backlink={backlink}
-                      onNavigate={selectNote}
-                    />
+                    <BacklinkItem key={backlink.id} backlink={backlink} onNavigate={selectNote} />
                   ))}
                 </div>
               )}
@@ -1543,12 +1590,7 @@ const Sidebar = forwardRef(
                 className="flex items-center justify-center gap-2 px-2 py-2 bg-overlay-subtle hover:bg-overlay-light rounded-lg text-xs font-medium text-text-secondary hover:text-text-primary transition-colors border border-overlay-subtle"
                 title="Open File (⌘O)"
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -1563,12 +1605,7 @@ const Sidebar = forwardRef(
                 className="flex items-center justify-center gap-2 px-2 py-2 bg-overlay-subtle hover:bg-overlay-light rounded-lg text-xs font-medium text-text-secondary hover:text-text-primary transition-colors border border-overlay-subtle"
                 title="Graph View"
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -1591,7 +1628,11 @@ const Sidebar = forwardRef(
             ${isRootDropActive ? "bg-overlay-subtle/40 ring-1 ring-accent/25 ring-inset" : ""}
             ${isExternalDragging && !dropTargetFolder ? "ring-2 ring-accent/40 ring-inset rounded-lg bg-accent/5" : ""}
           `}
-          onScroll={useVirtualizedTree ? (event) => setTreeScrollTop(event.currentTarget.scrollTop) : undefined}
+          onScroll={
+            useVirtualizedTree
+              ? (event) => setTreeScrollTop(event.currentTarget.scrollTop)
+              : undefined
+          }
           onMouseMove={draggedItem ? handleTreeMouseMove : undefined}
           onMouseLeave={draggedItem ? handleTreeMouseLeave : undefined}
           onMouseUp={draggedItem ? handleDropToRoot : undefined}
@@ -1629,7 +1670,9 @@ const Sidebar = forwardRef(
                   <div className="w-full h-1.5 bg-overlay-subtle rounded-full overflow-hidden">
                     <div
                       className="h-full bg-accent rounded-full transition-all duration-200"
-                      style={{ width: `${Math.round((loadingProgress.current / loadingProgress.total) * 100)}%` }}
+                      style={{
+                        width: `${Math.round((loadingProgress.current / loadingProgress.total) * 100)}%`,
+                      }}
                     />
                   </div>
                   <p className="text-xs text-center text-text-muted">
@@ -1663,12 +1706,9 @@ const Sidebar = forwardRef(
 
               <div className="text-center space-y-4">
                 <div>
-                  <p className="font-semibold text-text-primary text-sm">
-                    Workspace is empty
-                  </p>
+                  <p className="font-semibold text-text-primary text-sm">Workspace is empty</p>
                   <p className="text-[11px] mt-1 text-text-muted leading-relaxed">
-                    Open a folder to see your markdown notes or create a new one
-                    to start writing.
+                    Open a folder to see your markdown notes or create a new one to start writing.
                   </p>
                 </div>
 
@@ -1727,7 +1767,7 @@ const Sidebar = forwardRef(
                     className="absolute left-0 right-0"
                     style={{
                       top: treeIndex * VIRTUAL_TREE_ROW_HEIGHT,
-                      minHeight: VIRTUAL_TREE_ROW_HEIGHT
+                      minHeight: VIRTUAL_TREE_ROW_HEIGHT,
                     }}
                   >
                     <TreeItem
@@ -1737,7 +1777,7 @@ const Sidebar = forwardRef(
                       virtualTree={{
                         index: treeIndex,
                         rows: flattenedTreeRows,
-                        focusIndex: focusTreeIndex
+                        focusIndex: focusTreeIndex,
                       }}
                       renderChildren={false}
                       onContextMenu={handleContextMenu}
@@ -1810,9 +1850,7 @@ const Sidebar = forwardRef(
             </div>
             <div className="flex flex-col items-start gap-0.5">
               <span className="text-sm font-medium">Settings</span>
-              <span className="text-[10px] text-text-muted">
-                Preferences & automations
-              </span>
+              <span className="text-[10px] text-text-muted">Preferences & automations</span>
             </div>
           </button>
         </div>
@@ -1827,12 +1865,26 @@ const Sidebar = forwardRef(
             }}
           >
             {draggedItem.type === "folder" ? (
-              <svg className="w-3.5 h-3.5 text-sky-400/80 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <svg
+                className="w-3.5 h-3.5 text-sky-400/80 shrink-0"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
                 <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
               </svg>
             ) : (
-              <svg className="w-3.5 h-3.5 text-text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <svg
+                className="w-3.5 h-3.5 text-text-muted shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
               </svg>
             )}
             <span className="truncate">{draggedItem.name}</span>
@@ -1864,7 +1916,7 @@ const Sidebar = forwardRef(
         />
       </div>
     );
-  },
+  }
 );
 
 Sidebar.displayName = "Sidebar";

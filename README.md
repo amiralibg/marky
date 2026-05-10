@@ -1,7 +1,25 @@
-# Marky
+<p align="center">
+  <img src="src-tauri/icons/128x128.png" width="96" height="96" alt="Marky app icon" />
+</p>
+
+<h1 align="center">Marky</h1>
+
+<p align="center">
+  Offline-first Markdown notes with local folders, wiki links, graph navigation, and a polished desktop editor.
+</p>
+
+<p align="center">
+  <a href="https://github.com/amiralibg/marky/releases/latest"><strong>Download the latest release</strong></a>
+</p>
 
 Marky is an offline-first Markdown notes app built with Tauri, React, and Rust.
 It is designed for local folder-based note-taking with wiki links, graph navigation, a modern editor, and strong customization.
+
+## Download
+
+Download the latest desktop build from the [Marky releases page](https://github.com/amiralibg/marky/releases/latest). Installers are attached to each GitHub release after the app is built.
+
+Current first-version target: `0.0.1`.
 
 ## Highlights
 
@@ -20,6 +38,7 @@ It is designed for local folder-based note-taking with wiki links, graph navigat
 ## Features
 
 ### Notes and workspace
+
 - Open a local folder as your workspace
 - Nested folders and notes tree
 - Multi-tab editing
@@ -29,6 +48,7 @@ It is designed for local folder-based note-taking with wiki links, graph navigat
 - Undo last delete
 
 ### Editor and preview
+
 - CodeMirror 6 markdown editor
 - Editor-only / split / preview-only layouts
 - Unsaved changes indicator + manual save shortcut
@@ -39,6 +59,7 @@ It is designed for local folder-based note-taking with wiki links, graph navigat
 - Automatic BiDi/RTL rendering for mixed-language notes
 
 ### Discovery and navigation
+
 - Global search modal (Fuse.js fuzzy search)
 - Command palette (`Cmd/Ctrl+K`)
 - Backlinks panel with context previews
@@ -46,6 +67,7 @@ It is designed for local folder-based note-taking with wiki links, graph navigat
 - Sidebar search, sorting, and tag filtering
 
 ### Templates, scheduling, export
+
 - Built-in templates and custom templates
 - Scheduled note generation (daily/weekly/monthly)
 - Scheduled notes management UI in Settings
@@ -101,6 +123,33 @@ pnpm tauri:build
 ```
 
 Typical outputs are generated under `src-tauri/target/release/bundle/` (platform-specific subfolders such as `dmg`, `msi`, `deb`, etc.).
+
+Common release artifacts:
+
+- macOS: `src-tauri/target/release/bundle/dmg/*.dmg`
+- Windows: `src-tauri/target/release/bundle/msi/*.msi`
+- Linux: `src-tauri/target/release/bundle/deb/*.deb` and/or `src-tauri/target/release/bundle/appimage/*.AppImage`
+
+## Release
+
+Before publishing a release, make sure the app version is the same in:
+
+- `package.json`
+- `src-tauri/Cargo.toml`
+- `src-tauri/tauri.conf.json`
+
+For the first public version, all three should be `0.0.1`.
+
+Build and publish manually:
+
+```bash
+pnpm install
+pnpm tauri:build
+git tag v0.0.1
+git push origin main --tags
+```
+
+Then create a GitHub release for `v0.0.1`, add a short changelog, and upload the installer files from `src-tauri/target/release/bundle/`.
 
 ## Keyboard Shortcuts (defaults)
 

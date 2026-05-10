@@ -1,0 +1,6 @@
+node_modules
+.pnpm-store
+dist
+src-tauri/target
+.DS_Store
+pnpm-lock.yaml

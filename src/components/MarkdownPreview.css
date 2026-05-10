@@ -405,40 +405,75 @@
 .markdown-preview ul,
 .markdown-preview ol {
   margin: 1.25em 0;
-  padding-inline-start: 1.5em;
+  padding-inline-start: 1.75em;
   color: var(--color-text-secondary);
+}
+
+.markdown-preview ul {
+  list-style: disc outside;
+}
+
+.markdown-preview ol {
+  list-style: decimal outside;
+}
+
+.markdown-preview ul ul {
+  list-style-type: circle;
+  margin: 0.35em 0;
+}
+
+.markdown-preview ul ul ul {
+  list-style-type: square;
+}
+
+.markdown-preview ol ol {
+  list-style-type: lower-alpha;
+  margin: 0.35em 0;
+}
+
+.markdown-preview ol ol ol {
+  list-style-type: lower-roman;
 }
 
 .markdown-preview li {
   margin: 0.5em 0;
-  padding-inline-start: 0.5em;
+  padding-inline-start: 0.35em;
+  display: list-item;
+}
+
+.markdown-preview li > p {
+  margin-bottom: 0.5em;
+}
+
+.markdown-preview li > p:last-child {
+  margin-bottom: 0;
 }
 
 .markdown-preview ul li::marker {
-  color: var(--color-text-secondary);
+  color: var(--color-accent);
   font-size: 1.1em;
 }
 
 .markdown-preview ol li::marker {
-  color: var(--color-text-secondary);
+  color: var(--color-accent);
   font-weight: 600;
 }
 
 /* Ensure bullets are visible in both themes */
 [data-theme="dark"] .markdown-preview ul li::marker {
-  color: #9ca3af;
+  color: var(--color-accent);
 }
 
 [data-theme="dark"] .markdown-preview ol li::marker {
-  color: #9ca3af;
+  color: var(--color-accent);
 }
 
 [data-theme="light"] .markdown-preview ul li::marker {
-  color: #6b7280;
+  color: var(--color-accent);
 }
 
 [data-theme="light"] .markdown-preview ol li::marker {
-  color: #6b7280;
+  color: var(--color-accent);
 }
 
 /* Horizontal Rule */
@@ -510,6 +545,12 @@
 .markdown-preview input[type="checkbox"] {
   margin-inline-end: 0.75em;
   accent-color: var(--color-accent);
+}
+
+.markdown-preview li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-inline-start: -1.75em;
+  padding-inline-start: 0;
 }
 
 /* Strikethrough */

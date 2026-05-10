@@ -31,13 +31,8 @@ function App() {
     rootFolderPath,
   } = useNotesStore();
   const { keymaps, initializeSettings, isRecordingKeymap } = useSettingsStore();
-  const {
-    focusMode,
-    toggleFocusMode,
-    showWorkspaceModal,
-    setShowWorkspaceModal,
-    addNotification,
-  } = useUIStore();
+  const { focusMode, toggleFocusMode, showWorkspaceModal, setShowWorkspaceModal, addNotification } =
+    useUIStore();
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
   // Initialize settings (apply accent color) on mount
@@ -72,7 +67,7 @@ function App() {
         }
       }
     },
-    [isResizingSidebar, setSidebarWidth],
+    [isResizingSidebar, setSidebarWidth]
   );
 
   useEffect(() => {
@@ -89,9 +84,7 @@ function App() {
     };
   }, [isResizingSidebar, resizeSidebar, stopResizingSidebar]);
 
-  const processDueSchedules = useNotesStore(
-    (state) => state.processDueSchedules,
-  );
+  const processDueSchedules = useNotesStore((state) => state.processDueSchedules);
   const [showKeymapsModal, setShowKeymapsModal] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [closeConfirmation, setCloseConfirmation] = useState(null); // { noteId, noteName }
@@ -115,7 +108,7 @@ function App() {
         await createNote(
           templateParentId,
           template.content,
-          template.suggestedTitle || template.name,
+          template.suggestedTitle || template.name
         );
       } catch (error) {
         if (error?.message && /exists/i.test(error.message)) {
@@ -129,7 +122,7 @@ function App() {
         }
       }
     },
-    [createNote, templateParentId, addNotification, setShowWorkspaceModal],
+    [createNote, templateParentId, addNotification, setShowWorkspaceModal]
   );
 
   const handleScheduleTemplate = useCallback((template) => {
@@ -167,7 +160,7 @@ function App() {
         closeNote(noteId);
       }
     },
-    [closeNote, items],
+    [closeNote, items]
   );
 
   const handleSearchResultSelect = useCallback((query) => {
@@ -232,8 +225,7 @@ function App() {
           toggleFocusMode();
           break;
         case "backupWorkspace": {
-          const { rootFolderPath, items: storeItems } =
-            useNotesStore.getState();
+          const { rootFolderPath, items: storeItems } = useNotesStore.getState();
           const settings = useSettingsStore.getState();
           const { addNotification } = useUIStore.getState();
           if (!rootFolderPath) {
@@ -258,7 +250,7 @@ function App() {
           console.warn(`Unknown command action: ${action}`);
       }
     },
-    [selectNote, setShowSidebar, toggleFocusMode],
+    [selectNote, setShowSidebar, toggleFocusMode]
   );
 
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
@@ -269,8 +261,7 @@ function App() {
     const handleKeyDown = (e) => {
       const key = e.key?.toLowerCase();
       const isNativeEditShortcut =
-        (e.metaKey || e.ctrlKey) &&
-        ["c", "v", "x", "a", "z", "y"].includes(key);
+        (e.metaKey || e.ctrlKey) && ["c", "v", "x", "a", "z", "y"].includes(key);
 
       if (isNativeEditShortcut) {
         return;
@@ -390,14 +381,7 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    keymaps,
-    isRecordingKeymap,
-    currentNoteId,
-    handleCloseTab,
-    focusMode,
-    toggleFocusMode,
-  ]);
+  }, [keymaps, isRecordingKeymap, currentNoteId, handleCloseTab, focusMode, toggleFocusMode]);
 
   // Native macOS menu-bar event listeners
   useEffect(() => {
@@ -422,25 +406,15 @@ function App() {
     const register = async () => {
       await attach("menu://search", () => setShowSearchModal(true));
       await attach("menu://command-palette", () => setShowCommandPalette(true));
-      await attach("menu://toggle-sidebar", () =>
-        setShowSidebar((prev) => !prev),
-      );
-      await attach("menu://view-editor", () =>
-        editorRef.current?.setViewMode?.("editor"),
-      );
-      await attach("menu://view-split", () =>
-        editorRef.current?.setViewMode?.("split"),
-      );
-      await attach("menu://view-preview", () =>
-        editorRef.current?.setViewMode?.("preview"),
-      );
+      await attach("menu://toggle-sidebar", () => setShowSidebar((prev) => !prev));
+      await attach("menu://view-editor", () => editorRef.current?.setViewMode?.("editor"));
+      await attach("menu://view-split", () => editorRef.current?.setViewMode?.("split"));
+      await attach("menu://view-preview", () => editorRef.current?.setViewMode?.("preview"));
       await attach("menu://focus-mode", () => toggleFocusMode());
       await attach("menu://open-graph", () => setShowGraphModal(true));
       await attach("menu://open-settings", () => selectNote(SETTINGS_TAB_ID));
       await attach("menu://show-shortcuts", () => setShowKeymapsModal(true));
-      await attach("menu://export-note", () =>
-        editorRef.current?.handleExport?.(),
-      );
+      await attach("menu://export-note", () => editorRef.current?.handleExport?.());
       await attach("menu://backup-workspace", () => {
         const { rootFolderPath, items: storeItems } = useNotesStore.getState();
         const settings = useSettingsStore.getState();
@@ -517,7 +491,7 @@ function App() {
 
   return (
     <div
-      className={`h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden ${isResizingSidebar ? "select-none cursor-col-resize" : ""}`}
+      className={`app-shell h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden ${isResizingSidebar ? "select-none cursor-col-resize" : ""}`}
     >
       {/* Custom Title Bar */}
       {!focusMode && (
@@ -585,14 +559,9 @@ function App() {
           />
         </div>
       </div>
-      {showOnboarding && (
-        <OnboardingModal onSkip={() => setOnboardingDismissed(true)} />
-      )}
+      {showOnboarding && <OnboardingModal onSkip={() => setOnboardingDismissed(true)} />}
       {showWorkspaceModal && <WorkspaceRequiredModal />}
-      <KeymapsModal
-        isOpen={showKeymapsModal}
-        onClose={() => setShowKeymapsModal(false)}
-      />
+      <KeymapsModal isOpen={showKeymapsModal} onClose={() => setShowKeymapsModal(false)} />
       <TemplateModal
         isOpen={showTemplateModal}
         onClose={() => setShowTemplateModal(false)}
@@ -608,10 +577,7 @@ function App() {
           setScheduleTemplate(null);
         }}
       />
-      <GraphModal
-        isOpen={showGraphModal}
-        onClose={() => setShowGraphModal(false)}
-      />
+      <GraphModal isOpen={showGraphModal} onClose={() => setShowGraphModal(false)} />
       <SearchModal
         isOpen={showSearchModal}
         onClose={() => setShowSearchModal(false)}

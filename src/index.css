@@ -1,144 +1,144 @@
 @import "tailwindcss";
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-Thin.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-Thin.ttf") format("truetype");
   font-weight: 100;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-ThinItalic.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-ThinItalic.ttf") format("truetype");
   font-weight: 100;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-ExtraLight.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-ExtraLight.ttf") format("truetype");
   font-weight: 200;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-ExtraLightItalic.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-ExtraLightItalic.ttf") format("truetype");
   font-weight: 200;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-Light.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-Light.ttf") format("truetype");
   font-weight: 300;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-LightItalic.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-LightItalic.ttf") format("truetype");
   font-weight: 300;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-Regular.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-Italic.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-Italic.ttf") format("truetype");
   font-weight: 400;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-Medium.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-Medium.ttf") format("truetype");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-MediumItalic.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-MediumItalic.ttf") format("truetype");
   font-weight: 500;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-SemiBold.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-SemiBold.ttf") format("truetype");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-SemiBoldItalic.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-SemiBoldItalic.ttf") format("truetype");
   font-weight: 600;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-Bold.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-Bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-BoldItalic.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-BoldItalic.ttf") format("truetype");
   font-weight: 700;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-ExtraBold.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-ExtraBold.ttf") format("truetype");
   font-weight: 800;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-ExtraBoldItalic.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-ExtraBoldItalic.ttf") format("truetype");
   font-weight: 800;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-Black.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-Black.ttf") format("truetype");
   font-weight: 900;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Raleway';
-  src: url('./assets/fonts/Raleway-BlackItalic.ttf') format('truetype');
+  font-family: "Raleway";
+  src: url("./assets/fonts/Raleway-BlackItalic.ttf") format("truetype");
   font-weight: 900;
   font-style: italic;
   font-display: swap;
@@ -227,8 +227,9 @@
   --color-overlay-strong: var(--color-overlay-strong);
 
   /* Fonts */
-  --font-family-sans: 'Raleway', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
-  --font-family-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  --font-family-sans:
+    "Raleway", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-family-mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
 
   /* Typography Scale */
   --text-xs: 0.75rem;
@@ -322,15 +323,68 @@
     line-height: 1.6;
   }
 
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        circle at 12% 18%,
+        color-mix(in srgb, var(--color-accent) 18%, transparent) 0,
+        transparent 28rem
+      ),
+      radial-gradient(
+        circle at 88% 8%,
+        color-mix(in srgb, var(--color-border-light) 42%, transparent) 0,
+        transparent 24rem
+      ),
+      linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--color-bg-sidebar) 72%, transparent),
+        transparent 42%
+      );
+    opacity: 0.55;
+  }
+
   input,
   textarea,
   button {
     font-family: inherit;
     outline: none;
   }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
 }
 
 @layer utilities {
+  .app-shell {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .app-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--color-glass-highlight) 85%, transparent),
+        transparent 26%
+      ),
+      radial-gradient(
+        circle at 50% -10%,
+        color-mix(in srgb, var(--color-accent) 10%, transparent),
+        transparent 36rem
+      );
+  }
+
   .glass {
     background: var(--color-glass-highlight);
     backdrop-filter: blur(12px);
@@ -341,7 +395,10 @@
     background: var(--color-glass-panel-bg, rgba(18, 18, 21, 0.7));
     backdrop-filter: blur(24px);
     border: 1px solid var(--color-glass-border);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    box-shadow:
+      0 24px 70px -36px color-mix(in srgb, var(--color-accent) 35%, transparent),
+      0 12px 32px -20px rgba(0, 0, 0, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
   /* Custom Scrollbar */
