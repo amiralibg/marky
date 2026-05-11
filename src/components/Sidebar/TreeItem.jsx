@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import useNotesStore from "../../store/notesStore";
+import useSettingsStore from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
 
 const TreeItem = ({
@@ -32,6 +33,8 @@ const TreeItem = ({
     isPinned,
     getBacklinks,
   } = useNotesStore();
+  const sidebarDensity = useSettingsStore((state) => state.sidebarDensity);
+  const showSidebarMetadata = useSettingsStore((state) => state.showSidebarMetadata);
   const { addNotification } = useUIStore();
 
   const [isRenaming, setIsRenaming] = useState(false);
@@ -47,9 +50,7 @@ const TreeItem = ({
   // Use filtered children if search is active
   const allChildren = isFolder ? getChildren(item.id) : [];
   const children = filteredItems
-    ? allChildren.filter((child) =>
-        filteredItems.some((fi) => fi.id === child.id),
-      )
+    ? allChildren.filter((child) => filteredItems.some((fi) => fi.id === child.id))
     : allChildren;
 
   const isSelected = item.type === "note" && currentNoteId === item.id;
@@ -59,18 +60,14 @@ const TreeItem = ({
   const noteTags = item.type === "note" ? item.tags || [] : [];
 
   // Get backlinks count for notes
-  const backlinksCount =
-    item.type === "note" ? getBacklinks(item.id).length : 0;
+  const backlinksCount = item.type === "note" ? getBacklinks(item.id).length : 0;
 
   // Helper to check if target is a descendant of source
   function isDescendantOf(targetId, sourceId, getChildrenFn) {
     const childrenOfSource = getChildrenFn(sourceId);
     for (const child of childrenOfSource) {
       if (child.id === targetId) return true;
-      if (
-        child.type === "folder" &&
-        isDescendantOf(targetId, child.id, getChildrenFn)
-      ) {
+      if (child.type === "folder" && isDescendantOf(targetId, child.id, getChildrenFn)) {
         return true;
       }
     }
@@ -84,11 +81,17 @@ const TreeItem = ({
     !isDescendantOf(item.id, draggedItem.id, getChildren);
 
   // Determine if this folder is the current external drop target
-  const isExternalDropTarget =
-    isFolder && dropTargetFolderId === item.id && isExternalDragging;
+  const isExternalDropTarget = isFolder && dropTargetFolderId === item.id && isExternalDragging;
 
   // Show visual feedback for internal drag or external drop target
   const showDropHighlight = (isDragOver && canDrop) || isExternalDropTarget;
+  const rowDensityClass =
+    sidebarDensity === "compact"
+      ? "px-2 py-0.5 min-h-7"
+      : sidebarDensity === "spacious"
+        ? "px-2 py-2.5 min-h-11"
+        : "px-2 py-1.5 min-h-9";
+  const nameDensityClass = sidebarDensity === "compact" ? "text-xs" : "text-sm";
 
   // Auto-expand folder when it's an external drop target
   useEffect(() => {
@@ -126,10 +129,7 @@ const TreeItem = ({
       const deltaX = Math.abs(moveEvent.clientX - startX);
       const deltaY = Math.abs(moveEvent.clientY - startY);
 
-      if (
-        !isDraggingRef.current &&
-        (deltaX > dragThreshold || deltaY > dragThreshold)
-      ) {
+      if (!isDraggingRef.current && (deltaX > dragThreshold || deltaY > dragThreshold)) {
         isDraggingRef.current = true;
         setDraggedItem(item);
       }
@@ -177,7 +177,7 @@ const TreeItem = ({
       await renameItem(item.id, trimmed);
       addNotification(
         `${item.type === "note" ? "Note" : "Folder"} renamed successfully`,
-        "success",
+        "success"
       );
     } catch (error) {
       console.error("Failed to rename item:", error);
@@ -203,8 +203,7 @@ const TreeItem = ({
   };
 
   const getVisibleTreeRows = (currentRow) => {
-    const treeRoot =
-      currentRow.closest("[data-sidebar-tree-root='true']") || document;
+    const treeRoot = currentRow.closest("[data-sidebar-tree-root='true']") || document;
     return Array.from(treeRoot.querySelectorAll("[data-treeitem-row='true']"));
   };
 
@@ -217,10 +216,7 @@ const TreeItem = ({
     const rows = getVisibleTreeRows(currentRow);
     const currentIndex = rows.indexOf(currentRow);
     if (currentIndex === -1) return;
-    const nextIndex = Math.max(
-      0,
-      Math.min(rows.length - 1, currentIndex + offset),
-    );
+    const nextIndex = Math.max(0, Math.min(rows.length - 1, currentIndex + offset));
     rows[nextIndex]?.focus();
   };
 
@@ -338,7 +334,7 @@ const TreeItem = ({
 
   const handleRowFocus = (e) => {
     if (!virtualTree) {
-      e.currentTarget.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      e.currentTarget.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
   };
 
@@ -388,9 +384,7 @@ const TreeItem = ({
   };
 
   return (
-    <div
-      className={`relative ${isBeingDragged ? "opacity-40" : ""} transition-opacity`}
-    >
+    <div className={`relative ${isBeingDragged ? "opacity-40" : ""} transition-opacity`}>
       {/* Drop indicator line */}
       {showDropHighlight && (
         <div
@@ -414,7 +408,7 @@ const TreeItem = ({
 
       <div
         className={`
-          flex items-center px-2 py-1.5 select-none relative
+          flex items-center ${rowDensityClass} select-none relative
           rounded-md transition-all duration-100
           ${isSelected ? "bg-accent/15 text-accent" : "text-text-secondary"}
           ${!isBeingDragged && !isRenaming ? "hover:bg-overlay-subtle hover:text-text-primary cursor-pointer" : ""}
@@ -483,12 +477,8 @@ const TreeItem = ({
                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
               />
             </svg>
-            {isPinned(item.id) && (
-              <svg
-                className="w-3 h-3 mr-1 text-amber-400"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
+            {showSidebarMetadata && isPinned(item.id) && (
+              <svg className="w-3 h-3 mr-1 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
             )}
@@ -510,14 +500,14 @@ const TreeItem = ({
         ) : (
           <>
             <span
-              className="flex-1 text-sm truncate"
+              className={`flex-1 ${nameDensityClass} truncate`}
               title={item.filePath || item.name}
             >
               {item.name}
             </span>
 
             {/* Backlinks badge */}
-            {item.type === "note" && backlinksCount > 0 && (
+            {showSidebarMetadata && item.type === "note" && backlinksCount > 0 && (
               <div
                 className="flex items-center gap-0.5 ml-2 shrink-0"
                 title={`${backlinksCount} backlink${backlinksCount !== 1 ? "s" : ""}`}
@@ -535,41 +525,36 @@ const TreeItem = ({
                     d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
                   />
                 </svg>
-                <span className="text-[10px] text-purple-400 font-medium">
-                  {backlinksCount}
-                </span>
+                <span className="text-[10px] text-purple-400 font-medium">{backlinksCount}</span>
               </div>
             )}
 
             {/* Tags */}
-            {item.type === "note" && noteTags.length > 0 && (
-              <div className="flex items-center gap-1 ml-2">
-                {noteTags.slice(0, 2).map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-1 py-0.5 text-[10px] bg-accent/20 text-accent rounded"
-                    title={`#${tag}`}
-                  >
-                    #{tag}
-                  </span>
-                ))}
-                {noteTags.length > 2 && (
-                  <span className="text-[10px] text-text-muted">
-                    +{noteTags.length - 2}
-                  </span>
-                )}
-              </div>
-            )}
+            {showSidebarMetadata &&
+              item.type === "note" &&
+              noteTags.length > 0 &&
+              sidebarDensity !== "compact" && (
+                <div className="flex items-center gap-1 ml-2">
+                  {noteTags.slice(0, 2).map((tag) => (
+                    <span
+                      key={tag}
+                      className="px-1 py-0.5 text-[10px] bg-accent/20 text-accent rounded"
+                      title={`#${tag}`}
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                  {noteTags.length > 2 && (
+                    <span className="text-[10px] text-text-muted">+{noteTags.length - 2}</span>
+                  )}
+                </div>
+              )}
           </>
         )}
 
         {/* Saved indicator */}
-        {item.type === "note" && item.filePath && (
-          <svg
-            className="w-3 h-3 ml-1 text-emerald-400/70"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
+        {showSidebarMetadata && item.type === "note" && item.filePath && (
+          <svg className="w-3 h-3 ml-1 text-emerald-400/70" fill="currentColor" viewBox="0 0 20 20">
             <path
               fillRule="evenodd"
               d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"

@@ -10,6 +10,7 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import useNotesStore from "../store/notesStore";
+import useSettingsStore from "../store/settingsStore";
 import useUIStore from "../store/uiStore";
 
 import {
@@ -27,7 +28,11 @@ import BacklinkItem from "./Sidebar/BacklinkItem";
 import ConfirmDialog from "./ConfirmDialog";
 
 const VIRTUAL_TREE_THRESHOLD = 250;
-const VIRTUAL_TREE_ROW_HEIGHT = 36;
+const TREE_ROW_HEIGHTS = {
+  compact: 28,
+  comfortable: 36,
+  spacious: 44,
+};
 const VIRTUAL_TREE_OVERSCAN = 8;
 
 const sortSidebarItems = (entries, sortBy, isRootLevel = false) => {
@@ -111,6 +116,7 @@ const Sidebar = forwardRef(
       loadingProgress,
       recentWorkspaces,
     } = useNotesStore();
+    const sidebarDensity = useSettingsStore((state) => state.sidebarDensity);
     const { addNotification, setShowWorkspaceModal } = useUIStore();
     const [contextMenu, setContextMenu] = useState(null);
     const [draggedItem, setDraggedItem] = useState(null);
@@ -277,13 +283,14 @@ const Sidebar = forwardRef(
     }, [expandedFolders, rootItems, sortBy, treeChildrenByParent]);
 
     const useVirtualizedTree = flattenedTreeRows.length > VIRTUAL_TREE_THRESHOLD;
+    const virtualTreeRowHeight = TREE_ROW_HEIGHTS[sidebarDensity] || TREE_ROW_HEIGHTS.comfortable;
     const virtualStartIndex = useVirtualizedTree
-      ? Math.max(0, Math.floor(treeScrollTop / VIRTUAL_TREE_ROW_HEIGHT) - VIRTUAL_TREE_OVERSCAN)
+      ? Math.max(0, Math.floor(treeScrollTop / virtualTreeRowHeight) - VIRTUAL_TREE_OVERSCAN)
       : 0;
     const virtualEndIndex = useVirtualizedTree
       ? Math.min(
           flattenedTreeRows.length,
-          Math.ceil((treeScrollTop + treeViewportHeight) / VIRTUAL_TREE_ROW_HEIGHT) +
+          Math.ceil((treeScrollTop + treeViewportHeight) / virtualTreeRowHeight) +
             VIRTUAL_TREE_OVERSCAN
         )
       : flattenedTreeRows.length;
@@ -697,8 +704,8 @@ const Sidebar = forwardRef(
         if (!viewport || flattenedTreeRows.length === 0) return;
 
         const clampedIndex = Math.max(0, Math.min(flattenedTreeRows.length - 1, index));
-        const targetTop = clampedIndex * VIRTUAL_TREE_ROW_HEIGHT;
-        const targetBottom = targetTop + VIRTUAL_TREE_ROW_HEIGHT;
+        const targetTop = clampedIndex * virtualTreeRowHeight;
+        const targetBottom = targetTop + virtualTreeRowHeight;
         const visibleTop = viewport.scrollTop;
         const visibleBottom = visibleTop + viewport.clientHeight;
 
@@ -716,7 +723,7 @@ const Sidebar = forwardRef(
           });
         });
       },
-      [flattenedTreeRows.length]
+      [flattenedTreeRows.length, virtualTreeRowHeight]
     );
 
     useEffect(() => {
@@ -1757,7 +1764,7 @@ const Sidebar = forwardRef(
           ) : useVirtualizedTree ? (
             <div
               className="relative"
-              style={{ height: flattenedTreeRows.length * VIRTUAL_TREE_ROW_HEIGHT }}
+              style={{ height: flattenedTreeRows.length * virtualTreeRowHeight }}
             >
               {virtualRows.map((row, offset) => {
                 const treeIndex = virtualStartIndex + offset;
@@ -1766,8 +1773,8 @@ const Sidebar = forwardRef(
                     key={row.item.id}
                     className="absolute left-0 right-0"
                     style={{
-                      top: treeIndex * VIRTUAL_TREE_ROW_HEIGHT,
-                      minHeight: VIRTUAL_TREE_ROW_HEIGHT,
+                      top: treeIndex * virtualTreeRowHeight,
+                      minHeight: virtualTreeRowHeight,
                     }}
                   >
                     <TreeItem

@@ -17,6 +17,9 @@ import useSettingsStore, { matchesKeymap } from "./store/settingsStore";
 import useUIStore from "./store/uiStore";
 import { exportWorkspaceAsZip } from "./utils/backup";
 import { listen } from "@tauri-apps/api/event";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+
+const stripMarkdownExtension = (name = "") => name.replace(/\.(md|markdown|txt)$/i, "");
 
 function App() {
   const items = useNotesStore((state) => state.items);
@@ -184,6 +187,18 @@ function App() {
         case "newNote":
           sidebarRef.current?.handleNewNote?.();
           break;
+        case "newNoteInCurrentFolder": {
+          const currentNote = useNotesStore.getState().getCurrentNote();
+          setTemplateParentId(currentNote?.parentId || null);
+          setShowTemplateModal(true);
+          break;
+        }
+        case "openTemplatesForCurrentFolder": {
+          const currentNote = useNotesStore.getState().getCurrentNote();
+          setTemplateParentId(currentNote?.parentId || null);
+          setShowTemplateModal(true);
+          break;
+        }
         case "newFolder":
           sidebarRef.current?.handleNewFolder?.();
           break;
@@ -215,6 +230,55 @@ function App() {
         case "exportNote":
           editorRef.current?.handleExport?.();
           break;
+        case "renameCurrentNote": {
+          const currentNote = useNotesStore.getState().getCurrentNote();
+          if (currentNote) {
+            setRenamingItem(currentNote);
+          } else {
+            addNotification("No note is selected", "info");
+          }
+          break;
+        }
+        case "copyCurrentNotePath": {
+          const currentNote = useNotesStore.getState().getCurrentNote();
+          if (!currentNote?.filePath) {
+            addNotification("Current note has no file path yet", "warning");
+            break;
+          }
+          writeText(currentNote.filePath)
+            .then(() => addNotification("Note path copied", "success", 1800))
+            .catch((error) => addNotification("Failed to copy path: " + error.message, "error"));
+          break;
+        }
+        case "copyCurrentNoteWikiLink": {
+          const currentNote = useNotesStore.getState().getCurrentNote();
+          if (!currentNote) {
+            addNotification("No note is selected", "info");
+            break;
+          }
+          const link = `[[${stripMarkdownExtension(currentNote.name)}]]`;
+          writeText(link)
+            .then(() => addNotification("Wiki link copied", "success", 1800))
+            .catch((error) =>
+              addNotification("Failed to copy wiki link: " + error.message, "error")
+            );
+          break;
+        }
+        case "toggleCurrentNotePin": {
+          const state = useNotesStore.getState();
+          const currentNote = state.getCurrentNote();
+          if (!currentNote) {
+            addNotification("No note is selected", "info");
+            break;
+          }
+          state.togglePinNote(currentNote.id);
+          addNotification(
+            state.isPinned(currentNote.id) ? "Note pinned" : "Note unpinned",
+            "success",
+            1800
+          );
+          break;
+        }
         case "openSettings":
           selectNote(SETTINGS_TAB_ID);
           break;
@@ -250,7 +314,7 @@ function App() {
           console.warn(`Unknown command action: ${action}`);
       }
     },
-    [selectNote, setShowSidebar, toggleFocusMode]
+    [addNotification, selectNote, setShowSidebar, toggleFocusMode]
   );
 
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);

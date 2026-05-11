@@ -1,60 +1,223 @@
-import { useState, useEffect, useRef } from 'react';
-import Fuse from 'fuse.js';
-import useNotesStore from '../store/notesStore';
-import useModalAccessibility from '../hooks/useModalAccessibility';
+import { useMemo, useState, useEffect, useRef } from "react";
+import Fuse from "fuse.js";
+import useNotesStore from "../store/notesStore";
+import useModalAccessibility from "../hooks/useModalAccessibility";
 
 const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [results, setResults] = useState([]);
   const inputRef = useRef(null);
   const resultsContainerRef = useRef(null);
   const dialogRef = useRef(null);
 
-  const { items } = useNotesStore();
+  const { items, currentNoteId, isPinned } = useNotesStore();
   useModalAccessibility(isOpen, dialogRef, inputRef);
+  const currentNote = items.find((item) => item.id === currentNoteId && item.type === "note");
 
   // Define available commands
-  const commands = [
-    // File Operations
-    { id: 'new-note', name: 'New Note', category: 'File Operations', icon: '📝', action: 'newNote', keywords: ['create', 'add'] },
-    { id: 'new-folder', name: 'New Folder', category: 'File Operations', icon: '📁', action: 'newFolder', keywords: ['create', 'directory'] },
-    { id: 'open-folder', name: 'Open Folder', category: 'File Operations', icon: '📂', action: 'openFolder', keywords: ['import', 'load'] },
-    { id: 'save', name: 'Save Note', category: 'File Operations', icon: '💾', action: 'save', keywords: ['write'] },
+  const commands = useMemo(() => {
+    const baseCommands = [
+      // File Operations
+      {
+        id: "new-note",
+        name: "New Note",
+        category: "File Operations",
+        icon: "📝",
+        action: "newNote",
+        keywords: ["create", "add"],
+      },
+      {
+        id: "new-folder",
+        name: "New Folder",
+        category: "File Operations",
+        icon: "📁",
+        action: "newFolder",
+        keywords: ["create", "directory"],
+      },
+      {
+        id: "open-folder",
+        name: "Open Folder",
+        category: "File Operations",
+        icon: "📂",
+        action: "openFolder",
+        keywords: ["import", "load"],
+      },
+      {
+        id: "save",
+        name: "Save Note",
+        category: "File Operations",
+        icon: "💾",
+        action: "save",
+        keywords: ["write"],
+      },
 
-    // Navigation
-    { id: 'search', name: 'Search All Notes', category: 'Navigation', icon: '🔍', action: 'search', keywords: ['find'] },
-    { id: 'toggle-sidebar', name: 'Toggle Sidebar', category: 'Navigation', icon: '🎯', action: 'toggleSidebar', keywords: ['hide', 'show'] },
+      // Navigation
+      {
+        id: "search",
+        name: "Search All Notes",
+        category: "Navigation",
+        icon: "🔍",
+        action: "search",
+        keywords: ["find"],
+      },
+      {
+        id: "toggle-sidebar",
+        name: "Toggle Sidebar",
+        category: "Navigation",
+        icon: "🎯",
+        action: "toggleSidebar",
+        keywords: ["hide", "show"],
+      },
 
-    // View Modes
-    { id: 'view-editor', name: 'Editor Only View', category: 'View', icon: '✏️', action: 'viewEditor', keywords: ['edit', 'write'] },
-    { id: 'view-split', name: 'Split View', category: 'View', icon: '⚡', action: 'viewSplit', keywords: ['preview', 'both'] },
-    { id: 'view-preview', name: 'Preview Only View', category: 'View', icon: '👁️', action: 'viewPreview', keywords: ['render', 'show'] },
+      // View Modes
+      {
+        id: "view-editor",
+        name: "Editor Only View",
+        category: "View",
+        icon: "✏️",
+        action: "viewEditor",
+        keywords: ["edit", "write"],
+      },
+      {
+        id: "view-split",
+        name: "Split View",
+        category: "View",
+        icon: "⚡",
+        action: "viewSplit",
+        keywords: ["preview", "both"],
+      },
+      {
+        id: "view-preview",
+        name: "Preview Only View",
+        category: "View",
+        icon: "👁️",
+        action: "viewPreview",
+        keywords: ["render", "show"],
+      },
 
-    // Tools
-    { id: 'graph', name: 'Open Graph View', category: 'Tools', icon: '🕸️', action: 'openGraph', keywords: ['network', 'connections'] },
-    { id: 'export', name: 'Export Note', category: 'Tools', icon: '📤', action: 'exportNote', keywords: ['download', 'save as'] },
-    { id: 'settings', name: 'Open Settings', category: 'Tools', icon: '⚙️', action: 'openSettings', keywords: ['preferences', 'config'] },
-    { id: 'shortcuts', name: 'Show Keyboard Shortcuts', category: 'Help', icon: '⌨️', action: 'showShortcuts', keywords: ['help', 'keybindings'] },
+      // Tools
+      {
+        id: "graph",
+        name: "Open Graph View",
+        category: "Tools",
+        icon: "🕸️",
+        action: "openGraph",
+        keywords: ["network", "connections"],
+      },
+      {
+        id: "export",
+        name: "Export Note",
+        category: "Tools",
+        icon: "📤",
+        action: "exportNote",
+        keywords: ["download", "save as"],
+      },
+      {
+        id: "settings",
+        name: "Open Settings",
+        category: "Tools",
+        icon: "⚙️",
+        action: "openSettings",
+        keywords: ["preferences", "config"],
+      },
+      {
+        id: "shortcuts",
+        name: "Show Keyboard Shortcuts",
+        category: "Help",
+        icon: "⌨️",
+        action: "showShortcuts",
+        keywords: ["help", "keybindings"],
+      },
 
-    // Focus
-    { id: 'focus-mode', name: 'Toggle Focus Mode', category: 'View', icon: '🎯', action: 'toggleFocusMode', keywords: ['distraction', 'zen', 'write', 'fullscreen'] },
+      // Focus
+      {
+        id: "focus-mode",
+        name: "Toggle Focus Mode",
+        category: "View",
+        icon: "🎯",
+        action: "toggleFocusMode",
+        keywords: ["distraction", "zen", "write", "fullscreen"],
+      },
 
-    // Backup
-    { id: 'backup', name: 'Backup Workspace', category: 'Tools', icon: '📦', action: 'backupWorkspace', keywords: ['export', 'zip', 'archive', 'save'] },
-  ];
+      // Backup
+      {
+        id: "backup",
+        name: "Backup Workspace",
+        category: "Tools",
+        icon: "📦",
+        action: "backupWorkspace",
+        keywords: ["export", "zip", "archive", "save"],
+      },
+    ];
+
+    if (!currentNote) return baseCommands;
+
+    const pinLabel = isPinned(currentNote.id) ? "Unpin Current Note" : "Pin Current Note";
+    return [
+      ...baseCommands,
+      {
+        id: "new-note-current-folder",
+        name: "New Note in Current Folder",
+        category: "Current Note",
+        icon: "🗂️",
+        action: "newNoteInCurrentFolder",
+        keywords: ["create", "same folder", "template"],
+      },
+      {
+        id: "template-current-folder",
+        name: "Open Templates for Current Folder",
+        category: "Current Note",
+        icon: "📋",
+        action: "openTemplatesForCurrentFolder",
+        keywords: ["template", "same folder"],
+      },
+      {
+        id: "rename-current-note",
+        name: "Rename Current Note",
+        category: "Current Note",
+        icon: "✏️",
+        action: "renameCurrentNote",
+        keywords: ["title", "file name"],
+      },
+      {
+        id: "copy-current-path",
+        name: "Copy Current Note Path",
+        category: "Current Note",
+        icon: "🔗",
+        action: "copyCurrentNotePath",
+        keywords: ["clipboard", "file path"],
+      },
+      {
+        id: "copy-current-wikilink",
+        name: "Copy Current Note Wiki Link",
+        category: "Current Note",
+        icon: "🔖",
+        action: "copyCurrentNoteWikiLink",
+        keywords: ["clipboard", "markdown", "link"],
+      },
+      {
+        id: "toggle-current-pin",
+        name: pinLabel,
+        category: "Current Note",
+        icon: "📌",
+        action: "toggleCurrentNotePin",
+        keywords: ["favorite", "pinned"],
+      },
+    ];
+  }, [currentNote, isPinned]);
 
   // Get all notes for navigation
-  const notes = items.filter(item => item.type === 'note');
+  const notes = items.filter((item) => item.type === "note");
 
   // Perform search
   useEffect(() => {
     if (!query.trim()) {
       // Show all commands when no query
-      const commandResults = commands.map(cmd => ({
-        type: 'command',
+      const commandResults = commands.map((cmd) => ({
+        type: "command",
         item: cmd,
-        score: 0
+        score: 0,
       }));
       setResults(commandResults);
       setSelectedIndex(0);
@@ -63,23 +226,23 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
 
     const allItems = [
       // Add commands with searchable fields
-      ...commands.map(cmd => ({
+      ...commands.map((cmd) => ({
         ...cmd,
-        searchText: `${cmd.name} ${cmd.category} ${cmd.keywords.join(' ')}`,
-        type: 'command'
+        searchText: `${cmd.name} ${cmd.category} ${cmd.keywords.join(" ")}`,
+        type: "command",
       })),
       // Add notes
-      ...notes.map(note => ({
+      ...notes.map((note) => ({
         ...note,
-        searchText: `${note.name} ${note.content || ''}`,
-        type: 'note'
-      }))
+        searchText: `${note.name} ${note.content || ""}`,
+        type: "note",
+      })),
     ];
 
     const fuse = new Fuse(allItems, {
       keys: [
-        { name: 'name', weight: 3 },
-        { name: 'searchText', weight: 1 }
+        { name: "name", weight: 3 },
+        { name: "searchText", weight: 1 },
       ],
       includeScore: true,
       threshold: 0.3,
@@ -90,13 +253,13 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
     const searchResults = fuse.search(query).slice(0, 15);
     setResults(searchResults);
     setSelectedIndex(0);
-  }, [query, items]);
+  }, [query, items, commands]);
 
   // Focus input when modal opens
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
-      setQuery('');
+      setQuery("");
       setResults([]);
       setSelectedIndex(0);
     }
@@ -108,31 +271,29 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       if (!isOpen) return;
 
       switch (e.key) {
-        case 'ArrowDown':
+        case "ArrowDown":
           e.preventDefault();
-          setSelectedIndex((prev) =>
-            prev < results.length - 1 ? prev + 1 : prev
-          );
+          setSelectedIndex((prev) => (prev < results.length - 1 ? prev + 1 : prev));
           break;
-        case 'ArrowUp':
+        case "ArrowUp":
           e.preventDefault();
           setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0));
           break;
-        case 'Enter':
+        case "Enter":
           e.preventDefault();
           if (results[selectedIndex]) {
             handleSelect(results[selectedIndex]);
           }
           break;
-        case 'Escape':
+        case "Escape":
           e.preventDefault();
           onClose();
           break;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, results, selectedIndex, onClose]);
 
   // Scroll selected result into view
@@ -140,7 +301,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
     if (resultsContainerRef.current && results.length > 0) {
       const selectedElement = resultsContainerRef.current.children[selectedIndex];
       if (selectedElement) {
-        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        selectedElement.scrollIntoView({ block: "nearest", behavior: "smooth" });
       }
     }
   }, [selectedIndex, results.length]);
@@ -148,12 +309,12 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   const handleSelect = (result) => {
     const item = result.item || result;
 
-    if (item.type === 'note') {
+    if (item.type === "note") {
       // Navigate to note
       if (onExecuteCommand) {
-        onExecuteCommand({ action: 'selectNote', payload: item.id });
+        onExecuteCommand({ action: "selectNote", payload: item.id });
       }
-    } else if (item.type === 'command') {
+    } else if (item.type === "command") {
       // Execute command
       if (onExecuteCommand) {
         onExecuteCommand({ action: item.action });
@@ -165,13 +326,14 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
 
   const getCategoryIcon = (category) => {
     const icons = {
-      'File Operations': '📁',
-      'Navigation': '🧭',
-      'View': '👁️',
-      'Tools': '🛠️',
-      'Help': '❓'
+      "File Operations": "📁",
+      Navigation: "🧭",
+      View: "👁️",
+      Tools: "🛠️",
+      Help: "❓",
+      "Current Note": "📄",
     };
-    return icons[category] || '⚡';
+    return icons[category] || "⚡";
   };
 
   if (!isOpen) return null;
@@ -208,7 +370,12 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
               </svg>
               <input
                 ref={inputRef}
@@ -220,12 +387,17 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
               />
               {query && (
                 <button
-                  onClick={() => setQuery('')}
+                  onClick={() => setQuery("")}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-overlay-light rounded text-text-muted hover:text-text-primary transition-colors"
                   title="Clear"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               )}
@@ -234,21 +406,29 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
             {/* Result count */}
             <div className="mt-2 text-xs text-text-muted px-1">
               {results.length > 0
-                ? `${results.length} result${results.length !== 1 ? 's' : ''}`
-                : query ? 'No results found' : 'All commands'
-              }
+                ? `${results.length} result${results.length !== 1 ? "s" : ""}`
+                : query
+                  ? "No results found"
+                  : "All commands"}
             </div>
           </div>
 
           {/* Results */}
-          <div
-            ref={resultsContainerRef}
-            className="max-h-[60vh] overflow-y-auto custom-scrollbar"
-          >
-            {results.length === 0 && query.trim() !== '' && (
+          <div ref={resultsContainerRef} className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+            {results.length === 0 && query.trim() !== "" && (
               <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                <svg className="w-16 h-16 text-text-muted opacity-50 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                <svg
+                  className="w-16 h-16 text-text-muted opacity-50 mb-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
                 </svg>
                 <p className="text-text-secondary font-medium">No results found</p>
                 <p className="text-sm text-text-muted mt-1">Try a different search term</p>
@@ -258,21 +438,19 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
             {results.map((result, index) => {
               const item = result.item || result;
               const isSelected = index === selectedIndex;
-              const isNote = item.type === 'note';
+              const isNote = item.type === "note";
 
               return (
                 <button
                   key={isNote ? item.id : item.id}
                   onClick={() => handleSelect(result)}
                   className={`w-full text-left px-4 py-3 border-b border-overlay-subtle hover:bg-overlay-light transition-colors ${
-                    isSelected ? 'bg-overlay-light border-l-2 border-l-accent' : ''
+                    isSelected ? "bg-overlay-light border-l-2 border-l-accent" : ""
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     {/* Icon */}
-                    <div className="shrink-0 text-xl">
-                      {isNote ? '📄' : item.icon}
-                    </div>
+                    <div className="shrink-0 text-xl">{isNote ? "📄" : item.icon}</div>
 
                     <div className="flex-1 min-w-0">
                       {/* Title */}
@@ -292,21 +470,28 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
                         className="text-xs text-text-muted truncate"
                         title={
                           isNote
-                            ? (item.content || 'Empty note')
+                            ? item.content || "Empty note"
                             : `${getCategoryIcon(item.category)} ${item.category}`
                         }
                       >
                         {isNote
-                          ? (item.content?.slice(0, 80) || 'Empty note')
-                          : `${getCategoryIcon(item.category)} ${item.category}`
-                        }
+                          ? item.content?.slice(0, 80) || "Empty note"
+                          : `${getCategoryIcon(item.category)} ${item.category}`}
                       </p>
                     </div>
 
                     {/* Selected indicator */}
                     {isSelected && (
-                      <svg className="w-5 h-5 text-accent shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      <svg
+                        className="w-5 h-5 text-accent shrink-0"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                     )}
                   </div>
@@ -321,16 +506,24 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
               <div className="flex items-center justify-between text-[10px] text-text-muted">
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">↑</kbd>
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">↓</kbd>
+                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
+                      ↑
+                    </kbd>
+                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
+                      ↓
+                    </kbd>
                     Navigate
                   </span>
                   <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">Enter</kbd>
+                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
+                      Enter
+                    </kbd>
                     Select
                   </span>
                   <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">Esc</kbd>
+                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
+                      Esc
+                    </kbd>
                     Close
                   </span>
                 </div>

@@ -1,4 +1,4 @@
-import useSettingsStore from '../store/settingsStore';
+import useSettingsStore from "../store/settingsStore";
 
 const EditorSettings = () => {
   const {
@@ -12,13 +12,22 @@ const EditorSettings = () => {
     setAutosaveDelay,
     typewriterMode: typewriterModeEnabled,
     setTypewriterMode,
+    sidebarDensity,
+    setSidebarDensity,
+    showSidebarMetadata,
+    setShowSidebarMetadata,
   } = useSettingsStore();
 
   const delayOptions = [
-    { label: '1 second', value: 1000 },
-    { label: '2 seconds', value: 2000 },
-    { label: '5 seconds', value: 5000 },
-    { label: '10 seconds', value: 10000 },
+    { label: "1 second", value: 1000 },
+    { label: "2 seconds", value: 2000 },
+    { label: "5 seconds", value: 5000 },
+    { label: "10 seconds", value: 10000 },
+  ];
+  const densityOptions = [
+    { label: "Compact", value: "compact", description: "More notes in view" },
+    { label: "Comfortable", value: "comfortable", description: "Balanced spacing" },
+    { label: "Spacious", value: "spacious", description: "Roomier rows" },
   ];
 
   return (
@@ -28,7 +37,8 @@ const EditorSettings = () => {
         <div className="flex-1">
           <h3 className="text-sm font-semibold text-text-primary mb-1">Autosave</h3>
           <p className="text-xs text-text-muted leading-relaxed">
-            Automatically save the current note to disk after you stop typing. A status chip in the title bar shows when a save is pending or complete.
+            Automatically save the current note to disk after you stop typing. A status chip in the
+            title bar shows when a save is pending or complete.
           </p>
           {autosaveEnabled && (
             <div className="mt-3 flex items-center gap-3">
@@ -40,8 +50,8 @@ const EditorSettings = () => {
                     onClick={() => setAutosaveDelay(opt.value)}
                     className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
                       autosaveDelay === opt.value
-                        ? 'border-accent/40 bg-accent/10 text-accent'
-                        : 'border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light'
+                        ? "border-accent/40 bg-accent/10 text-accent"
+                        : "border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light"
                     }`}
                   >
                     {opt.label}
@@ -54,31 +64,35 @@ const EditorSettings = () => {
         <button
           onClick={() => setAutosaveEnabled(!autosaveEnabled)}
           className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
-            autosaveEnabled ? 'bg-accent shadow-lg shadow-accent/30' : 'bg-overlay-light hover:bg-overlay-medium'
+            autosaveEnabled
+              ? "bg-accent shadow-lg shadow-accent/30"
+              : "bg-overlay-light hover:bg-overlay-medium"
           }`}
           aria-label="Toggle Autosave"
         >
-          <span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${autosaveEnabled ? 'translate-x-7' : 'translate-x-0'}`} />
+          <span
+            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${autosaveEnabled ? "translate-x-7" : "translate-x-0"}`}
+          />
         </button>
       </div>
 
       {/* Preview Scroll Sync Toggle */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-text-primary mb-1">
-            Preview Scroll Sync
-          </h3>
+          <h3 className="text-sm font-semibold text-text-primary mb-1">Preview Scroll Sync</h3>
           <p className="text-xs text-text-muted leading-relaxed">
-            Sync scrolling between the editor and preview in split view. This is approximate and may drift on notes with heavy formatting or diagrams.
+            Sync scrolling between the editor and preview in split view. This is approximate and may
+            drift on notes with heavy formatting or diagrams.
           </p>
         </div>
         <button
           onClick={toggleScrollSync}
           className={`
             relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0
-            ${scrollSyncEnabled
-              ? 'bg-accent shadow-lg shadow-accent/30'
-              : 'bg-overlay-light hover:bg-overlay-medium'
+            ${
+              scrollSyncEnabled
+                ? "bg-accent shadow-lg shadow-accent/30"
+                : "bg-overlay-light hover:bg-overlay-medium"
             }
           `}
           aria-label="Toggle Preview Scroll Sync"
@@ -86,13 +100,67 @@ const EditorSettings = () => {
           <span
             className={`
               absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200
-              ${scrollSyncEnabled ? 'translate-x-7' : 'translate-x-0'}
+              ${scrollSyncEnabled ? "translate-x-7" : "translate-x-0"}
             `}
           />
         </button>
       </div>
 
       {/* Vim Mode Toggle */}
+      {/* Sidebar Density */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-text-primary mb-1">Sidebar Density</h3>
+          <p className="text-xs text-text-muted leading-relaxed">
+            Tune the note tree spacing for small screens, large workspaces, or a more relaxed
+            browsing feel.
+          </p>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {densityOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setSidebarDensity(option.value)}
+                className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                  sidebarDensity === option.value
+                    ? "border-accent/50 bg-accent/10 text-accent"
+                    : "border-overlay-subtle bg-overlay-subtle text-text-secondary hover:border-overlay-light hover:text-text-primary"
+                }`}
+              >
+                <span className="block text-xs font-semibold">{option.label}</span>
+                <span className="block text-[11px] text-text-muted mt-0.5">
+                  {option.description}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Sidebar Metadata Toggle */}
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-text-primary mb-1">Sidebar Metadata</h3>
+          <p className="text-xs text-text-muted leading-relaxed">
+            Show note tags, backlink counts, pinned markers, and saved indicators in the sidebar
+            tree.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowSidebarMetadata(!showSidebarMetadata)}
+          className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
+            showSidebarMetadata
+              ? "bg-accent shadow-lg shadow-accent/30"
+              : "bg-overlay-light hover:bg-overlay-medium"
+          }`}
+          aria-label="Toggle Sidebar Metadata"
+        >
+          <span
+            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${showSidebarMetadata ? "translate-x-7" : "translate-x-0"}`}
+          />
+        </button>
+      </div>
+
       {/* Typewriter Mode Toggle */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
@@ -103,19 +171,22 @@ const EditorSettings = () => {
             </span>
           </h3>
           <p className="text-xs text-text-muted leading-relaxed">
-            Keep the current line vertically centered in the editor while you type. Works best in Focus Mode for a distraction-free writing experience.
+            Keep the current line vertically centered in the editor while you type. Works best in
+            Focus Mode for a distraction-free writing experience.
           </p>
         </div>
         <button
           onClick={() => setTypewriterMode(!typewriterModeEnabled)}
           className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
-            typewriterModeEnabled ? 'bg-accent shadow-lg shadow-accent/30' : 'bg-overlay-light hover:bg-overlay-medium'
+            typewriterModeEnabled
+              ? "bg-accent shadow-lg shadow-accent/30"
+              : "bg-overlay-light hover:bg-overlay-medium"
           }`}
           aria-label="Toggle Typewriter Mode"
         >
           <span
             className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
-              typewriterModeEnabled ? 'translate-x-7' : 'translate-x-0'
+              typewriterModeEnabled ? "translate-x-7" : "translate-x-0"
             }`}
           />
         </button>
@@ -130,16 +201,28 @@ const EditorSettings = () => {
             </span>
           </h3>
           <p className="text-xs text-text-muted leading-relaxed">
-            Enable Vim keybindings in the markdown editor. Provides powerful modal editing with Normal, Insert, and Visual modes.
+            Enable Vim keybindings in the markdown editor. Provides powerful modal editing with
+            Normal, Insert, and Visual modes.
           </p>
           {vimMode && (
             <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
               <p className="text-xs text-amber-300 flex items-start gap-2">
-                <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-4 h-4 shrink-0 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 <span>
-                  <strong>Note:</strong> Toggling Vim mode will reinitialize the editor and may clear undo history for the current note.
+                  <strong>Note:</strong> Toggling Vim mode will reinitialize the editor and may
+                  clear undo history for the current note.
                 </span>
               </p>
             </div>
@@ -149,9 +232,10 @@ const EditorSettings = () => {
           onClick={toggleVimMode}
           className={`
             relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0
-            ${vimMode
-              ? 'bg-accent shadow-lg shadow-accent/30'
-              : 'bg-overlay-light hover:bg-overlay-medium'
+            ${
+              vimMode
+                ? "bg-accent shadow-lg shadow-accent/30"
+                : "bg-overlay-light hover:bg-overlay-medium"
             }
           `}
           aria-label="Toggle Vim Mode"
@@ -159,7 +243,7 @@ const EditorSettings = () => {
           <span
             className={`
               absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200
-              ${vimMode ? 'translate-x-7' : 'translate-x-0'}
+              ${vimMode ? "translate-x-7" : "translate-x-0"}
             `}
           />
         </button>
@@ -169,27 +253,45 @@ const EditorSettings = () => {
       {vimMode && (
         <div className="p-4 bg-overlay-subtle rounded-xl border border-overlay-light">
           <h4 className="text-sm font-medium text-text-primary mb-3 flex items-center gap-2">
-            <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-4 h-4 text-accent"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
             Quick Reference
           </h4>
           <div className="space-y-2 text-xs text-text-secondary">
             <div className="flex justify-between items-center py-1">
               <span>Enter Insert mode:</span>
-              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">i</kbd>
+              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">
+                i
+              </kbd>
             </div>
             <div className="flex justify-between items-center py-1">
               <span>Return to Normal mode:</span>
-              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">Esc</kbd>
+              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">
+                Esc
+              </kbd>
             </div>
             <div className="flex justify-between items-center py-1">
               <span>Enter Visual mode:</span>
-              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">v</kbd>
+              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">
+                v
+              </kbd>
             </div>
             <div className="flex justify-between items-center py-1">
               <span>Save and continue:</span>
-              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">:w</kbd>
+              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">
+                :w
+              </kbd>
             </div>
             <div className="mt-3 pt-3 border-t border-overlay-light">
               <a
@@ -200,7 +302,12 @@ const EditorSettings = () => {
               >
                 View complete Vim cheatsheet
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
                 </svg>
               </a>
             </div>

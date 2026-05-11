@@ -138,18 +138,42 @@ Before publishing a release, make sure the app version is the same in:
 - `src-tauri/Cargo.toml`
 - `src-tauri/tauri.conf.json`
 
-For the first public version, all three should be `0.0.1`.
+The release workflow builds macOS, Windows, and Linux installers automatically and uploads them to a GitHub Release.
 
-Build and publish manually:
+### Automatic release from a tag
+
+Use this when the code is ready and committed:
+
+```bash
+git status
+git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json
+git commit -m "chore: release v0.0.2"
+git tag v0.0.2
+git push origin main --tags
+```
+
+When the `v0.0.2` tag is pushed, `.github/workflows/release.yml` runs on GitHub Actions and creates the GitHub Release for that tag.
+
+### Automatic release from the GitHub UI
+
+Use this if you want to release the current commit without creating a local tag:
+
+1. Open the repository on GitHub.
+2. Go to **Actions** -> **Release** -> **Run workflow**.
+3. Enter a tag such as `v0.0.2`.
+4. Choose whether it is a prerelease.
+5. Run the workflow.
+
+The workflow uses `GITHUB_TOKEN`, so no custom token is required for normal GitHub Releases.
+
+### Local build only
+
+Use this only when you want to test installers locally:
 
 ```bash
 pnpm install
 pnpm tauri:build
-git tag v0.0.1
-git push origin main --tags
 ```
-
-Then create a GitHub release for `v0.0.1`, add a short changelog, and upload the installer files from `src-tauri/target/release/bundle/`.
 
 ## Keyboard Shortcuts (defaults)
 
