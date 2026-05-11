@@ -25,10 +25,29 @@ const EditorSettings = () => {
     { label: "10 seconds", value: 10000 },
   ];
   const densityOptions = [
-    { label: "Compact", value: "compact", description: "More notes in view" },
-    { label: "Comfortable", value: "comfortable", description: "Balanced spacing" },
-    { label: "Spacious", value: "spacious", description: "Roomier rows" },
+    {
+      label: "Compact",
+      value: "compact",
+      description: "More notes in view",
+      bars: ["h-0.5", "h-0.5", "h-0.5"],
+    },
+    {
+      label: "Comfortable",
+      value: "comfortable",
+      description: "Balanced spacing",
+      bars: ["h-0.5", "h-1", "h-0.5"],
+    },
+    {
+      label: "Spacious",
+      value: "spacious",
+      description: "Roomier rows",
+      bars: ["h-1", "h-1.5", "h-1"],
+    },
   ];
+  const selectedDensityIndex = Math.max(
+    densityOptions.findIndex((option) => option.value === sidebarDensity),
+    0
+  );
 
   return (
     <div className="space-y-6">
@@ -115,24 +134,46 @@ const EditorSettings = () => {
             Tune the note tree spacing for small screens, large workspaces, or a more relaxed
             browsing feel.
           </p>
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {densityOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setSidebarDensity(option.value)}
-                className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-                  sidebarDensity === option.value
-                    ? "border-accent/50 bg-accent/10 text-accent"
-                    : "border-overlay-subtle bg-overlay-subtle text-text-secondary hover:border-overlay-light hover:text-text-primary"
-                }`}
-              >
-                <span className="block text-xs font-semibold">{option.label}</span>
-                <span className="block text-[11px] text-text-muted mt-0.5">
-                  {option.description}
-                </span>
-              </button>
-            ))}
+          <div className="mt-3 rounded-2xl border border-overlay-subtle bg-overlay-subtle/40 p-1.5 shadow-inner shadow-black/10">
+            <div className="relative grid grid-cols-3 gap-1">
+              <span
+                className="absolute inset-y-0 left-0 w-1/3 rounded-xl border border-accent/30 bg-accent/10 shadow-sm shadow-accent/10 transition-transform duration-200 ease-out"
+                style={{ transform: `translateX(${selectedDensityIndex * 100}%)` }}
+                aria-hidden="true"
+              />
+              {densityOptions.map((option) => {
+                const isActive = sidebarDensity === option.value;
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setSidebarDensity(option.value)}
+                    className={`relative z-10 rounded-xl px-2.5 py-2.5 text-left transition-colors ${
+                      isActive ? "text-accent" : "text-text-muted hover:text-text-primary"
+                    }`}
+                    aria-pressed={isActive}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 shrink-0 flex-col justify-center gap-1 rounded-lg border border-overlay-subtle bg-bg-sidebar/70 px-1.5">
+                        {option.bars.map((barClass, index) => (
+                          <span
+                            key={index}
+                            className={`${barClass} rounded-full ${isActive ? "bg-accent" : "bg-text-muted/50"}`}
+                          />
+                        ))}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-xs font-semibold">{option.label}</span>
+                        <span className="block truncate text-[11px] text-text-muted">
+                          {option.description}
+                        </span>
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

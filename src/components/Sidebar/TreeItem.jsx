@@ -85,13 +85,26 @@ const TreeItem = ({
 
   // Show visual feedback for internal drag or external drop target
   const showDropHighlight = (isDragOver && canDrop) || isExternalDropTarget;
-  const rowDensityClass =
-    sidebarDensity === "compact"
-      ? "px-2 py-0.5 min-h-7"
-      : sidebarDensity === "spacious"
-        ? "px-2 py-2.5 min-h-11"
-        : "px-2 py-1.5 min-h-9";
-  const nameDensityClass = sidebarDensity === "compact" ? "text-xs" : "text-sm";
+  const isCompactDensity = sidebarDensity === "compact";
+  const isSpaciousDensity = sidebarDensity === "spacious";
+  const rowDensityClass = isCompactDensity
+    ? "px-1.5 py-0.5 my-1 min-h-7 rounded-[5px]"
+    : isSpaciousDensity
+      ? "px-1.5 py-0.5 my-2 min-h-9 rounded-lg"
+      : "px-1.5 py-0.5 my-1 min-h-8 rounded-md";
+  const nameDensityClass = isCompactDensity
+    ? "text-xs leading-4"
+    : isSpaciousDensity
+      ? "text-sm leading-5 font-medium"
+      : "text-sm";
+  const chevronClass = isCompactDensity ? "w-3.5 h-3.5 mr-0.5" : "w-4 h-4 mr-1";
+  const iconClass = isCompactDensity
+    ? "w-3.5 h-3.5 mr-1.5"
+    : isSpaciousDensity
+      ? "w-4.5 h-4.5 mr-2.5"
+      : "w-4 h-4 mr-2";
+  const noteIconIndentClass = isCompactDensity ? "ml-4" : isSpaciousDensity ? "ml-6" : "ml-5";
+  const showInlineMetadata = showSidebarMetadata && !isCompactDensity;
 
   // Auto-expand folder when it's an external drop target
   useEffect(() => {
@@ -408,10 +421,10 @@ const TreeItem = ({
 
       <div
         className={`
-          flex items-center ${rowDensityClass} select-none relative
-          rounded-md transition-all duration-100
-          ${isSelected ? "bg-accent/15 text-accent" : "text-text-secondary"}
-          ${!isBeingDragged && !isRenaming ? "hover:bg-overlay-subtle hover:text-text-primary cursor-pointer" : ""}
+          flex items-center select-none relative
+          ${rowDensityClass} transition-all duration-150
+          ${isSelected ? "bg-accent/15 text-accent shadow-[inset_2px_0_0_var(--color-accent)]" : "text-text-secondary"}
+          ${!isBeingDragged && !isRenaming ? "hover:bg-overlay-subtle hover:text-text-primary hover:shadow-sm cursor-pointer" : ""}
           ${showDropHighlight ? "bg-accent/10 text-accent" : ""}
           ${isBeingDragged ? "cursor-grabbing" : "cursor-grab"}
           focus:outline-none focus:bg-accent/10 focus:text-text-primary focus:ring-2 focus:ring-accent/60 focus:ring-inset
@@ -445,7 +458,7 @@ const TreeItem = ({
         {/* Folder chevron */}
         {isFolder && (
           <svg
-            className={`w-4 h-4 mr-1 transition-transform duration-150 text-text-muted ${isExpanded ? "rotate-90" : ""}`}
+            className={`${chevronClass} transition-transform duration-150 text-text-muted ${isExpanded ? "rotate-90" : ""}`}
             fill="currentColor"
             viewBox="0 0 20 20"
           >
@@ -456,7 +469,7 @@ const TreeItem = ({
         {/* Icon */}
         {isFolder ? (
           <svg
-            className={`w-4 h-4 mr-2 transition-colors ${showDropHighlight ? "text-accent" : "text-sky-400/80"}`}
+            className={`${iconClass} transition-colors ${showDropHighlight ? "text-accent" : "text-sky-400/80"}`}
             fill="currentColor"
             viewBox="0 0 20 20"
           >
@@ -465,7 +478,7 @@ const TreeItem = ({
         ) : (
           <div className="flex items-center">
             <svg
-              className="w-4 h-4 mr-2 ml-5 text-text-muted"
+              className={`${iconClass} ${noteIconIndentClass} text-text-muted`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -478,7 +491,11 @@ const TreeItem = ({
               />
             </svg>
             {showSidebarMetadata && isPinned(item.id) && (
-              <svg className="w-3 h-3 mr-1 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+              <svg
+                className={`${isCompactDensity ? "w-2.5 h-2.5 mr-0.5" : "w-3 h-3 mr-1"} text-amber-400`}
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
             )}
@@ -507,9 +524,9 @@ const TreeItem = ({
             </span>
 
             {/* Backlinks badge */}
-            {showSidebarMetadata && item.type === "note" && backlinksCount > 0 && (
+            {showInlineMetadata && item.type === "note" && backlinksCount > 0 && (
               <div
-                className="flex items-center gap-0.5 ml-2 shrink-0"
+                className={`${isSpaciousDensity ? "ml-3 rounded-full bg-overlay-subtle px-1.5 py-0.5" : "ml-2"} flex items-center gap-0.5 shrink-0`}
                 title={`${backlinksCount} backlink${backlinksCount !== 1 ? "s" : ""}`}
               >
                 <svg
@@ -530,31 +547,34 @@ const TreeItem = ({
             )}
 
             {/* Tags */}
-            {showSidebarMetadata &&
-              item.type === "note" &&
-              noteTags.length > 0 &&
-              sidebarDensity !== "compact" && (
-                <div className="flex items-center gap-1 ml-2">
-                  {noteTags.slice(0, 2).map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-1 py-0.5 text-[10px] bg-accent/20 text-accent rounded"
-                      title={`#${tag}`}
-                    >
-                      #{tag}
-                    </span>
-                  ))}
-                  {noteTags.length > 2 && (
-                    <span className="text-[10px] text-text-muted">+{noteTags.length - 2}</span>
-                  )}
-                </div>
-              )}
+            {showInlineMetadata && item.type === "note" && noteTags.length > 0 && (
+              <div
+                className={`${isSpaciousDensity ? "gap-1.5 ml-3" : "gap-1 ml-2"} flex items-center`}
+              >
+                {noteTags.slice(0, 2).map((tag) => (
+                  <span
+                    key={tag}
+                    className={`${isSpaciousDensity ? "px-1.5 py-0.5 rounded-md" : "px-1 py-0.5 rounded"} text-[10px] bg-accent/20 text-accent`}
+                    title={`#${tag}`}
+                  >
+                    #{tag}
+                  </span>
+                ))}
+                {noteTags.length > 2 && (
+                  <span className="text-[10px] text-text-muted">+{noteTags.length - 2}</span>
+                )}
+              </div>
+            )}
           </>
         )}
 
         {/* Saved indicator */}
-        {showSidebarMetadata && item.type === "note" && item.filePath && (
-          <svg className="w-3 h-3 ml-1 text-emerald-400/70" fill="currentColor" viewBox="0 0 20 20">
+        {showInlineMetadata && item.type === "note" && item.filePath && (
+          <svg
+            className={`${isSpaciousDensity ? "w-3.5 h-3.5 ml-1.5" : "w-3 h-3 ml-1"} text-emerald-400/70`}
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
             <path
               fillRule="evenodd"
               d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
