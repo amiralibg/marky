@@ -10,6 +10,10 @@ on:
         description: "Release tag to create from this commit, for example v0.0.2"
         required: true
         default: "v__VERSION__"
+      release_body:
+        description: "Custom release notes. If empty, .github/release-notes/<tag>.md is used when present."
+        required: false
+        default: ""
       prerelease:
         description: "Mark this release as a prerelease"
         required: true
@@ -24,17 +28,66 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release-metadata:
+    name: Prepare release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.metadata.outputs.tag_name }}
+      prerelease: ${{ steps.metadata.outputs.prerelease }}
+      release_body: ${{ steps.metadata.outputs.release_body }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release metadata
+        id: metadata
+        env:
+          RELEASE_BODY_INPUT: ${{ inputs.release_body }}
+        run: |
+          tag_name="${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}"
+          prerelease="${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}"
+          body_file="$(mktemp)"
+
+          if [ -n "$RELEASE_BODY_INPUT" ]; then
+            printf '%s\n' "$RELEASE_BODY_INPUT" > "$body_file"
+          elif [ -f ".github/release-notes/${tag_name}.md" ]; then
+            cp ".github/release-notes/${tag_name}.md" "$body_file"
+          else
+            printf 'Automated Marky desktop release.\n\nBuilt from commit ${{ github.sha }}.\n' > "$body_file"
+          fi
+
+          {
+            echo "tag_name=$tag_name"
+            echo "prerelease=$prerelease"
+            echo "release_body<<EOF"
+            cat "$body_file"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
   release:
-    name: Build ${{ matrix.platform }}
+    name: Build ${{ matrix.label }}
+    needs: release-metadata
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            args: "--target universal-apple-darwin"
-          - platform: ubuntu-22.04
+          - platform: macos-15-intel
+            label: macOS x64
             args: ""
-          - platform: windows-latest
+          - platform: macos-15
+            label: macOS arm64
+            args: ""
+          - platform: ubuntu-22.04
+            label: Linux x64
+            args: ""
+          - platform: ubuntu-22.04-arm
+            label: Linux arm64
+            args: ""
+          - platform: windows-2022
+            label: Windows x64
+            args: ""
+          - platform: windows-11-arm
+            label: Windows arm64
             args: ""
 
     runs-on: ${{ matrix.platform }}
@@ -44,7 +97,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Linux system dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.platform, 'ubuntu-22.04')
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -68,10 +121,6 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Add macOS universal Rust targets
-        if: matrix.platform == 'macos-latest'
-        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
-
       - name: Cache Rust
         uses: swatinem/rust-cache@v2
         with:
@@ -84,16 +133,13 @@ jobs:
         run: pnpm lint
 
       - name: Build and publish release
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
-          releaseName: "Marky ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}"
-          releaseBody: |
-            Automated Marky desktop release.
-
-            Built from commit ${{ github.sha }}.
+          tagName: ${{ needs.release-metadata.outputs.tag_name }}
+          releaseName: "Marky ${{ needs.release-metadata.outputs.tag_name }}"
+          releaseBody: ${{ needs.release-metadata.outputs.release_body }}
           releaseDraft: false
-          prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
+          prerelease: ${{ needs.release-metadata.outputs.prerelease }}
           args: ${{ matrix.args }}
