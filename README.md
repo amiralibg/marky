@@ -19,7 +19,7 @@ It is designed for local folder-based note-taking with wiki links, graph navigat
 
 Download the latest desktop build from the [Marky releases page](https://github.com/amiralibg/marky/releases/latest). Installers are attached to each GitHub release after the app is built.
 
-Current first-version target: `0.0.1`.
+Current first-version target: `0.0.2`.
 
 ## Highlights
 
