@@ -1672,7 +1672,7 @@ const Sidebar = forwardRef(
                 />
               </svg>
               {loadingProgress ? (
-                <div className="w-full max-w-[200px] space-y-2">
+                <div className="w-full max-w-50 space-y-2">
                   <p className="text-sm text-center">{loadingProgress.phase}</p>
                   <div className="w-full h-1.5 bg-overlay-subtle rounded-full overflow-hidden">
                     <div
@@ -1865,7 +1865,7 @@ const Sidebar = forwardRef(
         {/* Drag Ghost */}
         {draggedItem && dragPosition && (
           <div
-            className="fixed z-50 pointer-events-none flex items-center gap-2 px-3 py-1.5 bg-bg-sidebar border border-overlay-medium rounded-md shadow-lg text-sm text-text-primary max-w-[200px]"
+            className="fixed z-50 pointer-events-none flex items-center gap-2 px-3 py-1.5 bg-bg-sidebar border border-overlay-medium rounded-md shadow-lg text-sm text-text-primary max-w-50"
             style={{
               left: dragPosition.x + 12,
               top: dragPosition.y - 12,
