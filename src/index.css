@@ -401,6 +401,77 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
+  .custom-titlebar {
+    -webkit-app-region: drag;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-titlebar-bg) 92%, var(--color-glass-highlight)),
+      var(--color-titlebar-bg)
+    );
+  }
+
+  .custom-titlebar button,
+  .custom-titlebar [data-no-drag] {
+    -webkit-app-region: no-drag;
+  }
+
+  .custom-titlebar .titlebar-window-controls {
+    border-left: 1px solid var(--color-border);
+  }
+
+  .custom-titlebar .titlebar-window-button {
+    display: grid;
+    width: 46px;
+    height: 100%;
+    place-items: center;
+    color: var(--color-text-secondary);
+    transition:
+      color 140ms ease,
+      background-color 140ms ease;
+  }
+
+  .custom-titlebar .titlebar-window-button svg {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.35;
+  }
+
+  .custom-titlebar .titlebar-window-button:hover {
+    background: var(--color-overlay-light);
+    color: var(--color-text-primary);
+  }
+
+  .custom-titlebar .titlebar-window-button:active {
+    background: var(--color-overlay-medium);
+  }
+
+  .custom-titlebar .titlebar-close-button:hover {
+    background: #e81123;
+    color: #ffffff;
+  }
+
+  .custom-titlebar:not(.is-mac) .titlebar-left {
+    min-width: 188px;
+  }
+
+  .custom-titlebar.is-windows .titlebar-window-button {
+    width: 48px;
+  }
+
+  @media (max-width: 720px) {
+    .custom-titlebar .titlebar-window-button {
+      width: 42px;
+    }
+
+    .custom-titlebar:not(.is-mac) .titlebar-left {
+      min-width: 148px;
+    }
+  }
+
   /* Custom Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;

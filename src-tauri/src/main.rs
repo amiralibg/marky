@@ -13,10 +13,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    Emitter, State,
+    Emitter, Manager, State,
 };
-#[cfg(debug_assertions)]
-use tauri::Manager;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MarkdownFile {
@@ -630,6 +628,12 @@ fn main() {
             open_recent_note
         ])
         .setup(|_app| {
+            #[cfg(not(target_os = "macos"))]
+            {
+                let window = _app.get_webview_window("main").unwrap();
+                let _ = window.set_decorations(false);
+            }
+
             #[cfg(debug_assertions)]
             {
                 let window = _app.get_webview_window("main").unwrap();

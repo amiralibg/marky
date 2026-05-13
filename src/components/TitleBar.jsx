@@ -1,6 +1,16 @@
-import { useRef, useEffect } from 'react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import useNotesStore, { SETTINGS_TAB_ID } from '../store/notesStore';
+import { useRef, useEffect, useMemo, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import useNotesStore, { SETTINGS_TAB_ID } from "../store/notesStore";
+
+const detectPlatform = () => {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const platform = navigator.platform.toLowerCase();
+
+  if (userAgent.includes("win") || platform.includes("win")) return "windows";
+  if (userAgent.includes("mac") || platform.includes("mac")) return "macos";
+  if (userAgent.includes("linux") || platform.includes("linux")) return "linux";
+  return "unknown";
+};
 
 const TitleBar = ({
   sidebarWidth,
@@ -8,29 +18,58 @@ const TitleBar = ({
   onNewNote,
   onNewFolder,
   onToggleSidebar,
-  onCloseTab
+  onCloseTab,
 }) => {
   const { openNoteIds, currentNoteId, selectNote, closeNote, items } = useNotesStore();
   const scrollRef = useRef(null);
+  const [platform, setPlatform] = useState(detectPlatform);
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  const windowControls = useMemo(() => getCurrentWindow(), []);
+  const isMac = platform === "macos";
+  const isWindows = platform === "windows";
 
   const openNotes = openNoteIds
-    .map(id => {
+    .map((id) => {
       // Handle special settings tab
       if (id === SETTINGS_TAB_ID) {
         return {
           id: SETTINGS_TAB_ID,
-          name: 'Settings',
-          isSpecial: true
+          name: "Settings",
+          isSpecial: true,
         };
       }
-      return items.find(item => item.id === id);
+      return items.find((item) => item.id === id);
     })
     .filter(Boolean);
 
   useEffect(() => {
-    const activeTab = scrollRef.current?.querySelector('.active-tab');
+    let unlistenResize;
+
+    setPlatform(detectPlatform());
+    windowControls
+      .isMaximized()
+      .then(setIsMaximized)
+      .catch(() => {});
+    windowControls
+      .onResized(() => {
+        windowControls
+          .isMaximized()
+          .then(setIsMaximized)
+          .catch(() => {});
+      })
+      .then((unlisten) => {
+        unlistenResize = unlisten;
+      })
+      .catch(() => {});
+
+    return () => unlistenResize?.();
+  }, [windowControls]);
+
+  useEffect(() => {
+    const activeTab = scrollRef.current?.querySelector(".active-tab");
     if (activeTab) {
-      activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      activeTab.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
     }
   }, [currentNoteId]);
 
@@ -39,28 +78,45 @@ const TitleBar = ({
     if (e.buttons !== 1) return;
 
     // Don't drag if clicking on interactive elements
-    if (e.target.closest('button, input, [data-no-drag]')) return;
+    if (e.target.closest("button, input, [data-no-drag]")) return;
 
     if (e.detail === 2) {
       // Double click to maximize/restore
-      await getCurrentWindow().toggleMaximize();
+      await windowControls.toggleMaximize();
+      setIsMaximized(await windowControls.isMaximized());
     } else {
       // Single click to start dragging
-      await getCurrentWindow().startDragging();
+      await windowControls.startDragging();
     }
+  };
+
+  const handleWindowAction = async (action) => {
+    if (action === "minimize") {
+      await windowControls.minimize();
+      return;
+    }
+
+    if (action === "maximize") {
+      await windowControls.toggleMaximize();
+      setIsMaximized(await windowControls.isMaximized());
+      return;
+    }
+
+    await windowControls.close();
   };
 
   return (
     <div
-      className="h-8 bg-titlebar-bg border-b border-border flex select-none shrink-0"
+      className={`custom-titlebar h-10 md:h-9 bg-titlebar-bg border-b border-border flex select-none shrink-0 ${isWindows ? "is-windows" : ""} ${isMac ? "is-mac" : ""}`}
       onMouseDown={handleMouseDown}
+      data-platform={platform}
     >
       {/* Left section - Sidebar header area */}
       <div
-        className="flex items-center shrink-0 border-r border-border"
+        className="titlebar-left flex items-center shrink-0 border-r border-border"
         style={{
-          width: showSidebar ? `${sidebarWidth}px` : 'auto',
-          paddingLeft: '80px' // Space for macOS traffic lights
+          width: showSidebar ? `${sidebarWidth}px` : "auto",
+          paddingLeft: isMac ? "80px" : "12px",
         }}
       >
         {/* Toggle sidebar button when hidden */}
@@ -72,16 +128,19 @@ const TitleBar = ({
             data-no-drag
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h16M4 18h16"
+              />
             </svg>
           </button>
         )}
 
         {showSidebar && (
           <>
-            <div className="font-semibold text-text-primary tracking-tight text-sm">
-              Marky
-            </div>
+            <div className="font-semibold text-text-primary tracking-tight text-sm">Marky</div>
             <div className="flex items-center gap-0.5 ml-auto mr-2">
               <button
                 onClick={onNewNote}
@@ -90,7 +149,12 @@ const TitleBar = ({
                 data-no-drag
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
                 </svg>
               </button>
               <button
@@ -100,7 +164,12 @@ const TitleBar = ({
                 data-no-drag
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+                  />
                 </svg>
               </button>
             </div>
@@ -125,16 +194,17 @@ const TitleBar = ({
                   key={note.id}
                   className={`
                     group flex items-center gap-2 px-3 h-8 border-r border-border cursor-pointer transition-all duration-200 min-w-[120px] max-w-[200px]
-                    ${isActive
-                      ? 'bg-bg-editor text-accent active-tab'
-                      : 'text-text-secondary hover:bg-item-hover hover:text-text-primary'
+                    ${
+                      isActive
+                        ? "bg-bg-editor text-accent active-tab"
+                        : "text-text-secondary hover:bg-item-hover hover:text-text-primary"
                     }
                   `}
                   onClick={() => selectNote(note.id)}
                 >
                   {isSettings ? (
                     <svg
-                      className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-accent' : 'text-text-muted'}`}
+                      className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-accent" : "text-text-muted"}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -154,7 +224,7 @@ const TitleBar = ({
                     </svg>
                   ) : (
                     <svg
-                      className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-accent' : 'text-text-muted'}`}
+                      className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-accent" : "text-text-muted"}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -168,10 +238,7 @@ const TitleBar = ({
                     </svg>
                   )}
 
-                  <span
-                    className="text-xs font-medium truncate flex-1"
-                    title={note.name}
-                  >
+                  <span className="text-xs font-medium truncate flex-1" title={note.name}>
                     {note.name}
                   </span>
 
@@ -186,11 +253,16 @@ const TitleBar = ({
                     }}
                     className={`
                       p-0.5 rounded-md hover:bg-overlay-light transition-colors shrink-0
-                      ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+                      ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}
                     `}
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -202,6 +274,44 @@ const TitleBar = ({
         {/* Empty draggable space - takes remaining width */}
         <div className="flex-1 h-full" />
       </div>
+
+      {!isMac && (
+        <div className="titlebar-window-controls flex h-full shrink-0" data-no-drag>
+          <button
+            type="button"
+            className="titlebar-window-button"
+            onClick={() => handleWindowAction("minimize")}
+            title="Minimize"
+            aria-label="Minimize window"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 6h8" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="titlebar-window-button"
+            onClick={() => handleWindowAction("maximize")}
+            title={isMaximized ? "Restore" : "Maximize"}
+            aria-label={isMaximized ? "Restore window" : "Maximize window"}
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              {isMaximized ? <path d="M3.5 4.5h4v4h-4zM4.5 3.5h4v4" /> : <path d="M3 3h6v6H3z" />}
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="titlebar-window-button titlebar-close-button"
+            onClick={() => handleWindowAction("close")}
+            title="Close"
+            aria-label="Close window"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 3l6 6M9 3L3 9" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 };
