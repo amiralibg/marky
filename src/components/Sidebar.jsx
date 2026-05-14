@@ -12,6 +12,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import useNotesStore from "../store/notesStore";
 import useSettingsStore from "../store/settingsStore";
 import useUIStore from "../store/uiStore";
+import { checkForAppUpdate, installAppUpdate } from "../utils/appUpdater";
 
 import {
   openMarkdownFile,
@@ -117,7 +118,7 @@ const Sidebar = forwardRef(
       recentWorkspaces,
     } = useNotesStore();
     const sidebarDensity = useSettingsStore((state) => state.sidebarDensity);
-    const { addNotification, setShowWorkspaceModal } = useUIStore();
+    const { addNotification, setShowWorkspaceModal, appUpdate } = useUIStore();
     const [contextMenu, setContextMenu] = useState(null);
     const [draggedItem, setDraggedItem] = useState(null);
     const [dragPosition, setDragPosition] = useState(null);
@@ -1829,6 +1830,76 @@ const Sidebar = forwardRef(
 
         {/* Bottom Actions (Settings) */}
         <div className="mt-auto border-t border-border bg-bg-base/30 backdrop-blur-sm p-2 shrink-0">
+          {["available", "downloading", "installing", "installed", "error"].includes(
+            appUpdate.status
+          ) && (
+            <div className="mb-2 rounded-xl border border-accent/20 bg-accent/[0.08] p-3 shadow-sm">
+              <div className="flex items-start gap-2">
+                <div className="mt-0.5 p-1.5 rounded-lg bg-accent/15 text-accent shrink-0">
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v6h6M20 20v-6h-6M5 19A9 9 0 0119 5m0 0h-5m5 0v5"
+                    />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold text-text-primary">
+                    {appUpdate.status === "available"
+                      ? "Update available"
+                      : appUpdate.status === "installed"
+                        ? "Restart needed"
+                        : appUpdate.status === "error"
+                          ? "Update issue"
+                          : "Updating Marky"}
+                  </div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-text-muted">
+                    {appUpdate.message || "A Marky update is ready."}
+                  </div>
+                </div>
+              </div>
+
+              {typeof appUpdate.progress === "number" && (
+                <div className="mt-3">
+                  <div className="h-1.5 rounded-full bg-overlay-light overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-accent transition-all duration-300"
+                      style={{ width: `${Math.max(0, Math.min(100, appUpdate.progress))}%` }}
+                    />
+                  </div>
+                  <div className="mt-1 text-[10px] text-text-muted text-right">
+                    {Math.round(appUpdate.progress)}%
+                  </div>
+                </div>
+              )}
+
+              {appUpdate.status === "available" && (
+                <button
+                  onClick={() => installAppUpdate()}
+                  className="mt-3 w-full py-1.5 rounded-lg bg-accent text-bg-base text-xs font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Download & Install
+                </button>
+              )}
+
+              {appUpdate.status === "error" && (
+                <button
+                  onClick={() => checkForAppUpdate({ silent: false })}
+                  className="mt-3 w-full py-1.5 rounded-lg bg-overlay-subtle text-text-secondary text-xs font-semibold hover:bg-overlay-light transition-colors"
+                >
+                  Try Again
+                </button>
+              )}
+            </div>
+          )}
+
           <button
             onClick={onSettingsClick}
             className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-overlay-light rounded-lg text-text-primary transition-all group"

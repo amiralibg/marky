@@ -16,6 +16,7 @@ import useNotesStore, { SETTINGS_TAB_ID } from "./store/notesStore";
 import useSettingsStore, { matchesKeymap } from "./store/settingsStore";
 import useUIStore from "./store/uiStore";
 import { exportWorkspaceAsZip } from "./utils/backup";
+import { checkForAppUpdate } from "./utils/appUpdater";
 import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
@@ -42,6 +43,16 @@ function App() {
   useEffect(() => {
     initializeSettings();
   }, [initializeSettings]);
+
+  useEffect(() => {
+    if (!import.meta.env.PROD) return;
+
+    const timeoutId = window.setTimeout(() => {
+      checkForAppUpdate({ silent: true });
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   useEffect(() => {
     const settingsState = useSettingsStore.getState();

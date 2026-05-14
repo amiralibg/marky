@@ -156,6 +156,10 @@ Why next:
 - [x] Restore/export settings-only JSON
 - [x] Graph export as PNG/SVG — _doable without new packages via Canvas/SVG DOM serialisation; a library like `html-to-image` would make it significantly cleaner_
 - [x] Import/export custom templates collection
+- [ ] Auto-update via Tauri updater and GitHub Releases
+  - Value: users can install app updates in-place instead of downloading every release manually.
+  - Depends on: updater signing key, GitHub release/update JSON hosting, release workflow, and production code-signing decisions.
+  - UX: show update availability outside Settings with a persistent toast/sidebar prompt, then show download/install progress in the same surface.
 
 ## P4: Workspace and scale
 

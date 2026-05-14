@@ -137,10 +137,13 @@ jobs:
         uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ needs.release-metadata.outputs.tag_name }}
           releaseName: "Marky ${{ needs.release-metadata.outputs.tag_name }}"
           releaseBody: ${{ needs.release-metadata.outputs.release_body }}
           releaseDraft: false
           prerelease: ${{ needs.release-metadata.outputs.prerelease }}
+          includeUpdaterJson: true
           args: ${{ matrix.args }}
