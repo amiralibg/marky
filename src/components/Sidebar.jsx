@@ -27,6 +27,7 @@ import TreeItem from "./Sidebar/TreeItem";
 import ContextMenu from "./Sidebar/ContextMenu";
 import BacklinkItem from "./Sidebar/BacklinkItem";
 import ConfirmDialog from "./ConfirmDialog";
+import { UpdateIcon } from "./icons/AppUpdateIcon";
 
 const VIRTUAL_TREE_THRESHOLD = 250;
 const TREE_ROW_HEIGHTS = {
@@ -1836,19 +1837,7 @@ const Sidebar = forwardRef(
             <div className="mb-2 rounded-xl border border-accent/20 bg-accent/[0.08] p-3 shadow-sm">
               <div className="flex items-start gap-2">
                 <div className="mt-0.5 p-1.5 rounded-lg bg-accent/15 text-accent shrink-0">
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 4v6h6M20 20v-6h-6M5 19A9 9 0 0119 5m0 0h-5m5 0v5"
-                    />
-                  </svg>
+                  <UpdateIcon className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-semibold text-text-primary">

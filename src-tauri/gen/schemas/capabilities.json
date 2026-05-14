@@ -54,5 +54,13 @@
       { "identifier": "fs:allow-write-file", "allow": [{ "path": "**" }] },
       "fs:allow-exists"
     ]
+  },
+  "desktop-capability": {
+    "identifier": "desktop-capability",
+    "description": "",
+    "local": true,
+    "windows": ["main"],
+    "permissions": ["core:default", "dialog:default", "fs:default", "updater:default"],
+    "platforms": ["macOS", "windows", "linux"]
   }
 }

@@ -15,6 +15,7 @@ import {
   importSettingsFromJson,
 } from "../utils/backup";
 import { checkForAppUpdate, installAppUpdate } from "../utils/appUpdater";
+import { UpdateIcon } from "./icons/AppUpdateIcon";
 
 const normalizeWorkspacePath = (value) => (value ? value.replace(/\\/g, "/") : "");
 
@@ -417,19 +418,7 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
           <section className="space-y-4">
             <header>
               <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
-                <svg
-                  className="w-5 h-5 text-accent"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v6h6M20 20v-6h-6M5 19A9 9 0 0119 5m0 0h-5m5 0v5"
-                  />
-                </svg>
+                <UpdateIcon className="w-5 h-5 text-accent" />
                 App Updates
               </h2>
               <p className="text-sm text-text-muted mt-1">
@@ -478,19 +467,9 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                         : "bg-overlay-subtle hover:bg-overlay-light text-text-primary border-overlay-subtle"
                     }`}
                   >
-                    <svg
+                    <UpdateIcon
                       className={`w-4 h-4 ${isCheckingForUpdates ? "animate-spin" : ""}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v6h6M20 20v-6h-6M5 19A9 9 0 0119 5m0 0h-5m5 0v5"
-                      />
-                    </svg>
+                    />
                     {isCheckingForUpdates ? "Checking..." : "Check for Updates"}
                   </button>
                 </div>
