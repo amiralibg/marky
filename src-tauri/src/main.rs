@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    Emitter, Manager, State,
+    Emitter, State,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
