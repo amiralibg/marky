@@ -72,10 +72,10 @@ Latest validation: `pnpm lint` and `pnpm build` pass. Build warning: main app bu
 - [x] Crash-safe recovery for unsaved edits (draft/session recovery)
 - [x] Conflict handling for external file changes while note has unsaved edits
 - [x] Clearer file-operation error messages (permissions, missing files, name conflicts)
-- [ ] Replace remaining native `window.confirm` prompts with shared in-app `ConfirmDialog`
+- [x] Replace remaining native `window.confirm` prompts with shared in-app `ConfirmDialog`
   - Value: keeps destructive flows consistent, styled, keyboard-accessible, and less jarring.
   - Depends on: wiring existing `ConfirmDialog` into Settings backup restore, Tag Manager, Template Modal, and Scheduled Notes Manager.
-- [ ] Add note history diff viewer before restore
+- [x] Add note history diff viewer before restore
   - Value: users can understand exactly what changed before replacing current content.
   - Depends on: existing note history snapshots and a lightweight text/markdown diff implementation.
 - [ ] Improve conflict recovery with side-by-side compare
@@ -156,7 +156,7 @@ Why next:
 - [x] Restore/export settings-only JSON
 - [x] Graph export as PNG/SVG — _doable without new packages via Canvas/SVG DOM serialisation; a library like `html-to-image` would make it significantly cleaner_
 - [x] Import/export custom templates collection
-- [ ] Auto-update via Tauri updater and GitHub Releases
+- [x] Auto-update via Tauri updater and GitHub Releases
   - Value: users can install app updates in-place instead of downloading every release manually.
   - Depends on: updater signing key, GitHub release/update JSON hosting, release workflow, and production code-signing decisions.
   - UX: show update availability outside Settings with a persistent toast/sidebar prompt, then show download/install progress in the same surface.
@@ -208,7 +208,7 @@ Why next:
 - [ ] Broader screen reader audit across settings/sidebar/editor flows
 - [x] Reduce noisy success toasts for frequent file watcher sync events (optional throttle)
 - [ ] Toolbar formatting shortcuts do not rely on textarea focus assumptions
-- [ ] Shared confirm dialogs replace all remaining native browser prompts
+- [x] Shared confirm dialogs replace all remaining native browser prompts
 - [ ] Conflict banner offers compare/diff before resolving
 - [ ] Dev-only watcher logs do not appear in production builds
 

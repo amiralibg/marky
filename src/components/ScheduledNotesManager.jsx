@@ -1,16 +1,17 @@
-import { useMemo } from 'react';
-import useNotesStore from '../store/notesStore';
+import { useMemo, useState } from "react";
+import ConfirmDialog from "./ConfirmDialog";
+import useNotesStore from "../store/notesStore";
 
-const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const buildFolderLabel = (folderId, folderMap) => {
   if (!folderId) {
-    return 'Workspace root';
+    return "Workspace root";
   }
 
   const folder = folderMap.get(folderId);
   if (!folder) {
-    return 'Workspace root';
+    return "Workspace root";
   }
 
   const parts = [folder.name];
@@ -26,54 +27,54 @@ const buildFolderLabel = (folderId, folderMap) => {
     parentId = parent.parentId;
   }
 
-  return parts.reverse().join(' / ');
+  return parts.reverse().join(" / ");
 };
 
 const formatScheduleSummary = (schedule) => {
-  if (!schedule) return '';
-  const timeLabel = schedule.timeOfDay || '09:00';
+  if (!schedule) return "";
+  const timeLabel = schedule.timeOfDay || "09:00";
 
   switch (schedule.frequency) {
-    case 'daily':
+    case "daily":
       return `Daily at ${timeLabel}`;
-    case 'weekly': {
-      const labels = (schedule.daysOfWeek && schedule.daysOfWeek.length > 0
-        ? schedule.daysOfWeek
-        : [])
+    case "weekly": {
+      const labels = (
+        schedule.daysOfWeek && schedule.daysOfWeek.length > 0 ? schedule.daysOfWeek : []
+      )
         .map((day) => DAYS_SHORT[((day % 7) + 7) % 7])
-        .join(', ');
+        .join(", ");
       return labels ? `Weekly on ${labels} at ${timeLabel}` : `Weekly at ${timeLabel}`;
     }
-    case 'monthly': {
-      const day = schedule.dayOfMonth || '1';
+    case "monthly": {
+      const day = schedule.dayOfMonth || "1";
       return `Monthly on day ${day} at ${timeLabel}`;
     }
     default:
-      return 'Custom schedule';
+      return "Custom schedule";
   }
 };
 
 const formatNextRun = (schedule) => {
   if (!schedule?.enabled) {
-    return 'Disabled';
+    return "Disabled";
   }
 
   if (!schedule.nextRunAt) {
-    return 'Pending calculation';
+    return "Pending calculation";
   }
 
   const nextRun = new Date(schedule.nextRunAt);
   if (Number.isNaN(nextRun.getTime())) {
-    return 'Pending calculation';
+    return "Pending calculation";
   }
 
   return nextRun.toLocaleString(undefined, {
-    weekday: 'short',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    weekday: "short",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 };
 
@@ -82,12 +83,12 @@ const formatLastRun = (schedule) => {
   const lastRun = new Date(schedule.lastRunAt);
   if (Number.isNaN(lastRun.getTime())) return null;
   return lastRun.toLocaleString(undefined, {
-    weekday: 'short',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 };
 
@@ -96,11 +97,12 @@ const ScheduledNotesManager = () => {
   const setScheduledNoteEnabled = useNotesStore((state) => state.setScheduledNoteEnabled);
   const deleteScheduledNote = useNotesStore((state) => state.deleteScheduledNote);
   const items = useNotesStore((state) => state.items);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
   const folderMap = useMemo(() => {
     const map = new Map();
     items
-      .filter((item) => item.type === 'folder')
+      .filter((item) => item.type === "folder")
       .forEach((folder) => {
         map.set(folder.id, folder);
       });
@@ -111,7 +113,9 @@ const ScheduledNotesManager = () => {
     return (
       <div className="border border-border rounded-xl bg-sidebar-bg/40 px-6 py-10 text-center text-text-muted">
         <p className="text-lg font-semibold text-text-primary mb-2">No scheduled notes yet</p>
-        <p className="text-sm">Create a schedule from the template picker to have Marky create notes automatically.</p>
+        <p className="text-sm">
+          Create a schedule from the template picker to have Marky create notes automatically.
+        </p>
       </div>
     );
   }
@@ -131,19 +135,31 @@ const ScheduledNotesManager = () => {
           >
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div className="flex items-start gap-3">
-                <span className="text-2xl" aria-hidden="true">{schedule.templateIcon || '📝'}</span>
+                <span className="text-2xl" aria-hidden="true">
+                  {schedule.templateIcon || "📝"}
+                </span>
                 <div>
-                  <h3 className="text-lg font-semibold text-text-primary">{schedule.templateName || 'Template'}</h3>
+                  <h3 className="text-lg font-semibold text-text-primary">
+                    {schedule.templateName || "Template"}
+                  </h3>
                   <p className="text-sm text-text-muted">{summary}</p>
-                  <p className="text-sm text-text-muted">Next run: <span className="text-text-primary/90">{nextRun}</span></p>
+                  <p className="text-sm text-text-muted">
+                    Next run: <span className="text-text-primary/90">{nextRun}</span>
+                  </p>
                   <p className="text-xs text-text-muted">
                     Destination: <span className="text-text-primary/80">{folderLabel}</span>
                     {schedule.noteName && (
-                      <span> · Title override: <span className="text-text-primary/70">{schedule.noteName}</span></span>
+                      <span>
+                        {" "}
+                        · Title override:{" "}
+                        <span className="text-text-primary/70">{schedule.noteName}</span>
+                      </span>
                     )}
                   </p>
                   {lastRun && (
-                    <p className="text-xs text-text-muted">Last run: <span className="text-text-primary/70">{lastRun}</span></p>
+                    <p className="text-xs text-text-muted">
+                      Last run: <span className="text-text-primary/70">{lastRun}</span>
+                    </p>
                   )}
                 </div>
               </div>
@@ -154,19 +170,15 @@ const ScheduledNotesManager = () => {
                   onClick={() => setScheduledNoteEnabled(schedule.id, !schedule.enabled)}
                   className={`px-3 py-1.5 text-sm rounded-lg transition-colors border ${
                     schedule.enabled
-                      ? 'border-overlay-medium text-text-primary hover:bg-overlay-light'
-                      : 'border-accent text-accent hover:bg-accent/10'
+                      ? "border-overlay-medium text-text-primary hover:bg-overlay-light"
+                      : "border-accent text-accent hover:bg-accent/10"
                   }`}
                 >
-                  {schedule.enabled ? 'Disable' : 'Enable'}
+                  {schedule.enabled ? "Disable" : "Enable"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm('Delete this scheduled note?')) {
-                      deleteScheduledNote(schedule.id);
-                    }
-                  }}
+                  onClick={() => setPendingDeleteId(schedule.id)}
                   className="px-3 py-1.5 text-sm rounded-lg transition-colors border border-red-500/40 text-red-300 hover:bg-red-500/10"
                 >
                   Delete
@@ -176,6 +188,19 @@ const ScheduledNotesManager = () => {
           </div>
         );
       })}
+      <ConfirmDialog
+        isOpen={Boolean(pendingDeleteId)}
+        title="Delete Scheduled Note"
+        message="Delete this scheduled note? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          if (pendingDeleteId) deleteScheduledNote(pendingDeleteId);
+          setPendingDeleteId(null);
+        }}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 };

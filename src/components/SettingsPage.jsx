@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ConfirmDialog from "./ConfirmDialog";
 import AppearanceSettings from "./AppearanceSettings";
 import BatchExportModal from "./BatchExportModal";
 import EditorSettings from "./EditorSettings";
@@ -25,6 +26,7 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
   const [showBatchExport, setShowBatchExport] = useState(false);
   const [isExportingSettings, setIsExportingSettings] = useState(false);
   const [isImportingSettings, setIsImportingSettings] = useState(false);
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const appUpdate = useUIStore((state) => state.appUpdate);
 
   const {
@@ -71,12 +73,13 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
     }
   };
 
-  const handleRestoreBackup = async () => {
-    const { addNotification } = useUIStore.getState();
+  const handleRestoreBackup = () => {
+    setShowRestoreConfirm(true);
+  };
 
-    const overwriteExisting = window.confirm(
-      "Overwrite files if they already exist in the destination folder?\n\nChoose Cancel to skip existing files (safer default)."
-    );
+  const executeRestore = async (overwriteExisting) => {
+    setShowRestoreConfirm(false);
+    const { addNotification } = useUIStore.getState();
 
     setIsRestoringBackup(true);
     try {
@@ -691,6 +694,16 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
       </div>
 
       <BatchExportModal isOpen={showBatchExport} onClose={() => setShowBatchExport(false)} />
+      <ConfirmDialog
+        isOpen={showRestoreConfirm}
+        title="Overwrite existing files?"
+        message="Overwrite files if they already exist in the destination folder? Choose Cancel to skip existing files (safer default)."
+        confirmLabel="Overwrite"
+        cancelLabel="Skip Existing"
+        variant="warning"
+        onConfirm={() => executeRestore(true)}
+        onCancel={() => executeRestore(false)}
+      />
     </>
   );
 };

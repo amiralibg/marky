@@ -1760,6 +1760,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
         onRestore={(content) => {
           if (!currentNoteId) return;
           updateNote(currentNoteId, content);
+          setMarkdown(content);
+          setDebouncedMarkdown(content);
           setShowHistoryModal(false);
           addNotification("Restored snapshot into editor — save to persist", "success");
         }}

@@ -1632,10 +1632,10 @@ const Sidebar = forwardRef(
         <div
           ref={sidebarRef}
           data-sidebar-tree-root="true"
-          className={`flex-1 overflow-y-auto px-3 py-2 space-y-0.5 custom-scrollbar bg-transparent relative
+          className={`flex-1 overflow-y-auto px-3 py-2 space-y-0.5 custom-scrollbar bg-transparent relative transition-all duration-150
             ${draggedItem ? "rounded-lg mx-2" : ""}
-            ${isRootDropActive ? "bg-overlay-subtle/40 ring-1 ring-accent/25 ring-inset" : ""}
-            ${isExternalDragging && !dropTargetFolder ? "ring-2 ring-accent/40 ring-inset rounded-lg bg-accent/5" : ""}
+            ${isRootDropActive ? "bg-accent/8 ring-2 ring-accent/50 ring-inset rounded-lg shadow-[inset_0_0_24px_rgba(var(--color-accent-rgb,99,102,241),0.08)]" : ""}
+            ${isExternalDragging && !dropTargetFolder ? "ring-2 ring-accent/50 ring-inset rounded-lg bg-accent/8 shadow-[inset_0_0_24px_rgba(var(--color-accent-rgb,99,102,241),0.08)]" : ""}
           `}
           onScroll={
             useVirtualizedTree
@@ -1646,18 +1646,6 @@ const Sidebar = forwardRef(
           onMouseLeave={draggedItem ? handleTreeMouseLeave : undefined}
           onMouseUp={draggedItem ? handleDropToRoot : undefined}
         >
-          {draggedItem && isRootDropActive && (
-            <div className="sticky top-0 z-10 mb-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-accent backdrop-blur-sm">
-              Drop to move "{draggedItem.name}" to the workspace root
-            </div>
-          )}
-
-          {isExternalDragging && !dropTargetFolder && rootFolderPath && (
-            <div className="sticky top-0 z-10 mb-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-accent backdrop-blur-sm">
-              Drop files here to copy them into the workspace root
-            </div>
-          )}
-
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-full text-text-muted px-4">
               <svg
@@ -1925,7 +1913,11 @@ const Sidebar = forwardRef(
         {/* Drag Ghost */}
         {draggedItem && dragPosition && (
           <div
-            className="fixed z-50 pointer-events-none flex items-center gap-2 px-3 py-1.5 bg-bg-sidebar border border-overlay-medium rounded-md shadow-lg text-sm text-text-primary max-w-50"
+            className={`fixed z-50 pointer-events-none flex items-center gap-2 px-3 py-1.5 rounded-md shadow-lg text-sm max-w-60 transition-colors duration-100 ${
+              isRootDropActive
+                ? "bg-accent/15 border border-accent/40 text-accent"
+                : "bg-bg-sidebar border border-overlay-medium text-text-primary"
+            }`}
             style={{
               left: dragPosition.x + 12,
               top: dragPosition.y - 12,
@@ -1955,6 +1947,9 @@ const Sidebar = forwardRef(
               </svg>
             )}
             <span className="truncate">{draggedItem.name}</span>
+            {isRootDropActive && (
+              <span className="text-xs text-accent font-medium shrink-0">→ Root</span>
+            )}
           </div>
         )}
 
