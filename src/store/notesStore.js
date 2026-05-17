@@ -630,22 +630,15 @@ const useNotesStore = create(
             set({ loadingProgress: progress });
           }
         );
-        const normalizedRoot = normalizePath(folderData.folderPath);
         const previousItems = get().items;
         const ephemeralItems = previousItems.filter((item) => !item.filePath);
         const combinedItems = [...fsItems, ...ephemeralItems].map(ensureNoteMetadata);
-        const firstNote = combinedItems.find(
-          (item) =>
-            item.type === "note" &&
-            item.filePath &&
-            normalizePath(item.filePath).startsWith(normalizedRoot)
-        );
-
         set({
           rootFolderPath: folderData.folderPath,
           rootFolderId: rootId,
           items: combinedItems,
-          currentNoteId: firstNote ? firstNote.id : null,
+          currentNoteId: null,
+          openNoteIds: [],
           expandedFolders: [rootId],
           isLoading: false,
           loadingProgress: null,
@@ -782,12 +775,18 @@ const useNotesStore = create(
 
           const findItemById = (id) => combinedItems.find((item) => item.id === id);
           let currentNoteId = state.currentNoteId;
+          let openNoteIds = state.openNoteIds.filter(
+            (id) => id === SETTINGS_TAB_ID || findItemById(id)
+          );
 
           if (focusPath) {
             const normalizedFocus = normalizePath(focusPath);
             const target = combinedItems.find((item) => item.normalizedPath === normalizedFocus);
             if (target && target.type === "note") {
               currentNoteId = target.id;
+              if (!state.openNoteIds.includes(target.id)) {
+                openNoteIds = [...openNoteIds, target.id];
+              }
             } else if (currentNoteId && !findItemById(currentNoteId)) {
               currentNoteId = null;
             }
@@ -800,6 +799,7 @@ const useNotesStore = create(
             rootFolderId: rootId,
             expandedFolders: Array.from(expandedSet),
             currentNoteId,
+            openNoteIds,
             noteConflicts: nextConflicts,
             dirtyNoteIds: Array.from(recoveredDirtyIds),
             recoveredDrafts: nextRecoveredDrafts,

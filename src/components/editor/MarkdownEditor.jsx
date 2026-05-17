@@ -13,7 +13,6 @@ import { marked } from "marked";
 import hljs from "highlight.js/lib/common";
 import markedFootnote from "marked-footnote";
 import markedKatex from "marked-katex-extension";
-import { version as appVersion } from "../../../package.json";
 import "katex/dist/katex.min.css";
 import Toolbar from "../layout/Toolbar";
 import CreateNoteModal from "../modals/CreateNoteModal";
@@ -28,6 +27,8 @@ const ExportModal = lazy(() => import("../modals/ExportModal"));
 const TableOfContents = lazy(() => import("./TableOfContents"));
 const SettingsPage = lazy(() => import("../settings/SettingsPage"));
 const NoteHistoryModal = lazy(() => import("../modals/NoteHistoryModal"));
+const ConflictCompareModal = lazy(() => import("../modals/ConflictCompareModal"));
+const WorkspaceDashboard = lazy(() => import("../dashboard/WorkspaceDashboard"));
 
 // Lazy-load mermaid only when needed (large dependency ~1.5MB)
 let mermaidPromise = null;
@@ -258,6 +259,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const [viewMode, setViewMode] = useState("split"); // "editor", "preview", or "split"
   const [showExportModal, setShowExportModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showConflictCompare, setShowConflictCompare] = useState(false);
   const [showCreateNoteModal, setShowCreateNoteModal] = useState(false);
   const [pendingNoteName, setPendingNoteName] = useState("");
   const [showTOC, setShowTOC] = useState(false);
@@ -642,6 +644,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     if (!currentNoteId) return;
     const resolved = resolveNoteConflict(currentNoteId, "useDisk");
     if (resolved) {
+      setShowConflictCompare(false);
       addNotification("Loaded the version from disk", "info");
     }
   }, [currentNoteId, resolveNoteConflict, addNotification]);
@@ -650,6 +653,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     if (!currentNoteId) return;
     const resolved = resolveNoteConflict(currentNoteId, "keepLocal");
     if (!resolved) return;
+    setShowConflictCompare(false);
 
     const currentNote = getCurrentNote();
     if (!currentNote?.filePath || isSaving) {
@@ -1274,82 +1278,15 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   if (!currentNote) {
     return (
-      <div className="h-full flex items-center justify-center text-text-muted bg-editor-bg relative overflow-hidden">
-        {/* Decorative background elements */}
-        <div className="absolute top-1/4 -right-20 w-96 h-96 bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-1/4 -left-20 w-96 h-96 bg-blue-500/5 rounded-full blur-[100px] pointer-events-none" />
-
-        <div className="text-center z-10 max-w-md px-6 animate-in fade-in zoom-in-95 duration-500">
-          <div className="w-24 h-24 mx-auto mb-8 bg-linear-to-tr from-accent/20 to-accent/5 rounded-2xl flex items-center justify-center border border-accent/10 shadow-inner">
-            <svg
-              className="w-12 h-12 text-accent"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-              />
-            </svg>
+      <Suspense
+        fallback={
+          <div className="h-full flex items-center justify-center bg-editor-bg text-sm text-text-muted">
+            Loading workspace...
           </div>
-          <h2 className="text-2xl font-bold text-text-primary tracking-tight mb-2">
-            Ready to write?
-          </h2>
-          <p className="text-text-secondary mb-10 leading-relaxed text-sm">
-            Select an existing note from the sidebar or start a fresh one to begin capturing your
-            ideas.
-          </p>
-
-          <div className="grid grid-cols-1 gap-3 text-left">
-            <div className="p-3 bg-overlay-subtle border border-overlay-subtle rounded-xl hover:border-overlay-light transition-colors flex items-center gap-3 group">
-              <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent group-hover:bg-accent/20 transition-colors">
-                <span className="text-xs font-bold">N</span>
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-semibold text-text-primary">Create New Note</p>
-                <p className="text-[10px] text-text-muted">Press ⌘N to start a new document</p>
-              </div>
-            </div>
-
-            <div className="p-3 bg-overlay-subtle border border-overlay-subtle rounded-xl hover:border-overlay-light transition-colors flex items-center gap-3 group">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-blue-500/20 transition-colors">
-                <span className="text-xs font-bold">O</span>
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-semibold text-text-primary">Open Existing File</p>
-                <p className="text-[10px] text-text-muted">Press ⌘O to import from disk</p>
-              </div>
-            </div>
-
-            <div className="p-3 bg-overlay-subtle border border-overlay-subtle rounded-xl hover:border-overlay-light transition-colors flex items-center gap-3 group">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-colors">
-                <span className="text-xs font-bold">G</span>
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-semibold text-text-primary">Visualize Graph</p>
-                <p className="text-[10px] text-text-muted">Explore connections between notes</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-12 text-[11px] text-text-muted flex items-center justify-center gap-4 opacity-70">
-            <div className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-overlay-subtle border border-overlay-light rounded-md">
-                ⌘
-              </kbd>
-              <kbd className="px-1.5 py-0.5 bg-overlay-subtle border border-overlay-light rounded-md">
-                K
-              </kbd>
-              <span>Shortcuts</span>
-            </div>
-            <div className="w-1 h-1 bg-overlay-medium rounded-full" />
-            <span>v{appVersion}</span>
-          </div>
-        </div>
-      </div>
+        }
+      >
+        <WorkspaceDashboard />
+      </Suspense>
     );
   }
 
@@ -1585,10 +1522,17 @@ const MarkdownEditor = forwardRef((props, ref) => {
                 This note changed on disk while you had unsaved edits.
               </p>
               <p className="text-xs text-amber-100/80 mt-1">
-                Choose whether to load the disk version or overwrite it with your current draft.
+                Compare both versions, then load the disk version or overwrite it with your current
+                draft.
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowConflictCompare(true)}
+                className="px-3 py-1.5 text-xs rounded-md border border-amber-400/30 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20 transition-colors"
+              >
+                Compare Changes
+              </button>
               <button
                 onClick={handleUseDiskVersion}
                 className="px-3 py-1.5 text-xs rounded-md border border-overlay-light bg-overlay-subtle text-text-primary hover:bg-overlay-light transition-colors"
@@ -1856,6 +1800,18 @@ const MarkdownEditor = forwardRef((props, ref) => {
               setShowHistoryModal(false);
               addNotification("Restored snapshot into editor — save to persist", "success");
             }}
+          />
+        )}
+        {currentNote && noteConflict && (
+          <ConflictCompareModal
+            isOpen={showConflictCompare}
+            noteName={currentNote.name}
+            localContent={markdown}
+            diskContent={noteConflict.diskContent}
+            detectedAt={noteConflict.detectedAt}
+            onClose={() => setShowConflictCompare(false)}
+            onUseDisk={handleUseDiskVersion}
+            onKeepLocal={handleOverwriteDiskVersion}
           />
         )}
       </Suspense>

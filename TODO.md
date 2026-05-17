@@ -78,7 +78,7 @@ Latest validation: `pnpm lint` and `pnpm build` pass.
 - [x] Add note history diff viewer before restore
   - Value: users can understand exactly what changed before replacing current content.
   - Depends on: existing note history snapshots and a lightweight text/markdown diff implementation.
-- [ ] Improve conflict recovery with side-by-side compare
+- [x] Improve conflict recovery with side-by-side compare
   - Value: external-edit conflicts become safer than a binary "load disk" / "overwrite disk" choice.
   - Depends on: existing conflict banner and note snapshot/draft data.
 - [ ] Complete broader screen reader audit across settings/sidebar/editor flows
@@ -103,7 +103,7 @@ Why first:
 - [x] Tag autocomplete while typing `#tags`
 - [x] Tag panel counts
 - [x] Tag panel sort modes (A-Z / frequency / recent)
-- [ ] Workspace dashboard / start page
+- [x] Workspace dashboard / start page
   - Value: gives users a useful home when no note is selected.
   - Depends on: existing recent notes, pinned notes, tags, graph/backlink data, templates, and scheduled notes.
 - [ ] Workspace statistics dashboard
@@ -209,7 +209,7 @@ Why next:
 - [x] Reduce noisy success toasts for frequent file watcher sync events (optional throttle)
 - [x] Toolbar formatting shortcuts do not rely on textarea focus assumptions
 - [x] Shared confirm dialogs replace all remaining native browser prompts
-- [ ] Conflict banner offers compare/diff before resolving
+- [x] Conflict banner offers compare/diff before resolving
 - [x] Dev-only watcher logs do not appear in production builds
 - [x] The editor should preserve line breaks and spacing in the preview.
 
