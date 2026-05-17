@@ -10,6 +10,8 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   const inputRef = useRef(null);
   const resultsContainerRef = useRef(null);
   const dialogRef = useRef(null);
+  const resultsListboxId = "command-palette-results";
+  const activeResultId = results.length > 0 ? `command-palette-result-${selectedIndex}` : undefined;
 
   const { items, currentNoteId, isPinned } = useNotesStore();
   useModalAccessibility(isOpen, dialogRef, inputRef);
@@ -383,6 +385,10 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search notes or type a command..."
+                aria-label="Search commands and notes"
+                aria-controls={resultsListboxId}
+                aria-activedescendant={activeResultId}
+                aria-describedby="command-palette-status"
                 className="w-full pl-10 pr-4 py-3 bg-overlay-subtle border border-overlay-subtle rounded-lg text-sm text-text-primary placeholder-text-muted outline-none focus:bg-white/5 focus:border-accent/50 transition-all"
               />
               {query && (
@@ -390,6 +396,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
                   onClick={() => setQuery("")}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-overlay-light rounded text-text-muted hover:text-text-primary transition-colors"
                   title="Clear"
+                  aria-label="Clear command search"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -404,7 +411,12 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
             </div>
 
             {/* Result count */}
-            <div className="mt-2 text-xs text-text-muted px-1">
+            <div
+              id="command-palette-status"
+              className="mt-2 text-xs text-text-muted px-1"
+              role="status"
+              aria-live="polite"
+            >
               {results.length > 0
                 ? `${results.length} result${results.length !== 1 ? "s" : ""}`
                 : query
@@ -414,7 +426,13 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
           </div>
 
           {/* Results */}
-          <div ref={resultsContainerRef} className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+          <div
+            ref={resultsContainerRef}
+            id={resultsListboxId}
+            role="listbox"
+            aria-label="Command palette results"
+            className="max-h-[60vh] overflow-y-auto custom-scrollbar"
+          >
             {results.length === 0 && query.trim() !== "" && (
               <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
                 <svg
@@ -443,7 +461,10 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
               return (
                 <button
                   key={isNote ? item.id : item.id}
+                  id={`command-palette-result-${index}`}
                   onClick={() => handleSelect(result)}
+                  role="option"
+                  aria-selected={isSelected}
                   className={`w-full text-left px-4 py-3 border-b border-overlay-subtle hover:bg-overlay-light transition-colors ${
                     isSelected ? "bg-overlay-light border-l-2 border-l-accent" : ""
                   }`}

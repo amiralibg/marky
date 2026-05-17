@@ -140,9 +140,20 @@ const getMatchedFieldLabels = (matches = []) => {
   ].filter(Boolean);
 };
 
-const ResultRow = ({ result, titleParts, preview, isSelected, matchedFields, onClick }) => (
+const ResultRow = ({
+  result,
+  titleParts,
+  preview,
+  isSelected,
+  matchedFields,
+  onClick,
+  resultId,
+}) => (
   <button
+    id={resultId}
     onClick={onClick}
+    role="option"
+    aria-selected={isSelected}
     className={`w-full text-left px-4 py-3 border-b border-overlay-subtle hover:bg-overlay-light transition-colors ${
       isSelected ? "bg-overlay-light border-l-2 border-l-accent" : ""
     }`}
@@ -226,6 +237,8 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
   const searchInputRef = useRef(null);
   const resultsContainerRef = useRef(null);
   const dialogRef = useRef(null);
+  const resultsListboxId = "search-results-listbox";
+  const activeResultId = searchResults.length > 0 ? `search-result-${selectedIndex}` : undefined;
 
   const { items, selectNote } = useNotesStore();
   useModalAccessibility(isOpen, dialogRef, searchInputRef);
@@ -528,6 +541,10 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search notes by title or content..."
+                aria-label="Search notes"
+                aria-controls={resultsListboxId}
+                aria-activedescendant={activeResultId}
+                aria-describedby="search-results-status"
                 className="w-full pl-10 pr-4 py-3 bg-overlay-subtle border border-overlay-subtle rounded-lg text-sm text-text-primary placeholder-text-muted outline-none focus:bg-white/5 focus:border-accent/50 transition-all"
               />
               {searchQuery && (
@@ -535,6 +552,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                   onClick={() => setSearchQuery("")}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-overlay-light rounded text-text-muted hover:text-text-primary transition-colors"
                   title="Clear search"
+                  aria-label="Clear search"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -550,7 +568,12 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
 
             {/* Result count */}
             {searchQuery && (
-              <div className="mt-2 text-xs text-text-muted px-1">
+              <div
+                id="search-results-status"
+                className="mt-2 text-xs text-text-muted px-1"
+                role="status"
+                aria-live="polite"
+              >
                 {searchResults.length > 0
                   ? `Found ${searchResults.length} note${searchResults.length !== 1 ? "s" : ""}`
                   : searchError || "No results found"}
@@ -568,6 +591,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                       key={btn.key}
                       type="button"
                       onClick={() => updateSearchOption(btn.key)}
+                      aria-pressed={enabled}
                       className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
                         enabled
                           ? "border-accent/40 bg-accent/10 text-accent"
@@ -589,6 +613,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                       key={btn.key}
                       type="button"
                       onClick={() => updateSearchOption(btn.key)}
+                      aria-pressed={enabled}
                       className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
                         enabled
                           ? "border-accent/40 bg-accent/10 text-accent"
@@ -606,6 +631,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                   <button
                     type="button"
                     onClick={() => setGroupByFolder((v) => !v)}
+                    aria-pressed={groupByFolder}
                     className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
                       groupByFolder
                         ? "border-accent/40 bg-accent/10 text-accent"
@@ -620,7 +646,13 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
           </div>
 
           {/* Search Results */}
-          <div ref={resultsContainerRef} className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+          <div
+            ref={resultsContainerRef}
+            id={resultsListboxId}
+            role="listbox"
+            aria-label="Search results"
+            className="max-h-[60vh] overflow-y-auto custom-scrollbar"
+          >
             {searchResults.length === 0 && searchQuery.trim() !== "" && (
               <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
                 <svg
@@ -746,6 +778,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                           preview={preview}
                           isSelected={isSelected}
                           matchedFields={matchedFields}
+                          resultId={`search-result-${index}`}
                           onClick={() => handleSelectNote(result.item)}
                         />
                       );
@@ -765,6 +798,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                       preview={preview}
                       isSelected={isSelected}
                       matchedFields={matchedFields}
+                      resultId={`search-result-${index}`}
                       onClick={() => handleSelectNote(result.item)}
                     />
                   );
