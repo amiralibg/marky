@@ -281,6 +281,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const highlightTimeoutRef = useRef(null);
   const ignoreNextEditorSyncScrollRef = useRef(false);
   const ignoreNextPreviewSyncScrollRef = useRef(false);
+  const localEditPendingRef = useRef(false);
+  const localEditNoteIdRef = useRef(null);
 
   // Get dirty state from store (persists across tab switches)
   const hasUnsavedChanges = isNoteDirty(currentNoteId);
@@ -497,6 +499,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
       clearTimeout(previewTimerRef.current);
       previewTimerRef.current = null;
     }
+    localEditPendingRef.current = false;
+    localEditNoteIdRef.current = null;
 
     const currentNote = getCurrentNote();
     if (currentNote) {
@@ -530,6 +534,24 @@ const MarkdownEditor = forwardRef((props, ref) => {
     setVimModeStatus(vimStatus);
   }, []);
 
+  const flushPendingNoteUpdate = useCallback(
+    (noteId = currentNoteId, content = markdown) => {
+      if (!noteId) return;
+
+      if (updateTimerRef.current) {
+        clearTimeout(updateTimerRef.current);
+        updateTimerRef.current = null;
+      }
+
+      if (localEditPendingRef.current && localEditNoteIdRef.current === noteId) {
+        updateNote(noteId, content);
+        localEditPendingRef.current = false;
+        localEditNoteIdRef.current = null;
+      }
+    },
+    [currentNoteId, markdown, updateNote]
+  );
+
   // Manual save function
   const handleSave = useCallback(async () => {
     if (!currentNoteId || isSaving) return;
@@ -547,6 +569,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
     setIsSaving(true);
     try {
+      flushPendingNoteUpdate(currentNoteId, markdown);
       await saveCurrentNoteToDisk();
       // Note: dirty state is cleared in the store by saveCurrentNoteToDisk
 
@@ -571,6 +594,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     isSaving,
     markdown,
     getCurrentNote,
+    flushPendingNoteUpdate,
     saveCurrentNoteToDisk,
     addNotification,
     noteConflict,
@@ -584,7 +608,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
       return;
     }
     const note = getCurrentNote();
-    if (!note?.filePath || !isNoteDirty(currentNoteId) || noteConflict) {
+    if (!note?.filePath || !hasUnsavedChanges || noteConflict) {
       return;
     }
     setAutosaveStatus("pending");
@@ -603,7 +627,16 @@ const MarkdownEditor = forwardRef((props, ref) => {
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-  }, [markdown, autosaveEnabled, autosaveDelay, currentNoteId]);
+  }, [
+    markdown,
+    autosaveEnabled,
+    autosaveDelay,
+    currentNoteId,
+    hasUnsavedChanges,
+    noteConflict,
+    getCurrentNote,
+    saveCurrentNoteToDisk,
+  ]);
 
   const handleUseDiskVersion = useCallback(() => {
     if (!currentNoteId) return;
@@ -625,6 +658,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
     setIsSaving(true);
     try {
+      flushPendingNoteUpdate(currentNoteId, markdown);
       await saveCurrentNoteToDisk();
       setShowSavedIndicator(true);
       if (savedIndicatorTimerRef.current) {
@@ -644,7 +678,9 @@ const MarkdownEditor = forwardRef((props, ref) => {
     currentNoteId,
     resolveNoteConflict,
     getCurrentNote,
+    flushPendingNoteUpdate,
     isSaving,
+    markdown,
     saveCurrentNoteToDisk,
     addNotification,
   ]);
@@ -687,6 +723,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const handleMarkdownChange = (value) => {
     // Update local state immediately for instant typing
     setMarkdown(value);
+    localEditPendingRef.current = true;
+    localEditNoteIdRef.current = currentNoteId;
     // Note: dirty state is tracked in the store when updateNote is called
 
     // Debounce preview update to avoid expensive markdown parsing on every keystroke
@@ -699,12 +737,18 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
     // Debounce store update to avoid localStorage serialization on every keystroke
     if (currentNoteId) {
+      const noteIdForUpdate = currentNoteId;
       if (updateTimerRef.current) {
         clearTimeout(updateTimerRef.current);
       }
 
       updateTimerRef.current = setTimeout(() => {
-        updateNote(currentNoteId, value);
+        updateNote(noteIdForUpdate, value);
+        if (localEditNoteIdRef.current === noteIdForUpdate) {
+          localEditPendingRef.current = false;
+          localEditNoteIdRef.current = null;
+        }
+        updateTimerRef.current = null;
       }, 300); // Update store 300ms after typing stops
     }
   };
@@ -1203,7 +1247,9 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   // Sync editor content when external actions (e.g. Tag Manager / restore) update the current note.
   useEffect(() => {
-    if (!currentNote || hasUnsavedChanges) return;
+    const hasPendingLocalEdit =
+      localEditPendingRef.current && localEditNoteIdRef.current === currentNoteId;
+    if (!currentNote || hasUnsavedChanges || hasPendingLocalEdit) return;
     const nextContent = currentNote.content || "";
     if (nextContent !== markdown) {
       setMarkdown(nextContent);
