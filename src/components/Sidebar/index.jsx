@@ -1001,6 +1001,7 @@ const Sidebar = forwardRef(
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search..."
+              aria-label="Search notes and folders in sidebar"
               className="w-full pl-9 pr-8 py-2 bg-overlay-subtle border border-overlay-subtle rounded-lg text-sm text-white placeholder-text-muted outline-none focus:bg-white/10 focus:border-accent/50 transition-all"
             />
             {searchQuery && (
@@ -1008,6 +1009,7 @@ const Sidebar = forwardRef(
                 onClick={() => setSearchQuery("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-overlay-light rounded text-text-muted hover:text-text-primary transition-colors"
                 title="Clear search"
+                aria-label="Clear sidebar search"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -1021,7 +1023,7 @@ const Sidebar = forwardRef(
             )}
           </div>
           {searchQuery && (
-            <div className="mt-2 text-xs text-text-muted px-1">
+            <div className="mt-2 text-xs text-text-muted px-1" role="status" aria-live="polite">
               Found {filteredItems.filter((i) => i.type === "note").length} notes
             </div>
           )}
@@ -1034,6 +1036,10 @@ const Sidebar = forwardRef(
                   onClick={() => setShowWorkspaceSwitcher((v) => !v)}
                   className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors group"
                   title="Switch workspace"
+                  aria-expanded={showWorkspaceSwitcher}
+                  aria-label={`Current workspace: ${
+                    rootFolderPath.split("/").filter(Boolean).pop() || rootFolderPath
+                  }. Switch workspace`}
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     <svg
@@ -1159,6 +1165,8 @@ const Sidebar = forwardRef(
                 <button
                   onClick={() => setShowSortMenu(!showSortMenu)}
                   className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors"
+                  aria-expanded={showSortMenu}
+                  aria-label="Choose sidebar sort order"
                 >
                   <div className="flex items-center gap-2">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1250,6 +1258,7 @@ const Sidebar = forwardRef(
               <button
                 onClick={() => setShowPinnedNotes(!showPinnedNotes)}
                 className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
+                aria-expanded={showPinnedNotes}
               >
                 <div className="flex items-center gap-1.5">
                   <svg
@@ -1299,6 +1308,7 @@ const Sidebar = forwardRef(
               <button
                 onClick={() => setShowRecentNotes(!showRecentNotes)}
                 className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
+                aria-expanded={showRecentNotes}
               >
                 <div className="flex items-center gap-1.5">
                   <svg
@@ -1357,6 +1367,7 @@ const Sidebar = forwardRef(
               <button
                 onClick={() => setShowTags(!showTags)}
                 className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
+                aria-expanded={showTags}
               >
                 <div className="flex items-center gap-1.5">
                   <svg
@@ -1405,6 +1416,7 @@ const Sidebar = forwardRef(
                       <button
                         key={id}
                         onClick={() => setTagSortMode(id)}
+                        aria-pressed={tagSortMode === id}
                         className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
                           tagSortMode === id
                             ? "bg-accent/15 text-accent border border-accent/20"
@@ -1452,6 +1464,8 @@ const Sidebar = forwardRef(
                           key={tag}
                           onClick={() => toggleTagFilter(tag)}
                           title={`${count} note${count !== 1 ? "s" : ""}`}
+                          aria-pressed={isSelected}
+                          aria-label={`${isSelected ? "Remove" : "Add"} tag filter ${tag}, ${count} note${count !== 1 ? "s" : ""}`}
                           className={`
                           px-2 py-0.5 text-[10px] rounded-full border transition-all
                           ${
@@ -1477,6 +1491,7 @@ const Sidebar = forwardRef(
               <button
                 onClick={() => setShowBrokenLinks(!showBrokenLinks)}
                 className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
+                aria-expanded={showBrokenLinks}
               >
                 <div className="flex items-center gap-1.5">
                   <svg
@@ -1569,6 +1584,7 @@ const Sidebar = forwardRef(
               <button
                 onClick={() => setShowBacklinks(!showBacklinks)}
                 className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
+                aria-expanded={showBacklinks}
               >
                 <div className="flex items-center gap-1.5">
                   <svg
@@ -1654,6 +1670,8 @@ const Sidebar = forwardRef(
         <div
           ref={sidebarRef}
           data-sidebar-tree-root="true"
+          role="tree"
+          aria-label="Workspace notes and folders"
           className={`flex-1 overflow-y-auto px-3 py-2 space-y-0.5 custom-scrollbar bg-transparent relative transition-all duration-150
             ${draggedItem ? "rounded-lg mx-2" : ""}
             ${isRootDropActive ? "bg-accent/8 ring-2 ring-accent/50 ring-inset rounded-lg shadow-[inset_0_0_24px_rgba(var(--color-accent-rgb,99,102,241),0.08)]" : ""}

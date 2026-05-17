@@ -1357,6 +1357,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowTOC(!showTOC)}
+              aria-pressed={showTOC}
               className={`px-2 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
                 showTOC
                   ? "bg-accent/10 text-accent"
@@ -1439,6 +1440,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
             <div className="flex items-center gap-1 bg-overlay-subtle rounded-lg p-1 border border-overlay-subtle">
               <button
                 onClick={() => setViewMode("editor")}
+                aria-pressed={viewMode === "editor"}
+                aria-label="Switch to editor-only view"
                 className={`p-1.5 rounded-md transition-all ${
                   viewMode === "editor"
                     ? "bg-accent text-white shadow-sm"
@@ -1457,6 +1460,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
               </button>
               <button
                 onClick={() => setViewMode("split")}
+                aria-pressed={viewMode === "split"}
+                aria-label="Switch to split editor and preview view"
                 className={`hidden md:block p-1.5 rounded-md transition-all ${
                   viewMode === "split"
                     ? "bg-accent text-white shadow-sm"
@@ -1480,6 +1485,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
               </button>
               <button
                 onClick={() => setViewMode("preview")}
+                aria-pressed={viewMode === "preview"}
+                aria-label="Switch to preview-only view"
                 className={`p-1.5 rounded-md transition-all ${
                   viewMode === "preview"
                     ? "bg-accent text-white shadow-sm"
@@ -1689,6 +1696,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
               formattingKeymaps={keymaps}
               getNotes={getNotes}
               getTags={getAllTags}
+              ariaLabel={`Markdown editor${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
             />
           </div>
         )}
@@ -1701,6 +1709,9 @@ const MarkdownEditor = forwardRef((props, ref) => {
               w-1 h-full cursor-col-resize hover:bg-accent/50 transition-colors z-10 shrink-0
               ${isResizingSplit ? "bg-accent" : "bg-transparent"}
             `}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize editor and preview panes"
           />
         )}
 
@@ -1711,6 +1722,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
             className={`flex flex-col bg-bg-editor overflow-y-auto ${isResizingSplit ? "pointer-events-none" : ""} ${focusMode ? "max-w-3xl mx-auto" : ""}`}
             style={{ width: viewMode === "split" ? `${100 - editorSplitRatio}%` : "100%" }}
             onClick={handlePreviewClick}
+            role="region"
+            aria-label={`Markdown preview${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
           >
             <div className="p-6">
               <div
@@ -1725,7 +1738,11 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
       {/* Status Bar */}
       {currentNote && !focusMode && (
-        <div className="shrink-0 px-4 py-1.5 bg-overlay-subtle border-t border-border flex items-center justify-between text-xs text-text-muted">
+        <div
+          className="shrink-0 px-4 py-1.5 bg-overlay-subtle border-t border-border flex items-center justify-between text-xs text-text-muted"
+          role="status"
+          aria-live="polite"
+        >
           <div className="flex items-center gap-4">
             <span>{statusBarStats.wordCount} words</span>
             <span className="text-text-muted/50">•</span>

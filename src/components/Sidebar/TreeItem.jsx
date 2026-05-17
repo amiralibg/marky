@@ -396,6 +396,26 @@ const TreeItem = ({
     beginRename();
   };
 
+  const metadataParts = [];
+  if (isFolder) {
+    metadataParts.push(isExpanded ? "expanded" : "collapsed");
+    if (children.length > 0) {
+      metadataParts.push(`${children.length} item${children.length !== 1 ? "s" : ""}`);
+    }
+  } else {
+    if (isSelected) metadataParts.push("selected");
+    if (showSidebarMetadata && isPinned(item.id)) metadataParts.push("pinned");
+    if (backlinksCount > 0) {
+      metadataParts.push(`${backlinksCount} backlink${backlinksCount !== 1 ? "s" : ""}`);
+    }
+    if (noteTags.length > 0) {
+      metadataParts.push(`tags ${noteTags.join(", ")}`);
+    }
+  }
+  const treeItemLabel = `${isFolder ? "Folder" : "Note"} ${item.name}${
+    metadataParts.length ? `, ${metadataParts.join(", ")}` : ""
+  }`;
+
   return (
     <div className={`relative ${isBeingDragged ? "opacity-40" : ""} transition-opacity`}>
       {/* Drop indicator line */}
@@ -445,6 +465,9 @@ const TreeItem = ({
         tabIndex={isRenaming ? -1 : 0}
         role="treeitem"
         aria-expanded={isFolder ? isExpanded : undefined}
+        aria-label={treeItemLabel}
+        aria-level={level + 1}
+        aria-selected={!isFolder ? isSelected : undefined}
         onMouseDown={handleMouseDown}
         onKeyDown={handleRowKeyDown}
         onFocus={handleRowFocus}
@@ -461,6 +484,7 @@ const TreeItem = ({
             className={`${chevronClass} transition-transform duration-150 text-text-muted ${isExpanded ? "rotate-90" : ""}`}
             fill="currentColor"
             viewBox="0 0 20 20"
+            aria-hidden="true"
           >
             <path d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" />
           </svg>
@@ -472,6 +496,7 @@ const TreeItem = ({
             className={`${iconClass} transition-colors ${showDropHighlight ? "text-accent" : "text-sky-400/80"}`}
             fill="currentColor"
             viewBox="0 0 20 20"
+            aria-hidden="true"
           >
             <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
           </svg>
@@ -482,6 +507,7 @@ const TreeItem = ({
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -495,6 +521,7 @@ const TreeItem = ({
                 className={`${isCompactDensity ? "w-2.5 h-2.5 mr-0.5" : "w-3 h-3 mr-1"} text-amber-400`}
                 fill="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
@@ -511,6 +538,7 @@ const TreeItem = ({
             onBlur={handleRename}
             onKeyDown={handleRenameKeyDown}
             className="flex-1 bg-overlay-light text-text-primary px-2 py-0.5 rounded outline-none border border-overlay-medium focus:border-accent text-sm"
+            aria-label={`Rename ${item.type} ${item.name}`}
             autoFocus
             onClick={(e) => e.stopPropagation()}
           />
@@ -534,6 +562,7 @@ const TreeItem = ({
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"
@@ -574,6 +603,7 @@ const TreeItem = ({
             className={`${isSpaciousDensity ? "w-3.5 h-3.5 ml-1.5" : "w-3 h-3 ml-1"} text-emerald-400/70`}
             fill="currentColor"
             viewBox="0 0 20 20"
+            aria-hidden="true"
           >
             <path
               fillRule="evenodd"

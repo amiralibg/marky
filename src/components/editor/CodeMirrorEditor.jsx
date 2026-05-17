@@ -20,6 +20,7 @@ const CodeMirrorEditor = forwardRef(
       formattingKeymaps = {},
       getNotes = () => [],
       getTags = () => [],
+      ariaLabel = "Markdown editor",
     },
     ref
   ) => {
@@ -110,6 +111,9 @@ const CodeMirrorEditor = forwardRef(
         parent: editorRef.current,
       });
 
+      view.contentDOM.setAttribute("aria-label", ariaLabel);
+      view.contentDOM.setAttribute("aria-multiline", "true");
+
       viewRef.current = view;
 
       // Initial mode sync after Vim extension initializes
@@ -131,6 +135,7 @@ const CodeMirrorEditor = forwardRef(
       enableTypewriterMode,
       editorSearchKeymap,
       formattingKeymaps,
+      ariaLabel,
     ]);
 
     // Some Vim mode transitions (notably Insert -> Normal via Esc) may not dispatch
