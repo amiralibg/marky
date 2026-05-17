@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import useNotesStore from "../store/notesStore";
-import useUIStore from "../store/uiStore";
-import ConfirmDialog from "./ConfirmDialog";
+import useNotesStore from "../../store/notesStore";
+import useUIStore from "../../store/uiStore";
+import ConfirmDialog from "../modals/ConfirmDialog";
 
 const normalizeTag = (value) =>
   (value || "")

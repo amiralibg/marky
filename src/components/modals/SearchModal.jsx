@@ -1,16 +1,18 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import Fuse from 'fuse.js';
-import useNotesStore from '../store/notesStore';
-import useModalAccessibility from '../hooks/useModalAccessibility';
+import { useState, useEffect, useRef, useMemo } from "react";
+import Fuse from "fuse.js";
+import useNotesStore from "../../store/notesStore";
+import useModalAccessibility from "../../hooks/useModalAccessibility";
 
-const RECENT_SEARCHES_KEY = 'marky-recent-searches';
+const RECENT_SEARCHES_KEY = "marky-recent-searches";
 const MAX_RECENT_SEARCHES = 8;
 
 const readRecentSearches = () => {
   try {
     const raw = window.localStorage.getItem(RECENT_SEARCHES_KEY);
     return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 };
 
 const saveRecentSearch = (query) => {
@@ -20,11 +22,17 @@ const saveRecentSearch = (query) => {
     const prev = readRecentSearches().filter((q) => q !== trimmed);
     const next = [trimmed, ...prev].slice(0, MAX_RECENT_SEARCHES);
     window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
-  } catch { /* quota */ }
+  } catch {
+    /* quota */
+  }
 };
 
 const clearRecentSearches = () => {
-  try { window.localStorage.removeItem(RECENT_SEARCHES_KEY); } catch { /* */ }
+  try {
+    window.localStorage.removeItem(RECENT_SEARCHES_KEY);
+  } catch {
+    /* */
+  }
 };
 
 const DEFAULT_SEARCH_OPTIONS = {
@@ -38,14 +46,14 @@ const DEFAULT_SEARCH_OPTIONS = {
 };
 
 const normalizeForMatch = (value, caseSensitive) => {
-  const text = value ?? '';
+  const text = value ?? "";
   return caseSensitive ? text : text.toLowerCase();
 };
 
 const findSubstringIndices = (fieldValue, query, caseSensitive) => {
   if (!query) return [];
 
-  const original = fieldValue ?? '';
+  const original = fieldValue ?? "";
   const haystack = normalizeForMatch(original, caseSensitive);
   const needle = normalizeForMatch(query, caseSensitive);
 
@@ -64,14 +72,14 @@ const findSubstringIndices = (fieldValue, query, caseSensitive) => {
 };
 
 const findRegexIndices = (fieldValue, regex) => {
-  const text = fieldValue ?? '';
+  const text = fieldValue ?? "";
   const matches = [];
   let match;
   let safety = 0;
   regex.lastIndex = 0;
 
   while ((match = regex.exec(text)) !== null) {
-    const matchedText = match[0] ?? '';
+    const matchedText = match[0] ?? "";
     if (!matchedText.length) {
       regex.lastIndex += 1;
       safety += 1;
@@ -88,20 +96,20 @@ const findRegexIndices = (fieldValue, regex) => {
 
 const buildManualMatches = (note, searchQuery, options) => {
   const fields = [];
-  if (options.title) fields.push({ key: 'name', value: note.name || '' });
-  if (options.content) fields.push({ key: 'content', value: note.content || '' });
-  if (options.tags) fields.push({ key: 'tags', value: (note.tags || []).join(' ') });
-  if (options.path) fields.push({ key: 'filePath', value: note.filePath || '' });
+  if (options.title) fields.push({ key: "name", value: note.name || "" });
+  if (options.content) fields.push({ key: "content", value: note.content || "" });
+  if (options.tags) fields.push({ key: "tags", value: (note.tags || []).join(" ") });
+  if (options.path) fields.push({ key: "filePath", value: note.filePath || "" });
 
   const matchEntries = [];
 
   if (options.regex) {
-    const flags = options.caseSensitive ? 'g' : 'gi';
+    const flags = options.caseSensitive ? "g" : "gi";
     let regex;
     try {
       regex = new RegExp(searchQuery, flags);
     } catch (error) {
-      throw new Error(error.message || 'Invalid regular expression');
+      throw new Error(error.message || "Invalid regular expression");
     }
 
     fields.forEach(({ key, value }) => {
@@ -125,10 +133,10 @@ const buildManualMatches = (note, searchQuery, options) => {
 const getMatchedFieldLabels = (matches = []) => {
   const fieldNames = new Set(matches.map((m) => m.key));
   return [
-    fieldNames.has('name') && 'Title',
-    fieldNames.has('content') && 'Content',
-    fieldNames.has('tags') && 'Tags',
-    fieldNames.has('filePath') && 'Path',
+    fieldNames.has("name") && "Title",
+    fieldNames.has("content") && "Content",
+    fieldNames.has("tags") && "Tags",
+    fieldNames.has("filePath") && "Path",
   ].filter(Boolean);
 };
 
@@ -136,26 +144,41 @@ const ResultRow = ({ result, titleParts, preview, isSelected, matchedFields, onC
   <button
     onClick={onClick}
     className={`w-full text-left px-4 py-3 border-b border-overlay-subtle hover:bg-overlay-light transition-colors ${
-      isSelected ? 'bg-overlay-light border-l-2 border-l-accent' : ''
+      isSelected ? "bg-overlay-light border-l-2 border-l-accent" : ""
     }`}
   >
     <div className="flex items-start gap-3">
-      <svg className="w-5 h-5 text-text-muted shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      <svg
+        className="w-5 h-5 text-text-muted shrink-0 mt-0.5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+        />
       </svg>
       <div className="flex-1 min-w-0">
         <div className="font-medium text-text-primary mb-1">
-          {Array.isArray(titleParts) ? (
-            titleParts.map((part, i) => (
-              <span key={i} className={part.highlight ? 'bg-accent/30 text-accent' : ''}>{part.text}</span>
-            ))
-          ) : result.item.name}
+          {Array.isArray(titleParts)
+            ? titleParts.map((part, i) => (
+                <span key={i} className={part.highlight ? "bg-accent/30 text-accent" : ""}>
+                  {part.text}
+                </span>
+              ))
+            : result.item.name}
         </div>
         <p className="text-xs text-text-muted line-clamp-2">{preview}</p>
         {matchedFields.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {matchedFields.map((field) => (
-              <span key={field} className="text-[10px] px-1.5 py-0.5 rounded bg-overlay-subtle border border-overlay-subtle text-text-muted">
+              <span
+                key={field}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-overlay-subtle border border-overlay-subtle text-text-muted"
+              >
                 {field}
               </span>
             ))}
@@ -164,15 +187,28 @@ const ResultRow = ({ result, titleParts, preview, isSelected, matchedFields, onC
         {result.score !== undefined && (
           <div className="mt-2 flex items-center gap-2">
             <div className="flex-1 h-1 bg-overlay-subtle rounded-full overflow-hidden max-w-[100px]">
-              <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${Math.max(10, (1 - result.score) * 100)}%` }} />
+              <div
+                className="h-full bg-accent rounded-full transition-all"
+                style={{ width: `${Math.max(10, (1 - result.score) * 100)}%` }}
+              />
             </div>
-            <span className="text-[10px] text-text-muted">{Math.round((1 - result.score) * 100)}% match</span>
+            <span className="text-[10px] text-text-muted">
+              {Math.round((1 - result.score) * 100)}% match
+            </span>
           </div>
         )}
       </div>
       {isSelected && (
-        <svg className="w-5 h-5 text-accent shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+        <svg
+          className="w-5 h-5 text-accent shrink-0 mt-0.5"
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path
+            fillRule="evenodd"
+            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+            clipRule="evenodd"
+          />
         </svg>
       )}
     </div>
@@ -180,11 +216,11 @@ const ResultRow = ({ result, titleParts, preview, isSelected, matchedFields, onC
 );
 
 const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchResults, setSearchResults] = useState([]);
   const [searchOptions, setSearchOptions] = useState(DEFAULT_SEARCH_OPTIONS);
-  const [searchError, setSearchError] = useState('');
+  const [searchError, setSearchError] = useState("");
   const [groupByFolder, setGroupByFolder] = useState(false);
   const [recentSearches, setRecentSearches] = useState(() => readRecentSearches());
   const searchInputRef = useRef(null);
@@ -198,29 +234,29 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
       setSelectedIndex(0);
-      setSearchError('');
+      setSearchError("");
       return;
     }
 
-    const notes = items.filter(item => item.type === 'note');
+    const notes = items.filter((item) => item.type === "note");
     const enabledScopes = [];
-    if (searchOptions.title) enabledScopes.push({ name: 'name', weight: 2 });
-    if (searchOptions.content) enabledScopes.push({ name: 'content', weight: 1 });
-    if (searchOptions.tags) enabledScopes.push({ name: 'tagsText', weight: 1.1 });
-    if (searchOptions.path) enabledScopes.push({ name: 'filePath', weight: 0.9 });
+    if (searchOptions.title) enabledScopes.push({ name: "name", weight: 2 });
+    if (searchOptions.content) enabledScopes.push({ name: "content", weight: 1 });
+    if (searchOptions.tags) enabledScopes.push({ name: "tagsText", weight: 1.1 });
+    if (searchOptions.path) enabledScopes.push({ name: "filePath", weight: 0.9 });
 
     if (enabledScopes.length === 0) {
       setSearchResults([]);
-      setSearchError('Enable at least one search scope (Title, Content, Tags, or Path).');
+      setSearchError("Enable at least one search scope (Title, Content, Tags, or Path).");
       setSelectedIndex(0);
       return;
     }
 
-    setSearchError('');
+    setSearchError("");
 
     const normalizedNotes = notes.map((note) => ({
       ...note,
-      tagsText: Array.isArray(note.tags) ? note.tags.join(' ') : '',
+      tagsText: Array.isArray(note.tags) ? note.tags.join(" ") : "",
     }));
 
     if (searchOptions.regex || searchOptions.exact) {
@@ -232,15 +268,15 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
           })
           .filter(Boolean)
           .sort((a, b) => {
-            const aName = a.matches.some(m => m.key === 'name') ? 0 : 1;
-            const bName = b.matches.some(m => m.key === 'name') ? 0 : 1;
+            const aName = a.matches.some((m) => m.key === "name") ? 0 : 1;
+            const bName = b.matches.some((m) => m.key === "name") ? 0 : 1;
             if (aName !== bName) return aName - bName;
 
-            const aContent = a.matches.some(m => m.key === 'content') ? 0 : 1;
-            const bContent = b.matches.some(m => m.key === 'content') ? 0 : 1;
+            const aContent = a.matches.some((m) => m.key === "content") ? 0 : 1;
+            const bContent = b.matches.some((m) => m.key === "content") ? 0 : 1;
             if (aContent !== bContent) return aContent - bContent;
 
-            return (a.item.name || '').localeCompare(b.item.name || '');
+            return (a.item.name || "").localeCompare(b.item.name || "");
           })
           .slice(0, 20);
 
@@ -248,7 +284,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
         setSelectedIndex(0);
       } catch (error) {
         setSearchResults([]);
-        setSearchError(error.message || 'Invalid search query');
+        setSearchError(error.message || "Invalid search query");
       }
       return;
     }
@@ -272,10 +308,10 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
       searchInputRef.current.focus();
-      setSearchQuery('');
+      setSearchQuery("");
       setSearchResults([]);
       setSelectedIndex(0);
-      setSearchError('');
+      setSearchError("");
     }
   }, [isOpen]);
 
@@ -285,31 +321,29 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
       if (!isOpen) return;
 
       switch (e.key) {
-        case 'ArrowDown':
+        case "ArrowDown":
           e.preventDefault();
-          setSelectedIndex((prev) =>
-            prev < searchResults.length - 1 ? prev + 1 : prev
-          );
+          setSelectedIndex((prev) => (prev < searchResults.length - 1 ? prev + 1 : prev));
           break;
-        case 'ArrowUp':
+        case "ArrowUp":
           e.preventDefault();
           setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0));
           break;
-        case 'Enter':
+        case "Enter":
           e.preventDefault();
           if (searchResults[selectedIndex]) {
             handleSelectNote(searchResults[selectedIndex].item);
           }
           break;
-        case 'Escape':
+        case "Escape":
           e.preventDefault();
           onClose();
           break;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, searchResults, selectedIndex, onClose]);
 
   // Scroll selected result into view
@@ -317,7 +351,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
     if (resultsContainerRef.current && searchResults.length > 0) {
       const selectedElement = resultsContainerRef.current.children[selectedIndex];
       if (selectedElement) {
-        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        selectedElement.scrollIntoView({ block: "nearest", behavior: "smooth" });
       }
     }
   }, [selectedIndex, searchResults.length]);
@@ -327,10 +361,10 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
       const next = { ...prev, [key]: !prev[key] };
 
       // regex and exact are mutually exclusive modes to keep matching semantics clear
-      if (key === 'regex' && next.regex) {
+      if (key === "regex" && next.regex) {
         next.exact = false;
       }
-      if (key === 'exact' && next.exact) {
+      if (key === "exact" && next.exact) {
         next.regex = false;
       }
 
@@ -354,9 +388,9 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
   const getPreviewText = (result) => {
     const { item, matches } = result;
 
-    const pathMatch = matches?.find(m => m.key === 'filePath');
-    const tagMatch = matches?.find(m => m.key === 'tags');
-    const contentMatch = matches?.find(m => m.key === 'content');
+    const pathMatch = matches?.find((m) => m.key === "filePath");
+    const tagMatch = matches?.find((m) => m.key === "tags");
+    const contentMatch = matches?.find((m) => m.key === "content");
 
     if (contentMatch && contentMatch.indices && contentMatch.indices.length > 0) {
       const firstMatch = contentMatch.indices[0];
@@ -364,31 +398,32 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
       const end = Math.min(item.content.length, firstMatch[1] + 100);
 
       let preview = item.content.slice(start, end).trim();
-      if (start > 0) preview = '...' + preview;
-      if (end < item.content.length) preview = preview + '...';
+      if (start > 0) preview = "..." + preview;
+      if (end < item.content.length) preview = preview + "...";
 
       return preview;
     }
 
     if (tagMatch) {
-      const tagsLabel = Array.isArray(item.tags) && item.tags.length > 0
-        ? item.tags.map(tag => `#${tag}`).join(' ')
-        : 'No tags';
+      const tagsLabel =
+        Array.isArray(item.tags) && item.tags.length > 0
+          ? item.tags.map((tag) => `#${tag}`).join(" ")
+          : "No tags";
       return `Matched in tags: ${tagsLabel}`;
     }
 
     if (pathMatch) {
-      return `Matched in path: ${item.filePath || 'No path'}`;
+      return `Matched in path: ${item.filePath || "No path"}`;
     }
 
-    const preview = item.content?.slice(0, 150) || 'No content';
-    return preview + (item.content?.length > 150 ? '...' : '');
+    const preview = item.content?.slice(0, 150) || "No content";
+    return preview + (item.content?.length > 150 ? "..." : "");
   };
 
   const highlightMatches = (text, matches, key) => {
     if (!matches || matches.length === 0) return text;
 
-    const match = matches.find(m => m.key === key);
+    const match = matches.find((m) => m.key === key);
     if (!match || !match.indices) return text;
 
     const indices = match.indices;
@@ -414,16 +449,16 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
   };
 
   const scopeButtons = [
-    { key: 'title', label: 'Title' },
-    { key: 'content', label: 'Content' },
-    { key: 'tags', label: 'Tags' },
-    { key: 'path', label: 'Path' },
+    { key: "title", label: "Title" },
+    { key: "content", label: "Content" },
+    { key: "tags", label: "Tags" },
+    { key: "path", label: "Path" },
   ];
 
   const modeButtons = [
-    { key: 'caseSensitive', label: 'Case' },
-    { key: 'exact', label: 'Exact' },
-    { key: 'regex', label: 'Regex' },
+    { key: "caseSensitive", label: "Case" },
+    { key: "exact", label: "Exact" },
+    { key: "regex", label: "Regex" },
   ];
 
   // Group results by parent folder path for display
@@ -431,11 +466,11 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
     if (!groupByFolder || searchResults.length === 0) return null;
     const groups = new Map();
     searchResults.forEach((result) => {
-      const fp = result.item.filePath || '';
-      const parts = fp.replace(/\\/g, '/').split('/');
+      const fp = result.item.filePath || "";
+      const parts = fp.replace(/\\/g, "/").split("/");
       parts.pop(); // remove filename
-      const folderPath = parts.join('/') || '/';
-      const folderName = parts[parts.length - 1] || 'Root';
+      const folderPath = parts.join("/") || "/";
+      const folderName = parts[parts.length - 1] || "Root";
       const key = folderPath;
       if (!groups.has(key)) groups.set(key, { folderName, folderPath, results: [] });
       groups.get(key).results.push(result);
@@ -480,7 +515,12 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
               </svg>
               <input
                 ref={searchInputRef}
@@ -492,12 +532,17 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => setSearchQuery("")}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-overlay-light rounded text-text-muted hover:text-text-primary transition-colors"
                   title="Clear search"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               )}
@@ -507,9 +552,8 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
             {searchQuery && (
               <div className="mt-2 text-xs text-text-muted px-1">
                 {searchResults.length > 0
-                  ? `Found ${searchResults.length} note${searchResults.length !== 1 ? 's' : ''}`
-                  : (searchError || 'No results found')
-                }
+                  ? `Found ${searchResults.length} note${searchResults.length !== 1 ? "s" : ""}`
+                  : searchError || "No results found"}
               </div>
             )}
 
@@ -526,8 +570,8 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                       onClick={() => updateSearchOption(btn.key)}
                       className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
                         enabled
-                          ? 'border-accent/40 bg-accent/10 text-accent'
-                          : 'border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light'
+                          ? "border-accent/40 bg-accent/10 text-accent"
+                          : "border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light"
                       }`}
                     >
                       {btn.label}
@@ -547,8 +591,8 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                       onClick={() => updateSearchOption(btn.key)}
                       className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
                         enabled
-                          ? 'border-accent/40 bg-accent/10 text-accent'
-                          : 'border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light'
+                          ? "border-accent/40 bg-accent/10 text-accent"
+                          : "border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light"
                       }`}
                     >
                       {btn.label}
@@ -564,8 +608,8 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                     onClick={() => setGroupByFolder((v) => !v)}
                     className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
                       groupByFolder
-                        ? 'border-accent/40 bg-accent/10 text-accent'
-                        : 'border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light'
+                        ? "border-accent/40 bg-accent/10 text-accent"
+                        : "border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light"
                     }`}
                   >
                     Group by folder
@@ -576,27 +620,40 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
           </div>
 
           {/* Search Results */}
-          <div
-            ref={resultsContainerRef}
-            className="max-h-[60vh] overflow-y-auto custom-scrollbar"
-          >
-            {searchResults.length === 0 && searchQuery.trim() !== '' && (
+          <div ref={resultsContainerRef} className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+            {searchResults.length === 0 && searchQuery.trim() !== "" && (
               <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                <svg className="w-16 h-16 text-text-muted opacity-50 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <svg
+                  className="w-16 h-16 text-text-muted opacity-50 mb-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
                 </svg>
                 <p className="text-text-secondary font-medium">No notes found</p>
                 <p className="text-sm text-text-muted mt-1">Try a different search term</p>
               </div>
             )}
 
-            {searchResults.length === 0 && searchQuery.trim() === '' && (
-              recentSearches.length > 0 ? (
+            {searchResults.length === 0 &&
+              searchQuery.trim() === "" &&
+              (recentSearches.length > 0 ? (
                 <div className="px-4 py-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] uppercase tracking-wide text-text-muted">Recent searches</span>
+                    <span className="text-[10px] uppercase tracking-wide text-text-muted">
+                      Recent searches
+                    </span>
                     <button
-                      onClick={() => { clearRecentSearches(); setRecentSearches([]); }}
+                      onClick={() => {
+                        clearRecentSearches();
+                        setRecentSearches([]);
+                      }}
                       className="text-[10px] text-text-muted hover:text-text-secondary transition-colors"
                     >
                       Clear
@@ -609,8 +666,18 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                         onClick={() => setSearchQuery(q)}
                         className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-full bg-overlay-subtle border border-overlay-subtle text-text-secondary hover:text-text-primary hover:border-overlay-light transition-colors"
                       >
-                        <svg className="w-3 h-3 text-text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <svg
+                          className="w-3 h-3 text-text-muted shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
                         </svg>
                         {q}
                       </button>
@@ -619,70 +686,89 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                  <svg className="w-16 h-16 text-accent opacity-50 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <svg
+                    className="w-16 h-16 text-accent opacity-50 mb-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
                   </svg>
                   <p className="text-text-secondary font-medium">Search your notes</p>
                   <p className="text-sm text-text-muted mt-1">Type to search by title or content</p>
                 </div>
-              )
-            )}
+              ))}
 
             {/* Render results: flat or grouped */}
-            {groupedResults ? (
-              groupedResults.map((group) => (
-                <div key={group.folderPath}>
-                  <div className="px-4 py-1.5 flex items-center gap-1.5 bg-overlay-subtle/60 border-b border-overlay-subtle sticky top-0 z-10">
-                    <svg className="w-3.5 h-3.5 text-text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                    </svg>
-                    <span
-                      className="text-[11px] text-text-muted font-medium truncate"
-                      title={group.folderPath}
-                    >
-                      {group.folderName}
-                    </span>
-                    <span className="text-[10px] text-text-muted ml-auto shrink-0">{group.results.length}</span>
+            {groupedResults
+              ? groupedResults.map((group) => (
+                  <div key={group.folderPath}>
+                    <div className="px-4 py-1.5 flex items-center gap-1.5 bg-overlay-subtle/60 border-b border-overlay-subtle sticky top-0 z-10">
+                      <svg
+                        className="w-3.5 h-3.5 text-text-muted shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"
+                        />
+                      </svg>
+                      <span
+                        className="text-[11px] text-text-muted font-medium truncate"
+                        title={group.folderPath}
+                      >
+                        {group.folderName}
+                      </span>
+                      <span className="text-[10px] text-text-muted ml-auto shrink-0">
+                        {group.results.length}
+                      </span>
+                    </div>
+                    {group.results.map((result) => {
+                      const index = flatResults.indexOf(result);
+                      const titleParts = highlightMatches(result.item.name, result.matches, "name");
+                      const preview = getPreviewText(result);
+                      const isSelected = index === selectedIndex;
+                      const matchedFields = getMatchedFieldLabels(result.matches);
+                      return (
+                        <ResultRow
+                          key={result.item.id}
+                          result={result}
+                          titleParts={titleParts}
+                          preview={preview}
+                          isSelected={isSelected}
+                          matchedFields={matchedFields}
+                          onClick={() => handleSelectNote(result.item)}
+                        />
+                      );
+                    })}
                   </div>
-                  {group.results.map((result) => {
-                    const index = flatResults.indexOf(result);
-                    const titleParts = highlightMatches(result.item.name, result.matches, 'name');
-                    const preview = getPreviewText(result);
-                    const isSelected = index === selectedIndex;
-                    const matchedFields = getMatchedFieldLabels(result.matches);
-                    return (
-                      <ResultRow
-                        key={result.item.id}
-                        result={result}
-                        titleParts={titleParts}
-                        preview={preview}
-                        isSelected={isSelected}
-                        matchedFields={matchedFields}
-                        onClick={() => handleSelectNote(result.item)}
-                      />
-                    );
-                  })}
-                </div>
-              ))
-            ) : (
-              searchResults.map((result, index) => {
-                const titleParts = highlightMatches(result.item.name, result.matches, 'name');
-                const preview = getPreviewText(result);
-                const isSelected = index === selectedIndex;
-                const matchedFields = getMatchedFieldLabels(result.matches);
-                return (
-                  <ResultRow
-                    key={result.item.id}
-                    result={result}
-                    titleParts={titleParts}
-                    preview={preview}
-                    isSelected={isSelected}
-                    matchedFields={matchedFields}
-                    onClick={() => handleSelectNote(result.item)}
-                  />
-                );
-              })
-            )}
+                ))
+              : searchResults.map((result, index) => {
+                  const titleParts = highlightMatches(result.item.name, result.matches, "name");
+                  const preview = getPreviewText(result);
+                  const isSelected = index === selectedIndex;
+                  const matchedFields = getMatchedFieldLabels(result.matches);
+                  return (
+                    <ResultRow
+                      key={result.item.id}
+                      result={result}
+                      titleParts={titleParts}
+                      preview={preview}
+                      isSelected={isSelected}
+                      matchedFields={matchedFields}
+                      onClick={() => handleSelectNote(result.item)}
+                    />
+                  );
+                })}
           </div>
 
           {/* Footer with keyboard hints */}
@@ -691,16 +777,24 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
               <div className="flex items-center justify-between text-[10px] text-text-muted">
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">↑</kbd>
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">↓</kbd>
+                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
+                      ↑
+                    </kbd>
+                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
+                      ↓
+                    </kbd>
                     Navigate
                   </span>
                   <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">Enter</kbd>
+                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
+                      Enter
+                    </kbd>
                     Select
                   </span>
                   <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">Esc</kbd>
+                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
+                      Esc
+                    </kbd>
                     Close
                   </span>
                 </div>

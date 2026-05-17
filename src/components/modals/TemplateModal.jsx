@@ -1,10 +1,14 @@
 import { useMemo, useRef, useState } from "react";
 import ConfirmDialog from "./ConfirmDialog";
-import useNotesStore from "../store/notesStore";
-import useUIStore from "../store/uiStore";
-import { builtInTemplates, resolveTemplateContent, resolveTemplateTitle } from "../data/templates";
-import { exportTemplatesAsJson, importTemplatesFromJson } from "../utils/backup";
-import useModalAccessibility from "../hooks/useModalAccessibility";
+import useNotesStore from "../../store/notesStore";
+import useUIStore from "../../store/uiStore";
+import {
+  builtInTemplates,
+  resolveTemplateContent,
+  resolveTemplateTitle,
+} from "../../data/templates";
+import { exportTemplatesAsJson, importTemplatesFromJson } from "../../utils/backup";
+import useModalAccessibility from "../../hooks/useModalAccessibility";
 
 const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }) => {
   const { customTemplates, addCustomTemplate, deleteCustomTemplate } = useNotesStore();

@@ -1,8 +1,13 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { listen } from '@tauri-apps/api/event';
-import { watchFolder, stopWatching } from '../utils/fileSystem';
-import useNotesStore from '../store/notesStore';
-import useUIStore from '../store/uiStore';
+import { useEffect, useRef, useCallback } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { watchFolder, stopWatching } from "../utils/fileSystem";
+import useNotesStore from "../store/notesStore";
+import useUIStore from "../store/uiStore";
+
+const logWatcherDebug = (...args) => {
+  if (!import.meta.env.DEV) return;
+  console.debug(...args);
+};
 
 /**
  * Hook to manage file system watching for the workspace
@@ -10,7 +15,7 @@ import useUIStore from '../store/uiStore';
  *
  * Features:
  * - Debounced refresh (300ms) to handle rapid changes (git operations)
- * - Shows notification on successful refresh
+ * - Reports sync errors without noisy success notifications
  * - Automatically starts watching when a folder is loaded
  * - Stops watching when component unmounts or folder changes
  */
@@ -19,7 +24,8 @@ export function useFileWatcher() {
   const refreshRootFromDisk = useNotesStore((state) => state.refreshRootFromDisk);
   const addNotification = useUIStore((state) => state.addNotification);
 
-  const unlistenRef = useRef(null);
+  const unlistenFileChangeRef = useRef(null);
+  const unlistenRecentNoteRef = useRef(null);
   const isWatchingRef = useRef(false);
   const debounceTimerRef = useRef(null);
 
@@ -32,9 +38,9 @@ export function useFileWatcher() {
     debounceTimerRef.current = setTimeout(async () => {
       try {
         await refreshRootFromDisk();
-        addNotification('Workspace synced', 'success');
       } catch (error) {
-        console.error('Failed to refresh workspace:', error);
+        console.error("Failed to refresh workspace:", error);
+        addNotification("Failed to sync workspace: " + error.message, "error");
       }
     }, 300); // 300ms debounce for rapid file changes
   }, [refreshRootFromDisk, addNotification]);
@@ -51,21 +57,31 @@ export function useFileWatcher() {
         // Start watching the folder
         await watchFolder(rootFolderPath);
         isWatchingRef.current = true;
-        console.log('📂 File watcher started:', rootFolderPath);
+        logWatcherDebug("File watcher started:", rootFolderPath);
 
         // Listen for file change events from Rust backend
-        const unlisten = await listen('file-change', (event) => {
+        unlistenFileChangeRef.current = await listen("file-change", (event) => {
           if (!mounted) return;
 
-          console.log('📝 File change detected:', event.payload);
+          logWatcherDebug("File change detected:", event.payload);
 
           // Debounced refresh to handle rapid changes gracefully
           debouncedRefresh();
         });
 
-        unlistenRef.current = unlisten;
+        unlistenRecentNoteRef.current = await listen("open-recent-note", (event) => {
+          if (!mounted) return;
+
+          const filePath = event.payload;
+          const { items, selectNote } = useNotesStore.getState();
+          const note = items.find((item) => item.filePath === filePath && item.type === "note");
+
+          if (note) {
+            selectNote(note.id);
+          }
+        });
       } catch (error) {
-        console.error('❌ Failed to start file watcher:', error);
+        console.error("Failed to start file watcher:", error);
       }
     };
 
@@ -77,9 +93,14 @@ export function useFileWatcher() {
       }
 
       // Stop listening to events
-      if (unlistenRef.current) {
-        unlistenRef.current();
-        unlistenRef.current = null;
+      if (unlistenFileChangeRef.current) {
+        unlistenFileChangeRef.current();
+        unlistenFileChangeRef.current = null;
+      }
+
+      if (unlistenRecentNoteRef.current) {
+        unlistenRecentNoteRef.current();
+        unlistenRecentNoteRef.current = null;
       }
 
       // Stop the Rust watcher
@@ -87,9 +108,9 @@ export function useFileWatcher() {
         try {
           await stopWatching();
           isWatchingRef.current = false;
-          console.log('⏹️ File watcher stopped');
+          logWatcherDebug("File watcher stopped");
         } catch (error) {
-          console.error('❌ Failed to stop file watcher:', error);
+          console.error("Failed to stop file watcher:", error);
         }
       }
     };
@@ -107,6 +128,6 @@ export function useFileWatcher() {
   }, [rootFolderPath, debouncedRefresh]);
 
   return {
-    isWatching: isWatchingRef.current
+    isWatching: isWatchingRef.current,
   };
 }

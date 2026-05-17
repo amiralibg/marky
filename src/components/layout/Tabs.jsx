@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import useNotesStore from "../store/notesStore";
+import useNotesStore from "../../store/notesStore";
 
 const Tabs = () => {
   const { openNoteIds, currentNoteId, selectNote, closeNote, items } = useNotesStore();

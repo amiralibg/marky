@@ -9,25 +9,23 @@ import {
 } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import useNotesStore from "../store/notesStore";
-import useSettingsStore from "../store/settingsStore";
-import useUIStore from "../store/uiStore";
-import { checkForAppUpdate, installAppUpdate } from "../utils/appUpdater";
+import useNotesStore from "../../store/notesStore";
+import useSettingsStore from "../../store/settingsStore";
+import useUIStore from "../../store/uiStore";
+import { checkForAppUpdate, installAppUpdate } from "../../utils/appUpdater";
 
 import {
   openMarkdownFile,
   saveMarkdownFile,
   openFolder,
-  watchFolder,
-  stopWatching,
   copyEntriesToFolder,
-} from "../utils/fileSystem";
+} from "../../utils/fileSystem";
 
-import TreeItem from "./Sidebar/TreeItem";
-import ContextMenu from "./Sidebar/ContextMenu";
-import BacklinkItem from "./Sidebar/BacklinkItem";
-import ConfirmDialog from "./ConfirmDialog";
-import { UpdateIcon } from "./icons/AppUpdateIcon";
+import TreeItem from "./TreeItem";
+import ContextMenu from "./ContextMenu";
+import BacklinkItem from "./BacklinkItem";
+import ConfirmDialog from "../modals/ConfirmDialog";
+import { UpdateIcon } from "../icons/AppUpdateIcon";
 
 const VIRTUAL_TREE_THRESHOLD = 250;
 const TREE_ROW_HEIGHTS = {
@@ -99,6 +97,7 @@ const Sidebar = forwardRef(
     const {
       items,
       createFolder,
+      createNote,
       getCurrentNote,
       updateNotePath,
       loadFolderFromSystem,
@@ -107,6 +106,7 @@ const Sidebar = forwardRef(
       rootFolderPath,
       refreshRootFromDisk,
       getRecentNotes,
+      getBrokenWikiLinks,
       getBacklinks,
       selectNote,
       getPinnedNotes,
@@ -127,6 +127,7 @@ const Sidebar = forwardRef(
     const [showRecentNotes, setShowRecentNotes] = useState(false);
     const [showPinnedNotes, setShowPinnedNotes] = useState(true);
     const [showTags, setShowTags] = useState(false);
+    const [showBrokenLinks, setShowBrokenLinks] = useState(true);
     const [showBacklinks, setShowBacklinks] = useState(true);
     const [tagSortMode, setTagSortMode] = useState("frequency"); // 'frequency' | 'alpha' | 'recent'
     const [sortBy, setSortBy] = useState("name-asc"); // 'name-asc', 'name-desc', 'date-desc', 'date-asc'
@@ -146,6 +147,7 @@ const Sidebar = forwardRef(
       () => (currentNote ? getBacklinks(currentNote.id) : []),
       [currentNote?.id, items]
     );
+    const brokenWikiLinks = useMemo(() => getBrokenWikiLinks(), [getBrokenWikiLinks, items]);
 
     // Compute all tags from items - this will re-compute when items change
     const allTagsArray = useMemo(() => {
@@ -374,6 +376,29 @@ const Sidebar = forwardRef(
         }
       }
     }, [createFolder]);
+
+    const handleCreateBrokenLinkNote = useCallback(
+      async (target) => {
+        try {
+          const noteId = await createNote(null, null, target);
+          if (noteId) {
+            selectNote(noteId);
+            addNotification(`Note "${target}" created`, "success");
+          }
+        } catch (error) {
+          if (error?.message && /exists/i.test(error.message)) {
+            return;
+          }
+          console.error("Failed to create note from broken link:", error);
+          if (/workspace/i.test(error.message)) {
+            setShowWorkspaceModal(true);
+          } else {
+            addNotification("Failed to create note: " + error.message, "error");
+          }
+        }
+      },
+      [addNotification, createNote, selectNote, setShowWorkspaceModal]
+    );
 
     const handleOpenFile = useCallback(async () => {
       try {
@@ -786,101 +811,6 @@ const Sidebar = forwardRef(
       handleSave,
       handleCloseNote,
     ]);
-
-    // File watcher effect
-    useEffect(() => {
-      if (!rootFolderPath) {
-        return undefined;
-      }
-
-      let isMounted = true;
-      let unlistenFileChange = null;
-      let unlistenRecentNote = null;
-      let debounceTimer = null;
-
-      // Debounced refresh to handle rapid file changes (git operations, etc.)
-      const debouncedRefresh = () => {
-        if (debounceTimer) {
-          clearTimeout(debounceTimer);
-        }
-        debounceTimer = setTimeout(async () => {
-          if (!isMounted) return;
-          try {
-            await refreshRootFromDisk();
-          } catch (error) {
-            console.error("Failed to refresh folder after file change:", error);
-            addNotification("Failed to sync workspace: " + error.message, "error");
-          }
-        }, 300); // 300ms debounce for rapid file changes
-      };
-
-      const setupWatcher = async () => {
-        try {
-          // Start watching the root folder
-          await watchFolder(rootFolderPath);
-          console.log("📂 File watcher started:", rootFolderPath);
-
-          // Listen for file change events
-          unlistenFileChange = await listen("file-change", async (event) => {
-            if (!isMounted) return;
-            console.log("📝 File change detected:", event.payload);
-
-            // Debounced refresh to handle rapid changes gracefully
-            debouncedRefresh();
-          });
-
-          // Listen for recent note clicks from dock menu
-          unlistenRecentNote = await listen("open-recent-note", async (event) => {
-            if (!isMounted) return;
-
-            const filePath = event.payload;
-
-            // Find the note by file path
-            const { items, selectNote } = useNotesStore.getState();
-            const note = items.find((item) => item.filePath === filePath && item.type === "note");
-
-            if (note) {
-              selectNote(note.id);
-            }
-          });
-        } catch (error) {
-          console.error("Failed to setup file watcher:", error);
-        }
-      };
-
-      setupWatcher();
-
-      return () => {
-        isMounted = false;
-
-        // Clear debounce timer
-        if (debounceTimer) {
-          clearTimeout(debounceTimer);
-        }
-
-        // Cleanup listeners
-        if (unlistenFileChange) {
-          try {
-            unlistenFileChange();
-          } catch (error) {
-            console.error("Failed to cleanup file change listener:", error);
-          }
-        }
-
-        if (unlistenRecentNote) {
-          try {
-            unlistenRecentNote();
-          } catch (error) {
-            console.error("Failed to cleanup recent note listener:", error);
-          }
-        }
-
-        // Stop watching
-        stopWatching().catch((error) => {
-          console.error("Failed to stop watching:", error);
-        });
-      };
-    }, [rootFolderPath, refreshRootFromDisk]);
 
     // Prevent browser default drag-drop behavior (opening files)
     useEffect(() => {
@@ -1536,6 +1466,98 @@ const Sidebar = forwardRef(
                       );
                     })}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Broken Links Section */}
+          {!searchQuery && brokenWikiLinks.length > 0 && (
+            <div className="mb-0.5">
+              <button
+                onClick={() => setShowBrokenLinks(!showBrokenLinks)}
+                className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <svg
+                    className="w-3 h-3 opacity-50 group-hover:opacity-100"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13.828 10.172a4 4 0 00-5.656 0l-1 1a4 4 0 105.656 5.656l.172-.172m2-2 1-1m-2-2a4 4 0 015.656-5.656l1 1a4 4 0 01-5.656 5.656l-.172-.172M8 12h8"
+                    />
+                  </svg>
+                  <span>Broken Links</span>
+                  <span className="ml-1 px-1 py-px bg-amber-500/15 text-amber-400 text-[9px] rounded-full">
+                    {brokenWikiLinks.length}
+                  </span>
+                </div>
+                <svg
+                  className={`w-3 h-3 transition-transform opacity-50 group-hover:opacity-100 ${showBrokenLinks ? "rotate-180" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+              {showBrokenLinks && (
+                <div className="space-y-1 mt-1 px-2">
+                  {brokenWikiLinks.map((link) => (
+                    <div
+                      key={link.key}
+                      className="rounded-lg border border-overlay-subtle bg-overlay-subtle/60 p-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p
+                            className="text-xs font-medium text-text-primary truncate"
+                            title={link.target}
+                          >
+                            [[{link.target}]]
+                          </p>
+                          <p className="text-[10px] text-text-muted">
+                            Referenced by {link.sources.length} note
+                            {link.sources.length !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleCreateBrokenLinkNote(link.target)}
+                          className="shrink-0 px-2 py-1 text-[10px] rounded-md bg-accent/10 text-accent hover:bg-accent/20 border border-accent/15 transition-colors"
+                          title={`Create ${link.target}`}
+                        >
+                          Create
+                        </button>
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {link.sources.slice(0, 3).map((source) => (
+                          <button
+                            key={source.id}
+                            onClick={() => selectNote(source.id)}
+                            className="max-w-full truncate px-1.5 py-0.5 text-[10px] rounded bg-bg-base/60 text-text-muted hover:text-text-secondary hover:bg-overlay-light transition-colors"
+                            title={`Open ${source.name}`}
+                          >
+                            {source.name}
+                          </button>
+                        ))}
+                        {link.sources.length > 3 && (
+                          <span className="px-1.5 py-0.5 text-[10px] text-text-muted">
+                            +{link.sources.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

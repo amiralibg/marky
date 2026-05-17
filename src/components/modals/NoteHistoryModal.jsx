@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
-import { getNoteHistorySnapshots } from "../store/notesStore";
-import { computeLineDiff } from "../utils/diff";
+import { getNoteHistorySnapshots } from "../../store/notesStore";
+import { computeLineDiff } from "../../utils/diff";
 
 const formatRelativeTime = (isoString) => {
   if (!isoString) return "Unknown time";

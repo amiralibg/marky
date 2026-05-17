@@ -3,7 +3,7 @@
 Last reviewed: 2026-05-11
 This file is a forward-looking roadmap based on the current codebase state (not a historical changelog).
 It separates already-shipped features from the next recommended work.
-Latest validation: `pnpm lint` and `pnpm build` pass. Build warning: main app bundle is large and should be split.
+Latest validation: `pnpm lint` and `pnpm build` pass.
 
 ## Current Feature Audit (Confirmed in Code)
 
@@ -84,7 +84,7 @@ Latest validation: `pnpm lint` and `pnpm build` pass. Build warning: main app bu
 - [ ] Complete broader screen reader audit across settings/sidebar/editor flows
   - Value: makes the app usable with assistive tech beyond modal focus traps.
   - Depends on: auditing ARIA labels, tree semantics, dialog labels, command/search result announcements, and editor focus behavior.
-- [ ] Fix toolbar formatting shortcuts with CodeMirror focus
+- [x] Fix toolbar formatting shortcuts with CodeMirror focus
   - Value: formatting commands work reliably while typing in the editor.
   - Depends on: moving shortcut handling into CodeMirror keymaps or checking the focused CodeMirror content DOM instead of the wrapper.
 
@@ -109,7 +109,7 @@ Why first:
 - [ ] Workspace statistics dashboard
   - Value: helps users understand vault growth, top tags, broken links, orphan notes, word count, and activity.
   - Depends on: existing item metadata, tag extraction, wiki-link extraction, and backlinks computation.
-- [ ] Broken-link inbox for unresolved `[[wiki links]]`
+- [x] Broken-link inbox for unresolved `[[wiki links]]`
   - Value: turns missing links into an actionable organization queue.
   - Depends on: existing wiki-link parsing and create-from-broken-link flow.
 - [ ] Saved workspace views
@@ -168,16 +168,16 @@ Why next:
 - [x] Open recent workspace on startup (optional)
 - [x] Performance pass for very large vaults (incremental indexing / memoized selectors)
 - [x] Virtualized sidebar tree for large note collections
-- [ ] Add Vite/Rollup manual chunks for large dependencies and routes
+- [x] Add Vite/Rollup manual chunks for large dependencies and routes
   - Value: reduces startup payload and improves perceived load time.
   - Depends on: splitting CodeMirror, settings, graph, export/PDF, mermaid, and markdown tooling into separate chunks where practical.
-- [ ] Lazy-load heavy modals and feature panels
+- [x] Lazy-load heavy modals and feature panels
   - Value: keeps the editor-focused startup path lighter.
   - Depends on: React lazy/Suspense boundaries for graph, search, settings subpanels, export, history, and batch export.
-- [ ] Consolidate file watcher logic into one hook
+- [x] Consolidate file watcher logic into one hook
   - Value: reduces duplicate sync logic and makes watcher behavior easier to test.
   - Depends on: moving active Sidebar watcher behavior into `useFileWatcher` or removing unused watcher code.
-- [ ] Remove production console noise from file watcher events
+- [x] Remove production console noise from file watcher events
   - Value: keeps release logs clean while preserving debug visibility in development.
   - Depends on: wrapping watcher logs in a dev/debug guard.
 
@@ -207,10 +207,11 @@ Why next:
 - [x] Modal focus trap + dialog semantics for core modals
 - [ ] Broader screen reader audit across settings/sidebar/editor flows
 - [x] Reduce noisy success toasts for frequent file watcher sync events (optional throttle)
-- [ ] Toolbar formatting shortcuts do not rely on textarea focus assumptions
+- [x] Toolbar formatting shortcuts do not rely on textarea focus assumptions
 - [x] Shared confirm dialogs replace all remaining native browser prompts
 - [ ] Conflict banner offers compare/diff before resolving
-- [ ] Dev-only watcher logs do not appear in production builds
+- [x] Dev-only watcher logs do not appear in production builds
+- [x] The editor should preserve line breaks and spacing in the preview.
 
 ## Nice-to-Have / Future Exploration
 

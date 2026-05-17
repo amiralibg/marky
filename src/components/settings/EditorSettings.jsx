@@ -1,4 +1,4 @@
-import useSettingsStore from "../store/settingsStore";
+import useSettingsStore from "../../store/settingsStore";
 
 const EditorSettings = () => {
   const {

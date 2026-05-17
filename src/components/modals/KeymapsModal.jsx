@@ -1,6 +1,10 @@
-import { useEffect, useRef } from 'react';
-import useSettingsStore, { formatKeymap, DEFAULT_KEYMAPS, KEYMAP_CATEGORIES } from '../store/settingsStore';
-import useModalAccessibility from '../hooks/useModalAccessibility';
+import { useEffect, useRef } from "react";
+import useSettingsStore, {
+  formatKeymap,
+  DEFAULT_KEYMAPS,
+  KEYMAP_CATEGORIES,
+} from "../../store/settingsStore";
+import useModalAccessibility from "../../hooks/useModalAccessibility";
 
 const KeymapsModal = ({ isOpen, onClose }) => {
   const { keymaps } = useSettingsStore();
@@ -9,13 +13,13 @@ const KeymapsModal = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === "Escape" && isOpen) {
         onClose();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -23,8 +27,10 @@ const KeymapsModal = ({ isOpen, onClose }) => {
   const isModified = (actionId) => {
     const current = keymaps[actionId];
     const original = DEFAULT_KEYMAPS[actionId];
-    return current.key !== original.key ||
-      JSON.stringify(current.modifiers) !== JSON.stringify(original.modifiers);
+    return (
+      current.key !== original.key ||
+      JSON.stringify(current.modifiers) !== JSON.stringify(original.modifiers)
+    );
   };
 
   return (
@@ -50,9 +56,17 @@ const KeymapsModal = ({ isOpen, onClose }) => {
           {/* Header */}
           <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between shrink-0">
             <div>
-              <h2 id="keymaps-modal-title" className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2
+                id="keymaps-modal-title"
+                className="text-xl font-semibold text-text-primary flex items-center gap-2"
+              >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                  />
                 </svg>
                 Keyboard Shortcuts
               </h2>
@@ -65,8 +79,18 @@ const KeymapsModal = ({ isOpen, onClose }) => {
               className="p-2 hover:bg-overlay-light rounded-lg transition-colors"
               title="Close (Esc)"
             >
-              <svg className="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-5 h-5 text-text-secondary"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -82,13 +106,21 @@ const KeymapsModal = ({ isOpen, onClose }) => {
                   {/* Category header */}
                   <div className="flex items-center gap-3 px-4 py-3 bg-overlay-subtle border-b border-overlay-light">
                     <div className="text-accent">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={category.iconPath} />
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d={category.iconPath}
+                        />
                       </svg>
                     </div>
-                    <h3 className="text-sm font-semibold text-text-primary">
-                      {category.name}
-                    </h3>
+                    <h3 className="text-sm font-semibold text-text-primary">{category.name}</h3>
                   </div>
 
                   {/* Shortcuts list */}
@@ -110,7 +142,10 @@ const KeymapsModal = ({ isOpen, onClose }) => {
                               {keymap.description}
                             </span>
                             {modified && (
-                              <span className="absolute -left-3 w-1.5 h-1.5 rounded-full bg-amber-400" title="Custom shortcut" />
+                              <span
+                                className="absolute -left-3 w-1.5 h-1.5 rounded-full bg-amber-400"
+                                title="Custom shortcut"
+                              />
                             )}
                           </div>
                           <div className="flex items-center gap-1">
@@ -136,13 +171,23 @@ const KeymapsModal = ({ isOpen, onClose }) => {
             {/* Pro Tip */}
             <div className="mt-6 p-4 bg-accent/10 border border-accent/20 rounded-xl">
               <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-accent shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <svg
+                  className="w-5 h-5 text-accent shrink-0 mt-0.5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
                 </svg>
                 <div>
-                  <h4 className="font-semibold text-text-primary text-sm mb-1">Customize Shortcuts</h4>
+                  <h4 className="font-semibold text-text-primary text-sm mb-1">
+                    Customize Shortcuts
+                  </h4>
                   <p className="text-xs text-text-secondary">
-                    You can customize any keyboard shortcut in{' '}
+                    You can customize any keyboard shortcut in{" "}
                     <span className="text-accent font-medium">Settings → Keyboard Shortcuts</span>.
                     Click on a shortcut to record a new key combination.
                   </p>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import ConfirmDialog from "./ConfirmDialog";
-import useNotesStore from "../store/notesStore";
+import ConfirmDialog from "../modals/ConfirmDialog";
+import useNotesStore from "../../store/notesStore";
 
 const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 

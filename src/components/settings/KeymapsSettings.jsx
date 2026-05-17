@@ -1,8 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
-import useSettingsStore, { formatKeymap, DEFAULT_KEYMAPS, KEYMAP_CATEGORIES } from '../store/settingsStore';
+import { useState, useEffect, useCallback } from "react";
+import useSettingsStore, {
+  formatKeymap,
+  DEFAULT_KEYMAPS,
+  KEYMAP_CATEGORIES,
+} from "../../store/settingsStore";
 
 const KeymapsSettings = ({ onOpenKeymapsModal }) => {
-  const { keymaps, resetKeymaps, resetKeymap, updateKeymap, setIsRecordingKeymap } = useSettingsStore();
+  const { keymaps, resetKeymaps, resetKeymap, updateKeymap, setIsRecordingKeymap } =
+    useSettingsStore();
   const [editingAction, setEditingAction] = useState(null);
   const [recordedKeymap, setRecordedKeymap] = useState(null);
 
@@ -41,18 +46,18 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
       e.stopPropagation();
 
       // Ignore modifier-only presses
-      if (['Control', 'Meta', 'Shift', 'Alt'].includes(e.key)) return;
+      if (["Control", "Meta", "Shift", "Alt"].includes(e.key)) return;
 
       // Cancel on Escape without modifier
-      if (e.key === 'Escape' && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+      if (e.key === "Escape" && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
         handleCancelRecording();
         return;
       }
 
       const modifiers = [];
-      if (e.metaKey || e.ctrlKey) modifiers.push('mod');
-      if (e.shiftKey) modifiers.push('shift');
-      if (e.altKey) modifiers.push('alt');
+      if (e.metaKey || e.ctrlKey) modifiers.push("mod");
+      if (e.shiftKey) modifiers.push("shift");
+      if (e.altKey) modifiers.push("alt");
 
       // Require at least one modifier
       if (modifiers.length === 0) {
@@ -61,19 +66,21 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
 
       setRecordedKeymap({
         key: e.key,
-        modifiers
+        modifiers,
       });
     };
 
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [isRecording, handleCancelRecording]);
 
   const isModified = (actionId) => {
     const current = keymaps[actionId];
     const original = DEFAULT_KEYMAPS[actionId];
-    return current.key !== original.key ||
-      JSON.stringify(current.modifiers) !== JSON.stringify(original.modifiers);
+    return (
+      current.key !== original.key ||
+      JSON.stringify(current.modifiers) !== JSON.stringify(original.modifiers)
+    );
   };
 
   const hasAnyModifications = Object.keys(keymaps).some(isModified);
@@ -82,18 +89,18 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
   const formatRecordedKeymap = (keymap) => {
     if (!keymap) return null;
     const parts = [];
-    if (keymap.modifiers.includes('mod')) {
-      parts.push(navigator.platform.includes('Mac') ? '⌘' : 'Ctrl');
+    if (keymap.modifiers.includes("mod")) {
+      parts.push(navigator.platform.includes("Mac") ? "⌘" : "Ctrl");
     }
-    if (keymap.modifiers.includes('shift')) {
-      parts.push('Shift');
+    if (keymap.modifiers.includes("shift")) {
+      parts.push("Shift");
     }
-    if (keymap.modifiers.includes('alt')) {
-      parts.push(navigator.platform.includes('Mac') ? '⌥' : 'Alt');
+    if (keymap.modifiers.includes("alt")) {
+      parts.push(navigator.platform.includes("Mac") ? "⌥" : "Alt");
     }
     let keyDisplay = keymap.key;
-    if (keymap.key === '/') keyDisplay = '/';
-    else if (keymap.key === '?') keyDisplay = '?';
+    if (keymap.key === "/") keyDisplay = "/";
+    else if (keymap.key === "?") keyDisplay = "?";
     else if (keymap.key.length === 1) keyDisplay = keymap.key.toUpperCase();
     parts.push(keyDisplay);
     return parts;
@@ -105,9 +112,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-text-primary">Keyboard Shortcuts</h3>
-          <p className="text-xs text-text-muted mt-1">
-            Click on a shortcut to customize it.
-          </p>
+          <p className="text-xs text-text-muted mt-1">Click on a shortcut to customize it.</p>
         </div>
         <div className="flex items-center gap-2">
           {onOpenKeymapsModal && (
@@ -144,20 +149,19 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                 const isEditing = editingAction === actionId;
                 const modified = isModified(actionId);
                 const keys = formatKeymap(keymap);
-                const recordedKeys = isEditing && recordedKeymap ? formatRecordedKeymap(recordedKeymap) : null;
+                const recordedKeys =
+                  isEditing && recordedKeymap ? formatRecordedKeymap(recordedKeymap) : null;
 
                 return (
                   <div
                     key={actionId}
                     className={`
                       flex items-center justify-between py-2 px-3 rounded-lg transition-colors
-                      ${isEditing ? 'bg-accent/20 ring-1 ring-accent' : 'hover:bg-overlay-subtle'}
+                      ${isEditing ? "bg-accent/20 ring-1 ring-accent" : "hover:bg-overlay-subtle"}
                     `}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-text-secondary">
-                        {keymap.description}
-                      </span>
+                      <span className="text-sm text-text-secondary">{keymap.description}</span>
                       {modified && !isEditing && (
                         <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400 rounded">
                           Modified
@@ -196,15 +200,26 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                             disabled={!recordedKeymap}
                             className={`
                               p-1.5 rounded-md transition-colors
-                              ${recordedKeymap
-                                ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                                : 'bg-overlay-subtle text-text-muted cursor-not-allowed'
+                              ${
+                                recordedKeymap
+                                  ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                                  : "bg-overlay-subtle text-text-muted cursor-not-allowed"
                               }
                             `}
                             title="Confirm"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
                             </svg>
                           </button>
 
@@ -214,8 +229,18 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                             className="p-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-md transition-colors"
                             title="Cancel (Esc)"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
                             </svg>
                           </button>
                         </div>
@@ -246,8 +271,18 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                               className="p-1 text-text-muted hover:text-text-secondary transition-colors"
                               title="Reset to default"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                />
                               </svg>
                             </button>
                           )}
@@ -265,13 +300,23 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
       {/* Info box */}
       <div className="p-4 bg-overlay-subtle rounded-xl border border-overlay-light">
         <div className="flex items-start gap-3">
-          <svg className="w-5 h-5 text-text-muted shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className="w-5 h-5 text-text-muted shrink-0 mt-0.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
           <div>
             <p className="text-xs text-text-muted">
-              Shortcuts require at least one modifier key (Cmd/Ctrl, Shift, or Alt).
-              Press Escape to cancel recording. Some system shortcuts may override custom keymaps.
+              Shortcuts require at least one modifier key (Cmd/Ctrl, Shift, or Alt). Press Escape to
+              cancel recording. Some system shortcuts may override custom keymaps.
             </p>
           </div>
         </div>

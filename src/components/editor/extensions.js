@@ -1,24 +1,36 @@
-import { EditorView, ViewPlugin, Decoration, keymap, lineNumbers, highlightActiveLine,
-         highlightActiveLineGutter, dropCursor, rectangularSelection,
-         highlightSpecialChars, drawSelection, placeholder } from '@codemirror/view';
-import { EditorState, Prec, RangeSet } from '@codemirror/state';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { bracketMatching, indentOnInput, foldGutter, foldKeymap } from '@codemirror/language';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
-import { autocompletion, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
-import { vim, getCM } from '@replit/codemirror-vim';
-import { markyTheme, markySyntaxHighlighting } from './theme';
-import { typewriterMode } from './typewriterMode';
-import { buildMarkyKeymaps } from './keymaps';
-import { createWikiLinkAutocomplete } from './wikiLinkAutocomplete';
+import {
+  EditorView,
+  ViewPlugin,
+  Decoration,
+  keymap,
+  lineNumbers,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  dropCursor,
+  rectangularSelection,
+  highlightSpecialChars,
+  drawSelection,
+  placeholder,
+} from "@codemirror/view";
+import { EditorState, Prec, RangeSet } from "@codemirror/state";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { bracketMatching, indentOnInput, foldGutter, foldKeymap } from "@codemirror/language";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
+import { autocompletion, closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
+import { vim, getCM } from "@replit/codemirror-vim";
+import { markyTheme, markySyntaxHighlighting } from "./theme";
+import { typewriterMode } from "./typewriterMode";
+import { buildMarkyKeymaps } from "./keymaps";
+import { createWikiLinkAutocomplete } from "./wikiLinkAutocomplete";
 
 // Regex matching RTL Unicode ranges (Arabic, Hebrew, Persian, Thaana, Syriac, etc.)
-const RTL_CHAR = /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0780-\u07BF\u0860-\u086F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+const RTL_CHAR =
+  /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0780-\u07BF\u0860-\u086F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
 // Regex matching LTR characters (Latin, Greek, Cyrillic, CJK, etc.)
 const LTR_CHAR = /[A-Za-z\u00C0-\u02AF\u0370-\u03FF\u0400-\u04FF\u1E00-\u1EFF]/;
 
-const rtlLineDeco = Decoration.line({ attributes: { dir: 'rtl', class: 'cm-rtl-line' } });
+const rtlLineDeco = Decoration.line({ attributes: { dir: "rtl", class: "cm-rtl-line" } });
 
 /**
  * Detect the base direction of a string using first-strong-character heuristic
@@ -71,7 +83,7 @@ function bidiLinePlugin() {
 export function createExtensions(options = {}) {
   const {
     readOnly = false,
-    placeholderText = '',
+    placeholderText = "",
     onUpdate = () => {},
     onVimModeChange = () => {},
     enableLineNumbers = true,
@@ -81,11 +93,12 @@ export function createExtensions(options = {}) {
     enableWikiLinkAutocomplete = true,
     enableVimMode = false,
     enableTypewriterMode = false,
+    formattingKeymaps = {},
     getNotes = () => [],
     getTags = () => [],
   } = options;
 
-  const filteredSearchKeymap = searchKeymap.filter((binding) => binding.key !== 'Mod-f');
+  const filteredSearchKeymap = searchKeymap.filter((binding) => binding.key !== "Mod-f");
 
   const extensions = [
     // Theme and highlighting
@@ -111,10 +124,10 @@ export function createExtensions(options = {}) {
     highlightSelectionMatches(), // Highlight other instances of selected text
 
     // Toggle .cm-has-selection class so active line bg hides when selecting
-    ViewPlugin.define(view => {
+    ViewPlugin.define((view) => {
       const sync = (state) => {
-        const has = state.selection.ranges.some(r => !r.empty);
-        view.dom.classList.toggle('cm-has-selection', has);
+        const has = state.selection.ranges.some((r) => !r.empty);
+        view.dom.classList.toggle("cm-has-selection", has);
       };
       sync(view.state);
       return {
@@ -137,15 +150,15 @@ export function createExtensions(options = {}) {
       if (update.docChanged) {
         onUpdate(update.state.doc.toString());
       }
-      
+
       // Track vim mode changes
       if (enableVimMode && update.view) {
         try {
           // Get vim state from CodeMirror vim extension
           const cm = getCM(update.view);
           if (cm) {
-            const mode = cm.state.vim?.mode || 'normal';
-            const keyBuffer = cm.state.vim?.inputState?.keyBuffer || '';
+            const mode = cm.state.vim?.mode || "normal";
+            const keyBuffer = cm.state.vim?.inputState?.keyBuffer || "";
             onVimModeChange({ mode, keyBuffer });
           }
         } catch (e) {
@@ -157,11 +170,7 @@ export function createExtensions(options = {}) {
 
   // Optional features
   if (enableLineNumbers) {
-    extensions.push(
-      lineNumbers(),
-      highlightActiveLineGutter(),
-      foldGutter(),
-    );
+    extensions.push(lineNumbers(), highlightActiveLineGutter(), foldGutter());
   }
 
   if (readOnly) {
@@ -193,12 +202,12 @@ export function createExtensions(options = {}) {
 
   // Keymaps (order matters - later overrides earlier)
   extensions.push(
-    Prec.high(keymap.of(buildMarkyKeymaps(editorSearchKeymap))), // Custom keymaps highest priority
+    Prec.high(keymap.of(buildMarkyKeymaps(editorSearchKeymap, formattingKeymaps))), // Custom keymaps highest priority
     keymap.of(closeBracketsKeymap),
     keymap.of(foldKeymap),
     keymap.of(historyKeymap),
     keymap.of(defaultKeymap),
-    keymap.of([indentWithTab]),
+    keymap.of([indentWithTab])
   );
 
   if (enableSearch) {

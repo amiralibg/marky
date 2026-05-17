@@ -1,20 +1,20 @@
-import { useState, useMemo } from 'react';
-import { marked } from 'marked';
-import useNotesStore from '../store/notesStore';
-import useUIStore from '../store/uiStore';
-import { batchExportNotes } from '../utils/backup';
+import { useState, useMemo } from "react";
+import { marked } from "marked";
+import useNotesStore from "../../store/notesStore";
+import useUIStore from "../../store/uiStore";
+import { batchExportNotes } from "../../utils/backup";
 
 const BatchExportModal = ({ isOpen, onClose }) => {
   const { items, rootFolderPath } = useNotesStore();
   const { addNotification } = useUIStore();
 
-  const [format, setFormat] = useState('md');
-  const [scope, setScope] = useState('all');
+  const [format, setFormat] = useState("md");
+  const [scope, setScope] = useState("all");
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isExporting, setIsExporting] = useState(false);
 
   const allNotes = useMemo(
-    () => items.filter((item) => item.type === 'note' && item.filePath),
+    () => items.filter((item) => item.type === "note" && item.filePath),
     [items]
   );
 
@@ -40,17 +40,17 @@ const BatchExportModal = ({ isOpen, onClose }) => {
     }
   };
 
-  const notesToExport = scope === 'all' ? allNotes : allNotes.filter((n) => selectedIds.has(n.id));
+  const notesToExport = scope === "all" ? allNotes : allNotes.filter((n) => selectedIds.has(n.id));
 
   const handleExport = async () => {
     if (notesToExport.length === 0) {
-      addNotification('No notes selected for export', 'warning');
+      addNotification("No notes selected for export", "warning");
       return;
     }
 
     setIsExporting(true);
     try {
-      const folderName = rootFolderPath ? rootFolderPath.split('/').pop() : 'notes';
+      const folderName = rootFolderPath ? rootFolderPath.split("/").pop() : "notes";
       const date = new Date().toISOString().slice(0, 10);
       const zipName = `${folderName}-export-${date}.zip`;
 
@@ -64,14 +64,14 @@ const BatchExportModal = ({ isOpen, onClose }) => {
 
       if (savedPath) {
         addNotification(
-          `Exported ${notesToExport.length} note${notesToExport.length !== 1 ? 's' : ''} as ${format.toUpperCase()}`,
-          'success'
+          `Exported ${notesToExport.length} note${notesToExport.length !== 1 ? "s" : ""} as ${format.toUpperCase()}`,
+          "success"
         );
         onClose();
       }
     } catch (err) {
-      console.error('Batch export failed:', err);
-      addNotification('Export failed: ' + err.message, 'error');
+      console.error("Batch export failed:", err);
+      addNotification("Export failed: " + err.message, "error");
     } finally {
       setIsExporting(false);
     }
@@ -103,8 +103,18 @@ const BatchExportModal = ({ isOpen, onClose }) => {
               className="p-2 hover:bg-overlay-light rounded-lg transition-colors"
               title="Close"
             >
-              <svg className="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-5 h-5 text-text-secondary"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -116,21 +126,21 @@ const BatchExportModal = ({ isOpen, onClose }) => {
               <p className="text-sm font-medium text-text-secondary mb-2">Output format</p>
               <div className="flex gap-3">
                 <button
-                  onClick={() => setFormat('md')}
+                  onClick={() => setFormat("md")}
                   className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    format === 'md'
-                      ? 'border-accent bg-accent/10 text-text-primary'
-                      : 'border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light'
+                    format === "md"
+                      ? "border-accent bg-accent/10 text-text-primary"
+                      : "border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light"
                   }`}
                 >
                   Markdown (.md)
                 </button>
                 <button
-                  onClick={() => setFormat('html')}
+                  onClick={() => setFormat("html")}
                   className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    format === 'html'
-                      ? 'border-accent bg-accent/10 text-text-primary'
-                      : 'border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light'
+                    format === "html"
+                      ? "border-accent bg-accent/10 text-text-primary"
+                      : "border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light"
                   }`}
                 >
                   HTML (.html)
@@ -143,21 +153,21 @@ const BatchExportModal = ({ isOpen, onClose }) => {
               <p className="text-sm font-medium text-text-secondary mb-2">Which notes</p>
               <div className="flex gap-3">
                 <button
-                  onClick={() => setScope('all')}
+                  onClick={() => setScope("all")}
                   className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    scope === 'all'
-                      ? 'border-accent bg-accent/10 text-text-primary'
-                      : 'border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light'
+                    scope === "all"
+                      ? "border-accent bg-accent/10 text-text-primary"
+                      : "border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light"
                   }`}
                 >
                   All notes ({allNotes.length})
                 </button>
                 <button
-                  onClick={() => setScope('selected')}
+                  onClick={() => setScope("selected")}
                   className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    scope === 'selected'
-                      ? 'border-accent bg-accent/10 text-text-primary'
-                      : 'border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light'
+                    scope === "selected"
+                      ? "border-accent bg-accent/10 text-text-primary"
+                      : "border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light"
                   }`}
                 >
                   Selected ({selectedIds.size})
@@ -167,18 +177,23 @@ const BatchExportModal = ({ isOpen, onClose }) => {
           </div>
 
           {/* Note list (shown when scope === 'selected') */}
-          {scope === 'selected' && (
+          {scope === "selected" && (
             <div className="flex-1 overflow-y-auto px-6 pb-2 min-h-0 custom-scrollbar">
               <div className="flex items-center gap-2 mb-2 py-1 border-b border-glass-border">
                 <input
                   type="checkbox"
                   id="select-all"
                   checked={allSelected}
-                  ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someSelected;
+                  }}
                   onChange={toggleAll}
                   className="rounded accent-accent"
                 />
-                <label htmlFor="select-all" className="text-xs text-text-muted cursor-pointer select-none">
+                <label
+                  htmlFor="select-all"
+                  className="text-xs text-text-muted cursor-pointer select-none"
+                >
                   Select all
                 </label>
               </div>
@@ -192,10 +207,7 @@ const BatchExportModal = ({ isOpen, onClose }) => {
                         onChange={() => toggleNote(note.id)}
                         className="rounded accent-accent shrink-0"
                       />
-                      <span
-                        className="text-sm text-text-primary truncate"
-                        title={note.name}
-                      >
+                      <span className="text-sm text-text-primary truncate" title={note.name}>
                         {note.name}
                       </span>
                     </label>
@@ -208,7 +220,8 @@ const BatchExportModal = ({ isOpen, onClose }) => {
           {/* Footer */}
           <div className="border-t border-overlay-light px-6 py-4 flex justify-between items-center shrink-0">
             <p className="text-xs text-text-muted">
-              {notesToExport.length} note{notesToExport.length !== 1 ? 's' : ''} will be exported into a ZIP
+              {notesToExport.length} note{notesToExport.length !== 1 ? "s" : ""} will be exported
+              into a ZIP
             </p>
             <div className="flex gap-2">
               <button
@@ -222,14 +235,19 @@ const BatchExportModal = ({ isOpen, onClose }) => {
                 disabled={isExporting || notesToExport.length === 0}
                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
                   isExporting || notesToExport.length === 0
-                    ? 'bg-overlay-light text-text-muted cursor-not-allowed'
-                    : 'bg-accent hover:bg-accent/80 text-white'
+                    ? "bg-overlay-light text-text-muted cursor-not-allowed"
+                    : "bg-accent hover:bg-accent/80 text-white"
                 }`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
                 </svg>
-                {isExporting ? 'Exporting...' : 'Export ZIP'}
+                {isExporting ? "Exporting..." : "Export ZIP"}
               </button>
             </div>
           </div>

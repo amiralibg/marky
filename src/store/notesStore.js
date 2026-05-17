@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import {
   readMarkdownFile,
   createFolderOnDisk,
@@ -8,41 +8,44 @@ import {
   deleteEntryOnDisk,
   moveEntryOnDisk,
   scanFolder,
-  writeMarkdownFileOnDisk
-} from '../utils/fileSystem';
-import {
-  resolveTemplateById
-} from '../data/templates';
+  writeMarkdownFileOnDisk,
+} from "../utils/fileSystem";
+import { resolveTemplateById } from "../data/templates";
 
 // Special ID for the Settings tab
-export const SETTINGS_TAB_ID = 'settings::special';
+export const SETTINGS_TAB_ID = "settings::special";
 
-const normalizePath = (value) => (value ? value.replace(/\\/g, '/') : '');
+const normalizePath = (value) => (value ? value.replace(/\\/g, "/") : "");
 const buildId = (type, path) => `${type}::${normalizePath(path)}`;
-const stripExtension = (name) => name.replace(/\.(md|markdown|txt)$/i, '') || name;
+const stripExtension = (name) => name.replace(/\.(md|markdown|txt)$/i, "") || name;
 const sanitizeNoteTitle = (value) =>
-  (value ? value.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() : '');
+  value
+    ? value
+        .replace(/[\\/:*?"<>|]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+    : "";
 const normalizeItemNameInput = (value) =>
-  Array.from((value || '').normalize('NFC'))
+  Array.from((value || "").normalize("NFC"))
     .filter((char) => {
       const code = char.charCodeAt(0);
       return code >= 32 && code !== 127;
     })
-    .join('')
+    .join("")
     .trim();
 const folderNameFromPath = (path) => {
   const normalized = normalizePath(path);
   if (!normalized) return path;
-  const parts = normalized.split('/');
+  const parts = normalized.split("/");
   return parts[parts.length - 1] || path;
 };
 
 const stripCodeBlocks = (content) => {
-  if (!content) return '';
+  if (!content) return "";
   // Remove fenced code blocks
-  let stripped = content.replace(/```[\s\S]*?```/g, '');
+  let stripped = content.replace(/```[\s\S]*?```/g, "");
   // Remove inline code
-  stripped = stripped.replace(/`[^`\n]+`/g, '');
+  stripped = stripped.replace(/`[^`\n]+`/g, "");
   return stripped;
 };
 
@@ -66,13 +69,13 @@ const extractTags = (content) => {
 };
 
 const normalizeTagValue = (value) => {
-  const cleaned = (value || '')
+  const cleaned = (value || "")
     .trim()
-    .replace(/^#+/, '')
+    .replace(/^#+/, "")
     .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^[-_]+|[-_]+$/g, '');
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
   return cleaned;
 };
 
@@ -85,7 +88,7 @@ const replaceTagInContent = (content, sourceTag, targetTag = null) => {
 
   let changed = false;
   const next = content.replace(tagRegex, (full, prefix, tagName) => {
-    if ((tagName || '').toLowerCase() !== normalizedSource) {
+    if ((tagName || "").toLowerCase() !== normalizedSource) {
       return full;
     }
 
@@ -101,8 +104,8 @@ const replaceTagInContent = (content, sourceTag, targetTag = null) => {
   return next;
 };
 
-const normalizeLinkTarget = (value) => (value ? value.trim().toLowerCase() : '');
-const buildNoteLinkKey = (name) => normalizeLinkTarget(stripExtension(name || ''));
+const normalizeLinkTarget = (value) => (value ? value.trim().toLowerCase() : "");
+const buildNoteLinkKey = (name) => normalizeLinkTarget(stripExtension(name || ""));
 
 const extractWikiLinks = (content) => {
   if (!content) return [];
@@ -117,8 +120,8 @@ const extractWikiLinks = (content) => {
     const inner = match[1].trim();
     if (!inner) continue;
 
-    const [targetRaw, aliasRaw] = inner.split('|');
-    const target = stripExtension((targetRaw || '').trim());
+    const [targetRaw, aliasRaw] = inner.split("|");
+    const target = stripExtension((targetRaw || "").trim());
     if (!target) continue;
 
     const key = buildNoteLinkKey(target);
@@ -128,7 +131,7 @@ const extractWikiLinks = (content) => {
     links.push({
       key,
       target,
-      alias: aliasRaw ? aliasRaw.trim() : null
+      alias: aliasRaw ? aliasRaw.trim() : null,
     });
   }
 
@@ -136,7 +139,7 @@ const extractWikiLinks = (content) => {
 };
 
 const ensureNoteMetadata = (item) => {
-  if (!item || item.type !== 'note') {
+  if (!item || item.type !== "note") {
     return item;
   }
 
@@ -148,7 +151,7 @@ const ensureNoteMetadata = (item) => {
     ...item,
     linkKey,
     links,
-    tags
+    tags,
   };
 };
 
@@ -170,9 +173,7 @@ const collectAncestorIds = (itemId, items) => {
 
 const createNameReservationSet = (names) => {
   const result = new Set();
-  names
-    .filter(Boolean)
-    .forEach((name) => result.add(name.toLowerCase()));
+  names.filter(Boolean).forEach((name) => result.add(name.toLowerCase()));
   return result;
 };
 
@@ -192,13 +193,13 @@ const parseTimeString = (value) => {
     return { hours: 9, minutes: 0 };
   }
 
-  const [hoursRaw, minutesRaw] = value.split(':');
+  const [hoursRaw, minutesRaw] = value.split(":");
   const hours = Number.parseInt(hoursRaw, 10);
   const minutes = Number.parseInt(minutesRaw, 10);
 
   return {
     hours: Number.isFinite(hours) ? hours : 9,
-    minutes: Number.isFinite(minutes) ? minutes : 0
+    minutes: Number.isFinite(minutes) ? minutes : 0,
   };
 };
 
@@ -259,8 +260,15 @@ const getNextMonthlyOccurrence = (fromDate, dayOfMonth, timeOfDay) => {
 
   if (candidate <= fromDate) {
     const nextMonth = new Date(year, month + 1, 1);
-    const nextDay = clampDayOfMonth(nextMonth.getFullYear(), nextMonth.getMonth(), dayOfMonth || base.getDate());
-    candidate = withTimeOfDay(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), nextDay), timeOfDay);
+    const nextDay = clampDayOfMonth(
+      nextMonth.getFullYear(),
+      nextMonth.getMonth(),
+      dayOfMonth || base.getDate()
+    );
+    candidate = withTimeOfDay(
+      new Date(nextMonth.getFullYear(), nextMonth.getMonth(), nextDay),
+      timeOfDay
+    );
   }
 
   return candidate;
@@ -269,7 +277,7 @@ const getNextMonthlyOccurrence = (fromDate, dayOfMonth, timeOfDay) => {
 const calculateNextRun = (schedule, referenceDate = new Date()) => {
   if (!schedule) return null;
 
-  const { frequency, timeOfDay = '09:00', startDate } = schedule;
+  const { frequency, timeOfDay = "09:00", startDate } = schedule;
   if (!frequency) return null;
 
   const now = new Date(referenceDate);
@@ -279,24 +287,25 @@ const calculateNextRun = (schedule, referenceDate = new Date()) => {
   let candidate;
 
   switch (frequency) {
-    case 'daily': {
+    case "daily": {
       candidate = withTimeOfDay(baseline, timeOfDay);
       if (candidate <= now) {
         candidate = withTimeOfDay(addDays(baseline, 1), timeOfDay);
       }
       break;
     }
-    case 'weekly': {
-      const days = Array.isArray(schedule.daysOfWeek) && schedule.daysOfWeek.length > 0
-        ? schedule.daysOfWeek
-        : [baseline.getDay()];
+    case "weekly": {
+      const days =
+        Array.isArray(schedule.daysOfWeek) && schedule.daysOfWeek.length > 0
+          ? schedule.daysOfWeek
+          : [baseline.getDay()];
       candidate = getNextWeeklyOccurrence(baseline, days, timeOfDay);
       if (candidate <= now) {
         candidate = getNextWeeklyOccurrence(addDays(now, 1), days, timeOfDay);
       }
       break;
     }
-    case 'monthly': {
+    case "monthly": {
       const dayOfMonth = schedule.dayOfMonth || baseline.getDate();
       candidate = getNextMonthlyOccurrence(baseline, dayOfMonth, timeOfDay);
       if (candidate <= now) {
@@ -325,24 +334,24 @@ const calculateNextRun = (schedule, referenceDate = new Date()) => {
 
 const pendingWriteTimers = new Map();
 const pendingMetadataTimers = new Map();
-const DRAFT_STORAGE_KEY = 'marky-draft-cache';
-const NOTE_HISTORY_KEY = 'marky-note-history';
+const DRAFT_STORAGE_KEY = "marky-draft-cache";
+const NOTE_HISTORY_KEY = "marky-note-history";
 const NOTE_HISTORY_MAX_SNAPSHOTS = 20;
 
 const readNoteHistory = () => {
-  if (typeof window === 'undefined') return {};
+  if (typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(NOTE_HISTORY_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
   }
 };
 
 const writeNoteHistory = (history) => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(NOTE_HISTORY_KEY, JSON.stringify(history));
   } catch {
@@ -387,28 +396,27 @@ export const moveNoteHistory = (oldPath, newPath) => {
   writeNoteHistory(history);
 };
 
-
 const readDraftCache = () => {
-  if (typeof window === 'undefined') return {};
+  if (typeof window === "undefined") return {};
 
   try {
     const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
   } catch (error) {
-    console.error('Failed to read draft cache:', error);
+    console.error("Failed to read draft cache:", error);
     return {};
   }
 };
 
 const writeDraftCache = (cache) => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
   try {
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(cache));
   } catch (error) {
-    console.error('Failed to write draft cache:', error);
+    console.error("Failed to write draft cache:", error);
   }
 };
 
@@ -447,11 +455,11 @@ const moveDraftCacheEntry = (oldPath, newPath) => {
 };
 
 const clearDraftCache = () => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(DRAFT_STORAGE_KEY);
   } catch (error) {
-    console.error('Failed to clear draft cache:', error);
+    console.error("Failed to clear draft cache:", error);
   }
 };
 
@@ -466,7 +474,7 @@ const scheduleMetadataUpdate = (noteId, content) => {
       const state = useNotesStore.getState();
       state.updateNoteMetadata(noteId, content);
     } catch (error) {
-      console.error('Failed to update note metadata:', error);
+      console.error("Failed to update note metadata:", error);
     } finally {
       pendingMetadataTimers.delete(noteId);
     }
@@ -502,19 +510,19 @@ const cancelAllPendingMetadataUpdates = () => {
 const buildItemsFromFolderData = async ({ folderPath, folderName, files }, onProgress) => {
   const now = new Date().toISOString();
   const normalizedRoot = normalizePath(folderPath);
-  const rootId = buildId('folder', folderPath);
+  const rootId = buildId("folder", folderPath);
   const inferredName = folderName || folderNameFromPath(folderPath);
   const items = [
     {
       id: rootId,
       name: inferredName,
       parentId: null,
-      type: 'folder',
+      type: "folder",
       filePath: folderPath,
       normalizedPath: normalizedRoot,
       content: null,
-      createdAt: now
-    }
+      createdAt: now,
+    },
   ];
 
   const pathToId = new Map([[normalizedRoot, rootId]]);
@@ -526,58 +534,57 @@ const buildItemsFromFolderData = async ({ folderPath, folderName, files }, onPro
 
   // Load all note contents in parallel for tag extraction
   const noteContentMap = new Map();
-  const noteEntries = sortedEntries.filter(entry => !entry.is_dir);
+  const noteEntries = sortedEntries.filter((entry) => !entry.is_dir);
   const total = noteEntries.length;
   let loaded = 0;
 
-  const noteLoadPromises = noteEntries
-    .map(async (entry) => {
-      try {
-        const content = await readMarkdownFile(entry.path);
-        noteContentMap.set(entry.path, content);
-      } catch (error) {
-        console.error(`Failed to load note content for ${entry.path}:`, error);
-        noteContentMap.set(entry.path, ''); // Use empty string as fallback
-      }
-      loaded++;
-      if (onProgress) onProgress({ current: loaded, total, phase: 'Loading notes' });
-    });
+  const noteLoadPromises = noteEntries.map(async (entry) => {
+    try {
+      const content = await readMarkdownFile(entry.path);
+      noteContentMap.set(entry.path, content);
+    } catch (error) {
+      console.error(`Failed to load note content for ${entry.path}:`, error);
+      noteContentMap.set(entry.path, ""); // Use empty string as fallback
+    }
+    loaded++;
+    if (onProgress) onProgress({ current: loaded, total, phase: "Loading notes" });
+  });
 
   await Promise.all(noteLoadPromises);
 
   sortedEntries.forEach((entry) => {
     const normalizedEntry = normalizePath(entry.path);
-    const parentNormalized = normalizedEntry.split('/').slice(0, -1).join('/');
+    const parentNormalized = normalizedEntry.split("/").slice(0, -1).join("/");
     const parentId = pathToId.get(parentNormalized) || rootId;
 
     if (entry.is_dir) {
-      const folderId = buildId('folder', entry.path);
+      const folderId = buildId("folder", entry.path);
       items.push({
         id: folderId,
         name: entry.name,
         parentId,
-        type: 'folder',
+        type: "folder",
         filePath: entry.path,
         normalizedPath: normalizedEntry,
         content: null,
-        createdAt: now
+        createdAt: now,
       });
       pathToId.set(normalizedEntry, folderId);
     } else {
-      const noteId = buildId('note', entry.path);
-      const noteContent = noteContentMap.get(entry.path) || '';
+      const noteId = buildId("note", entry.path);
+      const noteContent = noteContentMap.get(entry.path) || "";
       items.push({
         id: noteId,
         name: stripExtension(entry.name),
         parentId,
-        type: 'note',
+        type: "note",
         filePath: entry.path,
         normalizedPath: normalizedEntry,
         content: noteContent,
         createdAt: now,
         updatedAt: now,
         linkKey: buildNoteLinkKey(entry.name),
-        links: extractWikiLinks(noteContent)
+        links: extractWikiLinks(noteContent),
       });
     }
   });
@@ -587,7 +594,7 @@ const buildItemsFromFolderData = async ({ folderPath, folderName, files }, onPro
 
 const resolveFolderPath = (folderId, items, rootFolderPath) => {
   if (!folderId) return rootFolderPath;
-  const folder = items.find((item) => item.id === folderId && item.type === 'folder');
+  const folder = items.find((item) => item.id === folderId && item.type === "folder");
   return folder ? folder.filePath : null;
 };
 
@@ -617,16 +624,19 @@ const useNotesStore = create(
 
       setRootFolder: async (folderData) => {
         set({ isLoading: true, loadingProgress: null });
-        const { items: fsItems, rootId } = await buildItemsFromFolderData(folderData, (progress) => {
-          set({ loadingProgress: progress });
-        });
+        const { items: fsItems, rootId } = await buildItemsFromFolderData(
+          folderData,
+          (progress) => {
+            set({ loadingProgress: progress });
+          }
+        );
         const normalizedRoot = normalizePath(folderData.folderPath);
         const previousItems = get().items;
         const ephemeralItems = previousItems.filter((item) => !item.filePath);
         const combinedItems = [...fsItems, ...ephemeralItems].map(ensureNoteMetadata);
         const firstNote = combinedItems.find(
           (item) =>
-            item.type === 'note' &&
+            item.type === "note" &&
             item.filePath &&
             normalizePath(item.filePath).startsWith(normalizedRoot)
         );
@@ -638,19 +648,24 @@ const useNotesStore = create(
           currentNoteId: firstNote ? firstNote.id : null,
           expandedFolders: [rootId],
           isLoading: false,
-          loadingProgress: null
+          loadingProgress: null,
         });
 
         // Record in recent workspaces (most-recent first, capped at 10)
         const workspacePath = normalizePath(folderData.folderPath);
-        const workspaceName = folderData.folderName || workspacePath.split('/').pop() || workspacePath;
+        const workspaceName =
+          folderData.folderName || workspacePath.split("/").pop() || workspacePath;
         set((state) => {
           const filtered = state.recentWorkspaces.filter(
             (ws) => normalizePath(ws.path) !== workspacePath
           );
           return {
             recentWorkspaces: [
-              { path: folderData.folderPath, name: workspaceName, lastOpenedAt: new Date().toISOString() },
+              {
+                path: folderData.folderPath,
+                name: workspaceName,
+                lastOpenedAt: new Date().toISOString(),
+              },
               ...filtered,
             ].slice(0, 10),
           };
@@ -673,17 +688,18 @@ const useNotesStore = create(
           const folderData = {
             folderPath: rootFolderPath,
             folderName: folderNameFromPath(rootFolderPath),
-            files
+            files,
           };
-          const { items: fsItems, rootId } = await buildItemsFromFolderData(folderData, (progress) => {
-            set({ loadingProgress: progress });
-          });
+          const { items: fsItems, rootId } = await buildItemsFromFolderData(
+            folderData,
+            (progress) => {
+              set({ loadingProgress: progress });
+            }
+          );
           const previousItems = state.items;
           const ephemeralItems = previousItems.filter((item) => !item.filePath);
           const previousNotesById = new Map(
-            previousItems
-              .filter((item) => item.type === 'note')
-              .map((item) => [item.id, item])
+            previousItems.filter((item) => item.type === "note").map((item) => [item.id, item])
           );
           const dirtyNoteIdsSet = new Set(state.dirtyNoteIds);
           const nextConflicts = {};
@@ -692,54 +708,58 @@ const useNotesStore = create(
 
           const combinedItems = fsItems
             .map((item) => {
-              const draftEntry = item.type === 'note' ? getDraftCacheEntry(item.filePath) : null;
+              const draftEntry = item.type === "note" ? getDraftCacheEntry(item.filePath) : null;
 
-              if (item.type === 'note' && draftEntry && draftEntry.content !== (item.content || '')) {
+              if (
+                item.type === "note" &&
+                draftEntry &&
+                draftEntry.content !== (item.content || "")
+              ) {
                 nextRecoveredDrafts[item.id] = {
                   filePath: item.filePath,
                   recoveredAt: new Date().toISOString(),
-                  savedAt: draftEntry.updatedAt
+                  savedAt: draftEntry.updatedAt,
                 };
                 recoveredDirtyIds.add(item.id);
                 return ensureNoteMetadata({
                   ...item,
                   content: draftEntry.content,
-                  updatedAt: draftEntry.updatedAt || item.updatedAt || new Date().toISOString()
+                  updatedAt: draftEntry.updatedAt || item.updatedAt || new Date().toISOString(),
                 });
               }
 
-              if (item.type === 'note' && dirtyNoteIdsSet.has(item.id)) {
+              if (item.type === "note" && dirtyNoteIdsSet.has(item.id)) {
                 const previousNote = previousNotesById.get(item.id);
                 if (previousNote) {
-                  const diskContent = item.content || '';
-                  const localContent = previousNote.content || '';
+                  const diskContent = item.content || "";
+                  const localContent = previousNote.content || "";
 
                   if (diskContent !== localContent) {
                     nextConflicts[item.id] = {
                       diskContent,
                       detectedAt: new Date().toISOString(),
-                      filePath: item.filePath
+                      filePath: item.filePath,
                     };
                   }
 
                   return ensureNoteMetadata({
                     ...item,
                     content: localContent,
-                    updatedAt: previousNote.updatedAt
+                    updatedAt: previousNote.updatedAt,
                   });
                 }
               }
 
-              if (item.type === 'note') {
+              if (item.type === "note") {
                 return ensureNoteMetadata({
-                  ...item
+                  ...item,
                 });
               }
               return ensureNoteMetadata(item);
             })
             .concat(ephemeralItems.map(ensureNoteMetadata));
           const validFolderIds = new Set(
-            combinedItems.filter((item) => item.type === 'folder').map((item) => item.id)
+            combinedItems.filter((item) => item.type === "folder").map((item) => item.id)
           );
           const expandedSet = new Set(
             state.expandedFolders.filter((folderId) => validFolderIds.has(folderId))
@@ -748,7 +768,7 @@ const useNotesStore = create(
 
           const applyExpand = (path) => {
             if (!path) return;
-            const folderId = buildId('folder', path);
+            const folderId = buildId("folder", path);
             if (!validFolderIds.has(folderId)) return;
             expandedSet.add(folderId);
             collectAncestorIds(folderId, combinedItems).forEach((ancestor) => {
@@ -765,10 +785,8 @@ const useNotesStore = create(
 
           if (focusPath) {
             const normalizedFocus = normalizePath(focusPath);
-            const target = combinedItems.find(
-              (item) => item.normalizedPath === normalizedFocus
-            );
-            if (target && target.type === 'note') {
+            const target = combinedItems.find((item) => item.normalizedPath === normalizedFocus);
+            if (target && target.type === "note") {
               currentNoteId = target.id;
             } else if (currentNoteId && !findItemById(currentNoteId)) {
               currentNoteId = null;
@@ -784,7 +802,7 @@ const useNotesStore = create(
             currentNoteId,
             noteConflicts: nextConflicts,
             dirtyNoteIds: Array.from(recoveredDirtyIds),
-            recoveredDrafts: nextRecoveredDrafts
+            recoveredDrafts: nextRecoveredDrafts,
           });
 
           return combinedItems;
@@ -798,20 +816,22 @@ const useNotesStore = create(
         const { rootFolderPath, rootFolderId } = state;
 
         if (!rootFolderPath || !rootFolderId) {
-          throw new Error('Select a workspace folder before creating new folders.');
+          throw new Error("Select a workspace folder before creating new folders.");
         }
 
         const resolvedParentId = parentId || rootFolderId;
         const parentPath = resolveFolderPath(resolvedParentId, state.items, rootFolderPath);
         if (!parentPath) {
-          throw new Error('Parent folder not found');
+          throw new Error("Parent folder not found");
         }
 
         const folderSiblings = state.items.filter(
-          (entry) => entry.parentId === resolvedParentId && entry.type === 'folder'
+          (entry) => entry.parentId === resolvedParentId && entry.type === "folder"
         );
-        const reservedFolderNames = createNameReservationSet(folderSiblings.map((entry) => entry.name));
-        let candidateName = reserveUniqueName('New Folder', reservedFolderNames);
+        const reservedFolderNames = createNameReservationSet(
+          folderSiblings.map((entry) => entry.name)
+        );
+        let candidateName = reserveUniqueName("New Folder", reservedFolderNames);
         let attempt = 0;
         let lastError = null;
         while (attempt < 100) {
@@ -819,13 +839,13 @@ const useNotesStore = create(
             const newPath = await createFolderOnDisk(parentPath, candidateName);
             await get().refreshRootFromDisk({
               ensureExpandedPath: parentPath,
-              focusPath: newPath
+              focusPath: newPath,
             });
-            return buildId('folder', newPath);
+            return buildId("folder", newPath);
           } catch (error) {
             lastError = error;
             if (error?.message && /exists/i.test(error.message)) {
-              candidateName = reserveUniqueName('New Folder', reservedFolderNames);
+              candidateName = reserveUniqueName("New Folder", reservedFolderNames);
               attempt += 1;
               continue;
             }
@@ -833,7 +853,7 @@ const useNotesStore = create(
           }
         }
 
-        throw lastError || new Error('Unable to create folder');
+        throw lastError || new Error("Unable to create folder");
       },
 
       createNote: async (parentId = null, templateContent = null, noteName = null) => {
@@ -841,20 +861,20 @@ const useNotesStore = create(
         const { rootFolderPath, rootFolderId } = state;
 
         if (!rootFolderPath || !rootFolderId) {
-          throw new Error('Select a workspace folder before creating new notes.');
+          throw new Error("Select a workspace folder before creating new notes.");
         }
 
         const resolvedParentId = parentId || rootFolderId;
         const parentPath = resolveFolderPath(resolvedParentId, state.items, rootFolderPath);
         if (!parentPath) {
-          throw new Error('Parent folder not found');
+          throw new Error("Parent folder not found");
         }
 
         const noteSiblings = state.items.filter(
-          (entry) => entry.parentId === resolvedParentId && entry.type === 'note'
+          (entry) => entry.parentId === resolvedParentId && entry.type === "note"
         );
         const reservedNoteNames = createNameReservationSet(noteSiblings.map((entry) => entry.name));
-        const desiredBase = sanitizeNoteTitle(noteName) || 'New Note';
+        const desiredBase = sanitizeNoteTitle(noteName) || "New Note";
         let noteBaseName = reserveUniqueName(desiredBase, reservedNoteNames);
         let attempt = 0;
         let lastError = null;
@@ -870,16 +890,12 @@ const useNotesStore = create(
           const fileName = `${noteBaseName}.md`;
 
           try {
-            newPath = await createMarkdownFileOnDisk(
-              parentPath,
-              fileName,
-              initialContent
-            );
+            newPath = await createMarkdownFileOnDisk(parentPath, fileName, initialContent);
             break;
           } catch (error) {
             lastError = error;
             if (error?.message && /exists/i.test(error.message)) {
-              noteBaseName = reserveUniqueName('New Note', reservedNoteNames);
+              noteBaseName = reserveUniqueName("New Note", reservedNoteNames);
               attempt += 1;
               continue;
             }
@@ -888,28 +904,26 @@ const useNotesStore = create(
         }
 
         if (!newPath) {
-          throw lastError || new Error('Unable to create note');
+          throw lastError || new Error("Unable to create note");
         }
 
         await get().refreshRootFromDisk({
           ensureExpandedPath: parentPath,
-          focusPath: newPath
+          focusPath: newPath,
         });
 
         try {
           const content = await readMarkdownFile(newPath);
           set((current) => ({
             items: current.items.map((item) =>
-              item.filePath === newPath
-                ? ensureNoteMetadata({ ...item, content })
-                : item
-            )
+              item.filePath === newPath ? ensureNoteMetadata({ ...item, content }) : item
+            ),
           }));
         } catch (error) {
-          console.error('Failed to read new note content:', error);
+          console.error("Failed to read new note content:", error);
         }
 
-        const noteId = buildId('note', newPath);
+        const noteId = buildId("note", newPath);
         set({ currentNoteId: noteId });
         return noteId;
       },
@@ -921,14 +935,14 @@ const useNotesStore = create(
 
         const newNote = {
           id: noteId,
-          name: stripExtension(name) || 'Untitled',
+          name: stripExtension(name) || "Untitled",
           parentId,
-          type: 'note',
+          type: "note",
           content,
           filePath: path,
           normalizedPath: normalizePath(path),
           createdAt: timestamp,
-          updatedAt: timestamp
+          updatedAt: timestamp,
         };
 
         const enrichedNote = ensureNoteMetadata(newNote);
@@ -938,7 +952,7 @@ const useNotesStore = create(
           currentNoteId: enrichedNote.id,
           expandedFolders: parentId
             ? Array.from(new Set([...current.expandedFolders, parentId]))
-            : current.expandedFolders
+            : current.expandedFolders,
         }));
 
         return noteId;
@@ -952,22 +966,22 @@ const useNotesStore = create(
             ? current.dirtyNoteIds
             : [...current.dirtyNoteIds, noteId];
           const nextItems = current.items.map((item) =>
-            item.id === noteId && item.type === 'note'
+            item.id === noteId && item.type === "note"
               ? {
-                ...item,
-                content,
-                updatedAt: new Date().toISOString()
-              }
+                  ...item,
+                  content,
+                  updatedAt: new Date().toISOString(),
+                }
               : item
           );
-          const nextNote = nextItems.find((item) => item.id === noteId && item.type === 'note');
+          const nextNote = nextItems.find((item) => item.id === noteId && item.type === "note");
           if (nextNote?.filePath) {
             setDraftCacheEntry(nextNote.filePath, content, nextNote.updatedAt);
           }
 
           return {
             items: nextItems,
-            dirtyNoteIds
+            dirtyNoteIds,
           };
         });
 
@@ -981,24 +995,24 @@ const useNotesStore = create(
         // This does the expensive regex operations, called after typing stops
         set((current) => ({
           items: current.items.map((item) =>
-            item.id === noteId && item.type === 'note'
+            item.id === noteId && item.type === "note"
               ? ensureNoteMetadata({
-                ...item,
-                content
-              })
+                  ...item,
+                  content,
+                })
               : item
-          )
+          ),
         }));
       },
 
       saveCurrentNoteToDisk: async () => {
         const state = get();
         const note = state.items.find(
-          (item) => item.id === state.currentNoteId && item.type === 'note'
+          (item) => item.id === state.currentNoteId && item.type === "note"
         );
 
         if (!note?.filePath) {
-          throw new Error('Cannot save: note has no file path');
+          throw new Error("Cannot save: note has no file path");
         }
 
         // Cancel any pending write and save immediately
@@ -1012,30 +1026,28 @@ const useNotesStore = create(
 
           // Clear dirty state for this note
           set((current) => ({
-            dirtyNoteIds: current.dirtyNoteIds.filter(id => id !== note.id),
+            dirtyNoteIds: current.dirtyNoteIds.filter((id) => id !== note.id),
             noteConflicts: Object.fromEntries(
               Object.entries(current.noteConflicts).filter(([id]) => id !== String(note.id))
             ),
             recoveredDrafts: Object.fromEntries(
               Object.entries(current.recoveredDrafts).filter(([id]) => id !== String(note.id))
-            )
+            ),
           }));
           removeDraftCacheEntry(note.filePath);
 
           return true;
         } catch (error) {
-          console.error('Failed to save note to disk:', error);
+          console.error("Failed to save note to disk:", error);
           throw error;
         }
       },
 
       updateNotePath: (noteId, filePath) => {
         const normalized = normalizePath(filePath);
-        const replacementId = buildId('note', filePath);
+        const replacementId = buildId("note", filePath);
         const state = get();
-        const existing = state.items.find(
-          (item) => item.id === noteId && item.type === 'note'
-        );
+        const existing = state.items.find((item) => item.id === noteId && item.type === "note");
         if (existing?.filePath) {
           cancelPendingNoteWrite(existing.filePath);
           moveDraftCacheEntry(existing.filePath, filePath);
@@ -1044,18 +1056,19 @@ const useNotesStore = create(
 
         set((state) => {
           const items = state.items.map((item) =>
-            item.id === noteId && item.type === 'note'
+            item.id === noteId && item.type === "note"
               ? ensureNoteMetadata({
-                ...item,
-                id: replacementId,
-                filePath,
-                normalizedPath: normalized,
-                updatedAt: new Date().toISOString()
-              })
+                  ...item,
+                  id: replacementId,
+                  filePath,
+                  normalizedPath: normalized,
+                  updatedAt: new Date().toISOString(),
+                })
               : item
           );
 
-          const currentNoteId = state.currentNoteId === noteId ? replacementId : state.currentNoteId;
+          const currentNoteId =
+            state.currentNoteId === noteId ? replacementId : state.currentNoteId;
           const noteConflicts = Object.fromEntries(
             Object.entries(state.noteConflicts).map(([id, conflict]) => {
               if (id !== String(noteId)) return [id, conflict];
@@ -1085,34 +1098,30 @@ const useNotesStore = create(
           set((current) => ({
             items: current.items.map((entry) =>
               entry.id === itemId ? { ...entry, name: trimmed } : entry
-            )
+            ),
           }));
           return;
         }
 
-        if (item.type === 'note') {
+        if (item.type === "note") {
           const extMatch = item.filePath.match(/(\.[^./\\]+)$/);
-          const defaultExtension = extMatch ? extMatch[1] : '.md';
+          const defaultExtension = extMatch ? extMatch[1] : ".md";
           if (/[/\\]/.test(trimmed)) {
-            throw new Error('Name cannot contain path separators');
+            throw new Error("Name cannot contain path separators");
           }
 
           let fileName = trimmed;
-          if (!fileName.includes('.')) {
+          if (!fileName.includes(".")) {
             fileName = `${fileName}${defaultExtension}`;
           }
 
-          const parentPath = resolveFolderPath(
-            item.parentId,
-            state.items,
-            state.rootFolderPath
-          );
+          const parentPath = resolveFolderPath(item.parentId, state.items, state.rootFolderPath);
 
           const newPath = await renameEntryOnDisk(item.filePath, fileName);
 
           await get().refreshRootFromDisk({
             ensureExpandedPath: parentPath,
-            focusPath: newPath
+            focusPath: newPath,
           });
 
           try {
@@ -1120,18 +1129,18 @@ const useNotesStore = create(
             set((current) => ({
               items: current.items.map((entry) =>
                 entry.filePath === newPath ? { ...entry, content } : entry
-              )
+              ),
             }));
           } catch (error) {
-            console.error('Failed to load renamed note:', error);
+            console.error("Failed to load renamed note:", error);
           }
 
-          set({ currentNoteId: buildId('note', newPath) });
+          set({ currentNoteId: buildId("note", newPath) });
         } else {
           const newPath = await renameEntryOnDisk(item.filePath, trimmed);
 
           await get().refreshRootFromDisk({
-            ensureExpandedPath: newPath
+            ensureExpandedPath: newPath,
           });
         }
       },
@@ -1149,10 +1158,7 @@ const useNotesStore = create(
         if (!item.filePath) {
           const collectDescendants = (id, items) => {
             const children = items.filter((entry) => entry.parentId === id);
-            return [
-              id,
-              ...children.flatMap((child) => collectDescendants(child.id, items))
-            ];
+            return [id, ...children.flatMap((child) => collectDescendants(child.id, items))];
           };
 
           const idsToRemove = collectDescendants(itemId, state.items);
@@ -1161,12 +1167,12 @@ const useNotesStore = create(
             const remaining = current.items.filter((entry) => !idsToRemove.includes(entry.id));
             let nextCurrent = current.currentNoteId;
             if (idsToRemove.includes(current.currentNoteId)) {
-              const firstNote = remaining.find((entry) => entry.type === 'note');
+              const firstNote = remaining.find((entry) => entry.type === "note");
               nextCurrent = firstNote ? firstNote.id : null;
             }
             return {
               items: remaining,
-              currentNoteId: nextCurrent
+              currentNoteId: nextCurrent,
             };
           });
           return;
@@ -1175,10 +1181,7 @@ const useNotesStore = create(
         // Snapshot items for undo (file-backed items only)
         const collectDescendants = (id, items) => {
           const children = items.filter((entry) => entry.parentId === id);
-          return [
-            id,
-            ...children.flatMap((child) => collectDescendants(child.id, items))
-          ];
+          return [id, ...children.flatMap((child) => collectDescendants(child.id, items))];
         };
         const idsToSnapshot = collectDescendants(itemId, state.items);
         const snapshotItems = [];
@@ -1187,16 +1190,23 @@ const useNotesStore = create(
           const entry = state.items.find((e) => e.id === id);
           if (!entry || !entry.filePath) continue;
 
-          if (entry.type === 'note') {
-            let content = entry.content || '';
+          if (entry.type === "note") {
+            let content = entry.content || "";
             if (!content && entry.filePath) {
               try {
                 content = await readMarkdownFile(entry.filePath);
-              } catch { /* file may already be gone */ }
+              } catch {
+                /* file may already be gone */
+              }
             }
-            snapshotItems.push({ filePath: entry.filePath, content, type: 'note', name: entry.name });
+            snapshotItems.push({
+              filePath: entry.filePath,
+              content,
+              type: "note",
+              name: entry.name,
+            });
           } else {
-            snapshotItems.push({ filePath: entry.filePath, type: 'folder', name: entry.name });
+            snapshotItems.push({ filePath: entry.filePath, type: "folder", name: entry.name });
           }
         }
 
@@ -1204,16 +1214,12 @@ const useNotesStore = create(
           set({ lastDeletedSnapshot: snapshotItems });
         }
 
-        const parentPath = resolveFolderPath(
-          item.parentId,
-          state.items,
-          state.rootFolderPath
-        );
+        const parentPath = resolveFolderPath(item.parentId, state.items, state.rootFolderPath);
         const deletedWasCurrent = state.currentNoteId === itemId;
 
         await deleteEntryOnDisk(item.filePath);
         await get().refreshRootFromDisk({
-          ensureExpandedPath: parentPath || state.rootFolderPath
+          ensureExpandedPath: parentPath || state.rootFolderPath,
         });
 
         if (deletedWasCurrent) {
@@ -1222,7 +1228,7 @@ const useNotesStore = create(
             const normalizedRoot = normalizePath(updatedState.rootFolderPath);
             const fallback = updatedState.items.find(
               (entry) =>
-                entry.type === 'note' &&
+                entry.type === "note" &&
                 entry.filePath &&
                 normalizePath(entry.filePath).startsWith(normalizedRoot)
             );
@@ -1241,25 +1247,27 @@ const useNotesStore = create(
         try {
           // Restore folders first (sorted by path depth so parents are created first)
           const folders = snapshot
-            .filter((s) => s.type === 'folder')
-            .sort((a, b) => a.filePath.split('/').length - b.filePath.split('/').length);
+            .filter((s) => s.type === "folder")
+            .sort((a, b) => a.filePath.split("/").length - b.filePath.split("/").length);
 
           for (const folder of folders) {
-            const parts = folder.filePath.replace(/\/$/, '').split('/');
+            const parts = folder.filePath.replace(/\/$/, "").split("/");
             const folderName = parts.pop();
-            const parentPath = parts.join('/');
+            const parentPath = parts.join("/");
             try {
               await createFolderOnDisk(parentPath, folderName);
-            } catch { /* folder might already exist */ }
+            } catch {
+              /* folder might already exist */
+            }
           }
 
           // Restore notes
-          const notes = snapshot.filter((s) => s.type === 'note');
+          const notes = snapshot.filter((s) => s.type === "note");
           for (const note of notes) {
             try {
               await writeMarkdownFileOnDisk(note.filePath, note.content);
             } catch (err) {
-              console.error('Failed to restore note:', note.filePath, err);
+              console.error("Failed to restore note:", note.filePath, err);
             }
           }
 
@@ -1269,7 +1277,7 @@ const useNotesStore = create(
           await get().refreshRootFromDisk();
           return true;
         } catch (error) {
-          console.error('Failed to undo delete:', error);
+          console.error("Failed to undo delete:", error);
           return false;
         }
       },
@@ -1286,7 +1294,7 @@ const useNotesStore = create(
           set((current) => ({
             items: current.items.map((entry) =>
               entry.id === itemId ? { ...entry, parentId: destinationId || null } : entry
-            )
+            ),
           }));
           return itemId;
         }
@@ -1299,14 +1307,14 @@ const useNotesStore = create(
 
         const targetPath = resolveFolderPath(destinationId, state.items, rootFolderPath);
         if (!targetPath) {
-          throw new Error('Destination folder not found');
+          throw new Error("Destination folder not found");
         }
 
-        if (item.type === 'folder') {
+        if (item.type === "folder") {
           const normalizedSource = normalizePath(item.filePath);
           const normalizedTarget = normalizePath(targetPath);
           if (normalizedTarget.startsWith(`${normalizedSource}/`)) {
-            throw new Error('Cannot move a folder into itself');
+            throw new Error("Cannot move a folder into itself");
           }
         }
 
@@ -1314,23 +1322,23 @@ const useNotesStore = create(
 
         await get().refreshRootFromDisk({
           ensureExpandedPath: targetPath,
-          focusPath: item.type === 'note' ? newPath : undefined
+          focusPath: item.type === "note" ? newPath : undefined,
         });
 
-        if (item.type === 'note') {
+        if (item.type === "note") {
           try {
             const content = await readMarkdownFile(newPath);
             set((current) => ({
               items: current.items.map((entry) =>
                 entry.filePath === newPath ? { ...entry, content } : entry
-              )
+              ),
             }));
           } catch (error) {
-            console.error('Failed to read moved note:', error);
+            console.error("Failed to read moved note:", error);
           }
         }
 
-        return buildId(item.type === 'note' ? 'note' : 'folder', newPath);
+        return buildId(item.type === "note" ? "note" : "folder", newPath);
       },
 
       moveItemToRoot: async (itemId) => {
@@ -1339,7 +1347,7 @@ const useNotesStore = create(
           set((state) => ({
             items: state.items.map((entry) =>
               entry.id === itemId ? { ...entry, parentId: null } : entry
-            )
+            ),
           }));
           return itemId;
         }
@@ -1373,7 +1381,7 @@ const useNotesStore = create(
         set((state) => ({
           expandedFolders: state.expandedFolders.includes(folderId)
             ? state.expandedFolders.filter((id) => id !== folderId)
-            : [...state.expandedFolders, folderId]
+            : [...state.expandedFolders, folderId],
         }));
       },
 
@@ -1384,16 +1392,16 @@ const useNotesStore = create(
           return;
         }
 
-        const note = state.items.find((item) => item.id === noteId && item.type === 'note');
+        const note = state.items.find((item) => item.id === noteId && item.type === "note");
 
         if (note) {
           // Update recent notes list
-          const recentNotes = state.recentNotes.filter(r => r.id !== noteId);
+          const recentNotes = state.recentNotes.filter((r) => r.id !== noteId);
           recentNotes.unshift({
             id: note.id,
             name: note.name,
             filePath: note.filePath,
-            lastOpenedAt: new Date().toISOString()
+            lastOpenedAt: new Date().toISOString(),
           });
 
           // Keep only last 10 recent notes
@@ -1407,17 +1415,17 @@ const useNotesStore = create(
           set({
             currentNoteId: noteId,
             recentNotes: trimmedRecent,
-            openNoteIds
+            openNoteIds,
           });
         } else {
           // Handle special tabs (like settings) or notes not in items
           const openNoteIds = state.openNoteIds.includes(noteId)
             ? state.openNoteIds
             : [...state.openNoteIds, noteId];
-          
-          set({ 
+
+          set({
             currentNoteId: noteId,
-            openNoteIds
+            openNoteIds,
           });
         }
       },
@@ -1446,7 +1454,7 @@ const useNotesStore = create(
 
       getCurrentNote: () => {
         const { items, currentNoteId } = get();
-        return items.find((item) => item.id === currentNoteId && item.type === 'note') || null;
+        return items.find((item) => item.id === currentNoteId && item.type === "note") || null;
       },
 
       isNoteDirty: (noteId) => {
@@ -1454,18 +1462,18 @@ const useNotesStore = create(
       },
 
       clearNoteDirty: (noteId) => {
-        const note = get().items.find((item) => item.id === noteId && item.type === 'note');
+        const note = get().items.find((item) => item.id === noteId && item.type === "note");
         if (note?.filePath) {
           removeDraftCacheEntry(note.filePath);
         }
         set((current) => ({
-          dirtyNoteIds: current.dirtyNoteIds.filter(id => id !== noteId),
+          dirtyNoteIds: current.dirtyNoteIds.filter((id) => id !== noteId),
           noteConflicts: Object.fromEntries(
             Object.entries(current.noteConflicts).filter(([id]) => id !== String(noteId))
           ),
           recoveredDrafts: Object.fromEntries(
             Object.entries(current.recoveredDrafts).filter(([id]) => id !== String(noteId))
-          )
+          ),
         }));
       },
 
@@ -1473,25 +1481,25 @@ const useNotesStore = create(
         return get().noteConflicts[noteId] || null;
       },
 
-      resolveNoteConflict: (noteId, resolution = 'keepLocal') => {
+      resolveNoteConflict: (noteId, resolution = "keepLocal") => {
         const conflict = get().noteConflicts[noteId];
         if (!conflict) return false;
 
-        if (resolution === 'useDisk') {
+        if (resolution === "useDisk") {
           set((current) => ({
             items: current.items.map((item) =>
-              item.id === noteId && item.type === 'note'
+              item.id === noteId && item.type === "note"
                 ? ensureNoteMetadata({
                     ...item,
                     content: conflict.diskContent,
-                    updatedAt: new Date().toISOString()
+                    updatedAt: new Date().toISOString(),
                   })
                 : item
             ),
             dirtyNoteIds: current.dirtyNoteIds.filter((id) => id !== noteId),
             noteConflicts: Object.fromEntries(
               Object.entries(current.noteConflicts).filter(([id]) => id !== String(noteId))
-            )
+            ),
           }));
           return true;
         }
@@ -1499,7 +1507,7 @@ const useNotesStore = create(
         set((current) => ({
           noteConflicts: Object.fromEntries(
             Object.entries(current.noteConflicts).filter(([id]) => id !== String(noteId))
-          )
+          ),
         }));
         return true;
       },
@@ -1510,7 +1518,7 @@ const useNotesStore = create(
 
       discardRecoveredDraft: (noteId) => {
         const state = get();
-        const note = state.items.find((item) => item.id === noteId && item.type === 'note');
+        const note = state.items.find((item) => item.id === noteId && item.type === "note");
         if (note?.filePath) {
           removeDraftCacheEntry(note.filePath);
         }
@@ -1519,11 +1527,11 @@ const useNotesStore = create(
           dirtyNoteIds: current.dirtyNoteIds.filter((id) => id !== noteId),
           recoveredDrafts: Object.fromEntries(
             Object.entries(current.recoveredDrafts).filter(([id]) => id !== String(noteId))
-          )
+          ),
         }));
 
         state.refreshRootFromDisk?.({
-          preserveSelection: true
+          preserveSelection: true,
         });
       },
 
@@ -1534,12 +1542,12 @@ const useNotesStore = create(
 
       getFolders: () => {
         const { items } = get();
-        return items.filter((item) => item.type === 'folder');
+        return items.filter((item) => item.type === "folder");
       },
 
       getNotes: () => {
         const { items } = get();
-        return items.filter((item) => item.type === 'note');
+        return items.filter((item) => item.type === "note");
       },
 
       findNoteByLinkTarget: (target) => {
@@ -1549,21 +1557,21 @@ const useNotesStore = create(
         const { items } = get();
         return (
           items.find(
-            (item) => item.type === 'note' && (item.linkKey || buildNoteLinkKey(item.name)) === key
+            (item) => item.type === "note" && (item.linkKey || buildNoteLinkKey(item.name)) === key
           ) || null
         );
       },
 
       getOutgoingLinks: (noteId) => {
         const { items } = get();
-        const note = items.find((item) => item.id === noteId && item.type === 'note');
+        const note = items.find((item) => item.id === noteId && item.type === "note");
         if (!note) return [];
 
         const notesByKey = new Map();
         items.forEach((item) => {
-          if (item.type === 'note' && item.linkKey) {
+          if (item.type === "note" && item.linkKey) {
             notesByKey.set(item.linkKey, item);
-          } else if (item.type === 'note') {
+          } else if (item.type === "note") {
             const fallbackKey = buildNoteLinkKey(item.name);
             if (fallbackKey) {
               notesByKey.set(fallbackKey, ensureNoteMetadata(item));
@@ -1575,13 +1583,49 @@ const useNotesStore = create(
 
         return links.map((link) => ({
           ...link,
-          note: notesByKey.get(link.key) || null
+          note: notesByKey.get(link.key) || null,
         }));
+      },
+
+      getBrokenWikiLinks: () => {
+        const { items } = get();
+        const notes = items.filter((item) => item.type === "note");
+        const existingKeys = new Set(
+          notes.map((note) => note.linkKey || buildNoteLinkKey(note.name)).filter(Boolean)
+        );
+        const brokenByKey = new Map();
+
+        notes.forEach((note) => {
+          const links = note.links || extractWikiLinks(note.content);
+
+          links.forEach((link) => {
+            if (!link.key || existingKeys.has(link.key)) return;
+
+            const entry = brokenByKey.get(link.key) || {
+              key: link.key,
+              target: link.target,
+              alias: link.alias || null,
+              sources: [],
+            };
+
+            if (!entry.sources.some((source) => source.id === note.id)) {
+              entry.sources.push({
+                id: note.id,
+                name: note.name,
+                filePath: note.filePath,
+              });
+            }
+
+            brokenByKey.set(link.key, entry);
+          });
+        });
+
+        return Array.from(brokenByKey.values()).sort((a, b) => a.target.localeCompare(b.target));
       },
 
       getBacklinks: (noteId) => {
         const { items } = get();
-        const target = items.find((item) => item.id === noteId && item.type === 'note');
+        const target = items.find((item) => item.id === noteId && item.type === "note");
         if (!target) return [];
 
         const targetKey = target.linkKey || buildNoteLinkKey(target.name);
@@ -1589,7 +1633,7 @@ const useNotesStore = create(
 
         return items
           .filter((item) => {
-            if (item.type !== 'note' || item.id === noteId) return false;
+            if (item.type !== "note" || item.id === noteId) return false;
             const links = item.links || extractWikiLinks(item.content);
             return links.some((link) => link.key === targetKey);
           })
@@ -1600,11 +1644,11 @@ const useNotesStore = create(
         const { recentNotes, items } = get();
         // Filter out notes that no longer exist
         return recentNotes
-          .map(recent => {
-            const note = items.find(item => item.id === recent.id);
+          .map((recent) => {
+            const note = items.find((item) => item.id === recent.id);
             return note ? { ...recent, exists: true } : { ...recent, exists: false };
           })
-          .filter(r => r.exists);
+          .filter((r) => r.exists);
       },
 
       togglePinNote: (noteId) => {
@@ -1612,8 +1656,8 @@ const useNotesStore = create(
           const isPinned = state.pinnedNotes.includes(noteId);
           return {
             pinnedNotes: isPinned
-              ? state.pinnedNotes.filter(id => id !== noteId)
-              : [...state.pinnedNotes, noteId]
+              ? state.pinnedNotes.filter((id) => id !== noteId)
+              : [...state.pinnedNotes, noteId],
           };
         });
       },
@@ -1626,7 +1670,7 @@ const useNotesStore = create(
         const { pinnedNotes, items } = get();
         // Return pinned notes that still exist, sorted by name
         return items
-          .filter(item => item.type === 'note' && pinnedNotes.includes(item.id))
+          .filter((item) => item.type === "note" && pinnedNotes.includes(item.id))
           .sort((a, b) => a.name.localeCompare(b.name));
       },
 
@@ -1636,9 +1680,9 @@ const useNotesStore = create(
         const tagCounts = {};
 
         items
-          .filter(item => item.type === 'note' && item.tags)
-          .forEach(note => {
-            note.tags.forEach(tag => {
+          .filter((item) => item.type === "note" && item.tags)
+          .forEach((note) => {
+            note.tags.forEach((tag) => {
               tagCounts[tag] = (tagCounts[tag] || 0) + 1;
             });
           });
@@ -1651,7 +1695,7 @@ const useNotesStore = create(
 
       getNoteTags: (noteId) => {
         const { items } = get();
-        const note = items.find(item => item.id === noteId && item.type === 'note');
+        const note = items.find((item) => item.id === noteId && item.type === "note");
         return note?.tags || [];
       },
 
@@ -1660,8 +1704,8 @@ const useNotesStore = create(
           const isSelected = state.selectedTags.includes(tag);
           return {
             selectedTags: isSelected
-              ? state.selectedTags.filter(t => t !== tag)
-              : [...state.selectedTags, tag]
+              ? state.selectedTags.filter((t) => t !== tag)
+              : [...state.selectedTags, tag],
           };
         });
       },
@@ -1675,20 +1719,22 @@ const useNotesStore = create(
         const normalizedTarget = normalizeTagValue(targetTag);
 
         if (!normalizedSource) {
-          throw new Error('Source tag is required');
+          throw new Error("Source tag is required");
         }
 
-        if ((action === 'rename' || action === 'merge') && !normalizedTarget) {
-          throw new Error('Target tag is required');
+        if ((action === "rename" || action === "merge") && !normalizedTarget) {
+          throw new Error("Target tag is required");
         }
 
-        if ((action === 'rename' || action === 'merge') && normalizedSource === normalizedTarget) {
-          throw new Error('Source and target tag are the same');
+        if ((action === "rename" || action === "merge") && normalizedSource === normalizedTarget) {
+          throw new Error("Source and target tag are the same");
         }
 
         const state = get();
-        const notes = state.items.filter((item) => item.type === 'note' && typeof item.content === 'string');
-        const desiredTarget = action === 'delete' ? null : normalizedTarget;
+        const notes = state.items.filter(
+          (item) => item.type === "note" && typeof item.content === "string"
+        );
+        const desiredTarget = action === "delete" ? null : normalizedTarget;
 
         const candidates = notes
           .map((note) => {
@@ -1727,20 +1773,24 @@ const useNotesStore = create(
         if (successfulUpdates.size > 0) {
           set((current) => {
             const updatedItems = current.items.map((item) => {
-              if (item.type !== 'note') return item;
+              if (item.type !== "note") return item;
               const nextContent = successfulUpdates.get(item.id);
               if (nextContent === undefined) return item;
 
               return ensureNoteMetadata({
                 ...item,
                 content: nextContent,
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
               });
             });
 
             const dirtyNoteIds = current.dirtyNoteIds.filter((id) => !successfulUpdates.has(id));
             const selectedTags = current.selectedTags.filter((tag) => tag !== normalizedSource);
-            if (desiredTarget && current.selectedTags.includes(normalizedSource) && !selectedTags.includes(desiredTarget)) {
+            if (
+              desiredTarget &&
+              current.selectedTags.includes(normalizedSource) &&
+              !selectedTags.includes(desiredTarget)
+            ) {
               selectedTags.push(desiredTarget);
             }
 
@@ -1763,25 +1813,28 @@ const useNotesStore = create(
       // Custom template management
       addCustomTemplate: (template) => {
         set((state) => ({
-          customTemplates: [...state.customTemplates, {
-            ...template,
-            id: `custom-${Date.now()}`,
-            isCustom: true
-          }]
+          customTemplates: [
+            ...state.customTemplates,
+            {
+              ...template,
+              id: `custom-${Date.now()}`,
+              isCustom: true,
+            },
+          ],
         }));
       },
 
       deleteCustomTemplate: (templateId) => {
         set((state) => ({
-          customTemplates: state.customTemplates.filter(t => t.id !== templateId)
+          customTemplates: state.customTemplates.filter((t) => t.id !== templateId),
         }));
       },
 
       updateCustomTemplate: (templateId, updates) => {
         set((state) => ({
-          customTemplates: state.customTemplates.map(t =>
+          customTemplates: state.customTemplates.map((t) =>
             t.id === templateId ? { ...t, ...updates } : t
-          )
+          ),
         }));
       },
 
@@ -1791,26 +1844,26 @@ const useNotesStore = create(
           id: `schedule-${Date.now()}`,
           templateId: config.templateId,
           templateType: config.templateType || null,
-          templateName: config.templateName || 'Template',
-          templateIcon: config.templateIcon || '📝',
+          templateName: config.templateName || "Template",
+          templateIcon: config.templateIcon || "📝",
           noteName: config.noteName ? config.noteName.trim() : null,
           folderId: config.folderId || null,
           frequency: config.frequency,
-          timeOfDay: config.timeOfDay || '09:00',
+          timeOfDay: config.timeOfDay || "09:00",
           daysOfWeek: Array.isArray(config.daysOfWeek) ? config.daysOfWeek : [],
           dayOfMonth: config.dayOfMonth || null,
           startDate: config.startDate || null,
           enabled: true,
           createdAt: now.toISOString(),
           lastRunAt: null,
-          nextRunAt: null
+          nextRunAt: null,
         };
 
         const nextRun = calculateNextRun(schedule, now);
         schedule.nextRunAt = nextRun ? nextRun.toISOString() : null;
 
         set((state) => ({
-          scheduledNotes: [...state.scheduledNotes, schedule]
+          scheduledNotes: [...state.scheduledNotes, schedule],
         }));
 
         return schedule.id;
@@ -1826,14 +1879,20 @@ const useNotesStore = create(
 
             changed = true;
             const merged = { ...schedule, ...updates };
-            const needsRecalculate = ['frequency', 'timeOfDay', 'daysOfWeek', 'dayOfMonth', 'startDate'].some((key) => key in updates);
+            const needsRecalculate = [
+              "frequency",
+              "timeOfDay",
+              "daysOfWeek",
+              "dayOfMonth",
+              "startDate",
+            ].some((key) => key in updates);
 
-            if (needsRecalculate || ('enabled' in updates && updates.enabled)) {
+            if (needsRecalculate || ("enabled" in updates && updates.enabled)) {
               const nextRun = calculateNextRun(merged, new Date());
               merged.nextRunAt = nextRun ? nextRun.toISOString() : null;
             }
 
-            if ('enabled' in updates && !updates.enabled) {
+            if ("enabled" in updates && !updates.enabled) {
               merged.nextRunAt = null;
             }
 
@@ -1846,7 +1905,7 @@ const useNotesStore = create(
 
       deleteScheduledNote: (scheduleId) => {
         set((state) => ({
-          scheduledNotes: state.scheduledNotes.filter((schedule) => schedule.id !== scheduleId)
+          scheduledNotes: state.scheduledNotes.filter((schedule) => schedule.id !== scheduleId),
         }));
       },
 
@@ -1895,7 +1954,7 @@ const useNotesStore = create(
             const recalculated = calculateNextRun(schedule, now);
             const repairedSchedule = {
               ...schedule,
-              nextRunAt: recalculated ? recalculated.toISOString() : null
+              nextRunAt: recalculated ? recalculated.toISOString() : null,
             };
             updatedSchedules.push(repairedSchedule);
             hasChanges = true;
@@ -1918,25 +1977,26 @@ const useNotesStore = create(
               currentSchedule = {
                 ...currentSchedule,
                 enabled: false,
-                nextRunAt: null
+                nextRunAt: null,
               };
               hasChanges = true;
               break;
             }
 
-            const noteName = schedule.noteName || template.suggestedTitle || template.name || 'New Note';
+            const noteName =
+              schedule.noteName || template.suggestedTitle || template.name || "New Note";
 
             try {
               await get().createNote(schedule.folderId, template.content, noteName);
             } catch (error) {
-              console.error('Failed to create scheduled note:', error);
+              console.error("Failed to create scheduled note:", error);
               break;
             }
 
             const executedAt = new Date().toISOString();
             currentSchedule = {
               ...currentSchedule,
-              lastRunAt: executedAt
+              lastRunAt: executedAt,
             };
 
             const recalculated = calculateNextRun(currentSchedule, addMinutes(nextRun, 1));
@@ -1966,11 +2026,11 @@ const useNotesStore = create(
         }
 
         // Return notes that contain ALL selected tags (AND logic)
-        return items.filter(item => {
-          if (item.type !== 'note' || !item.content) return false;
+        return items.filter((item) => {
+          if (item.type !== "note" || !item.content) return false;
 
           const noteTags = extractTags(item.content);
-          return selectedTags.every(tag => noteTags.includes(tag));
+          return selectedTags.every((tag) => noteTags.includes(tag));
         });
       },
 
@@ -1994,22 +2054,22 @@ const useNotesStore = create(
           editorSplitRatio: 50,
           selectedTags: [],
           customTemplates: [],
-          scheduledNotes: []
+          scheduledNotes: [],
         });
 
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
           try {
-            window.localStorage.removeItem('marky-storage');
+            window.localStorage.removeItem("marky-storage");
             clearDraftCache();
             window.localStorage.removeItem(NOTE_HISTORY_KEY);
           } catch (error) {
-            console.error('Failed to clear persisted store:', error);
+            console.error("Failed to clear persisted store:", error);
           }
         }
-      }
+      },
     }),
     {
-      name: 'marky-storage',
+      name: "marky-storage",
       partialize: (state) => ({
         items: state.items,
         currentNoteId: state.currentNoteId,
@@ -2026,7 +2086,7 @@ const useNotesStore = create(
       onRehydrateStorage: () => (state) => {
         if (!state?.rootFolderPath) return;
         // Dynamically read the setting so we don't create a circular dep
-        const { openRecentOnStartup } = (window.__markySettings?.getState?.() ?? {});
+        const { openRecentOnStartup } = window.__markySettings?.getState?.() ?? {};
         const shouldReopen = openRecentOnStartup !== false; // default true if setting not yet loaded
         if (shouldReopen) {
           state.refreshRootFromDisk?.();
@@ -2036,12 +2096,12 @@ const useNotesStore = create(
           state.rootFolderId = null;
           state.items = [];
         }
-      }
+      },
     }
   )
 );
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.useNotesStore = useNotesStore;
 }
 

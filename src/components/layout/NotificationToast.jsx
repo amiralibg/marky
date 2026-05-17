@@ -1,4 +1,4 @@
-import useUIStore from "../store/uiStore";
+import useUIStore from "../../store/uiStore";
 
 const NotificationToast = () => {
   const { notifications, removeNotification } = useUIStore();

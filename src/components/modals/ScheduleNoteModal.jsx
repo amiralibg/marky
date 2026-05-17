@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import useNotesStore from '../store/notesStore';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import useNotesStore from "../../store/notesStore";
 
-const ROOT_FOLDER_VALUE = '__workspace_root__';
-const DEFAULT_TIME = '09:00';
+const ROOT_FOLDER_VALUE = "__workspace_root__";
+const DEFAULT_TIME = "09:00";
 
 const formatDateForInput = (date) => {
   try {
     const iso = date.toISOString();
-    return iso.split('T')[0];
+    return iso.split("T")[0];
   } catch (error) {
-    return '';
+    return "";
   }
 };
 
@@ -19,13 +19,13 @@ const parseTimeString = (value) => {
     return { hours: 9, minutes: 0 };
   }
 
-  const [hoursRaw, minutesRaw] = value.split(':');
+  const [hoursRaw, minutesRaw] = value.split(":");
   const hours = Number.parseInt(hoursRaw, 10);
   const minutes = Number.parseInt(minutesRaw, 10);
 
   return {
     hours: Number.isFinite(hours) ? hours : 9,
-    minutes: Number.isFinite(minutes) ? minutes : 0
+    minutes: Number.isFinite(minutes) ? minutes : 0,
   };
 };
 
@@ -80,8 +80,15 @@ const getNextMonthlyOccurrence = (fromDate, dayOfMonth, timeOfDay) => {
 
   if (candidate <= fromDate) {
     const nextMonth = new Date(year, month + 1, 1);
-    const clampedDay = clampDayOfMonth(nextMonth.getFullYear(), nextMonth.getMonth(), dayOfMonth || base.getDate());
-    candidate = withTimeOfDay(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), clampedDay), timeOfDay);
+    const clampedDay = clampDayOfMonth(
+      nextMonth.getFullYear(),
+      nextMonth.getMonth(),
+      dayOfMonth || base.getDate()
+    );
+    candidate = withTimeOfDay(
+      new Date(nextMonth.getFullYear(), nextMonth.getMonth(), clampedDay),
+      timeOfDay
+    );
   }
 
   return candidate;
@@ -98,24 +105,25 @@ const calculateNextRunPreview = (schedule, referenceDate = new Date()) => {
   let candidate;
 
   switch (frequency) {
-    case 'daily': {
+    case "daily": {
       candidate = withTimeOfDay(baseline, timeOfDay);
       if (candidate <= now) {
         candidate = withTimeOfDay(addDays(baseline, 1), timeOfDay);
       }
       break;
     }
-    case 'weekly': {
-      const days = Array.isArray(schedule.daysOfWeek) && schedule.daysOfWeek.length > 0
-        ? schedule.daysOfWeek
-        : [baseline.getDay()];
+    case "weekly": {
+      const days =
+        Array.isArray(schedule.daysOfWeek) && schedule.daysOfWeek.length > 0
+          ? schedule.daysOfWeek
+          : [baseline.getDay()];
       candidate = getNextWeeklyOccurrence(baseline, days, timeOfDay);
       if (candidate <= now) {
         candidate = getNextWeeklyOccurrence(addDays(now, 1), days, timeOfDay);
       }
       break;
     }
-    case 'monthly': {
+    case "monthly": {
       const dayOfMonth = schedule.dayOfMonth || baseline.getDate();
       candidate = getNextMonthlyOccurrence(baseline, dayOfMonth, timeOfDay);
       if (candidate <= now) {
@@ -143,16 +151,16 @@ const calculateNextRunPreview = (schedule, referenceDate = new Date()) => {
 };
 
 const DAYS_OF_WEEK = [
-  { value: 0, label: 'Sun' },
-  { value: 1, label: 'Mon' },
-  { value: 2, label: 'Tue' },
-  { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' },
-  { value: 5, label: 'Fri' },
-  { value: 6, label: 'Sat' }
+  { value: 0, label: "Sun" },
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
 ];
 
-const CustomSelect = ({ value, onChange, options, className = '' }) => {
+const CustomSelect = ({ value, onChange, options, className = "" }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -164,8 +172,8 @@ const CustomSelect = ({ value, onChange, options, className = '' }) => {
     };
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [isOpen]);
 
@@ -178,9 +186,9 @@ const CustomSelect = ({ value, onChange, options, className = '' }) => {
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary text-left focus:outline-none focus:border-accent flex items-center justify-between hover:bg-overlay-light transition-colors"
       >
-        <span>{selectedOption?.label || 'Select...'}</span>
+        <span>{selectedOption?.label || "Select..."}</span>
         <svg
-          className={`w-4 h-4 text-text-secondary transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-text-secondary transition-transform ${isOpen ? "rotate-180" : ""}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -200,9 +208,7 @@ const CustomSelect = ({ value, onChange, options, className = '' }) => {
                 setIsOpen(false);
               }}
               className={`w-full px-3 py-2 text-left hover:bg-overlay-light transition-colors ${
-                option.value === value
-                  ? 'bg-accent/20 text-accent'
-                  : 'text-text-primary'
+                option.value === value ? "bg-accent/20 text-accent" : "text-text-primary"
               }`}
             >
               {option.label}
@@ -214,24 +220,28 @@ const CustomSelect = ({ value, onChange, options, className = '' }) => {
   );
 };
 
-const CustomDatePicker = ({ value, onChange, className = '' }) => {
+const CustomDatePicker = ({ value, onChange, className = "" }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [viewDate, setViewDate] = useState(() => value ? new Date(value) : new Date());
+  const [viewDate, setViewDate] = useState(() => (value ? new Date(value) : new Date()));
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const dropdownRef = useRef(null);
   const buttonRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target) &&
-          buttonRef.current && !buttonRef.current.contains(event.target)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target)
+      ) {
         setIsOpen(false);
       }
     };
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [isOpen]);
 
@@ -241,19 +251,19 @@ const CustomDatePicker = ({ value, onChange, className = '' }) => {
       setDropdownPosition({
         top: rect.bottom + 4,
         left: rect.left,
-        width: rect.width
+        width: rect.width,
       });
     }
   }, [isOpen]);
 
   const formatDisplayDate = (dateString) => {
-    if (!dateString) return 'Select date';
-    const date = new Date(dateString + 'T00:00:00');
-    return date.toLocaleDateString(undefined, { 
-      weekday: 'short', 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    if (!dateString) return "Select date";
+    const date = new Date(dateString + "T00:00:00");
+    return date.toLocaleDateString(undefined, {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -291,8 +301,8 @@ const CustomDatePicker = ({ value, onChange, className = '' }) => {
   };
 
   const days = getDaysInMonth(viewDate);
-  const selectedDate = value ? new Date(value + 'T00:00:00') : null;
-  const monthYear = viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const selectedDate = value ? new Date(value + "T00:00:00") : null;
+  const monthYear = viewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
   return (
     <>
@@ -304,13 +314,23 @@ const CustomDatePicker = ({ value, onChange, className = '' }) => {
           className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary text-left focus:outline-none focus:border-accent flex items-center justify-between hover:bg-overlay-light transition-colors"
         >
           <span className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <svg
+              className="w-4 h-4 text-text-secondary"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
             </svg>
             {formatDisplayDate(value)}
           </span>
           <svg
-            className={`w-4 h-4 text-text-secondary transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 text-text-secondary transition-transform ${isOpen ? "rotate-180" : ""}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -320,88 +340,111 @@ const CustomDatePicker = ({ value, onChange, className = '' }) => {
         </button>
       </div>
 
-      {isOpen && createPortal(
-        <div 
-          ref={dropdownRef}
-          className="fixed z-60 bg-bg-sidebar border border-overlay-light rounded-lg shadow-xl p-3"
-          style={{
-            top: `${dropdownPosition.top}px`,
-            left: `${dropdownPosition.left}px`,
-            width: `${dropdownPosition.width}px`
-          }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <button
-              type="button"
-              onClick={handlePrevMonth}
-              className="p-1 hover:bg-overlay-light rounded transition-colors"
-            >
-              <svg className="w-5 h-5 text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <span className="text-sm font-medium text-text-primary">{monthYear}</span>
-            <button
-              type="button"
-              onClick={handleNextMonth}
-              className="p-1 hover:bg-overlay-light rounded transition-colors"
-            >
-              <svg className="w-5 h-5 text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
+      {isOpen &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            className="fixed z-60 bg-bg-sidebar border border-overlay-light rounded-lg shadow-xl p-3"
+            style={{
+              top: `${dropdownPosition.top}px`,
+              left: `${dropdownPosition.left}px`,
+              width: `${dropdownPosition.width}px`,
+            }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="p-1 hover:bg-overlay-light rounded transition-colors"
+              >
+                <svg
+                  className="w-5 h-5 text-text-primary"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+              <span className="text-sm font-medium text-text-primary">{monthYear}</span>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="p-1 hover:bg-overlay-light rounded transition-colors"
+              >
+                <svg
+                  className="w-5 h-5 text-text-primary"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+            </div>
 
-          <div className="grid grid-cols-7 gap-1 mb-2">
-            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
-              <div key={day} className="text-center text-xs text-text-muted font-medium py-1">
-                {day}
-              </div>
-            ))}
-          </div>
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
+                <div key={day} className="text-center text-xs text-text-muted font-medium py-1">
+                  {day}
+                </div>
+              ))}
+            </div>
 
-          <div className="grid grid-cols-7 gap-1">
-            {days.map((day, index) => {
-              const isSelected = day && selectedDate && 
-                selectedDate.getDate() === day && 
-                selectedDate.getMonth() === viewDate.getMonth() &&
-                selectedDate.getFullYear() === viewDate.getFullYear();
-              
-              const isToday = day && 
-                new Date().getDate() === day && 
-                new Date().getMonth() === viewDate.getMonth() &&
-                new Date().getFullYear() === viewDate.getFullYear();
+            <div className="grid grid-cols-7 gap-1">
+              {days.map((day, index) => {
+                const isSelected =
+                  day &&
+                  selectedDate &&
+                  selectedDate.getDate() === day &&
+                  selectedDate.getMonth() === viewDate.getMonth() &&
+                  selectedDate.getFullYear() === viewDate.getFullYear();
 
-              return (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => handleDayClick(day)}
-                  disabled={day === null}
-                  className={`
+                const isToday =
+                  day &&
+                  new Date().getDate() === day &&
+                  new Date().getMonth() === viewDate.getMonth() &&
+                  new Date().getFullYear() === viewDate.getFullYear();
+
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => handleDayClick(day)}
+                    disabled={day === null}
+                    className={`
                     aspect-square text-sm rounded transition-colors
-                    ${day === null ? 'invisible' : ''}
-                    ${isSelected 
-                      ? 'bg-accent text-text-primary font-semibold' 
-                      : isToday
-                      ? 'bg-overlay-light text-accent font-medium'
-                      : 'text-text-primary hover:bg-overlay-light'
+                    ${day === null ? "invisible" : ""}
+                    ${
+                      isSelected
+                        ? "bg-accent text-text-primary font-semibold"
+                        : isToday
+                          ? "bg-overlay-light text-accent font-medium"
+                          : "text-text-primary hover:bg-overlay-light"
                     }
                   `}
-                >
-                  {day}
-                </button>
-              );
-            })}
-          </div>
-        </div>,
-        document.body
-      )}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 };
-
-
 
 const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
   const addScheduledNote = useNotesStore((state) => state.addScheduledNote);
@@ -410,12 +453,12 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
   const rootFolderId = useNotesStore((state) => state.rootFolderId);
 
   const [selectedFolderId, setSelectedFolderId] = useState(ROOT_FOLDER_VALUE);
-  const [frequency, setFrequency] = useState('daily');
+  const [frequency, setFrequency] = useState("daily");
   const [startDate, setStartDate] = useState(formatDateForInput(new Date()));
   const [timeOfDay, setTimeOfDay] = useState(DEFAULT_TIME);
   const [daysOfWeek, setDaysOfWeek] = useState([new Date().getDay()]);
   const [dayOfMonth, setDayOfMonth] = useState(new Date().getDate());
-  const [noteName, setNoteName] = useState('');
+  const [noteName, setNoteName] = useState("");
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [createImmediately, setCreateImmediately] = useState(true);
@@ -423,7 +466,7 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
   const folderMap = useMemo(() => {
     const map = new Map();
     items
-      .filter((item) => item.type === 'folder')
+      .filter((item) => item.type === "folder")
       .forEach((folder) => {
         map.set(folder.id, folder);
       });
@@ -443,14 +486,14 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
         parts.push(parent.name);
         parentId = parent.parentId;
       }
-      return parts.reverse().join(' / ');
+      return parts.reverse().join(" / ");
     };
 
     const options = [
       {
         value: ROOT_FOLDER_VALUE,
-        label: 'Workspace root'
-      }
+        label: "Workspace root",
+      },
     ];
 
     folderMap.forEach((folder) => {
@@ -459,7 +502,7 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
       }
       options.push({
         value: folder.id,
-        label: buildLabel(folder)
+        label: buildLabel(folder),
       });
     });
 
@@ -470,7 +513,7 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
     if (!isOpen) return;
 
     const now = new Date();
-    setFrequency('daily');
+    setFrequency("daily");
     setStartDate(formatDateForInput(now));
     setTimeOfDay(DEFAULT_TIME);
     setDaysOfWeek([now.getDay()]);
@@ -480,9 +523,9 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
     setCreateImmediately(true);
 
     if (template) {
-      setNoteName(template.suggestedTitle || template.name || '');
+      setNoteName(template.suggestedTitle || template.name || "");
     } else {
-      setNoteName('');
+      setNoteName("");
     }
 
     const resolveFolderSelection = () => {
@@ -524,15 +567,15 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
 
     setError(null);
 
-    if (frequency === 'weekly' && daysOfWeek.length === 0) {
-      setError('Select at least one day of the week.');
+    if (frequency === "weekly" && daysOfWeek.length === 0) {
+      setError("Select at least one day of the week.");
       return;
     }
 
-    if (frequency === 'monthly') {
+    if (frequency === "monthly") {
       const numericDay = Number.parseInt(dayOfMonth, 10);
       if (!Number.isFinite(numericDay) || numericDay < 1 || numericDay > 31) {
-        setError('Day of the month must be between 1 and 31.');
+        setError("Day of the month must be between 1 and 31.");
         return;
       }
     }
@@ -556,15 +599,15 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
         folderId: resolvedFolderId,
         frequency,
         timeOfDay,
-        daysOfWeek: frequency === 'weekly' ? daysOfWeek : [],
-        dayOfMonth: frequency === 'monthly' ? Number.parseInt(dayOfMonth, 10) : null,
-        startDate: startDate || null
+        daysOfWeek: frequency === "weekly" ? daysOfWeek : [],
+        dayOfMonth: frequency === "monthly" ? Number.parseInt(dayOfMonth, 10) : null,
+        startDate: startDate || null,
       });
 
       onClose();
     } catch (submitError) {
-      console.error('Failed to schedule note:', submitError);
-      setError(submitError?.message || 'Failed to schedule note.');
+      console.error("Failed to schedule note:", submitError);
+      setError(submitError?.message || "Failed to schedule note.");
     } finally {
       setIsSaving(false);
     }
@@ -578,23 +621,23 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
     {
       frequency,
       timeOfDay,
-      daysOfWeek: frequency === 'weekly' ? daysOfWeek : [],
-      dayOfMonth: frequency === 'monthly' ? Number.parseInt(dayOfMonth, 10) : null,
-      startDate: startDate || null
+      daysOfWeek: frequency === "weekly" ? daysOfWeek : [],
+      dayOfMonth: frequency === "monthly" ? Number.parseInt(dayOfMonth, 10) : null,
+      startDate: startDate || null,
     },
     new Date()
   );
 
   const previewLabel = schedulePreview
     ? schedulePreview.toLocaleString(undefined, {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-    : 'Will calculate when saved';
+        weekday: "short",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "Will calculate when saved";
 
   const activeFolderOption = folderOptions.find((option) => option.value === selectedFolderId);
 
@@ -613,10 +656,16 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
         >
           <div className="border-b border-glass-border px-6 py-4">
             <div className="flex items-center gap-3">
-              <span className="text-3xl" aria-hidden="true">{template.icon}</span>
+              <span className="text-3xl" aria-hidden="true">
+                {template.icon}
+              </span>
               <div>
                 <h2 className="text-xl font-semibold text-text-primary">Schedule recurring note</h2>
-                <p className="text-sm text-text-muted">Automatically create <span className="text-text-primary font-medium">{template.name}</span> on a schedule.</p>
+                <p className="text-sm text-text-muted">
+                  Automatically create{" "}
+                  <span className="text-text-primary font-medium">{template.name}</span> on a
+                  schedule.
+                </p>
               </div>
             </div>
           </div>
@@ -641,7 +690,9 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                   placeholder={template.suggestedTitle || template.name}
                   className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
                 />
-                <span className="text-xs text-text-muted">Leave blank to use the template’s suggested title each time.</span>
+                <span className="text-xs text-text-muted">
+                  Leave blank to use the template’s suggested title each time.
+                </span>
               </label>
             </div>
 
@@ -652,19 +703,16 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                   value={frequency}
                   onChange={setFrequency}
                   options={[
-                    { value: 'daily', label: 'Daily' },
-                    { value: 'weekly', label: 'Weekly' },
-                    { value: 'monthly', label: 'Monthly' }
+                    { value: "daily", label: "Daily" },
+                    { value: "weekly", label: "Weekly" },
+                    { value: "monthly", label: "Monthly" },
                   ]}
                 />
               </label>
 
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-text-primary">Start date</span>
-                <CustomDatePicker
-                  value={startDate}
-                  onChange={setStartDate}
-                />
+                <CustomDatePicker value={startDate} onChange={setStartDate} />
               </label>
 
               <label className="flex flex-col gap-2">
@@ -678,7 +726,7 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
               </label>
             </div>
 
-            {frequency === 'weekly' && (
+            {frequency === "weekly" && (
               <div>
                 <p className="text-sm font-medium text-text-primary mb-2">Repeat on</p>
                 <div className="flex flex-wrap gap-2">
@@ -689,10 +737,11 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                         key={day.value}
                         type="button"
                         onClick={() => handleToggleDay(day.value)}
-                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${isSelected
-                            ? 'bg-accent text-text-primary'
-                            : 'bg-overlay-subtle text-text-secondary hover:bg-overlay-light hover:text-text-primary'
-                          }`}
+                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                          isSelected
+                            ? "bg-accent text-text-primary"
+                            : "bg-overlay-subtle text-text-secondary hover:bg-overlay-light hover:text-text-primary"
+                        }`}
                       >
                         {day.label}
                       </button>
@@ -703,7 +752,7 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
               </div>
             )}
 
-            {frequency === 'monthly' && (
+            {frequency === "monthly" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label className="flex flex-col gap-2">
                   <span className="text-sm font-medium text-text-primary">Day of month</span>
@@ -715,19 +764,20 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                     onChange={(event) => setDayOfMonth(event.target.value)}
                     className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary focus:outline-none focus:border-accent"
                   />
-                  <span className="text-xs text-text-muted">Notes will be created on this day each month.</span>
+                  <span className="text-xs text-text-muted">
+                    Notes will be created on this day each month.
+                  </span>
                 </label>
               </div>
             )}
 
             <div className="bg-overlay-subtle border border-overlay-light rounded-lg px-4 py-3">
               <p className="text-sm text-text-primary font-medium">Next run preview</p>
-              <p className="text-sm text-text-muted">
-                {previewLabel}
-              </p>
+              <p className="text-sm text-text-muted">{previewLabel}</p>
               {activeFolderOption && (
                 <p className="text-xs text-text-muted mt-2">
-                  Notes will be saved to <span className="text-text-primary">{activeFolderOption.label}</span>.
+                  Notes will be saved to{" "}
+                  <span className="text-text-primary">{activeFolderOption.label}</span>.
                 </p>
               )}
               <label className="mt-3 flex items-center gap-2 text-sm text-text-primary">
@@ -759,12 +809,13 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
             <button
               type="submit"
               disabled={isSaving}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isSaving
-                  ? 'bg-overlay-light text-text-muted cursor-not-allowed'
-                  : 'bg-accent text-text-primary hover:bg-accent/90'
-                }`}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                isSaving
+                  ? "bg-overlay-light text-text-muted cursor-not-allowed"
+                  : "bg-accent text-text-primary hover:bg-accent/90"
+              }`}
             >
-              {isSaving ? 'Saving…' : 'Save schedule'}
+              {isSaving ? "Saving…" : "Save schedule"}
             </button>
           </div>
         </form>

@@ -1,22 +1,23 @@
-import { useState } from "react";
-import ConfirmDialog from "./ConfirmDialog";
+import { useState, lazy, Suspense } from "react";
+import ConfirmDialog from "../modals/ConfirmDialog";
 import AppearanceSettings from "./AppearanceSettings";
-import BatchExportModal from "./BatchExportModal";
 import EditorSettings from "./EditorSettings";
 import KeymapsSettings from "./KeymapsSettings";
 import ScheduledNotesManager from "./ScheduledNotesManager";
 import TagManager from "./TagManager";
-import useNotesStore from "../store/notesStore";
-import useSettingsStore from "../store/settingsStore";
-import useUIStore from "../store/uiStore";
+import useNotesStore from "../../store/notesStore";
+import useSettingsStore from "../../store/settingsStore";
+import useUIStore from "../../store/uiStore";
 import {
   exportWorkspaceAsZip,
   restoreWorkspaceFromZip,
   exportSettingsAsJson,
   importSettingsFromJson,
-} from "../utils/backup";
-import { checkForAppUpdate, installAppUpdate } from "../utils/appUpdater";
-import { UpdateIcon } from "./icons/AppUpdateIcon";
+} from "../../utils/backup";
+import { checkForAppUpdate, installAppUpdate } from "../../utils/appUpdater";
+import { UpdateIcon } from "../icons/AppUpdateIcon";
+
+const BatchExportModal = lazy(() => import("../modals/BatchExportModal"));
 
 const normalizeWorkspacePath = (value) => (value ? value.replace(/\\/g, "/") : "");
 
@@ -693,7 +694,11 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
         </div>
       </div>
 
-      <BatchExportModal isOpen={showBatchExport} onClose={() => setShowBatchExport(false)} />
+      <Suspense fallback={null}>
+        {showBatchExport && (
+          <BatchExportModal isOpen={showBatchExport} onClose={() => setShowBatchExport(false)} />
+        )}
+      </Suspense>
       <ConfirmDialog
         isOpen={showRestoreConfirm}
         title="Overwrite existing files?"

@@ -1,17 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import Sidebar from "./components/Sidebar";
-import MarkdownEditor from "./components/MarkdownEditor";
-import OnboardingModal from "./components/OnboardingModal";
-import WorkspaceRequiredModal from "./components/WorkspaceRequiredModal";
-import TemplateModal from "./components/TemplateModal";
-import ScheduleNoteModal from "./components/ScheduleNoteModal";
-import GraphModal from "./components/GraphModal";
-import SearchModal from "./components/SearchModal";
-import CommandPalette from "./components/CommandPalette";
-import NotificationToast from "./components/NotificationToast";
-import TitleBar from "./components/TitleBar";
-import KeymapsModal from "./components/KeymapsModal";
-import ConfirmDialog from "./components/ConfirmDialog";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
+import Sidebar from "./components/sidebar";
+import MarkdownEditor from "./components/editor/MarkdownEditor";
+import OnboardingModal from "./components/modals/OnboardingModal";
+import WorkspaceRequiredModal from "./components/modals/WorkspaceRequiredModal";
+import NotificationToast from "./components/layout/NotificationToast";
+import TitleBar from "./components/layout/TitleBar";
+import ConfirmDialog from "./components/modals/ConfirmDialog";
 import useNotesStore, { SETTINGS_TAB_ID } from "./store/notesStore";
 import useSettingsStore, { matchesKeymap } from "./store/settingsStore";
 import useUIStore from "./store/uiStore";
@@ -19,10 +13,20 @@ import { exportWorkspaceAsZip } from "./utils/backup";
 import { checkForAppUpdate } from "./utils/appUpdater";
 import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { useFileWatcher } from "./hooks/useFileWatcher";
+
+const TemplateModal = lazy(() => import("./components/modals/TemplateModal"));
+const ScheduleNoteModal = lazy(() => import("./components/modals/ScheduleNoteModal"));
+const GraphModal = lazy(() => import("./components/modals/GraphModal"));
+const SearchModal = lazy(() => import("./components/modals/SearchModal"));
+const CommandPalette = lazy(() => import("./components/modals/CommandPalette"));
+const KeymapsModal = lazy(() => import("./components/modals/KeymapsModal"));
 
 const stripMarkdownExtension = (name = "") => name.replace(/\.(md|markdown|txt)$/i, "");
 
 function App() {
+  useFileWatcher();
+
   const items = useNotesStore((state) => state.items);
   const {
     sidebarWidth,
@@ -636,33 +640,47 @@ function App() {
       </div>
       {showOnboarding && <OnboardingModal onSkip={() => setOnboardingDismissed(true)} />}
       {showWorkspaceModal && <WorkspaceRequiredModal />}
-      <KeymapsModal isOpen={showKeymapsModal} onClose={() => setShowKeymapsModal(false)} />
-      <TemplateModal
-        isOpen={showTemplateModal}
-        onClose={() => setShowTemplateModal(false)}
-        onSelectTemplate={handleTemplateSelect}
-        onScheduleTemplate={handleScheduleTemplate}
-      />
-      <ScheduleNoteModal
-        isOpen={showScheduleModal}
-        template={scheduleTemplate}
-        defaultFolderId={templateParentId}
-        onClose={() => {
-          setShowScheduleModal(false);
-          setScheduleTemplate(null);
-        }}
-      />
-      <GraphModal isOpen={showGraphModal} onClose={() => setShowGraphModal(false)} />
-      <SearchModal
-        isOpen={showSearchModal}
-        onClose={() => setShowSearchModal(false)}
-        onSelectResult={handleSearchResultSelect}
-      />
-      <CommandPalette
-        isOpen={showCommandPalette}
-        onClose={() => setShowCommandPalette(false)}
-        onExecuteCommand={handleCommandExecute}
-      />
+      <Suspense fallback={null}>
+        {showKeymapsModal && (
+          <KeymapsModal isOpen={showKeymapsModal} onClose={() => setShowKeymapsModal(false)} />
+        )}
+        {showTemplateModal && (
+          <TemplateModal
+            isOpen={showTemplateModal}
+            onClose={() => setShowTemplateModal(false)}
+            onSelectTemplate={handleTemplateSelect}
+            onScheduleTemplate={handleScheduleTemplate}
+          />
+        )}
+        {showScheduleModal && (
+          <ScheduleNoteModal
+            isOpen={showScheduleModal}
+            template={scheduleTemplate}
+            defaultFolderId={templateParentId}
+            onClose={() => {
+              setShowScheduleModal(false);
+              setScheduleTemplate(null);
+            }}
+          />
+        )}
+        {showGraphModal && (
+          <GraphModal isOpen={showGraphModal} onClose={() => setShowGraphModal(false)} />
+        )}
+        {showSearchModal && (
+          <SearchModal
+            isOpen={showSearchModal}
+            onClose={() => setShowSearchModal(false)}
+            onSelectResult={handleSearchResultSelect}
+          />
+        )}
+        {showCommandPalette && (
+          <CommandPalette
+            isOpen={showCommandPalette}
+            onClose={() => setShowCommandPalette(false)}
+            onExecuteCommand={handleCommandExecute}
+          />
+        )}
+      </Suspense>
       <NotificationToast />
       {renamingItem && (
         <RenameDialog

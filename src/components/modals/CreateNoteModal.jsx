@@ -1,26 +1,26 @@
-import { useState } from 'react';
+import { useState } from "react";
 
 const CreateNoteModal = ({ isOpen, onClose, onConfirm, noteName }) => {
-  const [customName, setCustomName] = useState('');
+  const [customName, setCustomName] = useState("");
 
   if (!isOpen) return null;
 
   const handleConfirm = () => {
     onConfirm(customName || noteName);
-    setCustomName('');
+    setCustomName("");
     onClose();
   };
 
   const handleCancel = () => {
-    setCustomName('');
+    setCustomName("");
     onClose();
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault();
       handleConfirm();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       handleCancel();
     }
   };
@@ -32,8 +32,18 @@ const CreateNoteModal = ({ isOpen, onClose, onConfirm, noteName }) => {
         <div className="px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-              <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <svg
+                className="w-5 h-5 text-accent"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
             </div>
             <div>
@@ -46,9 +56,7 @@ const CreateNoteModal = ({ isOpen, onClose, onConfirm, noteName }) => {
         {/* Content */}
         <div className="px-6 py-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Note Name
-            </label>
+            <label className="block text-sm font-medium text-text-secondary mb-2">Note Name</label>
             <input
               type="text"
               value={customName || noteName}

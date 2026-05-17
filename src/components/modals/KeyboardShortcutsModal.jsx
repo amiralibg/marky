@@ -1,43 +1,43 @@
-import { useEffect, useRef } from 'react';
-import useModalAccessibility from '../hooks/useModalAccessibility';
+import { useEffect, useRef } from "react";
+import useModalAccessibility from "../../hooks/useModalAccessibility";
 
 const SHORTCUTS = [
   {
-    category: 'File Operations',
+    category: "File Operations",
     items: [
-      { keys: ['Cmd/Ctrl', 'N'], description: 'Create new note' },
-      { keys: ['Cmd/Ctrl', 'Shift', 'N'], description: 'Create new folder' },
-      { keys: ['Cmd/Ctrl', 'O'], description: 'Open folder' },
-      { keys: ['Cmd/Ctrl', 'S'], description: 'Save current note' },
-    ]
+      { keys: ["Cmd/Ctrl", "N"], description: "Create new note" },
+      { keys: ["Cmd/Ctrl", "Shift", "N"], description: "Create new folder" },
+      { keys: ["Cmd/Ctrl", "O"], description: "Open folder" },
+      { keys: ["Cmd/Ctrl", "S"], description: "Save current note" },
+    ],
   },
   {
-    category: 'Editing',
+    category: "Editing",
     items: [
-      { keys: ['Cmd/Ctrl', 'Shift', 'B'], description: 'Bold text' },
-      { keys: ['Cmd/Ctrl', 'I'], description: 'Italic text' },
-      { keys: ['Cmd/Ctrl', 'K'], description: 'Insert link' },
-      { keys: ['Cmd/Ctrl', 'Shift', 'C'], description: 'Insert code block' },
-      { keys: ['Cmd/Ctrl', 'Shift', 'L'], description: 'Insert list' },
-    ]
+      { keys: ["Cmd/Ctrl", "Shift", "B"], description: "Bold text" },
+      { keys: ["Cmd/Ctrl", "I"], description: "Italic text" },
+      { keys: ["Cmd/Ctrl", "K"], description: "Insert link" },
+      { keys: ["Cmd/Ctrl", "Shift", "C"], description: "Insert code block" },
+      { keys: ["Cmd/Ctrl", "Shift", "L"], description: "Insert list" },
+    ],
   },
   {
-    category: 'View',
+    category: "View",
     items: [
-      { keys: ['Cmd/Ctrl', '1'], description: 'Editor only' },
-      { keys: ['Cmd/Ctrl', '2'], description: 'Split view' },
-      { keys: ['Cmd/Ctrl', '3'], description: 'Preview only' },
-      { keys: ['Cmd/Ctrl', 'B'], description: 'Toggle sidebar' },
-      { keys: ['Cmd/Ctrl', 'Alt', 'F'], description: 'Toggle Focus Mode' },
-    ]
+      { keys: ["Cmd/Ctrl", "1"], description: "Editor only" },
+      { keys: ["Cmd/Ctrl", "2"], description: "Split view" },
+      { keys: ["Cmd/Ctrl", "3"], description: "Preview only" },
+      { keys: ["Cmd/Ctrl", "B"], description: "Toggle sidebar" },
+      { keys: ["Cmd/Ctrl", "Alt", "F"], description: "Toggle Focus Mode" },
+    ],
   },
   {
-    category: 'Help',
+    category: "Help",
     items: [
-      { keys: ['Cmd/Ctrl', '?'], description: 'Show this help' },
-      { keys: ['Esc'], description: 'Close dialogs' },
-    ]
-  }
+      { keys: ["Cmd/Ctrl", "?"], description: "Show this help" },
+      { keys: ["Esc"], description: "Close dialogs" },
+    ],
+  },
 ];
 
 const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
@@ -46,18 +46,18 @@ const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === "Escape" && isOpen) {
         onClose();
       }
       // Open with Cmd/Ctrl + ?
-      if ((e.metaKey || e.ctrlKey) && e.key === '?' && !isOpen) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "?" && !isOpen) {
         e.preventDefault();
         // This would need to be triggered from parent
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -85,21 +85,41 @@ const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
           {/* Header */}
           <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between shrink-0">
             <div>
-              <h2 id="keyboard-shortcuts-title" className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2
+                id="keyboard-shortcuts-title"
+                className="text-xl font-semibold text-text-primary flex items-center gap-2"
+              >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                  />
                 </svg>
                 Keyboard Shortcuts
               </h2>
-              <p className="text-sm text-text-muted mt-1">Quick reference for all keyboard shortcuts</p>
+              <p className="text-sm text-text-muted mt-1">
+                Quick reference for all keyboard shortcuts
+              </p>
             </div>
             <button
               onClick={onClose}
               className="p-2 hover:bg-white/10 rounded-lg transition-colors"
               title="Close (Esc)"
             >
-              <svg className="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-5 h-5 text-text-secondary"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -141,13 +161,29 @@ const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
             {/* Pro Tip */}
             <div className="mt-8 p-4 bg-accent/10 border border-accent/20 rounded-lg">
               <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-accent shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <svg
+                  className="w-5 h-5 text-accent shrink-0 mt-0.5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
                 </svg>
                 <div>
                   <h4 className="font-semibold text-text-primary text-sm mb-1">Pro Tip</h4>
                   <p className="text-xs text-text-secondary">
-                    Press <kbd className="px-1.5 py-0.5 text-xs font-mono bg-white/5 border border-white/10 rounded">Cmd/Ctrl</kbd> + <kbd className="px-1.5 py-0.5 text-xs font-mono bg-white/5 border border-white/10 rounded">?</kbd> anytime to view this help panel.
+                    Press{" "}
+                    <kbd className="px-1.5 py-0.5 text-xs font-mono bg-white/5 border border-white/10 rounded">
+                      Cmd/Ctrl
+                    </kbd>{" "}
+                    +{" "}
+                    <kbd className="px-1.5 py-0.5 text-xs font-mono bg-white/5 border border-white/10 rounded">
+                      ?
+                    </kbd>{" "}
+                    anytime to view this help panel.
                   </p>
                 </div>
               </div>

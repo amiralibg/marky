@@ -1,15 +1,15 @@
-import { useEffect, useRef } from 'react';
-import useModalAccessibility from '../hooks/useModalAccessibility';
+import { useEffect, useRef } from "react";
+import useModalAccessibility from "../../hooks/useModalAccessibility";
 
 const ConfirmDialog = ({
   isOpen,
   title,
   message,
-  confirmLabel = 'Delete',
-  cancelLabel = 'Cancel',
-  variant = 'danger', // 'danger' | 'warning' | 'info'
+  confirmLabel = "Delete",
+  cancelLabel = "Cancel",
+  variant = "danger", // 'danger' | 'warning' | 'info'
   onConfirm,
-  onCancel
+  onCancel,
 }) => {
   const dialogRef = useRef(null);
   useModalAccessibility(isOpen, dialogRef);
@@ -17,15 +17,15 @@ const ConfirmDialog = ({
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!isOpen) return;
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         onCancel();
-      } else if (e.key === 'Enter') {
+      } else if (e.key === "Enter") {
         onConfirm();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onConfirm, onCancel]);
 
   if (!isOpen) return null;
@@ -34,30 +34,55 @@ const ConfirmDialog = ({
     danger: {
       icon: (
         <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+          />
         </svg>
       ),
-      confirmBtn: 'bg-red-500 hover:bg-red-600 text-white',
-      iconBg: 'bg-red-500/20'
+      confirmBtn: "bg-red-500 hover:bg-red-600 text-white",
+      iconBg: "bg-red-500/20",
     },
     warning: {
       icon: (
-        <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        <svg
+          className="w-6 h-6 text-amber-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          />
         </svg>
       ),
-      confirmBtn: 'bg-amber-500 hover:bg-amber-600 text-white',
-      iconBg: 'bg-amber-500/20'
+      confirmBtn: "bg-amber-500 hover:bg-amber-600 text-white",
+      iconBg: "bg-amber-500/20",
     },
     info: {
       icon: (
-        <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <svg
+          className="w-6 h-6 text-blue-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
         </svg>
       ),
-      confirmBtn: 'bg-accent hover:bg-accent-hover text-white',
-      iconBg: 'bg-accent/20'
-    }
+      confirmBtn: "bg-accent hover:bg-accent-hover text-white",
+      iconBg: "bg-accent/20",
+    },
   };
 
   const styles = variantStyles[variant];
@@ -86,20 +111,12 @@ const ConfirmDialog = ({
           <div className="p-6">
             {/* Icon and content */}
             <div className="flex items-start gap-4">
-              <div className={`p-3 rounded-full ${styles.iconBg} shrink-0`}>
-                {styles.icon}
-              </div>
+              <div className={`p-3 rounded-full ${styles.iconBg} shrink-0`}>{styles.icon}</div>
               <div className="flex-1 pt-1">
-                <h3
-                  id="confirm-dialog-title"
-                  className="text-lg font-semibold text-text-primary"
-                >
+                <h3 id="confirm-dialog-title" className="text-lg font-semibold text-text-primary">
                   {title}
                 </h3>
-                <p
-                  id="confirm-dialog-message"
-                  className="mt-2 text-sm text-text-secondary"
-                >
+                <p id="confirm-dialog-message" className="mt-2 text-sm text-text-secondary">
                   {message}
                 </p>
               </div>

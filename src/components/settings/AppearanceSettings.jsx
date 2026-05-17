@@ -1,4 +1,4 @@
-import useSettingsStore, { ACCENT_COLORS, THEMES } from '../store/settingsStore';
+import useSettingsStore, { ACCENT_COLORS, THEMES } from "../../store/settingsStore";
 
 const AppearanceSettings = () => {
   const { themeId, setTheme, accentColorId, setAccentColor } = useSettingsStore();
@@ -8,9 +8,7 @@ const AppearanceSettings = () => {
       {/* Theme Selection */}
       <div>
         <h3 className="text-sm font-semibold text-text-primary mb-1">Theme</h3>
-        <p className="text-xs text-text-muted mb-4">
-          Choose a color scheme for the application.
-        </p>
+        <p className="text-xs text-text-muted mb-4">Choose a color scheme for the application.</p>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {THEMES.map((theme) => (
@@ -19,23 +17,18 @@ const AppearanceSettings = () => {
               onClick={() => setTheme(theme.id)}
               className={`
                 group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all
-                ${themeId === theme.id
-                  ? 'border-accent bg-accent/10'
-                  : 'border-transparent bg-overlay-subtle hover:bg-overlay-light hover:border-overlay-light'
+                ${
+                  themeId === theme.id
+                    ? "border-accent bg-accent/10"
+                    : "border-transparent bg-overlay-subtle hover:bg-overlay-light hover:border-overlay-light"
                 }
               `}
             >
               {/* Theme preview */}
               <div className="w-full aspect-4/3 rounded-lg overflow-hidden border border-overlay-light">
-                <div
-                  className="h-full flex"
-                  style={{ backgroundColor: theme.preview.bg }}
-                >
+                <div className="h-full flex" style={{ backgroundColor: theme.preview.bg }}>
                   {/* Sidebar preview */}
-                  <div
-                    className="w-1/3 h-full"
-                    style={{ backgroundColor: theme.preview.sidebar }}
-                  >
+                  <div className="w-1/3 h-full" style={{ backgroundColor: theme.preview.sidebar }}>
                     <div
                       className="w-3/4 h-1.5 mt-2 ml-1 rounded-sm"
                       style={{ backgroundColor: theme.preview.accent }}
@@ -69,13 +62,15 @@ const AppearanceSettings = () => {
 
               {/* Theme name */}
               <div className="flex items-center gap-2">
-                <span className={`
+                <span
+                  className={`
                   text-xs font-medium transition-colors
-                  ${themeId === theme.id ? 'text-text-primary' : 'text-text-muted group-hover:text-text-secondary'}
-                `}>
+                  ${themeId === theme.id ? "text-text-primary" : "text-text-muted group-hover:text-text-secondary"}
+                `}
+                >
                   {theme.name}
                 </span>
-                {theme.type === 'light' && (
+                {theme.type === "light" && (
                   <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400 rounded">
                     Light
                   </span>
@@ -86,7 +81,11 @@ const AppearanceSettings = () => {
               {themeId === theme.id && (
                 <div className="absolute top-2 right-2">
                   <svg className="w-4 h-4 text-accent" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </div>
               )}
@@ -109,9 +108,10 @@ const AppearanceSettings = () => {
               onClick={() => setAccentColor(color.id)}
               className={`
                 group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all
-                ${accentColorId === color.id
-                  ? 'border-overlay-strong bg-overlay-light'
-                  : 'border-transparent bg-overlay-subtle hover:bg-overlay-light hover:border-overlay-light'
+                ${
+                  accentColorId === color.id
+                    ? "border-overlay-strong bg-overlay-light"
+                    : "border-transparent bg-overlay-subtle hover:bg-overlay-light hover:border-overlay-light"
                 }
               `}
             >
@@ -119,16 +119,18 @@ const AppearanceSettings = () => {
               <div
                 className={`
                   w-8 h-8 rounded-full transition-transform group-hover:scale-110
-                  ${accentColorId === color.id ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-bg-base' : ''}
+                  ${accentColorId === color.id ? "ring-2 ring-white/50 ring-offset-2 ring-offset-bg-base" : ""}
                 `}
                 style={{ backgroundColor: color.value }}
               />
 
               {/* Color name */}
-              <span className={`
+              <span
+                className={`
                 text-xs font-medium transition-colors
-                ${accentColorId === color.id ? 'text-text-primary' : 'text-text-muted group-hover:text-text-secondary'}
-              `}>
+                ${accentColorId === color.id ? "text-text-primary" : "text-text-muted group-hover:text-text-secondary"}
+              `}
+              >
                 {color.name}
               </span>
 
@@ -136,7 +138,11 @@ const AppearanceSettings = () => {
               {accentColorId === color.id && (
                 <div className="absolute top-2 right-2">
                   <svg className="w-4 h-4 text-accent" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </div>
               )}

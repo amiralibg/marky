@@ -6,6 +6,10 @@
   font-size: var(--text-base);
 }
 
+.markdown-preview .markdown-blank-lines {
+  height: calc(var(--blank-lines, 1) * 1lh);
+}
+
 /* Headings */
 .markdown-preview h1,
 .markdown-preview h2,
@@ -15,7 +19,7 @@
 .markdown-preview h6 {
   font-weight: 700;
   color: var(--color-text-primary);
-  margin-top: 2em;
+  margin-top: 0.75em;
   margin-bottom: 0.75em;
   line-height: 1.3;
   letter-spacing: -0.02em;
@@ -56,8 +60,16 @@
 
 /* Paragraphs */
 .markdown-preview p {
-  margin-bottom: 1.25em;
+  margin-bottom: 0;
   color: var(--color-text-secondary);
+  white-space: break-spaces;
+}
+
+.markdown-preview li,
+.markdown-preview blockquote,
+.markdown-preview th,
+.markdown-preview td {
+  white-space: break-spaces;
 }
 
 /* Links */

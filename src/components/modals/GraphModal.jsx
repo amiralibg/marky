@@ -1,11 +1,15 @@
-import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
-import useNotesStore from '../store/notesStore';
-import useUIStore from '../store/uiStore';
-import { buildGraphSvg, saveGraphPng, saveGraphSvg } from '../utils/graphExport';
-import useModalAccessibility from '../hooks/useModalAccessibility';
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import useNotesStore from "../../store/notesStore";
+import useUIStore from "../../store/uiStore";
+import { buildGraphSvg, saveGraphPng, saveGraphSvg } from "../../utils/graphExport";
+import useModalAccessibility from "../../hooks/useModalAccessibility";
 
-const escapeTitle = (value = '') => value.replace(/\s+/g, ' ').trim();
-const linkTargetKey = (value = '') => value.replace(/\.(md|markdown|txt)$/i, '').trim().toLowerCase();
+const escapeTitle = (value = "") => value.replace(/\s+/g, " ").trim();
+const linkTargetKey = (value = "") =>
+  value
+    .replace(/\.(md|markdown|txt)$/i, "")
+    .trim()
+    .toLowerCase();
 
 const extractWikiLinks = (content) => {
   if (!content) return [];
@@ -18,8 +22,8 @@ const extractWikiLinks = (content) => {
     const inner = match[1].trim();
     if (!inner) continue;
 
-    const [targetRaw] = inner.split('|');
-    const target = (targetRaw || '').trim();
+    const [targetRaw] = inner.split("|");
+    const target = (targetRaw || "").trim();
     if (!target) continue;
 
     const normalized = linkTargetKey(target);
@@ -62,7 +66,7 @@ const forceLayout = (notes, width, height, iterations = 200) => {
     node.links.forEach((link) => {
       const target = nodesByKey.get(link.key);
       if (target && target.id !== node.id) {
-        const pairKey = [node.id, target.id].sort().join('-');
+        const pairKey = [node.id, target.id].sort().join("-");
         if (!connectedPairs.has(pairKey)) {
           connectedPairs.add(pairKey);
           edges.push({ source: node, target });
@@ -73,7 +77,7 @@ const forceLayout = (notes, width, height, iterations = 200) => {
 
   // Build adjacency for connected checks
   const connected = new Set();
-  edges.forEach(e => {
+  edges.forEach((e) => {
     connected.add(`${e.source.id}-${e.target.id}`);
     connected.add(`${e.target.id}-${e.source.id}`);
   });
@@ -97,7 +101,11 @@ const forceLayout = (notes, width, height, iterations = 200) => {
         let dx = b.x - a.x;
         let dy = b.y - a.y;
         let dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; dist = 1; }
+        if (dist < 1) {
+          dx = Math.random() - 0.5;
+          dy = Math.random() - 0.5;
+          dist = 1;
+        }
 
         const force = (repulsion * alpha) / (dist * dist);
         const fx = (dx / dist) * force;
@@ -156,7 +164,11 @@ const forceLayout = (notes, width, height, iterations = 200) => {
         let dy = b.y - a.y;
         let dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < minDist) {
-          if (dist < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; dist = 1; }
+          if (dist < 1) {
+            dx = Math.random() - 0.5;
+            dy = Math.random() - 0.5;
+            dist = 1;
+          }
           const overlap = (minDist - dist) / 2;
           const ox = (dx / dist) * overlap;
           const oy = (dy / dist) * overlap;
@@ -170,7 +182,10 @@ const forceLayout = (notes, width, height, iterations = 200) => {
   }
 
   // Clean up temp properties
-  nodes.forEach(n => { delete n.vx; delete n.vy; });
+  nodes.forEach((n) => {
+    delete n.vx;
+    delete n.vy;
+  });
 
   return { nodes, edges };
 };
@@ -182,22 +197,23 @@ const GraphModal = ({ isOpen, onClose }) => {
   const addNotification = useUIStore((state) => state.addNotification);
 
   const [hoveredNode, setHoveredNode] = useState(null);
-  const [filter, setFilter] = useState('all'); // 'all', 'connected', 'orphaned'
+  const [filter, setFilter] = useState("all"); // 'all', 'connected', 'orphaned'
   const [exportingFormat, setExportingFormat] = useState(null);
 
   const notes = useMemo(() => {
     return items
-      .filter((item) => item.type === 'note')
+      .filter((item) => item.type === "note")
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((note) => {
         const linkKey = note.linkKey || linkTargetKey(note.name);
-        const rawLinks = Array.isArray(note.links) && note.links.length > 0
-          ? note.links
-          : extractWikiLinks(note.content);
+        const rawLinks =
+          Array.isArray(note.links) && note.links.length > 0
+            ? note.links
+            : extractWikiLinks(note.content);
         const links = rawLinks
           .map((link) => ({
             ...link,
-            key: linkTargetKey(link.target || link.key || '')
+            key: linkTargetKey(link.target || link.key || ""),
           }))
           .filter((link) => Boolean(link.key));
 
@@ -206,7 +222,7 @@ const GraphModal = ({ isOpen, onClose }) => {
           name: note.name,
           linkKey,
           links,
-          backlinkCount: 0
+          backlinkCount: 0,
         };
       });
   }, [items]);
@@ -222,28 +238,28 @@ const GraphModal = ({ isOpen, onClose }) => {
 
     return notes.map((note) => ({
       ...note,
-      backlinkCount: backlinkCounts.get(note.linkKey) || 0
+      backlinkCount: backlinkCounts.get(note.linkKey) || 0,
     }));
   }, [notes]);
 
   // Filter notes
   const filteredNotes = useMemo(() => {
-    if (filter === 'all') return withBacklinks;
+    if (filter === "all") return withBacklinks;
 
     // Determine which notes have any connections
     const connectedKeys = new Set();
-    withBacklinks.forEach(note => {
+    withBacklinks.forEach((note) => {
       if (note.links.length > 0 || note.backlinkCount > 0) {
         connectedKeys.add(note.linkKey);
-        note.links.forEach(link => connectedKeys.add(link.key));
+        note.links.forEach((link) => connectedKeys.add(link.key));
       }
     });
 
-    if (filter === 'connected') {
-      return withBacklinks.filter(note => connectedKeys.has(note.linkKey));
+    if (filter === "connected") {
+      return withBacklinks.filter((note) => connectedKeys.has(note.linkKey));
     }
-    if (filter === 'orphaned') {
-      return withBacklinks.filter(note => !connectedKeys.has(note.linkKey));
+    if (filter === "orphaned") {
+      return withBacklinks.filter((note) => !connectedKeys.has(note.linkKey));
     }
     return withBacklinks;
   }, [withBacklinks, filter]);
@@ -255,11 +271,14 @@ const GraphModal = ({ isOpen, onClose }) => {
   );
 
   // Stats
-  const stats = useMemo(() => ({
-    totalNotes: withBacklinks.length,
-    totalEdges: edges.length,
-    orphaned: withBacklinks.filter(n => n.links.length === 0 && n.backlinkCount === 0).length,
-  }), [withBacklinks, edges]);
+  const stats = useMemo(
+    () => ({
+      totalNotes: withBacklinks.length,
+      totalEdges: edges.length,
+      orphaned: withBacklinks.filter((n) => n.links.length === 0 && n.backlinkCount === 0).length,
+    }),
+    [withBacklinks, edges]
+  );
 
   // Connected edges for hover highlighting
   const hoveredEdges = useMemo(() => {
@@ -276,7 +295,7 @@ const GraphModal = ({ isOpen, onClose }) => {
   const hoveredNeighbors = useMemo(() => {
     if (!hoveredNode) return new Set();
     const s = new Set([hoveredNode]);
-    edges.forEach(e => {
+    edges.forEach((e) => {
       if (e.source.id === hoveredNode) s.add(e.target.id);
       if (e.target.id === hoveredNode) s.add(e.source.id);
     });
@@ -297,33 +316,39 @@ const GraphModal = ({ isOpen, onClose }) => {
     const minZoom = 0.3;
     const maxZoom = 4;
 
-    setTransform(prev => {
+    setTransform((prev) => {
       const newK = Math.max(minZoom, Math.min(maxZoom, prev.k - e.deltaY * zoomSpeed));
       return { ...prev, k: newK };
     });
   }, []);
 
-  const startDragging = useCallback((e) => {
-    if (e.button !== 0) return;
-    setIsDragging(true);
-    dragStart.current = { x: e.clientX - transform.x, y: e.clientY - transform.y };
-  }, [transform.x, transform.y]);
+  const startDragging = useCallback(
+    (e) => {
+      if (e.button !== 0) return;
+      setIsDragging(true);
+      dragStart.current = { x: e.clientX - transform.x, y: e.clientY - transform.y };
+    },
+    [transform.x, transform.y]
+  );
 
-  const handleDrag = useCallback((e) => {
-    if (!isDragging) return;
-    setTransform(prev => ({
-      ...prev,
-      x: e.clientX - dragStart.current.x,
-      y: e.clientY - dragStart.current.y
-    }));
-  }, [isDragging]);
+  const handleDrag = useCallback(
+    (e) => {
+      if (!isDragging) return;
+      setTransform((prev) => ({
+        ...prev,
+        x: e.clientX - dragStart.current.x,
+        y: e.clientY - dragStart.current.y,
+      }));
+    },
+    [isDragging]
+  );
 
   const stopDragging = useCallback(() => {
     setIsDragging(false);
   }, []);
 
   const handleZoom = (delta) => {
-    setTransform(prev => {
+    setTransform((prev) => {
       const newK = Math.max(0.3, Math.min(4, prev.k + delta));
       return { ...prev, k: newK };
     });
@@ -337,8 +362,11 @@ const GraphModal = ({ isOpen, onClose }) => {
   const handleFit = useCallback(() => {
     if (nodes.length === 0) return;
     const padding = 80;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    nodes.forEach(n => {
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    nodes.forEach((n) => {
       minX = Math.min(minX, n.x);
       minY = Math.min(minY, n.y);
       maxX = Math.max(maxX, n.x);
@@ -362,11 +390,11 @@ const GraphModal = ({ isOpen, onClose }) => {
   useEffect(() => {
     const svg = svgRef.current;
     if (svg) {
-      svg.addEventListener('wheel', handleWheel, { passive: false });
+      svg.addEventListener("wheel", handleWheel, { passive: false });
     }
     return () => {
       if (svg) {
-        svg.removeEventListener('wheel', handleWheel);
+        svg.removeEventListener("wheel", handleWheel);
       }
     };
   }, [handleWheel]);
@@ -376,7 +404,7 @@ const GraphModal = ({ isOpen, onClose }) => {
     if (isOpen) {
       setTransform({ x: 0, y: 0, k: 1 });
       setHoveredNode(null);
-      setFilter('all');
+      setFilter("all");
     }
   }, [isOpen]);
 
@@ -386,10 +414,34 @@ const GraphModal = ({ isOpen, onClose }) => {
     const isNeighbor = hoveredNode && hoveredNeighbors.has(node.id);
     const isDimmed = hoveredNode && !hoveredNeighbors.has(node.id);
 
-    if (isActive) return { fill: 'var(--color-accent)', stroke: 'var(--color-accent)', opacity: 1, strokeWidth: 3 };
-    if (isHovered) return { fill: 'var(--color-accent)', stroke: 'var(--color-accent)', opacity: 1, strokeWidth: 2.5 };
-    if (isNeighbor) return { fill: 'color-mix(in srgb, var(--color-accent) 60%, transparent)', stroke: 'var(--color-accent)', opacity: 1, strokeWidth: 2 };
-    if (isDimmed) return { fill: 'rgb(51 65 85 / 0.4)', stroke: 'rgba(148, 163, 184, 0.15)', opacity: 0.3, strokeWidth: 1 };
+    if (isActive)
+      return {
+        fill: "var(--color-accent)",
+        stroke: "var(--color-accent)",
+        opacity: 1,
+        strokeWidth: 3,
+      };
+    if (isHovered)
+      return {
+        fill: "var(--color-accent)",
+        stroke: "var(--color-accent)",
+        opacity: 1,
+        strokeWidth: 2.5,
+      };
+    if (isNeighbor)
+      return {
+        fill: "color-mix(in srgb, var(--color-accent) 60%, transparent)",
+        stroke: "var(--color-accent)",
+        opacity: 1,
+        strokeWidth: 2,
+      };
+    if (isDimmed)
+      return {
+        fill: "rgb(51 65 85 / 0.4)",
+        stroke: "rgba(148, 163, 184, 0.15)",
+        opacity: 0.3,
+        strokeWidth: 1,
+      };
 
     // Size-based coloring: more backlinks = brighter
     const intensity = Math.min(1, 0.4 + node.backlinkCount * 0.15);
@@ -397,40 +449,47 @@ const GraphModal = ({ isOpen, onClose }) => {
       fill: `color-mix(in srgb, var(--color-accent) ${Math.round(intensity * 60)}%, rgb(51 65 85 / 0.8))`,
       stroke: `rgba(148, 163, 184, ${0.2 + intensity * 0.3})`,
       opacity: 1,
-      strokeWidth: 1.5
+      strokeWidth: 1.5,
     };
   };
 
-  const handleExport = useCallback(async (format) => {
-    if (nodes.length === 0) {
-      addNotification('There is no graph data to export', 'warning');
-      return;
-    }
-
-    setExportingFormat(format);
-    try {
-      const titleSuffix = filter === 'all' ? 'All Notes' : filter === 'connected' ? 'Connected Notes' : 'Orphaned Notes';
-      const { svg, width, height } = buildGraphSvg({
-        nodes,
-        edges,
-        currentNoteId,
-        title: `Marky Graph • ${titleSuffix}`
-      });
-
-      const filePath = format === 'svg'
-        ? await saveGraphSvg(svg)
-        : await saveGraphPng(svg, width, height);
-
-      if (filePath) {
-        addNotification(`Graph exported as ${format.toUpperCase()}`, 'success');
+  const handleExport = useCallback(
+    async (format) => {
+      if (nodes.length === 0) {
+        addNotification("There is no graph data to export", "warning");
+        return;
       }
-    } catch (error) {
-      console.error(`Failed to export graph as ${format}:`, error);
-      addNotification(`Graph export failed: ${error.message}`, 'error');
-    } finally {
-      setExportingFormat(null);
-    }
-  }, [addNotification, currentNoteId, edges, filter, nodes]);
+
+      setExportingFormat(format);
+      try {
+        const titleSuffix =
+          filter === "all"
+            ? "All Notes"
+            : filter === "connected"
+              ? "Connected Notes"
+              : "Orphaned Notes";
+        const { svg, width, height } = buildGraphSvg({
+          nodes,
+          edges,
+          currentNoteId,
+          title: `Marky Graph • ${titleSuffix}`,
+        });
+
+        const filePath =
+          format === "svg" ? await saveGraphSvg(svg) : await saveGraphPng(svg, width, height);
+
+        if (filePath) {
+          addNotification(`Graph exported as ${format.toUpperCase()}`, "success");
+        }
+      } catch (error) {
+        console.error(`Failed to export graph as ${format}:`, error);
+        addNotification(`Graph export failed: ${error.message}`, "error");
+      } finally {
+        setExportingFormat(null);
+      }
+    },
+    [addNotification, currentNoteId, edges, filter, nodes]
+  );
 
   if (!isOpen) return null;
 
@@ -458,24 +517,25 @@ const GraphModal = ({ isOpen, onClose }) => {
                 Note Graph
               </h2>
               <p className="text-sm text-text-muted mt-1">
-                {stats.totalNotes} notes &middot; {stats.totalEdges} connections &middot; {stats.orphaned} orphaned
+                {stats.totalNotes} notes &middot; {stats.totalEdges} connections &middot;{" "}
+                {stats.orphaned} orphaned
               </p>
             </div>
             <div className="flex items-center gap-3">
               {/* Filter buttons */}
               <div className="flex items-center bg-overlay-subtle rounded-lg p-1 border border-overlay-light">
                 {[
-                  { value: 'all', label: 'All' },
-                  { value: 'connected', label: 'Connected' },
-                  { value: 'orphaned', label: 'Orphaned' },
-                ].map(opt => (
+                  { value: "all", label: "All" },
+                  { value: "connected", label: "Connected" },
+                  { value: "orphaned", label: "Orphaned" },
+                ].map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => setFilter(opt.value)}
                     className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
                       filter === opt.value
-                        ? 'bg-accent text-white shadow-sm'
-                        : 'text-text-secondary hover:text-text-primary hover:bg-overlay-light'
+                        ? "bg-accent text-white shadow-sm"
+                        : "text-text-secondary hover:text-text-primary hover:bg-overlay-light"
                     }`}
                   >
                     {opt.label}
@@ -491,7 +551,12 @@ const GraphModal = ({ isOpen, onClose }) => {
                   title="Zoom In"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
                   </svg>
                 </button>
                 <button
@@ -500,7 +565,12 @@ const GraphModal = ({ isOpen, onClose }) => {
                   title="Zoom Out"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M20 12H4"
+                    />
                   </svg>
                 </button>
                 <div className="w-px h-4 bg-white/10 mx-1" />
@@ -521,32 +591,32 @@ const GraphModal = ({ isOpen, onClose }) => {
 
               <div className="flex items-center bg-overlay-subtle rounded-lg p-1 border border-overlay-light">
                 <button
-                  onClick={() => handleExport('svg')}
+                  onClick={() => handleExport("svg")}
                   disabled={exportingFormat !== null}
                   className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
-                    exportingFormat === 'svg'
-                      ? 'bg-accent text-white'
+                    exportingFormat === "svg"
+                      ? "bg-accent text-white"
                       : exportingFormat
-                        ? 'text-text-muted cursor-not-allowed'
-                        : 'text-text-secondary hover:text-text-primary hover:bg-overlay-light'
+                        ? "text-text-muted cursor-not-allowed"
+                        : "text-text-secondary hover:text-text-primary hover:bg-overlay-light"
                   }`}
                   title="Export graph as SVG"
                 >
-                  {exportingFormat === 'svg' ? 'Saving...' : 'SVG'}
+                  {exportingFormat === "svg" ? "Saving..." : "SVG"}
                 </button>
                 <button
-                  onClick={() => handleExport('png')}
+                  onClick={() => handleExport("png")}
                   disabled={exportingFormat !== null}
                   className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
-                    exportingFormat === 'png'
-                      ? 'bg-accent text-white'
+                    exportingFormat === "png"
+                      ? "bg-accent text-white"
                       : exportingFormat
-                        ? 'text-text-muted cursor-not-allowed'
-                        : 'text-text-secondary hover:text-text-primary hover:bg-overlay-light'
+                        ? "text-text-muted cursor-not-allowed"
+                        : "text-text-secondary hover:text-text-primary hover:bg-overlay-light"
                   }`}
                   title="Export graph as PNG"
                 >
-                  {exportingFormat === 'png' ? 'Saving...' : 'PNG'}
+                  {exportingFormat === "png" ? "Saving..." : "PNG"}
                 </button>
               </div>
 
@@ -555,8 +625,18 @@ const GraphModal = ({ isOpen, onClose }) => {
                 className="p-2 hover:bg-overlay-light rounded-lg transition-colors border border-white/5"
                 title="Close"
               >
-                <svg className="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-5 h-5 text-text-secondary"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -567,24 +647,39 @@ const GraphModal = ({ isOpen, onClose }) => {
             {nodes.length === 0 ? (
               <div className="h-full flex items-center justify-center text-text-muted">
                 <div className="text-center">
-                  <svg className="w-16 h-16 mx-auto mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  <svg
+                    className="w-16 h-16 mx-auto mb-4 opacity-20"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1}
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
                   </svg>
                   <p className="text-base">
-                    {filter === 'orphaned' ? 'No orphaned notes found.' :
-                     filter === 'connected' ? 'No connected notes found.' :
-                     'No notes yet. Use [[WikiLinks]] to connect your notes.'}
+                    {filter === "orphaned"
+                      ? "No orphaned notes found."
+                      : filter === "connected"
+                        ? "No connected notes found."
+                        : "No notes yet. Use [[WikiLinks]] to connect your notes."}
                   </p>
                 </div>
               </div>
             ) : (
               <svg
                 ref={svgRef}
-                className={`w-full h-full select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                className={`w-full h-full select-none ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
                 onMouseDown={startDragging}
                 onMouseMove={handleDrag}
                 onMouseUp={stopDragging}
-                onMouseLeave={() => { stopDragging(); setHoveredNode(null); }}
+                onMouseLeave={() => {
+                  stopDragging();
+                  setHoveredNode(null);
+                }}
               >
                 <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
                   {/* Edges */}
@@ -598,7 +693,7 @@ const GraphModal = ({ isOpen, onClose }) => {
                         y1={edge.source.y}
                         x2={edge.target.x}
                         y2={edge.target.y}
-                        stroke={isHighlighted ? 'var(--color-accent)' : 'rgba(148, 163, 184, 0.2)'}
+                        stroke={isHighlighted ? "var(--color-accent)" : "rgba(148, 163, 184, 0.2)"}
                         strokeWidth={isHighlighted ? 2 : 1}
                         opacity={isDimmed ? 0.08 : isHighlighted ? 0.8 : 0.4}
                         className="transition-all duration-150"
@@ -610,7 +705,8 @@ const GraphModal = ({ isOpen, onClose }) => {
                   {nodes.map((node) => {
                     const isActive = node.id === currentNoteId;
                     const radius = Math.max(6, 8 + Math.min(node.backlinkCount, 6) * 2);
-                    const label = node.name.length > 20 ? `${node.name.slice(0, 20)}...` : node.name;
+                    const label =
+                      node.name.length > 20 ? `${node.name.slice(0, 20)}...` : node.name;
                     const colors = getNodeColor(node);
 
                     return (
@@ -619,7 +715,7 @@ const GraphModal = ({ isOpen, onClose }) => {
                         className="group"
                         onMouseEnter={() => setHoveredNode(node.id)}
                         onMouseLeave={() => setHoveredNode(null)}
-                        style={{ cursor: 'pointer' }}
+                        style={{ cursor: "pointer" }}
                       >
                         {/* Glow effect for hovered/active */}
                         {(hoveredNode === node.id || isActive) && (
@@ -655,10 +751,13 @@ const GraphModal = ({ isOpen, onClose }) => {
                           textAnchor="middle"
                           className="text-[10px] font-medium pointer-events-none transition-opacity duration-150"
                           fill={
-                            isActive ? 'var(--color-accent)' :
-                            hoveredNode === node.id ? 'var(--color-text-primary)' :
-                            hoveredNode && !hoveredNeighbors.has(node.id) ? 'var(--color-text-muted)' :
-                            'var(--color-text-secondary)'
+                            isActive
+                              ? "var(--color-accent)"
+                              : hoveredNode === node.id
+                                ? "var(--color-text-primary)"
+                                : hoveredNode && !hoveredNeighbors.has(node.id)
+                                  ? "var(--color-text-muted)"
+                                  : "var(--color-text-secondary)"
                           }
                           opacity={hoveredNode && !hoveredNeighbors.has(node.id) ? 0.2 : 1}
                         >
@@ -689,22 +788,26 @@ const GraphModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Hover info tooltip */}
-            {hoveredNode && (() => {
-              const node = nodes.find(n => n.id === hoveredNode);
-              if (!node) return null;
-              return (
-                <div className="absolute top-4 left-4 bg-bg-sidebar/95 backdrop-blur border border-border rounded-lg px-4 py-3 shadow-xl max-w-xs pointer-events-none">
-                  <p className="text-sm font-semibold text-text-primary truncate" title={node.name}>
-                    {node.name}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
-                    <span>{node.links.length} outgoing</span>
-                    <span>&middot;</span>
-                    <span>{node.backlinkCount} incoming</span>
+            {hoveredNode &&
+              (() => {
+                const node = nodes.find((n) => n.id === hoveredNode);
+                if (!node) return null;
+                return (
+                  <div className="absolute top-4 left-4 bg-bg-sidebar/95 backdrop-blur border border-border rounded-lg px-4 py-3 shadow-xl max-w-xs pointer-events-none">
+                    <p
+                      className="text-sm font-semibold text-text-primary truncate"
+                      title={node.name}
+                    >
+                      {node.name}
+                    </p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
+                      <span>{node.links.length} outgoing</span>
+                      <span>&middot;</span>
+                      <span>{node.backlinkCount} incoming</span>
+                    </div>
                   </div>
-                </div>
-              );
-            })()}
+                );
+              })()}
 
             {/* Legend */}
             <div className="absolute bottom-4 left-4 flex items-center gap-4 text-[10px] text-text-muted pointer-events-none">

@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { slugify } from '../utils/slugify';
+import { useState, useMemo } from "react";
+import { slugify } from "../../utils/slugify";
 
 /**
  * Parses markdown content to extract headers
@@ -9,7 +9,7 @@ import { slugify } from '../utils/slugify';
 const parseHeaders = (markdown) => {
   if (!markdown) return [];
 
-  const lines = markdown.split('\n');
+  const lines = markdown.split("\n");
   const headers = [];
   let lineNumber = 0;
 
@@ -41,7 +41,7 @@ const parseHeaders = (markdown) => {
   return headers;
 };
 
-const TableOfContents = ({ markdown, onHeaderClick, className = '' }) => {
+const TableOfContents = ({ markdown, onHeaderClick, className = "" }) => {
   const [activeId, setActiveId] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -60,26 +60,26 @@ const TableOfContents = ({ markdown, onHeaderClick, className = '' }) => {
 
   const getIndentClass = (level) => {
     const indents = {
-      1: 'pl-0',
-      2: 'pl-3',
-      3: 'pl-6',
-      4: 'pl-9',
-      5: 'pl-12',
-      6: 'pl-15',
+      1: "pl-0",
+      2: "pl-3",
+      3: "pl-6",
+      4: "pl-9",
+      5: "pl-12",
+      6: "pl-15",
     };
-    return indents[level] || 'pl-0';
+    return indents[level] || "pl-0";
   };
 
   const getFontSizeClass = (level) => {
     const sizes = {
-      1: 'text-sm font-semibold',
-      2: 'text-sm',
-      3: 'text-xs',
-      4: 'text-xs',
-      5: 'text-xs',
-      6: 'text-xs',
+      1: "text-sm font-semibold",
+      2: "text-sm",
+      3: "text-xs",
+      4: "text-xs",
+      5: "text-xs",
+      6: "text-xs",
     };
-    return sizes[level] || 'text-xs';
+    return sizes[level] || "text-xs";
   };
 
   return (
@@ -87,8 +87,18 @@ const TableOfContents = ({ markdown, onHeaderClick, className = '' }) => {
       {/* Header */}
       <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-overlay-subtle">
         <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+          <svg
+            className="w-4 h-4 text-accent"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h7"
+            />
           </svg>
           <h3 className="text-sm font-semibold text-text-primary">Table of Contents</h3>
           <span className="text-xs text-text-muted">({headers.length})</span>
@@ -96,10 +106,10 @@ const TableOfContents = ({ markdown, onHeaderClick, className = '' }) => {
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="p-1 hover:bg-overlay-light rounded transition-colors"
-          title={isCollapsed ? 'Expand' : 'Collapse'}
+          title={isCollapsed ? "Expand" : "Collapse"}
         >
           <svg
-            className={`w-4 h-4 text-text-secondary transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+            className={`w-4 h-4 text-text-secondary transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -122,8 +132,8 @@ const TableOfContents = ({ markdown, onHeaderClick, className = '' }) => {
                 ${getFontSizeClass(header.level)}
                 ${
                   activeId === header.id
-                    ? 'bg-accent/10 text-accent border-l-2 border-accent'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-overlay-subtle border-l-2 border-transparent'
+                    ? "bg-accent/10 text-accent border-l-2 border-accent"
+                    : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle border-l-2 border-transparent"
                 }
               `}
               title={header.text}

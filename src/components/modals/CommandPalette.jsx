@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import Fuse from "fuse.js";
-import useNotesStore from "../store/notesStore";
-import useModalAccessibility from "../hooks/useModalAccessibility";
+import useNotesStore from "../../store/notesStore";
+import useModalAccessibility from "../../hooks/useModalAccessibility";
 
 const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   const [query, setQuery] = useState("");

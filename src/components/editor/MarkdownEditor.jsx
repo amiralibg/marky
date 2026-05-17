@@ -6,25 +6,28 @@ import {
   useImperativeHandle,
   useRef,
   useMemo,
+  lazy,
+  Suspense,
 } from "react";
 import { marked } from "marked";
-import hljs from "highlight.js";
+import hljs from "highlight.js/lib/common";
 import markedFootnote from "marked-footnote";
 import markedKatex from "marked-katex-extension";
-import { version as appVersion } from "../../package.json";
+import { version as appVersion } from "../../../package.json";
 import "katex/dist/katex.min.css";
-import Toolbar from "./Toolbar";
-import ExportModal from "./ExportModal";
-import CreateNoteModal from "./CreateNoteModal";
-import TableOfContents from "./TableOfContents";
-import SettingsPage from "./SettingsPage";
-import CodeMirrorEditor from "./editor/CodeMirrorEditor";
-import NoteHistoryModal from "./NoteHistoryModal";
-import useNotesStore, { SETTINGS_TAB_ID } from "../store/notesStore";
-import useUIStore from "../store/uiStore";
-import useSettingsStore from "../store/settingsStore";
-import { slugify } from "../utils/slugify";
+import Toolbar from "../layout/Toolbar";
+import CreateNoteModal from "../modals/CreateNoteModal";
+import CodeMirrorEditor from "./CodeMirrorEditor";
+import useNotesStore, { SETTINGS_TAB_ID } from "../../store/notesStore";
+import useUIStore from "../../store/uiStore";
+import useSettingsStore from "../../store/settingsStore";
+import { slugify } from "../../utils/slugify";
 import "./MarkdownPreview.css";
+
+const ExportModal = lazy(() => import("../modals/ExportModal"));
+const TableOfContents = lazy(() => import("./TableOfContents"));
+const SettingsPage = lazy(() => import("../settings/SettingsPage"));
+const NoteHistoryModal = lazy(() => import("../modals/NoteHistoryModal"));
 
 // Lazy-load mermaid only when needed (large dependency ~1.5MB)
 let mermaidPromise = null;
@@ -189,6 +192,34 @@ if (!extensionsRegistered) {
   });
   extensionsRegistered = true;
 }
+
+const renderMarkdownPreview = (markdown) => {
+  const tokens = marked.lexer(markdown);
+  const tokensWithBlankLines = tokens.map((token) => {
+    if (token.type !== "space") return token;
+
+    const newlineCount = (token.raw.match(/\n/g) || []).length;
+    const blankLineCount = Math.max(1, newlineCount - 1);
+
+    return {
+      type: "html",
+      raw: token.raw,
+      text: `<div class="markdown-blank-lines" style="--blank-lines: ${blankLineCount}" aria-hidden="true"></div>`,
+      pre: false,
+      block: true,
+    };
+  });
+
+  marked.walkTokens(tokensWithBlankLines, (token) => {
+    if (token.type === "wikilink") {
+      const state = useNotesStore.getState();
+      const note = state.findNoteByLinkTarget?.(token.target);
+      token.exists = Boolean(note);
+    }
+  });
+
+  return marked.parser(tokensWithBlankLines);
+};
 
 const MarkdownEditor = forwardRef((props, ref) => {
   const { onOpenKeymapsModal, focusMode = false } = props;
@@ -705,7 +736,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     try {
       // Use debouncedMarkdown to avoid expensive parsing on every keystroke
       const safeMarkdown = debouncedMarkdown || "";
-      return { __html: marked(safeMarkdown) };
+      return { __html: renderMarkdownPreview(safeMarkdown) };
     } catch (error) {
       console.error("Markdown rendering error:", error);
       return { __html: "<p>Error rendering markdown</p>" };
@@ -1182,7 +1213,17 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   // Check if we're viewing the settings tab
   if (currentNoteId === SETTINGS_TAB_ID) {
-    return <SettingsPage onOpenKeymapsModal={onOpenKeymapsModal} />;
+    return (
+      <Suspense
+        fallback={
+          <div className="h-full flex items-center justify-center bg-editor-bg text-sm text-text-muted">
+            Loading settings...
+          </div>
+        }
+      >
+        <SettingsPage onOpenKeymapsModal={onOpenKeymapsModal} />
+      </Suspense>
+    );
   }
 
   if (!currentNote) {
@@ -1563,7 +1604,9 @@ const MarkdownEditor = forwardRef((props, ref) => {
         {/* Table of Contents - Floating Panel */}
         {showTOC && (
           <div className="absolute top-4 right-4 z-20 w-72 max-w-[calc(100%-2rem)] animate-in slide-in-from-right-4 fade-in duration-200 shadow-2xl">
-            <TableOfContents markdown={markdown} onHeaderClick={handleTOCHeaderClick} />
+            <Suspense fallback={null}>
+              <TableOfContents markdown={markdown} onHeaderClick={handleTOCHeaderClick} />
+            </Suspense>
           </div>
         )}
 
@@ -1653,6 +1696,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
               enableVimMode={vimMode}
               enableTypewriterMode={typewriterModeEnabled && focusMode}
               editorSearchKeymap={keymaps.editorSearch}
+              formattingKeymaps={keymaps}
               getNotes={getNotes}
               getTags={getAllTags}
             />
@@ -1737,13 +1781,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
         </div>
       )}
 
-      {/* Export Modal */}
-      <ExportModal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        note={currentNote}
-      />
-
       {/* Create Note Modal */}
       <CreateNoteModal
         isOpen={showCreateNoteModal}
@@ -1752,20 +1789,30 @@ const MarkdownEditor = forwardRef((props, ref) => {
         noteName={pendingNoteName}
       />
 
-      {/* Note History Modal */}
-      <NoteHistoryModal
-        isOpen={showHistoryModal}
-        onClose={() => setShowHistoryModal(false)}
-        note={currentNote}
-        onRestore={(content) => {
-          if (!currentNoteId) return;
-          updateNote(currentNoteId, content);
-          setMarkdown(content);
-          setDebouncedMarkdown(content);
-          setShowHistoryModal(false);
-          addNotification("Restored snapshot into editor — save to persist", "success");
-        }}
-      />
+      <Suspense fallback={null}>
+        {showExportModal && (
+          <ExportModal
+            isOpen={showExportModal}
+            onClose={() => setShowExportModal(false)}
+            note={currentNote}
+          />
+        )}
+        {showHistoryModal && (
+          <NoteHistoryModal
+            isOpen={showHistoryModal}
+            onClose={() => setShowHistoryModal(false)}
+            note={currentNote}
+            onRestore={(content) => {
+              if (!currentNoteId) return;
+              updateNote(currentNoteId, content);
+              setMarkdown(content);
+              setDebouncedMarkdown(content);
+              setShowHistoryModal(false);
+              addNotification("Restored snapshot into editor — save to persist", "success");
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   );
 });

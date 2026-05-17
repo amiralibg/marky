@@ -1,6 +1,6 @@
 import { useRef, useEffect, useMemo, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import useNotesStore, { SETTINGS_TAB_ID } from "../store/notesStore";
+import useNotesStore, { SETTINGS_TAB_ID } from "../../store/notesStore";
 
 const detectPlatform = () => {
   const userAgent = navigator.userAgent.toLowerCase();
@@ -107,7 +107,7 @@ const TitleBar = ({
 
   return (
     <div
-      className={`custom-titlebar h-10 md:h-9 bg-titlebar-bg border-b border-border flex select-none shrink-0 ${isWindows ? "is-windows" : ""} ${isMac ? "is-mac" : ""}`}
+      className={`custom-titlebar h-8 bg-titlebar-bg border-b border-border flex select-none shrink-0 ${isWindows ? "is-windows" : ""} ${isMac ? "is-mac" : ""}`}
       onMouseDown={handleMouseDown}
       data-platform={platform}
     >
@@ -193,7 +193,7 @@ const TitleBar = ({
                 <div
                   key={note.id}
                   className={`
-                    group flex items-center gap-2 px-3 h-8 border-r border-border cursor-pointer transition-all duration-200 min-w-[120px] max-w-[200px]
+                    group flex items-center gap-2 px-3 h-8 border-r border-border cursor-pointer transition-all duration-200 min-w-30 max-w-50
                     ${
                       isActive
                         ? "bg-bg-editor text-accent active-tab"
