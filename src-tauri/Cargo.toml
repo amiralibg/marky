@@ -1,6 +1,6 @@
 [package]
 name = "marky"
-version = "0.0.5"
+version = "0.0.6"
 description = "A beautiful markdown note-taking app"
 authors = ["you"]
 edition = "2021"
