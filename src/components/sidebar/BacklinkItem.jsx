@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo } from "react";
 
 /**
  * Component for rendering a single backlink item
@@ -18,7 +18,7 @@ const BacklinkItem = ({ backlink, onNavigate }) => {
       matches.push({
         index: match.index,
         text: match[0],
-        inner: match[1]
+        inner: match[1],
       });
     }
 
@@ -26,20 +26,23 @@ const BacklinkItem = ({ backlink, onNavigate }) => {
     if (matches.length > 0) {
       const firstMatch = matches[0];
       const contextStart = Math.max(0, firstMatch.index - 40);
-      const contextEnd = Math.min(backlink.content.length, firstMatch.index + firstMatch.text.length + 40);
+      const contextEnd = Math.min(
+        backlink.content.length,
+        firstMatch.index + firstMatch.text.length + 40
+      );
 
       let preview = backlink.content.slice(contextStart, contextEnd).trim();
 
       // Add ellipsis if truncated
-      if (contextStart > 0) preview = '...' + preview;
-      if (contextEnd < backlink.content.length) preview = preview + '...';
+      if (contextStart > 0) preview = "..." + preview;
+      if (contextEnd < backlink.content.length) preview = preview + "...";
 
       return preview;
     }
 
     // Fallback: just show the first ~80 characters
     const preview = backlink.content.slice(0, 80).trim();
-    return preview.length < backlink.content.length ? preview + '...' : preview;
+    return preview.length < backlink.content.length ? preview + "..." : preview;
   }, [backlink.content]);
 
   return (
