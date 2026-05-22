@@ -130,6 +130,16 @@ Common release artifacts:
 - Windows: `src-tauri/target/release/bundle/msi/*.msi`
 - Linux: `src-tauri/target/release/bundle/deb/*.deb` and/or `src-tauri/target/release/bundle/appimage/*.AppImage`
 
+## Testing
+
+Run the unit test suite:
+
+```bash
+pnpm test
+```
+
+For testing strategy, priorities, and examples, see `docs/testing.md`.
+
 ## Release
 
 Before publishing a release, make sure the app version is the same in:

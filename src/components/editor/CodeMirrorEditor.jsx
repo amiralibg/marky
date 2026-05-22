@@ -113,6 +113,8 @@ const CodeMirrorEditor = forwardRef(
 
       view.contentDOM.setAttribute("aria-label", ariaLabel);
       view.contentDOM.setAttribute("aria-multiline", "true");
+      view.contentDOM.setAttribute("role", "textbox");
+      view.contentDOM.setAttribute("aria-readonly", readOnly ? "true" : "false");
 
       viewRef.current = view;
 

@@ -616,7 +616,7 @@ const TreeItem = ({
 
       {/* Children */}
       {renderChildren && isFolder && isExpanded && (
-        <div>
+        <div role="group">
           {children
             .sort((a, b) => {
               if (a.type !== b.type) return a.type === "folder" ? -1 : 1;

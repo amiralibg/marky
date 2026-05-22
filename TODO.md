@@ -106,7 +106,7 @@ Why first:
 - [x] Workspace dashboard / start page
   - Value: gives users a useful home when no note is selected.
   - Depends on: existing recent notes, pinned notes, tags, graph/backlink data, templates, and scheduled notes.
-- [ ] Workspace statistics dashboard
+- [x] Workspace statistics dashboard
   - Value: helps users understand vault growth, top tags, broken links, orphan notes, word count, and activity.
   - Depends on: existing item metadata, tag extraction, wiki-link extraction, and backlinks computation.
 - [x] Broken-link inbox for unresolved `[[wiki links]]`
@@ -133,7 +133,7 @@ Why next:
 - [x] Preview scroll sync with editor (basic line/heading sync)
 - [x] Typewriter mode in Focus Mode
 - [x] Better empty states (no notes, no results, no tags)
-- [ ] Daily notes / calendar workflow
+- [x] Daily notes / calendar workflow
   - Value: gives scheduled notes and templates a familiar note-taking entry point.
   - Depends on: template creation, scheduled note infrastructure, and date-based naming helpers.
 - [ ] Note properties / frontmatter panel
@@ -183,17 +183,18 @@ Why next:
 
 ## P5: Developer quality / maintainability
 
-- [ ] Test setup (Vitest + React Testing Library)
-- [ ] Core store tests (notesStore actions, scheduling logic, backlinks/tags parsing)
+- [x] Test setup (Vitest + React Testing Library)
+- [x] Core store tests (notesStore actions, scheduling logic, backlinks/tags parsing)
+  - Start by extracting pure scheduling and metadata helpers from `notesStore.js`, then test them before testing full store actions.
 - [ ] Tauri integration smoke tests for file operations
 - [ ] Incremental TypeScript migration (stores + utils first)
 - [ ] Lint/format consistency and CI pipeline
 - [ ] Split oversized components/stores into focused modules
   - Value: improves reviewability and lowers risk when changing core app flows.
   - Depends on: extracting Sidebar drag/drop/search/tree sections, MarkdownEditor preview/autosave/history logic, and notesStore helper domains.
-- [ ] Add first CI workflow for lint, build, and tests
+- [x] Add PR/push validation workflow for lint, build, and tests
   - Value: prevents regressions before release packaging.
-  - Depends on: test setup and stable package-manager cache configuration.
+  - Depends on: existing release workflow continuing to handle multi-platform Tauri packaging.
 
 ## Bugs and UX Polish (Keep Updated)
 

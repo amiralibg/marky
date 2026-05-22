@@ -152,6 +152,7 @@ const ResultRow = ({
   <button
     id={resultId}
     onClick={onClick}
+    tabIndex={-1}
     role="option"
     aria-selected={isSelected}
     className={`w-full text-left px-4 py-3 border-b border-overlay-subtle hover:bg-overlay-light transition-colors ${
@@ -164,6 +165,7 @@ const ResultRow = ({
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
+        aria-hidden="true"
       >
         <path
           strokeLinecap="round"
@@ -214,6 +216,7 @@ const ResultRow = ({
           className="w-5 h-5 text-accent shrink-0 mt-0.5"
           fill="currentColor"
           viewBox="0 0 20 20"
+          aria-hidden="true"
         >
           <path
             fillRule="evenodd"
@@ -541,6 +544,9 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search notes by title or content..."
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={searchResults.length > 0}
                 aria-label="Search notes"
                 aria-controls={resultsListboxId}
                 aria-activedescendant={activeResultId}

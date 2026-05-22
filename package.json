@@ -8,6 +8,8 @@
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext js,jsx --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "prepare": "husky",
@@ -48,6 +50,9 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0-alpha.25",
     "@tauri-apps/cli": "^2.9.4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
@@ -56,10 +61,12 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "husky": "^9.1.7",
+    "jsdom": "^29.1.1",
     "lint-staged": "^17.0.4",
     "prettier": "^3.8.3",
     "tailwindcss": "^4.0.0-alpha.25",
-    "vite": "^5.0.8"
+    "vite": "^5.0.8",
+    "vitest": "^2.1.9"
   },
   "lint-staged": {
     "*.{js,jsx}": [

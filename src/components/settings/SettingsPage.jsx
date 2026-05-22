@@ -361,6 +361,7 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                       : "bg-overlay-light hover:bg-overlay-medium"
                   }`}
                   aria-checked={openRecentOnStartup}
+                  aria-label="Reopen last workspace on startup"
                   role="switch"
                   title={
                     openRecentOnStartup ? "Disable reopen on startup" : "Enable reopen on startup"
@@ -399,6 +400,7 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                         : "bg-overlay-light hover:bg-overlay-medium"
                   }`}
                   aria-checked={hasWorkspaceProfile}
+                  aria-label="Use workspace-specific settings profile"
                   role="switch"
                   title={
                     !rootFolderPath

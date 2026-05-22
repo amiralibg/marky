@@ -32,6 +32,7 @@ function App() {
     sidebarWidth,
     setSidebarWidth,
     createNote,
+    createDailyNote,
     renameItem,
     selectNote,
     closeNote,
@@ -202,6 +203,17 @@ function App() {
         case "newNote":
           sidebarRef.current?.handleNewNote?.();
           break;
+        case "openDailyNote":
+          createDailyNote()
+            .then(() => addNotification("Daily note ready", "success", 1800))
+            .catch((error) => {
+              if (/workspace/i.test(error.message)) {
+                setShowWorkspaceModal(true);
+              } else {
+                addNotification("Failed to create daily note: " + error.message, "error");
+              }
+            });
+          break;
         case "newNoteInCurrentFolder": {
           const currentNote = useNotesStore.getState().getCurrentNote();
           setTemplateParentId(currentNote?.parentId || null);
@@ -329,7 +341,14 @@ function App() {
           console.warn(`Unknown command action: ${action}`);
       }
     },
-    [addNotification, selectNote, setShowSidebar, toggleFocusMode]
+    [
+      addNotification,
+      createDailyNote,
+      selectNote,
+      setShowSidebar,
+      setShowWorkspaceModal,
+      toggleFocusMode,
+    ]
   );
 
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);

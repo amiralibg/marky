@@ -38,6 +38,14 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         keywords: ["create", "directory"],
       },
       {
+        id: "daily-note",
+        name: "Open Today’s Daily Note",
+        category: "File Operations",
+        icon: "📆",
+        action: "openDailyNote",
+        keywords: ["journal", "today", "calendar"],
+      },
+      {
         id: "open-folder",
         name: "Open Folder",
         category: "File Operations",
@@ -385,6 +393,9 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search notes or type a command..."
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={results.length > 0}
                 aria-label="Search commands and notes"
                 aria-controls={resultsListboxId}
                 aria-activedescendant={activeResultId}
@@ -463,6 +474,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
                   key={isNote ? item.id : item.id}
                   id={`command-palette-result-${index}`}
                   onClick={() => handleSelect(result)}
+                  tabIndex={-1}
                   role="option"
                   aria-selected={isSelected}
                   className={`w-full text-left px-4 py-3 border-b border-overlay-subtle hover:bg-overlay-light transition-colors ${
@@ -471,7 +483,9 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
                 >
                   <div className="flex items-center gap-3">
                     {/* Icon */}
-                    <div className="shrink-0 text-xl">{isNote ? "📄" : item.icon}</div>
+                    <div className="shrink-0 text-xl" aria-hidden="true">
+                      {isNote ? "📄" : item.icon}
+                    </div>
 
                     <div className="flex-1 min-w-0">
                       {/* Title */}
