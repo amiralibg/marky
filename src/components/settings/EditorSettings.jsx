@@ -54,8 +54,10 @@ const EditorSettings = () => {
       {/* Autosave Toggle */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-text-primary mb-1">Autosave</h3>
-          <p className="text-xs text-text-muted leading-relaxed">
+          <h3 id="autosave-setting-title" className="text-sm font-semibold text-text-primary mb-1">
+            Autosave
+          </h3>
+          <p id="autosave-setting-description" className="text-xs text-text-muted leading-relaxed">
             Automatically save the current note to disk after you stop typing. A status chip in the
             title bar shows when a save is pending or complete.
           </p>
@@ -67,6 +69,8 @@ const EditorSettings = () => {
                   <button
                     key={opt.value}
                     onClick={() => setAutosaveDelay(opt.value)}
+                    aria-pressed={autosaveDelay === opt.value}
+                    aria-label={`Set autosave delay to ${opt.label}`}
                     className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
                       autosaveDelay === opt.value
                         ? "border-accent/40 bg-accent/10 text-accent"
@@ -87,7 +91,10 @@ const EditorSettings = () => {
               ? "bg-accent shadow-lg shadow-accent/30"
               : "bg-overlay-light hover:bg-overlay-medium"
           }`}
-          aria-label="Toggle Autosave"
+          aria-checked={autosaveEnabled}
+          aria-labelledby="autosave-setting-title"
+          aria-describedby="autosave-setting-description"
+          role="switch"
         >
           <span
             className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${autosaveEnabled ? "translate-x-7" : "translate-x-0"}`}
@@ -98,8 +105,16 @@ const EditorSettings = () => {
       {/* Preview Scroll Sync Toggle */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-text-primary mb-1">Preview Scroll Sync</h3>
-          <p className="text-xs text-text-muted leading-relaxed">
+          <h3
+            id="scroll-sync-setting-title"
+            className="text-sm font-semibold text-text-primary mb-1"
+          >
+            Preview Scroll Sync
+          </h3>
+          <p
+            id="scroll-sync-setting-description"
+            className="text-xs text-text-muted leading-relaxed"
+          >
             Sync scrolling between the editor and preview in split view. This is approximate and may
             drift on notes with heavy formatting or diagrams.
           </p>
@@ -114,7 +129,10 @@ const EditorSettings = () => {
                 : "bg-overlay-light hover:bg-overlay-medium"
             }
           `}
-          aria-label="Toggle Preview Scroll Sync"
+          aria-checked={scrollSyncEnabled}
+          aria-labelledby="scroll-sync-setting-title"
+          aria-describedby="scroll-sync-setting-description"
+          role="switch"
         >
           <span
             className={`
@@ -129,13 +147,20 @@ const EditorSettings = () => {
       {/* Sidebar Density */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-text-primary mb-1">Sidebar Density</h3>
-          <p className="text-xs text-text-muted leading-relaxed">
+          <h3 id="sidebar-density-title" className="text-sm font-semibold text-text-primary mb-1">
+            Sidebar Density
+          </h3>
+          <p id="sidebar-density-description" className="text-xs text-text-muted leading-relaxed">
             Tune the note tree spacing for small screens, large workspaces, or a more relaxed
             browsing feel.
           </p>
           <div className="mt-3 rounded-2xl border border-overlay-subtle bg-overlay-subtle/40 p-1.5 shadow-inner shadow-black/10">
-            <div className="relative grid grid-cols-3 gap-1">
+            <div
+              className="relative grid grid-cols-3 gap-1"
+              role="group"
+              aria-labelledby="sidebar-density-title"
+              aria-describedby="sidebar-density-description"
+            >
               <span
                 className="absolute inset-y-0 left-0 w-1/3 rounded-xl border border-accent/30 bg-accent/10 shadow-sm shadow-accent/10 transition-transform duration-200 ease-out"
                 style={{ transform: `translateX(${selectedDensityIndex * 100}%)` }}
@@ -153,6 +178,7 @@ const EditorSettings = () => {
                       isActive ? "text-accent" : "text-text-muted hover:text-text-primary"
                     }`}
                     aria-pressed={isActive}
+                    aria-label={`${option.label} sidebar density: ${option.description}`}
                   >
                     <span className="flex items-center gap-2">
                       <span className="flex h-6 w-6 shrink-0 flex-col justify-center gap-1 rounded-lg border border-overlay-subtle bg-bg-sidebar/70 px-1.5">
@@ -181,8 +207,10 @@ const EditorSettings = () => {
       {/* Sidebar Metadata Toggle */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-text-primary mb-1">Sidebar Metadata</h3>
-          <p className="text-xs text-text-muted leading-relaxed">
+          <h3 id="sidebar-metadata-title" className="text-sm font-semibold text-text-primary mb-1">
+            Sidebar Metadata
+          </h3>
+          <p id="sidebar-metadata-description" className="text-xs text-text-muted leading-relaxed">
             Show note tags, backlink counts, pinned markers, and saved indicators in the sidebar
             tree.
           </p>
@@ -194,7 +222,10 @@ const EditorSettings = () => {
               ? "bg-accent shadow-lg shadow-accent/30"
               : "bg-overlay-light hover:bg-overlay-medium"
           }`}
-          aria-label="Toggle Sidebar Metadata"
+          aria-checked={showSidebarMetadata}
+          aria-labelledby="sidebar-metadata-title"
+          aria-describedby="sidebar-metadata-description"
+          role="switch"
         >
           <span
             className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${showSidebarMetadata ? "translate-x-7" : "translate-x-0"}`}
@@ -205,13 +236,16 @@ const EditorSettings = () => {
       {/* Typewriter Mode Toggle */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-text-primary mb-1 flex items-center gap-2">
+          <h3
+            id="typewriter-mode-title"
+            className="text-sm font-semibold text-text-primary mb-1 flex items-center gap-2"
+          >
             Typewriter Mode
             <span className="px-2 py-0.5 text-[10px] font-medium bg-accent/10 text-accent rounded border border-accent/20">
               Focus Mode
             </span>
           </h3>
-          <p className="text-xs text-text-muted leading-relaxed">
+          <p id="typewriter-mode-description" className="text-xs text-text-muted leading-relaxed">
             Keep the current line vertically centered in the editor while you type. Works best in
             Focus Mode for a distraction-free writing experience.
           </p>
@@ -223,7 +257,10 @@ const EditorSettings = () => {
               ? "bg-accent shadow-lg shadow-accent/30"
               : "bg-overlay-light hover:bg-overlay-medium"
           }`}
-          aria-label="Toggle Typewriter Mode"
+          aria-checked={typewriterModeEnabled}
+          aria-labelledby="typewriter-mode-title"
+          aria-describedby="typewriter-mode-description"
+          role="switch"
         >
           <span
             className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
@@ -235,13 +272,16 @@ const EditorSettings = () => {
 
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-text-primary mb-1 flex items-center gap-2">
+          <h3
+            id="vim-mode-title"
+            className="text-sm font-semibold text-text-primary mb-1 flex items-center gap-2"
+          >
             Vim Mode
             <span className="px-2 py-0.5 text-[10px] font-medium bg-accent/10 text-accent rounded border border-accent/20">
               Advanced
             </span>
           </h3>
-          <p className="text-xs text-text-muted leading-relaxed">
+          <p id="vim-mode-description" className="text-xs text-text-muted leading-relaxed">
             Enable Vim keybindings in the markdown editor. Provides powerful modal editing with
             Normal, Insert, and Visual modes.
           </p>
@@ -279,7 +319,10 @@ const EditorSettings = () => {
                 : "bg-overlay-light hover:bg-overlay-medium"
             }
           `}
-          aria-label="Toggle Vim Mode"
+          aria-checked={vimMode}
+          aria-labelledby="vim-mode-title"
+          aria-describedby="vim-mode-description"
+          role="switch"
         >
           <span
             className={`

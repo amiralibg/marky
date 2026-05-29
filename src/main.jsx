@@ -1,13 +1,13 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import App from './App.jsx'
-import './index.css'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import App from "./App.jsx";
+import "./index.css";
 
 const appWindow = getCurrentWindow();
 
 // Use createRoot without StrictMode in production for better performance
-const root = ReactDOM.createRoot(document.getElementById('root'));
+const root = ReactDOM.createRoot(document.getElementById("root"));
 
 // StrictMode causes double-renders in development which slows initial load
 if (import.meta.env.DEV) {

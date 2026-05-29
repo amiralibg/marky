@@ -10,11 +10,14 @@ const AppearanceSettings = () => {
         <h3 className="text-sm font-semibold text-text-primary mb-1">Theme</h3>
         <p className="text-xs text-text-muted mb-4">Choose a color scheme for the application.</p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" role="radiogroup" aria-label="Theme">
           {THEMES.map((theme) => (
             <button
               key={theme.id}
               onClick={() => setTheme(theme.id)}
+              role="radio"
+              aria-checked={themeId === theme.id}
+              aria-label={`${theme.name} theme${theme.type === "light" ? ", light" : ""}`}
               className={`
                 group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all
                 ${
@@ -25,7 +28,10 @@ const AppearanceSettings = () => {
               `}
             >
               {/* Theme preview */}
-              <div className="w-full aspect-4/3 rounded-lg overflow-hidden border border-overlay-light">
+              <div
+                className="w-full aspect-4/3 rounded-lg overflow-hidden border border-overlay-light"
+                aria-hidden="true"
+              >
                 <div className="h-full flex" style={{ backgroundColor: theme.preview.bg }}>
                   {/* Sidebar preview */}
                   <div className="w-1/3 h-full" style={{ backgroundColor: theme.preview.sidebar }}>
@@ -80,7 +86,12 @@ const AppearanceSettings = () => {
               {/* Checkmark for selected */}
               {themeId === theme.id && (
                 <div className="absolute top-2 right-2">
-                  <svg className="w-4 h-4 text-accent" fill="currentColor" viewBox="0 0 20 20">
+                  <svg
+                    className="w-4 h-4 text-accent"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                    aria-hidden="true"
+                  >
                     <path
                       fillRule="evenodd"
                       d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
@@ -101,11 +112,18 @@ const AppearanceSettings = () => {
           Choose a color for buttons, links, and highlights.
         </p>
 
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+        <div
+          className="grid grid-cols-3 sm:grid-cols-5 gap-3"
+          role="radiogroup"
+          aria-label="Accent color"
+        >
           {ACCENT_COLORS.map((color) => (
             <button
               key={color.id}
               onClick={() => setAccentColor(color.id)}
+              role="radio"
+              aria-checked={accentColorId === color.id}
+              aria-label={`${color.name} accent color`}
               className={`
                 group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all
                 ${
@@ -122,6 +140,7 @@ const AppearanceSettings = () => {
                   ${accentColorId === color.id ? "ring-2 ring-white/50 ring-offset-2 ring-offset-bg-base" : ""}
                 `}
                 style={{ backgroundColor: color.value }}
+                aria-hidden="true"
               />
 
               {/* Color name */}
@@ -137,7 +156,12 @@ const AppearanceSettings = () => {
               {/* Checkmark for selected */}
               {accentColorId === color.id && (
                 <div className="absolute top-2 right-2">
-                  <svg className="w-4 h-4 text-accent" fill="currentColor" viewBox="0 0 20 20">
+                  <svg
+                    className="w-4 h-4 text-accent"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                    aria-hidden="true"
+                  >
                     <path
                       fillRule="evenodd"
                       d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"

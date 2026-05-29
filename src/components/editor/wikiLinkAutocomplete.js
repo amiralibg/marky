@@ -1,4 +1,4 @@
-import { autocompletion } from '@codemirror/autocomplete';
+import { autocompletion } from "@codemirror/autocomplete";
 
 /**
  * Creates a wiki link autocomplete extension for CodeMirror
@@ -33,27 +33,27 @@ export function createWikiLinkAutocomplete(getNotes, getTags = () => []) {
 
     // Filter and create completion options
     const options = notes
-      .filter(note => {
+      .filter((note) => {
         if (!searchText) return true;
         return note.name.toLowerCase().includes(searchText.toLowerCase());
       })
-      .map(note => ({
+      .map((note) => ({
         label: note.name,
-        type: 'text',
+        type: "text",
         apply: (view, completion, from, to) => {
           // Check if we need to add closing brackets
           const textAfter = view.state.sliceDoc(to, to + 2);
-          const needsClosing = !textAfter.startsWith(']]');
+          const needsClosing = !textAfter.startsWith("]]");
 
-          const insertText = note.name + (needsClosing ? ']]' : '');
+          const insertText = note.name + (needsClosing ? "]]" : "");
 
           view.dispatch({
             changes: { from, to, insert: insertText },
-            selection: { anchor: from + insertText.length }
+            selection: { anchor: from + insertText.length },
           });
         },
-        detail: note.filePath ? '📄 Note' : '✨ New',
-        info: note.filePath || 'Press Enter to insert',
+        detail: note.filePath ? "📄 Note" : "✨ New",
+        info: note.filePath || "Press Enter to insert",
       }))
       .slice(0, 20); // Limit to 20 results for performance
 
@@ -64,7 +64,7 @@ export function createWikiLinkAutocomplete(getNotes, getTags = () => []) {
     return {
       from,
       options,
-      validFor: /^[^\]]*$/
+      validFor: /^[^\]]*$/,
     };
   };
 
@@ -76,30 +76,31 @@ export function createWikiLinkAutocomplete(getNotes, getTags = () => []) {
     const tagMatch = /(?:^|[\s(])#([a-zA-Z0-9_-]*)$/.exec(textBefore);
     if (!tagMatch) return null;
 
-    const searchText = tagMatch[1] || '';
+    const searchText = tagMatch[1] || "";
     const from = pos - searchText.length;
 
     const rawTags = getTags() || [];
     const tags = rawTags
-      .map((entry) => (typeof entry === 'string' ? entry : entry?.tag))
+      .map((entry) => (typeof entry === "string" ? entry : entry?.tag))
       .filter(Boolean);
 
     if (tags.length === 0) return null;
 
-    const uniqueSortedTags = Array.from(new Set(tags.map((t) => t.toLowerCase())))
-      .sort((a, b) => a.localeCompare(b));
+    const uniqueSortedTags = Array.from(new Set(tags.map((t) => t.toLowerCase()))).sort((a, b) =>
+      a.localeCompare(b)
+    );
 
     const options = uniqueSortedTags
       .filter((tag) => !searchText || tag.includes(searchText.toLowerCase()))
       .slice(0, 20)
       .map((tag) => ({
         label: tag,
-        type: 'keyword',
-        detail: 'Tag',
+        type: "keyword",
+        detail: "Tag",
         apply: (view, completion, applyFrom, applyTo) => {
           view.dispatch({
             changes: { from: applyFrom, to: applyTo, insert: tag },
-            selection: { anchor: applyFrom + tag.length }
+            selection: { anchor: applyFrom + tag.length },
           });
         },
       }));
@@ -109,7 +110,7 @@ export function createWikiLinkAutocomplete(getNotes, getTags = () => []) {
     return {
       from,
       options,
-      validFor: /^[a-zA-Z0-9_-]*$/
+      validFor: /^[a-zA-Z0-9_-]*$/,
     };
   };
 

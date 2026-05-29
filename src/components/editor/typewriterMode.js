@@ -1,4 +1,4 @@
-import { EditorView, ViewPlugin } from '@codemirror/view';
+import { EditorView, ViewPlugin } from "@codemirror/view";
 
 /**
  * Typewriter mode: keeps the cursor line vertically centered in the editor
@@ -10,17 +10,17 @@ export function typewriterMode() {
   return [
     // Dynamic bottom padding so the last line can be scrolled to the center
     EditorView.theme({
-      '&.cm-typewriter .cm-scroller': {
-        paddingBottom: '50vh',
+      "&.cm-typewriter .cm-scroller": {
+        paddingBottom: "50vh",
       },
     }),
 
     // Toggle the marker class on the editor root
     ViewPlugin.define((view) => {
-      view.dom.classList.add('cm-typewriter');
+      view.dom.classList.add("cm-typewriter");
       return {
         destroy() {
-          view.dom.classList.remove('cm-typewriter');
+          view.dom.classList.remove("cm-typewriter");
         },
       };
     }),

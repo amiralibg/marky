@@ -1,7 +1,7 @@
-import { save } from '@tauri-apps/plugin-dialog';
-import { writeFile } from '@tauri-apps/plugin-fs';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { marked } from 'marked';
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeFile } from "@tauri-apps/plugin-fs";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { marked } from "marked";
 
 const PAGE_SIZE = { width: 595.28, height: 841.89 };
 const PAGE_MARGIN = 50;
@@ -11,70 +11,81 @@ const MUTED_TEXT_COLOR = rgb(0.38, 0.41, 0.46);
 const CODE_BG_COLOR = rgb(0.96, 0.97, 0.98);
 const BLOCKQUOTE_BAR_COLOR = rgb(0.81, 0.84, 0.87);
 
-const escapeHtml = (value = '') =>
+const escapeHtml = (value = "") =>
   value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
-const sanitizeFileName = (value = 'note') =>
-  value.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() || 'note';
+const sanitizeFileName = (value = "note") =>
+  value
+    .replace(/[\\/:*?"<>|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim() || "note";
 
 const flattenInlineTokens = (tokens = []) =>
-  tokens.map((token) => {
-    if (!token) return '';
-    if (typeof token.text === 'string' && Array.isArray(token.tokens)) {
-      return flattenInlineTokens(token.tokens) || token.text;
-    }
-    if (token.type === 'link' || token.type === 'strong' || token.type === 'em' || token.type === 'codespan' || token.type === 'del') {
-      return token.text || flattenInlineTokens(token.tokens || []);
-    }
-    if (token.type === 'image') {
-      return token.text || token.href || '';
-    }
-    if (token.type === 'br') {
-      return '\n';
-    }
-    if (token.type === 'text') {
-      return token.raw && Array.isArray(token.tokens)
-        ? flattenInlineTokens(token.tokens)
-        : (token.text || token.raw || '');
-    }
-    return token.text || token.raw || '';
-  }).join('');
+  tokens
+    .map((token) => {
+      if (!token) return "";
+      if (typeof token.text === "string" && Array.isArray(token.tokens)) {
+        return flattenInlineTokens(token.tokens) || token.text;
+      }
+      if (
+        token.type === "link" ||
+        token.type === "strong" ||
+        token.type === "em" ||
+        token.type === "codespan" ||
+        token.type === "del"
+      ) {
+        return token.text || flattenInlineTokens(token.tokens || []);
+      }
+      if (token.type === "image") {
+        return token.text || token.href || "";
+      }
+      if (token.type === "br") {
+        return "\n";
+      }
+      if (token.type === "text") {
+        return token.raw && Array.isArray(token.tokens)
+          ? flattenInlineTokens(token.tokens)
+          : token.text || token.raw || "";
+      }
+      return token.text || token.raw || "";
+    })
+    .join("");
 
-const plainText = (value = '') =>
+const plainText = (value = "") =>
   value
-    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/[`*_~>#-]/g, '')
-    .replace(/\r/g, '')
-    .replace(/\n{3,}/g, '\n\n')
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[`*_~>#-]/g, "")
+    .replace(/\r/g, "")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 
 const textFromToken = (token) => {
-  if (!token) return '';
+  if (!token) return "";
   if (Array.isArray(token.tokens)) {
     return plainText(flattenInlineTokens(token.tokens));
   }
-  return plainText(token.text || token.raw || '');
+  return plainText(token.text || token.raw || "");
 };
 
-const splitParagraphLines = (text = '') =>
+const splitParagraphLines = (text = "") =>
   text
     .split(/\n+/)
     .map((line) => line.trim())
     .filter(Boolean);
 
 const wrapText = (font, text, size, width) => {
-  const normalized = text.replace(/\s+/g, ' ').trim();
-  if (!normalized) return [''];
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return [""];
 
-  const words = normalized.split(' ');
+  const words = normalized.split(" ");
   const lines = [];
-  let currentLine = '';
+  let currentLine = "";
 
   words.forEach((word) => {
     const candidate = currentLine ? `${currentLine} ${word}` : word;
@@ -91,11 +102,11 @@ const wrapText = (font, text, size, width) => {
     lines.push(currentLine);
   }
 
-  return lines.length > 0 ? lines : [''];
+  return lines.length > 0 ? lines : [""];
 };
 
 export const buildStandaloneHtml = (noteName, markdownContent, markedParser = marked) => {
-  const htmlContent = markedParser(markdownContent || '');
+  const htmlContent = markedParser(markdownContent || "");
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -216,7 +227,7 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
     const lineHeight = size + lineGap;
     lines.forEach((line) => {
       ensurePageSpace(lineHeight);
-      page.drawText(line || ' ', {
+      page.drawText(line || " ", {
         x: PAGE_MARGIN + indent,
         y: cursorY - size,
         size,
@@ -245,7 +256,7 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
   };
 
   const drawCodeBlock = (text) => {
-    const codeLines = (text || '').replace(/\t/g, '  ').split('\n');
+    const codeLines = (text || "").replace(/\t/g, "  ").split("\n");
     const size = 10;
     const lineGap = 3;
     const lineHeight = size + lineGap;
@@ -265,7 +276,7 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
 
     let codeY = cursorY - blockPadding;
     codeLines.forEach((line) => {
-      page.drawText(line || ' ', {
+      page.drawText(line || " ", {
         x: PAGE_MARGIN + blockPadding,
         y: codeY - size,
         size,
@@ -292,10 +303,10 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
   const renderTokens = (tokens = [], depth = 0) => {
     tokens.forEach((token) => {
       switch (token.type) {
-        case 'space':
+        case "space":
           cursorY -= 4;
           break;
-        case 'heading': {
+        case "heading": {
           const sizes = { 1: 24, 2: 20, 3: 16, 4: 14, 5: 13, 6: 12 };
           const size = sizes[token.depth] || 12;
           cursorY -= depth === 0 ? 4 : 0;
@@ -307,8 +318,8 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
           });
           break;
         }
-        case 'paragraph':
-        case 'text':
+        case "paragraph":
+        case "text":
           drawParagraph(textFromToken(token), {
             font: regularFont,
             size: 12,
@@ -316,12 +327,12 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
             paragraphGap: 10,
           });
           break;
-        case 'blockquote': {
+        case "blockquote": {
           const blockquoteTokens = token.tokens || [];
           const quoteText = blockquoteTokens
             .map((innerToken) => textFromToken(innerToken))
             .filter(Boolean)
-            .join('\n');
+            .join("\n");
           const indent = 20;
           const previewLines = splitParagraphLines(quoteText).flatMap((line) =>
             wrapText(regularFont, line, 12, CONTENT_WIDTH - indent - 8)
@@ -344,11 +355,11 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
           });
           break;
         }
-        case 'list':
+        case "list":
           token.items.forEach((item, index) => {
-            const marker = token.ordered ? `${index + 1}.` : '•';
+            const marker = token.ordered ? `${index + 1}.` : "•";
             const itemText = plainText(
-              item.tokens ? flattenInlineTokens(item.tokens) : (item.text || '')
+              item.tokens ? flattenInlineTokens(item.tokens) : item.text || ""
             );
             const wrappedLines = wrapText(regularFont, itemText, 12, CONTENT_WIDTH - 26);
             const bulletLines = wrappedLines.map((line, lineIndex) =>
@@ -362,7 +373,7 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
               paragraphGap: 4,
             });
             if (item.tokens) {
-              const nestedTokens = item.tokens.filter((child) => child.type === 'list');
+              const nestedTokens = item.tokens.filter((child) => child.type === "list");
               if (nestedTokens.length > 0) {
                 renderTokens(nestedTokens, depth + 1);
               }
@@ -370,11 +381,13 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
           });
           cursorY -= 6;
           break;
-        case 'code':
-          drawCodeBlock(token.text || '');
+        case "code":
+          drawCodeBlock(token.text || "");
           break;
-        case 'table': {
-          const header = (token.header || []).map((cell) => plainText(cell.text || cell)).join(' | ');
+        case "table": {
+          const header = (token.header || [])
+            .map((cell) => plainText(cell.text || cell))
+            .join(" | ");
           if (header) {
             drawParagraph(header, {
               font: boldFont,
@@ -384,7 +397,7 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
             });
           }
           (token.rows || []).forEach((row) => {
-            const rowText = row.map((cell) => plainText(cell.text || cell)).join(' | ');
+            const rowText = row.map((cell) => plainText(cell.text || cell)).join(" | ");
             drawParagraph(rowText, {
               font: regularFont,
               size: 11,
@@ -395,7 +408,7 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
           cursorY -= 4;
           break;
         }
-        case 'hr':
+        case "hr":
           drawRule();
           break;
         default: {
@@ -413,24 +426,26 @@ export const exportMarkdownToPdf = async (noteName, markdownContent) => {
     });
   };
 
-  const tokens = marked.lexer(markdownContent || '');
+  const tokens = marked.lexer(markdownContent || "");
   if (tokens.length === 0) {
-    drawParagraph(' ', { paragraphGap: 0 });
+    drawParagraph(" ", { paragraphGap: 0 });
   } else {
     renderTokens(tokens);
   }
 
   const savePath = await save({
     defaultPath: `${sanitizeFileName(noteName)}.pdf`,
-    filters: [{
-      name: 'PDF',
-      extensions: ['pdf']
-    }]
+    filters: [
+      {
+        name: "PDF",
+        extensions: ["pdf"],
+      },
+    ],
   });
 
   if (!savePath) return null;
 
-  const filePath = typeof savePath === 'string' ? savePath : savePath.path;
+  const filePath = typeof savePath === "string" ? savePath : savePath.path;
   const pdfBytes = await pdfDoc.save();
   await writeFile(filePath, pdfBytes);
   return filePath;

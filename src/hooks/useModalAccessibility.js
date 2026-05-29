@@ -15,32 +15,24 @@ const getFocusableElements = (container) => {
     (element) =>
       element instanceof HTMLElement &&
       !element.hasAttribute("disabled") &&
-      element.getAttribute("aria-hidden") !== "true",
+      element.getAttribute("aria-hidden") !== "true"
   );
 };
 
-export default function useModalAccessibility(
-  isOpen,
-  dialogRef,
-  initialFocusRef = null,
-) {
+export default function useModalAccessibility(isOpen, dialogRef, initialFocusRef = null) {
   const previouslyFocusedRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return undefined;
 
     previouslyFocusedRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     const focusTarget =
-      initialFocusRef?.current ||
-      getFocusableElements(dialogRef.current)[0] ||
-      dialogRef.current;
+      initialFocusRef?.current || getFocusableElements(dialogRef.current)[0] || dialogRef.current;
 
     requestAnimationFrame(() => {
       if (focusTarget instanceof HTMLElement) {

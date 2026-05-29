@@ -104,13 +104,21 @@ describe("notesStore core behavior", () => {
   it("tracks dirty notes and metadata updates", async () => {
     const store = await loadStore();
 
-    store.getState().updateNote(homeNote.id, "# Home\n#updated\n[[Project]]");
+    store
+      .getState()
+      .updateNote(homeNote.id, "---\ntags:\n  - frontmatter\n---\n# Home\n#updated\n[[Project]]");
     expect(store.getState().dirtyNoteIds).toContain(homeNote.id);
 
-    store.getState().updateNoteMetadata(homeNote.id, "# Home\n#updated\n[[Project]]");
+    store
+      .getState()
+      .updateNoteMetadata(
+        homeNote.id,
+        "---\ntags:\n  - frontmatter\nstatus: active\n---\n# Home\n#updated\n[[Project]]"
+      );
     const updated = store.getState().items.find((item) => item.id === homeNote.id);
 
-    expect(updated.tags).toEqual(["updated"]);
+    expect(updated.tags).toEqual(["frontmatter", "updated"]);
+    expect(updated.properties.status).toBe("active");
     expect(updated.links).toEqual([{ key: "project", target: "Project", alias: null }]);
   });
 

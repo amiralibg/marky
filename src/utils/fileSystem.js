@@ -1,17 +1,17 @@
-import { open, save } from '@tauri-apps/plugin-dialog';
-import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { invoke } from '@tauri-apps/api/core';
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
 
 const formatPathLabel = (value) => {
-  if (!value || typeof value !== 'string') return 'item';
-  const normalized = value.replace(/\\/g, '/');
-  return normalized.split('/').filter(Boolean).pop() || normalized;
+  if (!value || typeof value !== "string") return "item";
+  const normalized = value.replace(/\\/g, "/");
+  return normalized.split("/").filter(Boolean).pop() || normalized;
 };
 
 const getRawErrorMessage = (error) => {
-  if (!error) return '';
-  if (typeof error === 'string') return error;
-  if (typeof error.message === 'string') return error.message;
+  if (!error) return "";
+  if (typeof error === "string") return error;
+  if (typeof error.message === "string") return error.message;
   return String(error);
 };
 
@@ -22,7 +22,11 @@ const buildFriendlyFsError = (error, action, targetPath) => {
 
   let message = rawMessage || `Failed to ${action}.`;
 
-  if (/permission denied|access is denied|operation not permitted|forbidden|os error 13/.test(normalized)) {
+  if (
+    /permission denied|access is denied|operation not permitted|forbidden|os error 13/.test(
+      normalized
+    )
+  ) {
     message = `You don’t have permission to ${action} “${label}”.`;
   } else if (/does not exist|not found|no such file|cannot find/.test(normalized)) {
     message = `“${label}” no longer exists on disk.`;
@@ -34,16 +38,20 @@ const buildFriendlyFsError = (error, action, targetPath) => {
     message = `“${label}” is reserved by the operating system. Choose a different name.`;
   } else if (/trailing spaces or dots/.test(normalized)) {
     message = `“${label}” can’t end with a space or dot.`;
-  } else if (/destination folder does not exist|parent folder does not exist|cannot determine parent/.test(normalized)) {
-    message = 'The destination folder is missing or unavailable.';
+  } else if (
+    /destination folder does not exist|parent folder does not exist|cannot determine parent/.test(
+      normalized
+    )
+  ) {
+    message = "The destination folder is missing or unavailable.";
   } else if (/cannot move a folder into itself/.test(normalized)) {
-    message = 'You can’t move a folder into itself.';
+    message = "You can’t move a folder into itself.";
   } else if (/directory not empty/.test(normalized)) {
     message = `“${label}” can’t be removed because it still contains files in use.`;
   } else if (/invalid folder path|path is not a directory/.test(normalized)) {
-    message = 'The selected folder is not available.';
+    message = "The selected folder is not available.";
   } else if (/failed to read directory|failed to read entry/.test(normalized)) {
-    message = 'Marky could not read that folder.';
+    message = "Marky could not read that folder.";
   }
 
   const friendlyError = new Error(message);
@@ -65,27 +73,29 @@ export async function openMarkdownFile() {
   try {
     const selected = await open({
       multiple: false,
-      filters: [{
-        name: 'Markdown',
-        extensions: ['md', 'markdown', 'txt']
-      }]
+      filters: [
+        {
+          name: "Markdown",
+          extensions: ["md", "markdown", "txt"],
+        },
+      ],
     });
 
     if (!selected) return null;
 
     // selected is a string path in Tauri v2
-    filePath = typeof selected === 'string' ? selected : selected.path;
+    filePath = typeof selected === "string" ? selected : selected.path;
     const content = await readTextFile(filePath);
-    const fileName = filePath.split('/').pop();
+    const fileName = filePath.split("/").pop();
 
     return {
       content,
       path: filePath,
-      name: fileName
+      name: fileName,
     };
   } catch (error) {
-    console.error('Error opening file:', error);
-    wrapFsError(error, 'open this file', filePath);
+    console.error("Error opening file:", error);
+    wrapFsError(error, "open this file", filePath);
   }
 }
 
@@ -102,15 +112,17 @@ export async function saveMarkdownFile(content, existingPath = null) {
     // If no existing path, show save dialog
     if (!filePath) {
       const selected = await save({
-        filters: [{
-          name: 'Markdown',
-          extensions: ['md']
-        }],
-        defaultPath: 'untitled.md'
+        filters: [
+          {
+            name: "Markdown",
+            extensions: ["md"],
+          },
+        ],
+        defaultPath: "untitled.md",
       });
 
       // selected is a string path in Tauri v2
-      filePath = typeof selected === 'string' ? selected : selected?.path;
+      filePath = typeof selected === "string" ? selected : selected?.path;
     }
 
     if (!filePath) return null;
@@ -119,8 +131,8 @@ export async function saveMarkdownFile(content, existingPath = null) {
 
     return filePath;
   } catch (error) {
-    console.error('Error saving file:', error);
-    wrapFsError(error, 'save this file', existingPath || 'file');
+    console.error("Error saving file:", error);
+    wrapFsError(error, "save this file", existingPath || "file");
   }
 }
 
@@ -132,27 +144,27 @@ export async function openFolder() {
   try {
     const selected = await open({
       multiple: false,
-      directory: true
+      directory: true,
     });
 
     if (!selected) return null;
 
     // selected is a string path in Tauri v2
-    const folderPath = typeof selected === 'string' ? selected : selected.path;
+    const folderPath = typeof selected === "string" ? selected : selected.path;
 
     // Call Rust backend to scan folder
-    const files = await invoke('scan_folder_for_markdown', {
-      folderPath: folderPath
+    const files = await invoke("scan_folder_for_markdown", {
+      folderPath: folderPath,
     });
 
     return {
       folderPath: folderPath,
-      folderName: folderPath.split('/').pop() || 'Folder',
-      files
+      folderName: folderPath.split("/").pop() || "Folder",
+      files,
     };
   } catch (error) {
-    console.error('Error opening folder:', error);
-    wrapFsError(error, 'open this folder', 'folder');
+    console.error("Error opening folder:", error);
+    wrapFsError(error, "open this folder", "folder");
   }
 }
 
@@ -163,11 +175,11 @@ export async function openFolder() {
  */
 export async function scanFolder(folderPath) {
   try {
-    const files = await invoke('scan_folder_for_markdown', { folderPath });
+    const files = await invoke("scan_folder_for_markdown", { folderPath });
     return files;
   } catch (error) {
-    console.error('Error scanning folder:', error);
-    wrapFsError(error, 'scan this folder', folderPath);
+    console.error("Error scanning folder:", error);
+    wrapFsError(error, "scan this folder", folderPath);
   }
 }
 
@@ -181,8 +193,8 @@ export async function readMarkdownFile(filePath) {
     const content = await readTextFile(filePath);
     return content;
   } catch (error) {
-    console.error('Error reading file:', error);
-    wrapFsError(error, 'read this note', filePath);
+    console.error("Error reading file:", error);
+    wrapFsError(error, "read this note", filePath);
   }
 }
 
@@ -194,14 +206,14 @@ export async function readMarkdownFile(filePath) {
  */
 export async function createFolderOnDisk(parentFolderPath, folderName) {
   try {
-    const newPath = await invoke('create_folder', {
+    const newPath = await invoke("create_folder", {
       parentFolderPath,
-      folderName
+      folderName,
     });
     return newPath;
   } catch (error) {
-    console.error('Error creating folder:', error);
-    wrapFsError(error, 'create this folder', folderName);
+    console.error("Error creating folder:", error);
+    wrapFsError(error, "create this folder", folderName);
   }
 }
 
@@ -212,17 +224,17 @@ export async function createFolderOnDisk(parentFolderPath, folderName) {
  * @param {string} [content]
  * @returns {Promise<string>} Newly created file path
  */
-export async function createMarkdownFileOnDisk(parentFolderPath, fileName, content = '') {
+export async function createMarkdownFileOnDisk(parentFolderPath, fileName, content = "") {
   try {
-    const newPath = await invoke('create_markdown_file', {
+    const newPath = await invoke("create_markdown_file", {
       parentFolderPath,
       fileName,
-      content
+      content,
     });
     return newPath;
   } catch (error) {
-    console.error('Error creating markdown file:', error);
-    wrapFsError(error, 'create this note', fileName);
+    console.error("Error creating markdown file:", error);
+    wrapFsError(error, "create this note", fileName);
   }
 }
 
@@ -234,14 +246,14 @@ export async function createMarkdownFileOnDisk(parentFolderPath, fileName, conte
  */
 export async function renameEntryOnDisk(sourcePath, newName) {
   try {
-    const newPath = await invoke('rename_entry', {
+    const newPath = await invoke("rename_entry", {
       sourcePath,
-      newName
+      newName,
     });
     return newPath;
   } catch (error) {
-    console.error('Error renaming entry:', error);
-    wrapFsError(error, 'rename this item', newName || sourcePath);
+    console.error("Error renaming entry:", error);
+    wrapFsError(error, "rename this item", newName || sourcePath);
   }
 }
 
@@ -252,12 +264,12 @@ export async function renameEntryOnDisk(sourcePath, newName) {
  */
 export async function deleteEntryOnDisk(targetPath) {
   try {
-    await invoke('delete_entry', {
-      targetPath
+    await invoke("delete_entry", {
+      targetPath,
     });
   } catch (error) {
-    console.error('Error deleting entry:', error);
-    wrapFsError(error, 'delete this item', targetPath);
+    console.error("Error deleting entry:", error);
+    wrapFsError(error, "delete this item", targetPath);
   }
 }
 
@@ -269,14 +281,14 @@ export async function deleteEntryOnDisk(targetPath) {
  */
 export async function moveEntryOnDisk(sourcePath, destFolderPath) {
   try {
-    const newPath = await invoke('move_entry', {
+    const newPath = await invoke("move_entry", {
       sourcePath,
-      destFolderPath
+      destFolderPath,
     });
     return newPath;
   } catch (error) {
-    console.error('Error moving entry:', error);
-    wrapFsError(error, 'move this item', sourcePath);
+    console.error("Error moving entry:", error);
+    wrapFsError(error, "move this item", sourcePath);
   }
 }
 
@@ -288,10 +300,10 @@ export async function moveEntryOnDisk(sourcePath, destFolderPath) {
  */
 export async function writeMarkdownFileOnDisk(filePath, content) {
   try {
-    await writeTextFile(filePath, content ?? '');
+    await writeTextFile(filePath, content ?? "");
   } catch (error) {
-    console.error('Error writing markdown file:', error);
-    wrapFsError(error, 'save this note', filePath);
+    console.error("Error writing markdown file:", error);
+    wrapFsError(error, "save this note", filePath);
   }
 }
 
@@ -302,10 +314,10 @@ export async function writeMarkdownFileOnDisk(filePath, content) {
  */
 export async function watchFolder(folderPath) {
   try {
-    await invoke('watch_folder', { folderPath });
+    await invoke("watch_folder", { folderPath });
   } catch (error) {
-    console.error('Error starting folder watch:', error);
-    wrapFsError(error, 'watch this folder', folderPath);
+    console.error("Error starting folder watch:", error);
+    wrapFsError(error, "watch this folder", folderPath);
   }
 }
 
@@ -315,10 +327,10 @@ export async function watchFolder(folderPath) {
  */
 export async function stopWatching() {
   try {
-    await invoke('stop_watching');
+    await invoke("stop_watching");
   } catch (error) {
-    console.error('Error stopping folder watch:', error);
-    wrapFsError(error, 'stop watching this folder', 'folder');
+    console.error("Error stopping folder watch:", error);
+    wrapFsError(error, "stop watching this folder", "folder");
   }
 }
 
@@ -330,14 +342,14 @@ export async function stopWatching() {
  */
 export async function copyEntriesToFolder(sourcePaths, destFolderPath) {
   try {
-    const newPaths = await invoke('copy_entries_to_folder', {
+    const newPaths = await invoke("copy_entries_to_folder", {
       sourcePaths,
-      destFolderPath
+      destFolderPath,
     });
     return newPaths;
   } catch (error) {
-    console.error('Error copying entries:', error);
-    wrapFsError(error, 'copy these items', destFolderPath);
+    console.error("Error copying entries:", error);
+    wrapFsError(error, "copy these items", destFolderPath);
   }
 }
 
@@ -346,5 +358,5 @@ export async function copyEntriesToFolder(sourcePaths, destFolderPath) {
  * @returns {boolean}
  */
 export function isTauriApp() {
-  return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+  return typeof window !== "undefined" && window.__TAURI__ !== undefined;
 }

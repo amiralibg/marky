@@ -1,29 +1,29 @@
 const formatDate = (date) => date.toLocaleDateString();
 
 const formatLongDate = (date) =>
-  date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
+  date.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 
-const formatFileDate = (date) => date.toISOString().split('T')[0];
+const formatFileDate = (date) => date.toISOString().split("T")[0];
 
 export const builtInTemplates = [
   {
-    id: 'blank',
-    name: 'Blank Note',
-    icon: '📄',
-    description: 'Start with an empty note',
-    getContent: () => '',
-    getSuggestedTitle: () => null
+    id: "blank",
+    name: "Blank Note",
+    icon: "📄",
+    description: "Start with an empty note",
+    getContent: () => "",
+    getSuggestedTitle: () => null,
   },
   {
-    id: 'meeting',
-    name: 'Meeting Notes',
-    icon: '📋',
-    description: 'Template for meeting notes',
+    id: "meeting",
+    name: "Meeting Notes",
+    icon: "📋",
+    description: "Template for meeting notes",
     getContent: () => {
       const today = formatDate(new Date());
       return `# Meeting Notes
@@ -47,13 +47,13 @@ export const builtInTemplates = [
 ## Next Steps
 `;
     },
-    getSuggestedTitle: () => `Meeting Notes ${formatFileDate(new Date())}`
+    getSuggestedTitle: () => `Meeting Notes ${formatFileDate(new Date())}`,
   },
   {
-    id: 'todo',
-    name: 'Todo List',
-    icon: '✅',
-    description: 'Task list template',
+    id: "todo",
+    name: "Todo List",
+    icon: "✅",
+    description: "Task list template",
     getContent: () => {
       const today = formatDate(new Date());
       return `# Todo List
@@ -77,13 +77,13 @@ export const builtInTemplates = [
 #todo
 `;
     },
-    getSuggestedTitle: () => `Todo List ${formatFileDate(new Date())}`
+    getSuggestedTitle: () => `Todo List ${formatFileDate(new Date())}`,
   },
   {
-    id: 'daily',
-    name: 'Daily Journal',
-    icon: '📆',
-    description: 'Daily journal entry',
+    id: "daily",
+    name: "Daily Journal",
+    icon: "📆",
+    description: "Daily journal entry",
     getContent: () => {
       const now = new Date();
       return `# ${formatLongDate(now)}
@@ -112,13 +112,13 @@ export const builtInTemplates = [
 #journal
 `;
     },
-    getSuggestedTitle: () => formatFileDate(new Date())
+    getSuggestedTitle: () => formatFileDate(new Date()),
   },
   {
-    id: 'project',
-    name: 'Project Plan',
-    icon: '🎯',
-    description: 'Project planning template',
+    id: "project",
+    name: "Project Plan",
+    icon: "🎯",
+    description: "Project planning template",
     getContent: () => {
       const today = formatDate(new Date());
       return `# Project: [Project Name]
@@ -153,13 +153,13 @@ export const builtInTemplates = [
 #project
 `;
     },
-    getSuggestedTitle: () => `Project Plan ${formatFileDate(new Date())}`
+    getSuggestedTitle: () => `Project Plan ${formatFileDate(new Date())}`,
   },
   {
-    id: 'research',
-    name: 'Research Notes',
-    icon: '🔍',
-    description: 'Research and study notes',
+    id: "research",
+    name: "Research Notes",
+    icon: "🔍",
+    description: "Research and study notes",
     getContent: () => {
       const today = formatDate(new Date());
       return `# Research: [Topic]
@@ -190,13 +190,13 @@ export const builtInTemplates = [
 #research
 `;
     },
-    getSuggestedTitle: () => `Research ${formatFileDate(new Date())}`
+    getSuggestedTitle: () => `Research ${formatFileDate(new Date())}`,
   },
   {
-    id: 'brainstorm',
-    name: 'Brainstorming',
-    icon: '💡',
-    description: 'Ideas and brainstorming',
+    id: "brainstorm",
+    name: "Brainstorming",
+    icon: "💡",
+    description: "Ideas and brainstorming",
     getContent: () => {
       const today = formatDate(new Date());
       return `# Brainstorming: [Topic]
@@ -232,29 +232,30 @@ export const builtInTemplates = [
 #ideas
 `;
     },
-    getSuggestedTitle: () => `Brainstorm ${formatFileDate(new Date())}`
-  }
+    getSuggestedTitle: () => `Brainstorm ${formatFileDate(new Date())}`,
+  },
 ];
 
-export const getBuiltInTemplateById = (id) => builtInTemplates.find((template) => template.id === id) || null;
+export const getBuiltInTemplateById = (id) =>
+  builtInTemplates.find((template) => template.id === id) || null;
 
 export const resolveTemplateContent = (template) => {
-  if (!template) return '';
-  if (template.type === 'builtin' && typeof template.getContent === 'function') {
+  if (!template) return "";
+  if (template.type === "builtin" && typeof template.getContent === "function") {
     return template.getContent();
   }
-  if (typeof template.getContent === 'function') {
+  if (typeof template.getContent === "function") {
     return template.getContent();
   }
-  return template.content || '';
+  return template.content || "";
 };
 
 export const resolveTemplateTitle = (template) => {
   if (!template) return null;
-  if (template.type === 'builtin' && typeof template.getSuggestedTitle === 'function') {
+  if (template.type === "builtin" && typeof template.getSuggestedTitle === "function") {
     return template.getSuggestedTitle();
   }
-  if (typeof template.getSuggestedTitle === 'function') {
+  if (typeof template.getSuggestedTitle === "function") {
     return template.getSuggestedTitle();
   }
   return template.name || null;
@@ -267,12 +268,12 @@ export const resolveTemplateById = (templateId, customTemplates = []) => {
   if (builtin) {
     const enriched = {
       ...builtin,
-      type: 'builtin'
+      type: "builtin",
     };
     return {
       ...enriched,
       content: resolveTemplateContent(enriched),
-      suggestedTitle: resolveTemplateTitle(enriched)
+      suggestedTitle: resolveTemplateTitle(enriched),
     };
   }
 
@@ -281,12 +282,12 @@ export const resolveTemplateById = (templateId, customTemplates = []) => {
 
   const enriched = {
     ...custom,
-    type: 'custom'
+    type: "custom",
   };
 
   return {
     ...enriched,
     content: resolveTemplateContent(enriched),
-    suggestedTitle: resolveTemplateTitle(enriched)
+    suggestedTitle: resolveTemplateTitle(enriched),
   };
 };

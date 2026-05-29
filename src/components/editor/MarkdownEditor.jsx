@@ -21,6 +21,7 @@ import useNotesStore, { SETTINGS_TAB_ID } from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
 import useSettingsStore from "../../store/settingsStore";
 import { slugify } from "../../utils/slugify";
+import { parseFrontmatter } from "../../utils/frontmatter";
 import "./MarkdownPreview.css";
 
 const ExportModal = lazy(() => import("../modals/ExportModal"));
@@ -29,6 +30,7 @@ const SettingsPage = lazy(() => import("../settings/SettingsPage"));
 const NoteHistoryModal = lazy(() => import("../modals/NoteHistoryModal"));
 const ConflictCompareModal = lazy(() => import("../modals/ConflictCompareModal"));
 const WorkspaceDashboard = lazy(() => import("../dashboard/WorkspaceDashboard"));
+const NotePropertiesPanel = lazy(() => import("./NotePropertiesPanel"));
 
 // Lazy-load mermaid only when needed (large dependency ~1.5MB)
 let mermaidPromise = null;
@@ -195,7 +197,8 @@ if (!extensionsRegistered) {
 }
 
 const renderMarkdownPreview = (markdown) => {
-  const tokens = marked.lexer(markdown);
+  const previewMarkdown = parseFrontmatter(markdown).body;
+  const tokens = marked.lexer(previewMarkdown);
   const tokensWithBlankLines = tokens.map((token) => {
     if (token.type !== "space") return token;
 
@@ -263,6 +266,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const [showCreateNoteModal, setShowCreateNoteModal] = useState(false);
   const [pendingNoteName, setPendingNoteName] = useState("");
   const [showTOC, setShowTOC] = useState(false);
+  const [showProperties, setShowProperties] = useState(false);
   const [isResizingSplit, setIsResizingSplit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedIndicator, setShowSavedIndicator] = useState(false);
@@ -756,6 +760,62 @@ const MarkdownEditor = forwardRef((props, ref) => {
       }, 300); // Update store 300ms after typing stops
     }
   };
+
+  const handlePropertiesApply = useCallback(
+    async (nextMarkdown) => {
+      if (!currentNoteId) return;
+
+      setMarkdown(nextMarkdown);
+      setDebouncedMarkdown(nextMarkdown);
+      updateNote(currentNoteId, nextMarkdown);
+      localEditPendingRef.current = false;
+      localEditNoteIdRef.current = null;
+      if (updateTimerRef.current) {
+        clearTimeout(updateTimerRef.current);
+        updateTimerRef.current = null;
+      }
+
+      if (noteConflict) {
+        setShowProperties(false);
+        addNotification("Properties updated. Resolve the conflict before saving.", "info");
+        return;
+      }
+
+      const note = getCurrentNote();
+      if (!note?.filePath) {
+        setShowProperties(false);
+        addNotification("Properties updated. Save is unavailable for this note.", "info");
+        return;
+      }
+
+      setIsSaving(true);
+      try {
+        await saveCurrentNoteToDisk();
+        setShowSavedIndicator(true);
+        if (savedIndicatorTimerRef.current) {
+          clearTimeout(savedIndicatorTimerRef.current);
+        }
+        savedIndicatorTimerRef.current = setTimeout(() => {
+          setShowSavedIndicator(false);
+        }, 2000);
+        setShowProperties(false);
+        addNotification("Properties saved", "success");
+      } catch (error) {
+        console.error("Failed to save properties:", error);
+        addNotification(`Properties updated but save failed: ${error.message}`, "error");
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [
+      currentNoteId,
+      updateNote,
+      noteConflict,
+      getCurrentNote,
+      saveCurrentNoteToDisk,
+      addNotification,
+    ]
+  );
 
   const insertMarkdown = (before, after = "", placeholder = "") => {
     if (!editorRef.current) return;
@@ -1356,8 +1416,37 @@ const MarkdownEditor = forwardRef((props, ref) => {
           {/* View Mode Toggles */}
           <div className="flex items-center gap-3">
             <button
+              onClick={() => setShowProperties(!showProperties)}
+              aria-pressed={showProperties}
+              aria-label={`${showProperties ? "Hide" : "Show"} note properties`}
+              className={`px-2 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
+                showProperties
+                  ? "bg-accent/10 text-accent"
+                  : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
+              }`}
+              title="Toggle Note Properties"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6M8 4h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2z"
+                />
+              </svg>
+              <span className="hidden sm:inline">Properties</span>
+            </button>
+
+            <button
               onClick={() => setShowTOC(!showTOC)}
               aria-pressed={showTOC}
+              aria-label={`${showTOC ? "Hide" : "Show"} table of contents`}
               className={`px-2 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
                 showTOC
                   ? "bg-accent/10 text-accent"
@@ -1365,7 +1454,13 @@ const MarkdownEditor = forwardRef((props, ref) => {
               }`}
               title="Toggle Table of Contents"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1379,6 +1474,13 @@ const MarkdownEditor = forwardRef((props, ref) => {
             <button
               onClick={handleSave}
               disabled={isSaving || !currentNote.filePath}
+              aria-label={
+                noteConflict
+                  ? "Save disabled until the external conflict is resolved"
+                  : currentNote.filePath
+                    ? "Save current note"
+                    : "Save disabled because this note has no file path"
+              }
               className={`px-2 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
                 isSaving || !currentNote.filePath
                   ? "text-text-muted cursor-not-allowed opacity-50"
@@ -1392,7 +1494,13 @@ const MarkdownEditor = forwardRef((props, ref) => {
                     : "Cannot save: no file path"
               }
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1408,8 +1516,15 @@ const MarkdownEditor = forwardRef((props, ref) => {
                 onClick={() => setShowHistoryModal(true)}
                 className="px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-1.5"
                 title="Note History"
+                aria-label="Open note history"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -1425,8 +1540,15 @@ const MarkdownEditor = forwardRef((props, ref) => {
               onClick={() => setShowExportModal(true)}
               className="px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-1.5"
               title="Export Note"
+              aria-label="Export current note"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1437,7 +1559,11 @@ const MarkdownEditor = forwardRef((props, ref) => {
               <span className="hidden sm:inline">Export</span>
             </button>
 
-            <div className="flex items-center gap-1 bg-overlay-subtle rounded-lg p-1 border border-overlay-subtle">
+            <div
+              className="flex items-center gap-1 bg-overlay-subtle rounded-lg p-1 border border-overlay-subtle"
+              role="group"
+              aria-label="Editor view mode"
+            >
               <button
                 onClick={() => setViewMode("editor")}
                 aria-pressed={viewMode === "editor"}
@@ -1522,7 +1648,11 @@ const MarkdownEditor = forwardRef((props, ref) => {
       )}
 
       {noteConflict && (
-        <div className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-3 shrink-0">
+        <div
+          className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-3 shrink-0"
+          role="alert"
+          aria-live="assertive"
+        >
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-amber-200">
@@ -1537,18 +1667,21 @@ const MarkdownEditor = forwardRef((props, ref) => {
               <button
                 onClick={() => setShowConflictCompare(true)}
                 className="px-3 py-1.5 text-xs rounded-md border border-amber-400/30 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20 transition-colors"
+                aria-label="Compare your draft with the version on disk"
               >
                 Compare Changes
               </button>
               <button
                 onClick={handleUseDiskVersion}
                 className="px-3 py-1.5 text-xs rounded-md border border-overlay-light bg-overlay-subtle text-text-primary hover:bg-overlay-light transition-colors"
+                aria-label="Load the disk version and replace your current draft"
               >
                 Load Disk Version
               </button>
               <button
                 onClick={handleOverwriteDiskVersion}
                 className="px-3 py-1.5 text-xs rounded-md bg-amber-500 text-black hover:bg-amber-400 transition-colors font-medium"
+                aria-label="Overwrite the disk version with your current draft"
               >
                 Overwrite Disk
               </button>
@@ -1558,7 +1691,11 @@ const MarkdownEditor = forwardRef((props, ref) => {
       )}
 
       {recoveredDraft && !noteConflict && (
-        <div className="border-b border-blue-500/20 bg-blue-500/10 px-4 py-3 shrink-0">
+        <div
+          className="border-b border-blue-500/20 bg-blue-500/10 px-4 py-3 shrink-0"
+          role="status"
+          aria-live="polite"
+        >
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-blue-200">Unsaved draft recovered</p>
@@ -1575,6 +1712,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
               <button
                 onClick={handleDiscardRecoveredDraft}
                 className="px-3 py-1.5 text-xs rounded-md border border-overlay-light bg-overlay-subtle text-text-primary hover:bg-overlay-light transition-colors"
+                aria-label="Discard recovered draft"
               >
                 Discard Draft
               </button>
@@ -1586,6 +1724,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
                       .catch(() => {});
                 }}
                 className="px-3 py-1.5 text-xs rounded-md bg-blue-500 text-white hover:bg-blue-400 transition-colors font-medium"
+                aria-label="Save recovered draft"
               >
                 Save Draft
               </button>
@@ -1607,6 +1746,16 @@ const MarkdownEditor = forwardRef((props, ref) => {
           </div>
         )}
 
+        {showProperties && (
+          <Suspense fallback={null}>
+            <NotePropertiesPanel
+              markdown={markdown}
+              onApply={handlePropertiesApply}
+              onClose={() => setShowProperties(false)}
+            />
+          </Suspense>
+        )}
+
         {/* Editor */}
         {(viewMode === "editor" || viewMode === "split") && (
           <div
@@ -1615,8 +1764,16 @@ const MarkdownEditor = forwardRef((props, ref) => {
           >
             {/* Search Controls */}
             {searchMatches.length > 0 && (
-              <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-bg-sidebar border border-border rounded-lg shadow-lg px-3 py-2">
-                <span className="text-xs text-text-secondary font-medium">
+              <div
+                className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-bg-sidebar border border-border rounded-lg shadow-lg px-3 py-2"
+                role="search"
+                aria-label="Find results controls"
+              >
+                <span
+                  className="text-xs text-text-secondary font-medium"
+                  role="status"
+                  aria-live="polite"
+                >
                   {currentMatchIndex + 1} of {searchMatches.length}
                 </span>
                 <div className="flex items-center gap-1">
@@ -1624,6 +1781,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
                     onClick={previousMatch}
                     className="p-1 hover:bg-overlay-light rounded transition-colors"
                     title="Previous match (Shift+Enter)"
+                    aria-label="Go to previous search match"
                   >
                     <svg
                       className="w-4 h-4 text-text-secondary"
@@ -1643,6 +1801,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
                     onClick={nextMatch}
                     className="p-1 hover:bg-overlay-light rounded transition-colors"
                     title="Next match (Enter)"
+                    aria-label="Go to next search match"
                   >
                     <svg
                       className="w-4 h-4 text-text-secondary"
@@ -1664,6 +1823,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
                   onClick={clearSearch}
                   className="p-1 hover:bg-overlay-light rounded transition-colors"
                   title="Clear search (Esc)"
+                  aria-label="Clear editor search"
                 >
                   <svg
                     className="w-4 h-4 text-text-secondary"

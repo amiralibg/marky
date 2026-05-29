@@ -119,6 +119,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
             <button
               onClick={onOpenKeymapsModal}
               className="px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-overlay-subtle hover:bg-overlay-light rounded-lg border border-overlay-light transition-colors"
+              aria-label="View all keyboard shortcuts"
             >
               View All
             </button>
@@ -127,6 +128,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
             <button
               onClick={resetKeymaps}
               className="px-3 py-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg border border-amber-500/20 transition-colors"
+              aria-label="Reset all keyboard shortcuts to defaults"
             >
               Reset All
             </button>
@@ -155,6 +157,8 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                 return (
                   <div
                     key={actionId}
+                    role="group"
+                    aria-label={`${keymap.description} shortcut`}
                     className={`
                       flex items-center justify-between py-2 px-3 rounded-lg transition-colors
                       ${isEditing ? "bg-accent/20 ring-1 ring-accent" : "hover:bg-overlay-subtle"}
@@ -175,7 +179,12 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                         <div className="flex items-center gap-2">
                           {recordedKeys ? (
                             /* Show recorded keys */
-                            <div className="flex items-center gap-1 px-2 py-1 bg-accent/30 rounded-md">
+                            <div
+                              className="flex items-center gap-1 px-2 py-1 bg-accent/30 rounded-md"
+                              role="status"
+                              aria-live="polite"
+                              aria-label={`Recorded shortcut ${recordedKeys.join(" plus ")}`}
+                            >
                               {recordedKeys.map((key, i) => (
                                 <span key={i} className="inline-flex items-center">
                                   <kbd className="px-1.5 py-0.5 text-xs font-mono bg-overlay-light border border-overlay-medium rounded text-text-primary">
@@ -189,7 +198,11 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                             </div>
                           ) : (
                             /* Waiting for input */
-                            <span className="text-xs font-medium text-accent animate-pulse px-2 py-1">
+                            <span
+                              className="text-xs font-medium text-accent animate-pulse px-2 py-1"
+                              role="status"
+                              aria-live="polite"
+                            >
                               Press keys...
                             </span>
                           )}
@@ -198,6 +211,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                           <button
                             onClick={handleConfirmKeymap}
                             disabled={!recordedKeymap}
+                            aria-label={`Confirm shortcut for ${keymap.description}`}
                             className={`
                               p-1.5 rounded-md transition-colors
                               ${
@@ -228,6 +242,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                             onClick={handleCancelRecording}
                             className="p-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-md transition-colors"
                             title="Cancel (Esc)"
+                            aria-label={`Cancel shortcut recording for ${keymap.description}`}
                           >
                             <svg
                               className="w-4 h-4"
@@ -251,6 +266,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                             onClick={() => handleStartRecording(actionId)}
                             className="flex items-center gap-1 px-2 py-1 rounded-md bg-overlay-subtle hover:bg-overlay-light border border-overlay-light transition-colors"
                             title="Click to change shortcut"
+                            aria-label={`Change shortcut for ${keymap.description}. Current shortcut is ${keys.join(" plus ")}`}
                           >
                             {keys.map((key, i) => (
                               <span key={i} className="inline-flex items-center">
@@ -270,6 +286,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                               onClick={() => resetKeymap(actionId)}
                               className="p-1 text-text-muted hover:text-text-secondary transition-colors"
                               title="Reset to default"
+                              aria-label={`Reset ${keymap.description} shortcut to default`}
                             >
                               <svg
                                 className="w-4 h-4"
@@ -305,6 +322,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"

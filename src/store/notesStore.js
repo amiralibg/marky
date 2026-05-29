@@ -13,12 +13,15 @@ import {
 import { resolveTemplateById } from "../data/templates";
 import { addMinutes, calculateNextRun } from "../utils/schedule";
 import { buildDailyNoteContent, formatDailyNoteTitle } from "../utils/dailyNotes";
+import { getNoteProperties } from "../utils/frontmatter";
 
 // Special ID for the Settings tab
 export const SETTINGS_TAB_ID = "settings::special";
 
 const normalizePath = (value) => (value ? value.replace(/\\/g, "/") : "");
 const buildId = (type, path) => `${type}::${normalizePath(path)}`;
+const buildViewId = () =>
+  `view::${Date.now().toString(36)}::${Math.random().toString(36).slice(2, 8)}`;
 const stripExtension = (name) => name.replace(/\.(md|markdown|txt)$/i, "") || name;
 const sanitizeNoteTitle = (value) =>
   value
@@ -66,6 +69,11 @@ const extractTags = (content) => {
     const tag = match[1].toLowerCase();
     tags.add(tag);
   }
+
+  getNoteProperties(content).tags.forEach((tag) => {
+    const normalized = normalizeTagValue(tag);
+    if (normalized) tags.add(normalized);
+  });
 
   return Array.from(tags).sort();
 };
@@ -148,12 +156,14 @@ const ensureNoteMetadata = (item) => {
   const linkKey = item.linkKey || buildNoteLinkKey(item.name);
   const links = item.links || extractWikiLinks(item.content);
   const tags = item.tags || extractTags(item.content);
+  const properties = item.properties || getNoteProperties(item.content);
 
   return {
     ...item,
     linkKey,
     links,
     tags,
+    properties,
   };
 };
 
@@ -167,6 +177,7 @@ const recalculateNoteMetadata = (item) => {
     linkKey: buildNoteLinkKey(item.name),
     links: extractWikiLinks(item.content),
     tags: extractTags(item.content),
+    properties: getNoteProperties(item.content),
   };
 };
 
@@ -489,6 +500,7 @@ const useNotesStore = create(
       recentNotes: [], // Array of {id, name, filePath, lastOpenedAt}
       pinnedNotes: [], // Array of note IDs that are pinned
       selectedTags: [], // Array of tag strings for filtering
+      savedWorkspaceViews: [], // Array of saved sidebar search/tag/sort view presets
       customTemplates: [], // Array of {id, name, icon, description, content}
       scheduledNotes: [], // Array of scheduled note configurations
       recentWorkspaces: [], // Array of { path, name, lastOpenedAt }
@@ -1596,6 +1608,70 @@ const useNotesStore = create(
         set({ selectedTags: [] });
       },
 
+      setTagFilters: (tags = []) => {
+        const normalizedTags = Array.from(
+          new Set(tags.map((tag) => normalizeTagValue(tag)).filter(Boolean))
+        );
+        set({ selectedTags: normalizedTags });
+      },
+
+      getSavedWorkspaceViews: () => {
+        const workspacePath = normalizePath(get().rootFolderPath);
+        if (!workspacePath) return [];
+        return get()
+          .savedWorkspaceViews.filter((view) => normalizePath(view.workspacePath) === workspacePath)
+          .sort(
+            (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+          );
+      },
+
+      saveWorkspaceView: ({ name, searchQuery = "", selectedTags = [], sortBy = "name-asc" }) => {
+        const workspacePath = normalizePath(get().rootFolderPath);
+        const trimmedName = (name || "").trim().replace(/\s+/g, " ");
+        if (!workspacePath || !trimmedName) return null;
+
+        const normalizedTags = Array.from(
+          new Set(selectedTags.map((tag) => normalizeTagValue(tag)).filter(Boolean))
+        );
+        const now = new Date().toISOString();
+
+        let savedView = null;
+        set((state) => {
+          const existing = state.savedWorkspaceViews.find(
+            (view) =>
+              normalizePath(view.workspacePath) === workspacePath &&
+              view.name.toLowerCase() === trimmedName.toLowerCase()
+          );
+
+          savedView = {
+            id: existing?.id || buildViewId(),
+            name: trimmedName,
+            workspacePath,
+            searchQuery: searchQuery.trim(),
+            selectedTags: normalizedTags,
+            sortBy,
+            createdAt: existing?.createdAt || now,
+            updatedAt: now,
+          };
+
+          return {
+            savedWorkspaceViews: existing
+              ? state.savedWorkspaceViews.map((view) =>
+                  view.id === existing.id ? savedView : view
+                )
+              : [savedView, ...state.savedWorkspaceViews],
+          };
+        });
+
+        return savedView;
+      },
+
+      deleteWorkspaceView: (viewId) => {
+        set((state) => ({
+          savedWorkspaceViews: state.savedWorkspaceViews.filter((view) => view.id !== viewId),
+        }));
+      },
+
       applyTagOperation: async ({ action, sourceTag, targetTag }) => {
         const normalizedSource = normalizeTagValue(sourceTag);
         const normalizedTarget = normalizeTagValue(targetTag);
@@ -1935,6 +2011,7 @@ const useNotesStore = create(
           sidebarWidth: 280,
           editorSplitRatio: 50,
           selectedTags: [],
+          savedWorkspaceViews: [],
           customTemplates: [],
           scheduledNotes: [],
         });
@@ -1964,6 +2041,7 @@ const useNotesStore = create(
         sidebarWidth: state.sidebarWidth,
         editorSplitRatio: state.editorSplitRatio,
         recentWorkspaces: state.recentWorkspaces,
+        savedWorkspaceViews: state.savedWorkspaceViews,
       }),
       onRehydrateStorage: () => (state) => {
         if (!state?.rootFolderPath) return;

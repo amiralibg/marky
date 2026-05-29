@@ -109,7 +109,6 @@ const TitleBar = ({
     <div
       className={`custom-titlebar h-8 bg-titlebar-bg border-b border-border flex select-none shrink-0 ${isWindows ? "is-windows" : ""} ${isMac ? "is-mac" : ""}`}
       onMouseDown={handleMouseDown}
-      data-platform={platform}
     >
       {/* Left section - Sidebar header area */}
       <div

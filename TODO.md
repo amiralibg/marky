@@ -81,7 +81,7 @@ Latest validation: `pnpm lint` and `pnpm build` pass.
 - [x] Improve conflict recovery with side-by-side compare
   - Value: external-edit conflicts become safer than a binary "load disk" / "overwrite disk" choice.
   - Depends on: existing conflict banner and note snapshot/draft data.
-- [ ] Complete broader screen reader audit across settings/sidebar/editor flows
+- [x] Complete broader screen reader audit across settings/sidebar/editor flows
   - Value: makes the app usable with assistive tech beyond modal focus traps.
   - Depends on: auditing ARIA labels, tree semantics, dialog labels, command/search result announcements, and editor focus behavior.
 - [x] Fix toolbar formatting shortcuts with CodeMirror focus
@@ -112,7 +112,7 @@ Why first:
 - [x] Broken-link inbox for unresolved `[[wiki links]]`
   - Value: turns missing links into an actionable organization queue.
   - Depends on: existing wiki-link parsing and create-from-broken-link flow.
-- [ ] Saved workspace views
+- [x] Saved workspace views
   - Value: lets users quickly reopen filtered contexts like "Writing", "Projects", "Todos", "Untagged", or "Recently edited".
   - Depends on: existing search filters, tag filters, and sidebar sorting.
 - [ ] Favorite folders and richer sidebar organization
@@ -136,7 +136,7 @@ Why next:
 - [x] Daily notes / calendar workflow
   - Value: gives scheduled notes and templates a familiar note-taking entry point.
   - Depends on: template creation, scheduled note infrastructure, and date-based naming helpers.
-- [ ] Note properties / frontmatter panel
+- [x] Note properties / frontmatter panel
   - Value: makes YAML metadata, aliases, status, type, and tags editable without raw syntax.
   - Depends on: frontmatter parsing/writing and metadata refresh after edits.
 - [ ] Attachment manager for dropped files/images
@@ -206,7 +206,7 @@ Why next:
 - [x] Theme switch flicker/performance polish
 - [x] Accessibility basics: focus visibility in tree/navigation and key ARIA labels
 - [x] Modal focus trap + dialog semantics for core modals
-- [ ] Broader screen reader audit across settings/sidebar/editor flows
+- [x] Broader screen reader audit across settings/sidebar/editor flows
 - [x] Reduce noisy success toasts for frequent file watcher sync events (optional throttle)
 - [x] Toolbar formatting shortcuts do not rely on textarea focus assumptions
 - [x] Shared confirm dialogs replace all remaining native browser prompts

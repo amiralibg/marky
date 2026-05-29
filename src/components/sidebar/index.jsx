@@ -114,6 +114,11 @@ const Sidebar = forwardRef(
       toggleTagFilter,
       selectedTags,
       clearTagFilters,
+      setTagFilters,
+      getSavedWorkspaceViews,
+      saveWorkspaceView,
+      deleteWorkspaceView,
+      savedWorkspaceViews: allSavedWorkspaceViews,
       isLoading,
       loadingProgress,
       recentWorkspaces,
@@ -126,6 +131,7 @@ const Sidebar = forwardRef(
     const [searchQuery, setSearchQuery] = useState("");
     const [showRecentNotes, setShowRecentNotes] = useState(false);
     const [showPinnedNotes, setShowPinnedNotes] = useState(true);
+    const [showSavedViews, setShowSavedViews] = useState(true);
     const [showTags, setShowTags] = useState(false);
     const [showBrokenLinks, setShowBrokenLinks] = useState(true);
     const [showBacklinks, setShowBacklinks] = useState(true);
@@ -139,6 +145,15 @@ const Sidebar = forwardRef(
     const [pendingDeleteItem, setPendingDeleteItem] = useState(null);
     const [treeScrollTop, setTreeScrollTop] = useState(0);
     const [treeViewportHeight, setTreeViewportHeight] = useState(0);
+    const [viewNameInput, setViewNameInput] = useState("");
+    const activeSortLabel =
+      sortBy === "name-asc"
+        ? "Name A to Z"
+        : sortBy === "name-desc"
+          ? "Name Z to A"
+          : sortBy === "date-desc"
+            ? "Date newest first"
+            : "Date oldest first";
     const dropHandledRef = useRef(false);
     const dropTargetRef = useRef(null);
     const sidebarRef = useRef(null);
@@ -148,6 +163,10 @@ const Sidebar = forwardRef(
       [currentNote?.id, items]
     );
     const brokenWikiLinks = useMemo(() => getBrokenWikiLinks(), [getBrokenWikiLinks, items]);
+    const savedWorkspaceViews = useMemo(
+      () => getSavedWorkspaceViews(),
+      [getSavedWorkspaceViews, rootFolderPath, allSavedWorkspaceViews]
+    );
 
     // Compute all tags from items - this will re-compute when items change
     const allTagsArray = useMemo(() => {
@@ -244,6 +263,16 @@ const Sidebar = forwardRef(
     }, [items, selectedTags, searchQuery, filterItemsBySearch]);
 
     const isTreeFiltered = searchQuery || selectedTags.length > 0;
+    const hasViewCriteria = searchQuery.trim() || selectedTags.length > 0 || sortBy !== "name-asc";
+    const currentViewSummary = [
+      searchQuery.trim() ? `search “${searchQuery.trim()}”` : null,
+      selectedTags.length > 0
+        ? `${selectedTags.length} tag${selectedTags.length !== 1 ? "s" : ""}`
+        : null,
+      sortBy !== "name-asc" ? activeSortLabel.toLowerCase() : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
     const treeSourceItems = useMemo(
       () => (isTreeFiltered ? filteredItems : items),
       [filteredItems, isTreeFiltered, items]
@@ -548,6 +577,56 @@ const Sidebar = forwardRef(
         }
       },
       [addNotification, getFolderMoveTarget, moveItem]
+    );
+
+    const handleSaveCurrentView = useCallback(() => {
+      const fallbackName =
+        searchQuery.trim() ||
+        (selectedTags.length > 0 ? selectedTags.map((tag) => `#${tag}`).join(" ") : "") ||
+        activeSortLabel;
+      const savedView = saveWorkspaceView({
+        name: viewNameInput || fallbackName,
+        searchQuery,
+        selectedTags,
+        sortBy,
+      });
+
+      if (!savedView) {
+        addNotification("Add a search, tag filter, or sort order before saving a view", "warning");
+        return;
+      }
+
+      setViewNameInput("");
+      setShowSavedViews(true);
+      addNotification(`Saved view "${savedView.name}"`, "success");
+    }, [
+      activeSortLabel,
+      addNotification,
+      saveWorkspaceView,
+      searchQuery,
+      selectedTags,
+      sortBy,
+      viewNameInput,
+    ]);
+
+    const handleApplyView = useCallback(
+      (view) => {
+        setSearchQuery(view.searchQuery || "");
+        setTagFilters(view.selectedTags || []);
+        setSortBy(view.sortBy || "name-asc");
+        setShowSavedViews(true);
+        addNotification(`Applied view "${view.name}"`, "info");
+      },
+      [addNotification, setTagFilters]
+    );
+
+    const handleDeleteView = useCallback(
+      (event, view) => {
+        event.stopPropagation();
+        deleteWorkspaceView(view.id);
+        addNotification(`Deleted view "${view.name}"`, "info");
+      },
+      [addNotification, deleteWorkspaceView]
     );
 
     const getDeleteMessage = useCallback(
@@ -979,7 +1058,10 @@ const Sidebar = forwardRef(
     }, [rootFolderPath, refreshRootFromDisk, addNotification]);
 
     return (
-      <div className="w-full bg-sidebar-bg flex flex-col h-full bg-linear-to-b from-sidebar-bg to-bg-base/50">
+      <aside
+        className="w-full bg-sidebar-bg flex flex-col h-full bg-linear-to-b from-sidebar-bg to-bg-base/50"
+        aria-label="Workspace sidebar"
+      >
         {/* Search Bar */}
         <div className="px-4 py-3 bg-transparent shrink-0">
           <div className="relative group">
@@ -988,6 +1070,7 @@ const Sidebar = forwardRef(
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -1047,6 +1130,7 @@ const Sidebar = forwardRef(
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"
@@ -1067,6 +1151,7 @@ const Sidebar = forwardRef(
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
+                    aria-hidden="true"
                   >
                     <path
                       strokeLinecap="round"
@@ -1085,57 +1170,65 @@ const Sidebar = forwardRef(
                     <div className="absolute left-0 right-0 z-20 mt-1 bg-bg-sidebar border border-glass-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                       {recentWorkspaces.length > 1 && (
                         <>
-                          <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                          <p
+                            id="recent-workspaces-heading"
+                            className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted"
+                          >
                             Recent
                           </p>
-                          {recentWorkspaces
-                            .filter((ws) => ws.path !== rootFolderPath)
-                            .map((ws) => (
-                              <button
-                                key={ws.path}
-                                onClick={async () => {
-                                  setShowWorkspaceSwitcher(false);
-                                  try {
-                                    const { invoke } = await import("@tauri-apps/api/core");
-                                    const files = await invoke("scan_folder_for_markdown", {
-                                      folderPath: ws.path,
-                                    });
-                                    await loadFolderFromSystem({
-                                      folderPath: ws.path,
-                                      folderName: ws.name,
-                                      files,
-                                    });
-                                  } catch (err) {
-                                    addNotification(
-                                      "Could not open workspace: " + err.message,
-                                      "error"
-                                    );
-                                  }
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
-                              >
-                                <svg
-                                  className="w-3.5 h-3.5 shrink-0 text-text-muted"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
+                          <div role="menu" aria-labelledby="recent-workspaces-heading">
+                            {recentWorkspaces
+                              .filter((ws) => ws.path !== rootFolderPath)
+                              .map((ws) => (
+                                <button
+                                  key={ws.path}
+                                  role="menuitem"
+                                  onClick={async () => {
+                                    setShowWorkspaceSwitcher(false);
+                                    try {
+                                      const { invoke } = await import("@tauri-apps/api/core");
+                                      const files = await invoke("scan_folder_for_markdown", {
+                                        folderPath: ws.path,
+                                      });
+                                      await loadFolderFromSystem({
+                                        folderPath: ws.path,
+                                        folderName: ws.name,
+                                        files,
+                                      });
+                                    } catch (err) {
+                                      addNotification(
+                                        "Could not open workspace: " + err.message,
+                                        "error"
+                                      );
+                                    }
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
                                 >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                                  />
-                                </svg>
-                                <span className="truncate" title={ws.path || ws.name}>
-                                  {ws.name}
-                                </span>
-                              </button>
-                            ))}
+                                  <svg
+                                    className="w-3.5 h-3.5 shrink-0 text-text-muted"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                                    />
+                                  </svg>
+                                  <span className="truncate" title={ws.path || ws.name}>
+                                    {ws.name}
+                                  </span>
+                                </button>
+                              ))}
+                          </div>
                           <div className="mx-3 my-1 border-t border-glass-border" />
                         </>
                       )}
                       <button
+                        role={recentWorkspaces.length > 1 ? "menuitem" : undefined}
                         onClick={() => {
                           setShowWorkspaceSwitcher(false);
                           handleOpenFolder();
@@ -1147,6 +1240,7 @@ const Sidebar = forwardRef(
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
+                          aria-hidden="true"
                         >
                           <path
                             strokeLinecap="round"
@@ -1166,10 +1260,16 @@ const Sidebar = forwardRef(
                   onClick={() => setShowSortMenu(!showSortMenu)}
                   className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors"
                   aria-expanded={showSortMenu}
-                  aria-label="Choose sidebar sort order"
+                  aria-label={`Choose sidebar sort order. Current sort: ${activeSortLabel}`}
                 >
                   <div className="flex items-center gap-2">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -1212,6 +1312,7 @@ const Sidebar = forwardRef(
                           setShowSortMenu(false);
                         }}
                         className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "name-asc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
+                        aria-current={sortBy === "name-asc" ? "true" : undefined}
                       >
                         Name (A-Z)
                       </button>
@@ -1221,6 +1322,7 @@ const Sidebar = forwardRef(
                           setShowSortMenu(false);
                         }}
                         className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "name-desc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
+                        aria-current={sortBy === "name-desc" ? "true" : undefined}
                       >
                         Name (Z-A)
                       </button>
@@ -1230,6 +1332,7 @@ const Sidebar = forwardRef(
                           setShowSortMenu(false);
                         }}
                         className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "date-desc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
+                        aria-current={sortBy === "date-desc" ? "true" : undefined}
                       >
                         Date (Newest First)
                       </button>
@@ -1239,6 +1342,7 @@ const Sidebar = forwardRef(
                           setShowSortMenu(false);
                         }}
                         className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "date-asc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
+                        aria-current={sortBy === "date-asc" ? "true" : undefined}
                       >
                         Date (Oldest First)
                       </button>
@@ -1259,6 +1363,7 @@ const Sidebar = forwardRef(
                 onClick={() => setShowPinnedNotes(!showPinnedNotes)}
                 className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
                 aria-expanded={showPinnedNotes}
+                aria-label={`${showPinnedNotes ? "Collapse" : "Expand"} pinned notes`}
               >
                 <div className="flex items-center gap-1.5">
                   <svg
@@ -1309,6 +1414,7 @@ const Sidebar = forwardRef(
                 onClick={() => setShowRecentNotes(!showRecentNotes)}
                 className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
                 aria-expanded={showRecentNotes}
+                aria-label={`${showRecentNotes ? "Collapse" : "Expand"} recent notes`}
               >
                 <div className="flex items-center gap-1.5">
                   <svg
@@ -1361,6 +1467,161 @@ const Sidebar = forwardRef(
             </div>
           )}
 
+          {/* Saved Views Section */}
+          {rootFolderPath && (savedWorkspaceViews.length > 0 || hasViewCriteria) && (
+            <div className="mb-0.5">
+              <button
+                onClick={() => setShowSavedViews(!showSavedViews)}
+                className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
+                aria-expanded={showSavedViews}
+                aria-label={`${showSavedViews ? "Collapse" : "Expand"} saved workspace views`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <svg
+                    className="w-3 h-3 opacity-50 group-hover:opacity-100"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 5a2 2 0 012-2h14v18l-7-4-7 4V5z"
+                    />
+                  </svg>
+                  <span>Views</span>
+                  {savedWorkspaceViews.length > 0 && (
+                    <span className="ml-1 px-1 py-px bg-accent/20 text-accent text-[9px] rounded-full">
+                      {savedWorkspaceViews.length}
+                    </span>
+                  )}
+                </div>
+                <svg
+                  className={`w-3 h-3 transition-transform opacity-50 group-hover:opacity-100 ${showSavedViews ? "rotate-180" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+
+              {showSavedViews && (
+                <div className="mt-1 space-y-2 px-2">
+                  {hasViewCriteria && (
+                    <div className="rounded-lg border border-overlay-subtle bg-overlay-subtle/50 p-2">
+                      <label className="block text-[10px] font-medium uppercase tracking-wider text-text-muted">
+                        Save current view
+                      </label>
+                      <p className="mt-1 text-[10px] text-text-muted">
+                        {currentViewSummary || "Default sidebar view"}
+                      </p>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={viewNameInput}
+                          onChange={(event) => setViewNameInput(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              handleSaveCurrentView();
+                            }
+                          }}
+                          placeholder="View name"
+                          aria-label="Saved workspace view name"
+                          className="min-w-0 flex-1 rounded-md border border-overlay-subtle bg-bg-base/60 px-2 py-1 text-[11px] text-text-primary outline-none focus:border-accent/40"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveCurrentView}
+                          className="shrink-0 rounded-md border border-accent/20 bg-accent/10 px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent/20 transition-colors"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {savedWorkspaceViews.length > 0 ? (
+                    <div className="space-y-1">
+                      {savedWorkspaceViews.map((view) => {
+                        const viewSummary = [
+                          view.searchQuery ? `“${view.searchQuery}”` : null,
+                          view.selectedTags?.length
+                            ? view.selectedTags.map((tag) => `#${tag}`).join(" ")
+                            : null,
+                          view.sortBy && view.sortBy !== "name-asc"
+                            ? view.sortBy.replace("-", " ")
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ");
+
+                        return (
+                          <div
+                            key={view.id}
+                            className="group/view flex w-full items-start gap-1 rounded-lg border border-overlay-subtle bg-overlay-subtle/40 p-1 hover:border-overlay-light hover:bg-overlay-light transition-colors"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleApplyView(view)}
+                              className="min-w-0 flex-1 rounded-md px-1 py-1 text-left focus:outline-none focus:ring-1 focus:ring-accent/40"
+                              aria-label={`Apply saved view ${view.name}${viewSummary ? `: ${viewSummary}` : ""}`}
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate text-xs font-medium text-text-secondary group-hover/view:text-text-primary">
+                                  {view.name}
+                                </span>
+                                {viewSummary && (
+                                  <span className="mt-0.5 block truncate text-[10px] text-text-muted">
+                                    {viewSummary}
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => handleDeleteView(event, view)}
+                              className="shrink-0 rounded p-1 text-text-muted opacity-0 hover:bg-red-500/10 hover:text-red-300 group-hover/view:opacity-100 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-red-400/40"
+                              aria-label={`Delete saved view ${view.name}`}
+                            >
+                              <svg
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="rounded-lg border border-overlay-subtle bg-overlay-subtle/40 px-2 py-3 text-center text-[11px] text-text-muted">
+                      Save a search, tag filter, or sort order to reopen it later.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Tags Section */}
           {!searchQuery && allTagsArray.length > 0 && (
             <div className="mb-0.5">
@@ -1368,6 +1629,7 @@ const Sidebar = forwardRef(
                 onClick={() => setShowTags(!showTags)}
                 className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
                 aria-expanded={showTags}
+                aria-label={`${showTags ? "Collapse" : "Expand"} tags section`}
               >
                 <div className="flex items-center gap-1.5">
                   <svg
@@ -1429,6 +1691,13 @@ const Sidebar = forwardRef(
                               ? "Sort A–Z"
                               : "Sort by recent use"
                         }
+                        aria-label={
+                          id === "frequency"
+                            ? "Sort tags by frequency"
+                            : id === "alpha"
+                              ? "Sort tags alphabetically"
+                              : "Sort tags by recent use"
+                        }
                       >
                         {label}
                       </button>
@@ -1438,6 +1707,7 @@ const Sidebar = forwardRef(
                         onClick={clearTagFilters}
                         className="ml-auto text-[10px] text-accent hover:text-accent-hover flex items-center gap-0.5"
                         title="Clear tag filters"
+                        aria-label="Clear selected tag filters"
                       >
                         <svg
                           className="w-2.5 h-2.5"
@@ -1492,6 +1762,7 @@ const Sidebar = forwardRef(
                 onClick={() => setShowBrokenLinks(!showBrokenLinks)}
                 className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
                 aria-expanded={showBrokenLinks}
+                aria-label={`${showBrokenLinks ? "Collapse" : "Expand"} broken links section with ${brokenWikiLinks.length} unresolved link${brokenWikiLinks.length !== 1 ? "s" : ""}`}
               >
                 <div className="flex items-center gap-1.5">
                   <svg
@@ -1550,6 +1821,7 @@ const Sidebar = forwardRef(
                           onClick={() => handleCreateBrokenLinkNote(link.target)}
                           className="shrink-0 px-2 py-1 text-[10px] rounded-md bg-accent/10 text-accent hover:bg-accent/20 border border-accent/15 transition-colors"
                           title={`Create ${link.target}`}
+                          aria-label={`Create note for broken wiki link ${link.target}`}
                         >
                           Create
                         </button>
@@ -1585,6 +1857,7 @@ const Sidebar = forwardRef(
                 onClick={() => setShowBacklinks(!showBacklinks)}
                 className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
                 aria-expanded={showBacklinks}
+                aria-label={`${showBacklinks ? "Collapse" : "Expand"} backlinks section with ${backlinks.length} backlink${backlinks.length !== 1 ? "s" : ""}`}
               >
                 <div className="flex items-center gap-1.5">
                   <svg
@@ -1636,6 +1909,7 @@ const Sidebar = forwardRef(
                 onClick={handleOpenFile}
                 className="flex items-center justify-center gap-2 px-2 py-2 bg-overlay-subtle hover:bg-overlay-light rounded-lg text-xs font-medium text-text-secondary hover:text-text-primary transition-colors border border-overlay-subtle"
                 title="Open File (⌘O)"
+                aria-label="Open markdown file"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -1651,6 +1925,7 @@ const Sidebar = forwardRef(
                 onClick={onOpenGraph}
                 className="flex items-center justify-center gap-2 px-2 py-2 bg-overlay-subtle hover:bg-overlay-light rounded-lg text-xs font-medium text-text-secondary hover:text-text-primary transition-colors border border-overlay-subtle"
                 title="Graph View"
+                aria-label="Open graph view"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -2016,7 +2291,7 @@ const Sidebar = forwardRef(
           onConfirm={() => handleDeleteItem(pendingDeleteItem)}
           onCancel={() => setPendingDeleteItem(null)}
         />
-      </div>
+      </aside>
     );
   }
 );

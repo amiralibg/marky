@@ -1,6 +1,13 @@
-import JSZip from 'jszip';
-import { exists, mkdir, readFile, readTextFile, writeFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { open, save } from '@tauri-apps/plugin-dialog';
+import JSZip from "jszip";
+import {
+  exists,
+  mkdir,
+  readFile,
+  readTextFile,
+  writeFile,
+  writeTextFile,
+} from "@tauri-apps/plugin-fs";
+import { open, save } from "@tauri-apps/plugin-dialog";
 
 /**
  * Export the current workspace as a .zip file
@@ -11,13 +18,13 @@ import { open, save } from '@tauri-apps/plugin-dialog';
  */
 export async function exportWorkspaceAsZip(rootFolderPath, items, settings = null) {
   if (!rootFolderPath) {
-    throw new Error('No workspace folder is open');
+    throw new Error("No workspace folder is open");
   }
 
   const zip = new JSZip();
 
   // Collect all note files with their paths
-  const notes = items.filter(item => item.type === 'note' && item.filePath);
+  const notes = items.filter((item) => item.type === "note" && item.filePath);
 
   for (const note of notes) {
     try {
@@ -28,7 +35,7 @@ export async function exportWorkspaceAsZip(rootFolderPath, items, settings = nul
       if (note.filePath.startsWith(rootFolderPath)) {
         relativePath = note.filePath.slice(rootFolderPath.length);
         // Remove leading separator
-        if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+        if (relativePath.startsWith("/") || relativePath.startsWith("\\")) {
           relativePath = relativePath.slice(1);
         }
       }
@@ -42,38 +49,40 @@ export async function exportWorkspaceAsZip(rootFolderPath, items, settings = nul
 
   // Include settings if provided
   if (settings) {
-    zip.file('.marky-settings.json', JSON.stringify(settings, null, 2));
+    zip.file(".marky-settings.json", JSON.stringify(settings, null, 2));
   }
 
   // Add a manifest
   const manifest = {
     exportedAt: new Date().toISOString(),
     noteCount: notes.length,
-    folderCount: items.filter(item => item.type === 'folder').length,
+    folderCount: items.filter((item) => item.type === "folder").length,
     rootFolder: rootFolderPath,
-    version: '1.0',
+    version: "1.0",
   };
-  zip.file('.marky-manifest.json', JSON.stringify(manifest, null, 2));
+  zip.file(".marky-manifest.json", JSON.stringify(manifest, null, 2));
 
   // Generate the zip as a Uint8Array
-  const zipData = await zip.generateAsync({ type: 'uint8array' });
+  const zipData = await zip.generateAsync({ type: "uint8array" });
 
   // Prompt user for save location
-  const folderName = rootFolderPath.split('/').pop() || 'workspace';
+  const folderName = rootFolderPath.split("/").pop() || "workspace";
   const date = new Date().toISOString().slice(0, 10);
   const defaultName = `${folderName}-backup-${date}.zip`;
 
   const savePath = await save({
     defaultPath: defaultName,
-    filters: [{
-      name: 'Zip Archive',
-      extensions: ['zip']
-    }]
+    filters: [
+      {
+        name: "Zip Archive",
+        extensions: ["zip"],
+      },
+    ],
   });
 
   if (!savePath) return null;
 
-  const filePath = typeof savePath === 'string' ? savePath : savePath.path;
+  const filePath = typeof savePath === "string" ? savePath : savePath.path;
 
   // Write the zip file to disk
   await writeFile(filePath, zipData);
@@ -81,33 +90,33 @@ export async function exportWorkspaceAsZip(rootFolderPath, items, settings = nul
   return filePath;
 }
 
-const normalizePath = (value = '') => value.replace(/\\/g, '/');
+const normalizePath = (value = "") => value.replace(/\\/g, "/");
 
 const joinPath = (basePath, relativePath) => {
-  const base = normalizePath(basePath).replace(/\/+$/, '');
-  const rel = normalizePath(relativePath).replace(/^\/+/, '');
+  const base = normalizePath(basePath).replace(/\/+$/, "");
+  const rel = normalizePath(relativePath).replace(/^\/+/, "");
   return `${base}/${rel}`;
 };
 
 const sanitizeZipEntryPath = (entryName) => {
-  const normalized = normalizePath(entryName || '');
-  if (!normalized || normalized.startsWith('/')) return null;
+  const normalized = normalizePath(entryName || "");
+  if (!normalized || normalized.startsWith("/")) return null;
 
   const segments = normalized
-    .split('/')
+    .split("/")
     .filter(Boolean)
-    .filter((segment) => segment !== '.');
+    .filter((segment) => segment !== ".");
 
   if (segments.length === 0) return null;
-  if (segments.some((segment) => segment === '..')) return null;
+  if (segments.some((segment) => segment === "..")) return null;
 
-  return segments.join('/');
+  return segments.join("/");
 };
 
 const getParentPath = (path) => {
   const normalized = normalizePath(path);
-  const index = normalized.lastIndexOf('/');
-  return index > 0 ? normalized.slice(0, index) : '';
+  const index = normalized.lastIndexOf("/");
+  return index > 0 ? normalized.slice(0, index) : "";
 };
 
 /**
@@ -129,24 +138,25 @@ export async function restoreWorkspaceFromZip(options = {}) {
 
   const selectedZip = await open({
     multiple: false,
-    filters: [{
-      name: 'Zip Archive',
-      extensions: ['zip']
-    }]
+    filters: [
+      {
+        name: "Zip Archive",
+        extensions: ["zip"],
+      },
+    ],
   });
   if (!selectedZip) return null;
 
-  const zipPath = typeof selectedZip === 'string' ? selectedZip : selectedZip.path;
+  const zipPath = typeof selectedZip === "string" ? selectedZip : selectedZip.path;
 
   const targetFolderSelected = await open({
     multiple: false,
-    directory: true
+    directory: true,
   });
   if (!targetFolderSelected) return null;
 
-  const targetFolderPath = typeof targetFolderSelected === 'string'
-    ? targetFolderSelected
-    : targetFolderSelected.path;
+  const targetFolderPath =
+    typeof targetFolderSelected === "string" ? targetFolderSelected : targetFolderSelected.path;
 
   const zipData = await readFile(zipPath);
   const zip = await JSZip.loadAsync(zipData);
@@ -167,17 +177,17 @@ export async function restoreWorkspaceFromZip(options = {}) {
       continue;
     }
 
-    if (safeRelativePath === '.marky-manifest.json') {
+    if (safeRelativePath === ".marky-manifest.json") {
       try {
-        manifest = JSON.parse(await entry.async('text'));
+        manifest = JSON.parse(await entry.async("text"));
       } catch {
         manifest = null;
       }
     }
 
-    if (safeRelativePath === '.marky-settings.json') {
+    if (safeRelativePath === ".marky-settings.json") {
       try {
-        settings = JSON.parse(await entry.async('text'));
+        settings = JSON.parse(await entry.async("text"));
       } catch {
         settings = null;
       }
@@ -189,12 +199,12 @@ export async function restoreWorkspaceFromZip(options = {}) {
       await mkdir(parentPath, { recursive: true });
     }
 
-    if (!overwriteExisting && await exists(targetPath)) {
+    if (!overwriteExisting && (await exists(targetPath))) {
       skippedExistingCount += 1;
       continue;
     }
 
-    const data = await entry.async('uint8array');
+    const data = await entry.async("uint8array");
     await writeFile(targetPath, data);
     writtenCount += 1;
   }
@@ -221,11 +231,11 @@ export async function exportSettingsAsJson(settings) {
   const date = new Date().toISOString().slice(0, 10);
   const savePath = await save({
     defaultPath: `marky-settings-${date}.json`,
-    filters: [{ name: 'JSON', extensions: ['json'] }],
+    filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!savePath) return null;
 
-  const filePath = typeof savePath === 'string' ? savePath : savePath.path;
+  const filePath = typeof savePath === "string" ? savePath : savePath.path;
   await writeTextFile(filePath, JSON.stringify(settings, null, 2));
   return filePath;
 }
@@ -238,11 +248,11 @@ export async function exportSettingsAsJson(settings) {
 export async function importSettingsFromJson() {
   const selected = await open({
     multiple: false,
-    filters: [{ name: 'JSON', extensions: ['json'] }],
+    filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!selected) return null;
 
-  const filePath = typeof selected === 'string' ? selected : selected.path;
+  const filePath = typeof selected === "string" ? selected : selected.path;
   const raw = await readTextFile(filePath);
   return JSON.parse(raw);
 }
@@ -258,14 +268,14 @@ export async function exportTemplatesAsJson(templates) {
   const date = new Date().toISOString().slice(0, 10);
   const savePath = await save({
     defaultPath: `marky-templates-${date}.json`,
-    filters: [{ name: 'JSON', extensions: ['json'] }],
+    filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!savePath) return null;
 
-  const filePath = typeof savePath === 'string' ? savePath : savePath.path;
+  const filePath = typeof savePath === "string" ? savePath : savePath.path;
   const payload = {
     exportedAt: new Date().toISOString(),
-    version: '1.0',
+    version: "1.0",
     templates,
   };
   await writeTextFile(filePath, JSON.stringify(payload, null, 2));
@@ -280,18 +290,18 @@ export async function exportTemplatesAsJson(templates) {
 export async function importTemplatesFromJson() {
   const selected = await open({
     multiple: false,
-    filters: [{ name: 'JSON', extensions: ['json'] }],
+    filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!selected) return null;
 
-  const filePath = typeof selected === 'string' ? selected : selected.path;
+  const filePath = typeof selected === "string" ? selected : selected.path;
   const raw = await readTextFile(filePath);
   const parsed = JSON.parse(raw);
 
   // Accept either a wrapped export { templates: [...] } or a bare array
   if (Array.isArray(parsed)) return parsed;
   if (Array.isArray(parsed.templates)) return parsed.templates;
-  throw new Error('Invalid templates file format');
+  throw new Error("Invalid templates file format");
 }
 
 // ─── Batch export ─────────────────────────────────────────────────────────────
@@ -303,7 +313,7 @@ export async function importTemplatesFromJson() {
  * @param {Function} markedParser  The `marked` function
  */
 function buildNoteHTML(noteName, markdownContent, markedParser) {
-  const htmlContent = markedParser(markdownContent || '');
+  const htmlContent = markedParser(markdownContent || "");
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -349,7 +359,7 @@ function buildNoteHTML(noteName, markdownContent, markedParser) {
  * @returns {Promise<string|null>}   Saved zip path, or null if user cancelled
  */
 export async function batchExportNotes(notes, format, rootFolderPath, markedParser, zipName) {
-  if (!notes || notes.length === 0) throw new Error('No notes to export');
+  if (!notes || notes.length === 0) throw new Error("No notes to export");
 
   const zip = new JSZip();
 
@@ -359,37 +369,37 @@ export async function batchExportNotes(notes, format, rootFolderPath, markedPars
       try {
         content = await readTextFile(note.filePath);
       } catch {
-        content = '';
+        content = "";
       }
     }
 
     // Preserve folder structure inside the zip using relative paths
     let relativePath = note.filePath || note.name;
     if (rootFolderPath && relativePath.startsWith(rootFolderPath)) {
-      relativePath = relativePath.slice(rootFolderPath.length).replace(/^[/\\]+/, '');
+      relativePath = relativePath.slice(rootFolderPath.length).replace(/^[/\\]+/, "");
     }
 
-    if (format === 'html') {
-      const htmlPath = relativePath.replace(/\.(md|markdown|txt)$/i, '.html');
+    if (format === "html") {
+      const htmlPath = relativePath.replace(/\.(md|markdown|txt)$/i, ".html");
       zip.file(htmlPath, buildNoteHTML(note.name, content, markedParser));
     } else {
-      const mdPath = relativePath.endsWith('.md') ? relativePath : `${relativePath}.md`;
+      const mdPath = relativePath.endsWith(".md") ? relativePath : `${relativePath}.md`;
       zip.file(mdPath, content);
     }
   }
 
-  const zipData = await zip.generateAsync({ type: 'uint8array' });
+  const zipData = await zip.generateAsync({ type: "uint8array" });
 
   const date = new Date().toISOString().slice(0, 10);
   const defaultName = zipName || `marky-export-${date}.zip`;
 
   const savePath = await save({
     defaultPath: defaultName,
-    filters: [{ name: 'Zip Archive', extensions: ['zip'] }],
+    filters: [{ name: "Zip Archive", extensions: ["zip"] }],
   });
   if (!savePath) return null;
 
-  const filePath = typeof savePath === 'string' ? savePath : savePath.path;
+  const filePath = typeof savePath === "string" ? savePath : savePath.path;
   await writeFile(filePath, zipData);
   return filePath;
 }
