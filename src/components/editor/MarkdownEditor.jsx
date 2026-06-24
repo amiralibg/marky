@@ -1350,13 +1350,56 @@ const MarkdownEditor = forwardRef((props, ref) => {
     );
   }
 
+  const viewModeControl = (
+    <div
+      className="flex items-center gap-0.5 rounded-lg border border-border bg-bg-editor p-0.5 shrink-0"
+      role="group"
+      aria-label="Editor view mode"
+    >
+      {[
+        { id: "editor", label: "Edit" },
+        { id: "split", label: "Split", smOnly: true },
+        { id: "preview", label: "Preview" },
+      ].map((m) => (
+        <button
+          key={m.id}
+          onClick={() => setViewMode(m.id)}
+          aria-pressed={viewMode === m.id}
+          aria-label={`Switch to ${m.label} view`}
+          className={`${m.smOnly ? "hidden md:block" : ""} px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+            viewMode === m.id
+              ? "bg-accent-dim text-accent"
+              : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
+          }`}
+          title={`${m.label} view`}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="h-full flex flex-col overflow-hidden bg-editor-bg">
       {/* Title Bar - Glass effect */}
       {!focusMode && (
         <div className="h-12 border-b border-border flex items-center px-4 bg-bg-base/80 backdrop-blur shrink-0 z-10 justify-between">
           <div className="flex items-center gap-2 min-w-0 flex-1 mr-4">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2 min-w-0">
+              {rootFolderPath && (
+                <>
+                  <button
+                    onClick={() => selectNote(null)}
+                    className="text-sm text-text-muted hover:text-text-primary truncate px-1 py-0.5 rounded transition-colors max-w-[12rem]"
+                    title="Workspace home"
+                  >
+                    {rootFolderPath.split("/").filter(Boolean).pop()}
+                  </button>
+                  <span className="text-text-muted" aria-hidden="true">
+                    /
+                  </span>
+                </>
+              )}
               <span className="text-sm text-text-primary font-semibold truncate">
                 {currentNote.name}
               </span>
@@ -1468,7 +1511,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
                   d="M4 6h16M4 12h16M4 18h7"
                 />
               </svg>
-              <span className="hidden sm:inline">TOC</span>
+              <span className="hidden sm:inline">Contents</span>
             </button>
 
             <button
@@ -1558,92 +1601,19 @@ const MarkdownEditor = forwardRef((props, ref) => {
               </svg>
               <span className="hidden sm:inline">Export</span>
             </button>
-
-            <div
-              className="flex items-center gap-1 bg-overlay-subtle rounded-lg p-1 border border-overlay-subtle"
-              role="group"
-              aria-label="Editor view mode"
-            >
-              <button
-                onClick={() => setViewMode("editor")}
-                aria-pressed={viewMode === "editor"}
-                aria-label="Switch to editor-only view"
-                className={`p-1.5 rounded-md transition-all ${
-                  viewMode === "editor"
-                    ? "bg-accent text-white shadow-sm"
-                    : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
-                }`}
-                title="Editor Only"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
-              </button>
-              <button
-                onClick={() => setViewMode("split")}
-                aria-pressed={viewMode === "split"}
-                aria-label="Switch to split editor and preview view"
-                className={`hidden md:block p-1.5 rounded-md transition-all ${
-                  viewMode === "split"
-                    ? "bg-accent text-white shadow-sm"
-                    : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
-                }`}
-                title="Split View"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <rect
-                    x="3"
-                    y="5"
-                    width="18"
-                    height="14"
-                    rx="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                  />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setViewMode("preview")}
-                aria-pressed={viewMode === "preview"}
-                aria-label="Switch to preview-only view"
-                className={`p-1.5 rounded-md transition-all ${
-                  viewMode === "preview"
-                    ? "bg-accent text-white shadow-sm"
-                    : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
-                }`}
-                title="Preview Only"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                  />
-                </svg>
-              </button>
-            </div>
           </div>
         </div>
       )}
 
-      {/* Toolbar */}
-      {!focusMode && (viewMode === "editor" || viewMode === "split") && (
-        <div className="border-b border-border bg-bg-base/50 backdrop-blur shrink-0 overflow-x-auto custom-scrollbar">
-          <Toolbar onInsert={insertMarkdown} />
+      {/* Formatting toolbar + view-mode segmented control (one calm row) */}
+      {!focusMode && (
+        <div className="border-b border-border bg-bg-base/50 backdrop-blur shrink-0 flex items-center justify-between gap-2 pr-4">
+          <div className="min-w-0 overflow-x-auto custom-scrollbar">
+            {(viewMode === "editor" || viewMode === "split") && (
+              <Toolbar onInsert={insertMarkdown} />
+            )}
+          </div>
+          {viewModeControl}
         </div>
       )}
 
@@ -1885,7 +1855,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
             role="region"
             aria-label={`Markdown preview${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
           >
-            <div className="p-6">
+            <div className="mx-auto w-full max-w-3xl px-6 py-8 md:px-10">
               <div
                 className="markdown-preview prose prose-invert max-w-none"
                 dir="auto"

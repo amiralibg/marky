@@ -2,8 +2,10 @@
 
 .markdown-preview {
   color: var(--color-text-primary);
-  line-height: 1.7;
-  font-size: var(--text-base);
+  line-height: 1.75;
+  font-size: 1.0625rem;
+  /* Paper: render documents in Newsreader serif for cozier reading. */
+  font-family: var(--font-family-serif);
 }
 
 .markdown-preview .markdown-blank-lines {
@@ -17,12 +19,12 @@
 .markdown-preview h4,
 .markdown-preview h5,
 .markdown-preview h6 {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--color-text-primary);
   margin-top: 0.75em;
   margin-bottom: 0.75em;
-  line-height: 1.3;
-  letter-spacing: -0.02em;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
   scroll-margin-top: 1rem;
 }
 
@@ -61,7 +63,7 @@
 /* Paragraphs */
 .markdown-preview p {
   margin-bottom: 0;
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
   white-space: break-spaces;
 }
 
