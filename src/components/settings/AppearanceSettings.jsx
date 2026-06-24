@@ -137,7 +137,7 @@ const AppearanceSettings = () => {
               <div
                 className={`
                   w-8 h-8 rounded-full transition-transform group-hover:scale-110
-                  ${accentColorId === color.id ? "ring-2 ring-white/50 ring-offset-2 ring-offset-bg-base" : ""}
+                  ${accentColorId === color.id ? "ring-2 ring-text-muted/60 ring-offset-2 ring-offset-bg-base" : ""}
                 `}
                 style={{ backgroundColor: color.value }}
                 aria-hidden="true"

@@ -573,7 +573,7 @@ const GraphModal = ({ isOpen, onClose }) => {
                     />
                   </svg>
                 </button>
-                <div className="w-px h-4 bg-white/10 mx-1" />
+                <div className="w-px h-4 bg-overlay-light mx-1" />
                 <button
                   onClick={handleFit}
                   className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
@@ -622,7 +622,7 @@ const GraphModal = ({ isOpen, onClose }) => {
 
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-overlay-light rounded-lg transition-colors border border-white/5"
+                className="p-2 hover:bg-overlay-light rounded-lg transition-colors border border-border"
                 title="Close"
               >
                 <svg
@@ -783,7 +783,7 @@ const GraphModal = ({ isOpen, onClose }) => {
             )}
 
             {/* Zoom Indicator */}
-            <div className="absolute bottom-4 right-6 px-2 py-1 bg-black/20 dark:bg-black/40 backdrop-blur rounded text-[10px] text-text font-mono border border-white/5 pointer-events-none">
+            <div className="absolute bottom-4 right-6 px-2 py-1 bg-black/20 dark:bg-black/40 backdrop-blur rounded text-[10px] text-text font-mono border border-border pointer-events-none">
               {Math.round(transform.k * 100)}%
             </div>
 

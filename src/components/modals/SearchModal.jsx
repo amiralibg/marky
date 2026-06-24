@@ -551,7 +551,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
                 aria-controls={resultsListboxId}
                 aria-activedescendant={activeResultId}
                 aria-describedby="search-results-status"
-                className="w-full pl-10 pr-4 py-3 bg-overlay-subtle border border-overlay-subtle rounded-lg text-sm text-text-primary placeholder-text-muted outline-none focus:bg-white/5 focus:border-accent/50 transition-all"
+                className="w-full pl-10 pr-4 py-3 bg-overlay-subtle border border-overlay-subtle rounded-lg text-sm text-text-primary placeholder-text-muted outline-none focus:bg-overlay-subtle focus:border-accent/50 transition-all"
               />
               {searchQuery && (
                 <button

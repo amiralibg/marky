@@ -268,7 +268,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                       newTemplate.name && newTemplate.content
                         ? "bg-accent text-text-primary hover:bg-accent/90"
-                        : "bg-white/10 text-text-muted cursor-not-allowed"
+                        : "bg-overlay-light text-text-muted cursor-not-allowed"
                     }`}
                   >
                     Save Template
@@ -446,7 +446,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 selectedTemplate
                   ? "bg-accent text-text-primary hover:bg-accent/90"
-                  : "bg-white/10 text-text-muted cursor-not-allowed"
+                  : "bg-overlay-light text-text-muted cursor-not-allowed"
               }`}
             >
               Use Template

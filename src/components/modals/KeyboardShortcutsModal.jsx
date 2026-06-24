@@ -105,7 +105,7 @@ const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              className="p-2 hover:bg-overlay-light rounded-lg transition-colors"
               title="Close (Esc)"
             >
               <svg
@@ -136,13 +136,13 @@ const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
                     {category.items.map((shortcut, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-white/5 transition-colors"
+                        className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-overlay-subtle transition-colors"
                       >
                         <span className="text-sm text-text-secondary">{shortcut.description}</span>
                         <div className="flex items-center gap-1">
                           {shortcut.keys.map((key, keyIndex) => (
                             <span key={keyIndex} className="inline-flex items-center">
-                              <kbd className="px-2 py-1 text-xs font-mono bg-white/5 border border-white/10 rounded shadow-sm text-text-primary">
+                              <kbd className="px-2 py-1 text-xs font-mono bg-overlay-subtle border border-border rounded shadow-sm text-text-primary">
                                 {key}
                               </kbd>
                               {keyIndex < shortcut.keys.length - 1 && (
@@ -176,11 +176,11 @@ const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
                   <h4 className="font-semibold text-text-primary text-sm mb-1">Pro Tip</h4>
                   <p className="text-xs text-text-secondary">
                     Press{" "}
-                    <kbd className="px-1.5 py-0.5 text-xs font-mono bg-white/5 border border-white/10 rounded">
+                    <kbd className="px-1.5 py-0.5 text-xs font-mono bg-overlay-subtle border border-border rounded">
                       Cmd/Ctrl
                     </kbd>{" "}
                     +{" "}
-                    <kbd className="px-1.5 py-0.5 text-xs font-mono bg-white/5 border border-white/10 rounded">
+                    <kbd className="px-1.5 py-0.5 text-xs font-mono bg-overlay-subtle border border-border rounded">
                       ?
                     </kbd>{" "}
                     anytime to view this help panel.
