@@ -4,79 +4,108 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#09090b" />
+    <meta name="theme-color" content="#f5f2ea" />
     <title>Marky - Beautiful Markdown Notes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <style>
-      /* Prevent white flash before CSS loads */
+      /* Prevent flash before CSS loads — Paper warm default */
       body,
       html {
         margin: 0;
         padding: 0;
-        background-color: var(--color-bg-base, #09090b);
+        background-color: var(--color-bg-base, #f5f2ea);
         overflow: hidden;
       }
       #root {
         width: 100%;
         height: 100%;
-        background-color: var(--color-bg-base, #09090b);
+        background-color: var(--color-bg-base, #f5f2ea);
       }
     </style>
     <script>
       (() => {
         const themes = {
+          paper: {
+            type: "light",
+            bgBase: "#f5f2ea",
+            bgSidebar: "#ece8dd",
+            bgEditor: "#fffdf7",
+            textPrimary: "#2c2a26",
+            textSecondary: "#6f6a60",
+            textMuted: "#9c968a",
+            border: "rgba(70, 60, 40, 0.12)",
+          },
           midnight: {
             type: "dark",
-            bgBase: "#09090b",
-            textPrimary: "#f4f4f5",
-            textSecondary: "#a1a1aa",
-            textMuted: "#52525b",
-            border: "#27272a",
+            bgBase: "#0b0b0e",
+            bgSidebar: "#121116",
+            bgEditor: "#17151d",
+            textPrimary: "#ECECEF",
+            textSecondary: "#9b99a6",
+            textMuted: "#6b6a77",
+            border: "rgba(255, 255, 255, 0.075)",
           },
           charcoal: {
             type: "dark",
-            bgBase: "#1a1a1e",
-            textPrimary: "#f4f4f5",
-            textSecondary: "#a1a1aa",
-            textMuted: "#71717a",
-            border: "#3f3f46",
+            bgBase: "#1a1a1a",
+            bgSidebar: "#202020",
+            bgEditor: "#262626",
+            textPrimary: "#e8e8e8",
+            textSecondary: "#a0a0a0",
+            textMuted: "#6e6e6e",
+            border: "rgba(255, 255, 255, 0.08)",
           },
           slate: {
             type: "dark",
-            bgBase: "#0f172a",
-            textPrimary: "#f1f5f9",
-            textSecondary: "#94a3b8",
-            textMuted: "#64748b",
-            border: "#334155",
+            bgBase: "#0e131c",
+            bgSidebar: "#121a26",
+            bgEditor: "#16202e",
+            textPrimary: "#e6ecf5",
+            textSecondary: "#8ea0b8",
+            textMuted: "#5d6e85",
+            border: "rgba(255, 255, 255, 0.07)",
           },
           light: {
             type: "light",
-            bgBase: "#ffffff",
-            textPrimary: "#0f172a",
-            textSecondary: "#475569",
-            textMuted: "#94a3b8",
-            border: "#e2e8f0",
+            bgBase: "#f7f7f5",
+            bgSidebar: "#efeeec",
+            bgEditor: "#ffffff",
+            textPrimary: "#1f1f1d",
+            textSecondary: "#6b6a66",
+            textMuted: "#9a9893",
+            border: "rgba(20, 20, 20, 0.09)",
           },
           "gruvbox-dark": {
             type: "dark",
             bgBase: "#282828",
+            bgSidebar: "#1d2021",
+            bgEditor: "#32302f",
             textPrimary: "#ebdbb2",
-            textSecondary: "#d5c4a1",
-            textMuted: "#928374",
-            border: "#504945",
+            textSecondary: "#a89984",
+            textMuted: "#7c6f64",
+            border: "rgba(235, 219, 178, 0.1)",
           },
           "gruvbox-light": {
             type: "light",
-            bgBase: "#fbf1c7",
+            bgBase: "#f2e5bc",
+            bgSidebar: "#ebdbb2",
+            bgEditor: "#fbf1c7",
             textPrimary: "#3c3836",
-            textSecondary: "#504945",
+            textSecondary: "#665c54",
             textMuted: "#928374",
-            border: "#d5c4a1",
+            border: "rgba(60, 56, 54, 0.12)",
           },
         };
 
         const accents = {
-          blue: { value: "#3b82f6", hover: "#2563eb" },
+          violet: { value: "#6f56d8", hover: "#5d46c4" },
           purple: { value: "#8b5cf6", hover: "#7c3aed" },
+          blue: { value: "#3b82f6", hover: "#2563eb" },
           pink: { value: "#ec4899", hover: "#db2777" },
           red: { value: "#ef4444", hover: "#dc2626" },
           orange: { value: "#f97316", hover: "#ea580c" },
@@ -90,23 +119,23 @@
           const raw = localStorage.getItem("marky-settings");
           const parsed = raw ? JSON.parse(raw) : null;
           const state = parsed?.state || {};
-          const theme = themes[state.themeId] || themes.midnight;
-          const accent = accents[state.accentColorId] || accents.blue;
+          const theme = themes[state.themeId] || themes.paper;
+          const accent = accents[state.accentColorId] || accents.violet;
 
           document.documentElement.setAttribute("data-theme", theme.type);
           document.documentElement.style.setProperty("--color-bg-base", theme.bgBase);
-          document.documentElement.style.setProperty("--color-bg-sidebar", theme.bgBase);
-          document.documentElement.style.setProperty("--color-bg-editor", theme.bgBase);
+          document.documentElement.style.setProperty("--color-bg-sidebar", theme.bgSidebar);
+          document.documentElement.style.setProperty("--color-bg-editor", theme.bgEditor);
           document.documentElement.style.setProperty("--color-text-primary", theme.textPrimary);
           document.documentElement.style.setProperty("--color-text-secondary", theme.textSecondary);
           document.documentElement.style.setProperty("--color-text-muted", theme.textMuted);
           document.documentElement.style.setProperty("--color-border", theme.border);
           document.documentElement.style.setProperty("--color-accent", accent.value);
           document.documentElement.style.setProperty("--color-accent-hover", accent.hover);
-          document.documentElement.style.setProperty("--color-accent-dim", `${accent.value}1a`);
+          document.documentElement.style.setProperty("--color-accent-dim", `${accent.value}24`);
           document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme.bgBase);
         } catch (error) {
-          document.documentElement.setAttribute("data-theme", "dark");
+          document.documentElement.setAttribute("data-theme", "light");
         }
       })();
     </script>

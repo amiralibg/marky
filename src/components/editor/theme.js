@@ -404,8 +404,8 @@ export const markySyntaxHighlighting = buildSyntaxHighlighting("dark");
 export const themeIdToPaletteKey = (themeId) => {
   if (themeId === "gruvbox-dark") return "gruvbox-dark";
   if (themeId === "gruvbox-light") return "gruvbox-light";
-  // light-type themes (Snow, Gruvbox Light, etc.)
-  const lightThemes = ["light"];
+  // light-type themes (Paper, Snow, etc.) use the light syntax palette
+  const lightThemes = ["paper", "light"];
   if (lightThemes.includes(themeId)) return "light";
   return "dark";
 };

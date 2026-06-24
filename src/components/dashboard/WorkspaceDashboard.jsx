@@ -3,6 +3,17 @@ import useNotesStore from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
 import { calculateWorkspaceStats, countWords } from "../../utils/workspaceStats";
 
+const greeting = () => {
+  const h = new Date().getHours();
+  if (h < 5) return "Good night";
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+};
+
+const todayLabel = () =>
+  new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+
 const formatDate = (isoString) => {
   if (!isoString) return "";
   const date = new Date(isoString);
@@ -73,37 +84,28 @@ const ActionButton = ({ title, description, icon: Icon, variant = "primary", onC
   return (
     <button
       onClick={onClick}
-      className={`group relative overflow-hidden rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-xl ${
+      className={`group flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
         isPrimary
-          ? "border-accent/30 bg-accent text-white shadow-lg shadow-accent/15"
-          : "border-overlay-light bg-overlay-subtle text-text-primary hover:bg-overlay-light"
+          ? "border-accent/30 bg-accent text-white hover:bg-accent-hover"
+          : "border-border bg-bg-editor text-text-primary hover:bg-overlay-subtle"
       }`}
     >
       <div
-        className={`absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100 ${
-          isPrimary
-            ? "bg-linear-to-br from-white/20 via-transparent to-black/10"
-            : "bg-linear-to-br from-white/5 via-transparent to-accent/10"
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+          isPrimary ? "bg-white/20 text-white" : "bg-accent-dim text-accent"
         }`}
-      />
-      <div className="relative flex items-start gap-3">
-        <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ${
-            isPrimary ? "bg-white/20 text-white" : "bg-accent/10 text-accent"
-          }`}
+      >
+        <Icon />
+      </div>
+      <div className="min-w-0">
+        <p className={`text-sm font-semibold ${isPrimary ? "text-white" : "text-text-primary"}`}>
+          {title}
+        </p>
+        <p
+          className={`mt-1 text-xs leading-relaxed ${isPrimary ? "text-white/75" : "text-text-muted"}`}
         >
-          <Icon />
-        </div>
-        <div className="min-w-0">
-          <p className={`text-sm font-bold ${isPrimary ? "text-white" : "text-text-primary"}`}>
-            {title}
-          </p>
-          <p
-            className={`mt-1 text-xs leading-relaxed ${isPrimary ? "text-white/75" : "text-text-muted"}`}
-          >
-            {description}
-          </p>
-        </div>
+          {description}
+        </p>
       </div>
     </button>
   );
@@ -218,7 +220,7 @@ const WorkspaceDashboard = () => {
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-accent">
               No Workspace Selected
             </p>
-            <h1 className="text-3xl font-black tracking-tight text-text-primary md:text-4xl">
+            <h1 className="font-serif text-3xl font-semibold tracking-tight text-text-primary md:text-4xl">
               Choose a root folder first.
             </h1>
             <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-text-secondary">
@@ -244,16 +246,10 @@ const WorkspaceDashboard = () => {
         <section className="rounded-3xl border border-overlay-subtle bg-bg-base/70 backdrop-blur p-6 md:p-8 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent mb-3">
-                Workspace Home
-              </p>
-              <h1 className="text-3xl md:text-5xl font-black tracking-tight text-text-primary">
-                Ready when you are.
+              <h1 className="font-serif text-3xl md:text-4xl font-semibold tracking-tight text-text-primary">
+                {greeting()}
               </h1>
-              <p className="text-sm text-text-secondary mt-3 max-w-2xl leading-relaxed">
-                Open a recent note, start something new, or make a folder to keep the workspace
-                tidy.
-              </p>
+              <p className="text-sm text-text-muted mt-2">{todayLabel()}</p>
             </div>
 
             <div
