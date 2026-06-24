@@ -1085,7 +1085,7 @@ const Sidebar = forwardRef(
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search..."
               aria-label="Search notes and folders in sidebar"
-              className="w-full pl-9 pr-8 py-2 bg-overlay-subtle border border-overlay-subtle rounded-lg text-sm text-white placeholder-text-muted outline-none focus:bg-white/10 focus:border-accent/50 transition-all"
+              className="w-full pl-9 pr-8 py-2 bg-bg-base border border-border rounded-lg text-sm text-text-primary placeholder-text-muted outline-none focus:border-accent/50 transition-all"
             />
             {searchQuery && (
               <button
@@ -1117,37 +1117,26 @@ const Sidebar = forwardRef(
               <div className="mt-4 mb-1 relative">
                 <button
                   onClick={() => setShowWorkspaceSwitcher((v) => !v)}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors group"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-overlay-subtle transition-colors group"
                   title="Switch workspace"
                   aria-expanded={showWorkspaceSwitcher}
                   aria-label={`Current workspace: ${
                     rootFolderPath.split("/").filter(Boolean).pop() || rootFolderPath
                   }. Switch workspace`}
                 >
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <svg
-                      className="w-3 h-3 shrink-0"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                      />
-                    </svg>
-                    <span
-                      className="font-medium truncate text-text-secondary"
-                      title={rootFolderPath}
-                    >
-                      {rootFolderPath.split("/").filter(Boolean).pop() || rootFolderPath}
-                    </span>
-                  </div>
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-accent text-[13px] font-semibold text-white">
+                    {(rootFolderPath.split("/").filter(Boolean).pop() || "W")
+                      .charAt(0)
+                      .toUpperCase()}
+                  </span>
+                  <span
+                    className="flex-1 min-w-0 text-left text-sm font-semibold text-text-primary truncate"
+                    title={rootFolderPath}
+                  >
+                    {rootFolderPath.split("/").filter(Boolean).pop() || rootFolderPath}
+                  </span>
                   <svg
-                    className={`w-3 h-3 shrink-0 transition-transform ${showWorkspaceSwitcher ? "rotate-180" : ""}`}
+                    className={`w-3 h-3 shrink-0 text-text-muted transition-transform ${showWorkspaceSwitcher ? "rotate-180" : ""}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"

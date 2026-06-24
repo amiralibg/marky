@@ -78,38 +78,21 @@ const DailyNoteIcon = () => (
   </svg>
 );
 
-const ActionButton = ({ title, description, icon: Icon, variant = "primary", onClick }) => {
-  const isPrimary = variant === "primary";
-
-  return (
-    <button
-      onClick={onClick}
-      className={`group flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
-        isPrimary
-          ? "border-accent/30 bg-accent text-white hover:bg-accent-hover"
-          : "border-border bg-bg-editor text-text-primary hover:bg-overlay-subtle"
-      }`}
-    >
-      <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-          isPrimary ? "bg-white/20 text-white" : "bg-accent-dim text-accent"
-        }`}
-      >
-        <Icon />
-      </div>
-      <div className="min-w-0">
-        <p className={`text-sm font-semibold ${isPrimary ? "text-white" : "text-text-primary"}`}>
-          {title}
-        </p>
-        <p
-          className={`mt-1 text-xs leading-relaxed ${isPrimary ? "text-white/75" : "text-text-muted"}`}
-        >
-          {description}
-        </p>
-      </div>
-    </button>
-  );
-};
+const QuickStart = ({ label, icon: Icon, onClick, primary = false }) => (
+  <button
+    onClick={onClick}
+    className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+      primary
+        ? "border-border bg-bg-editor text-text-primary hover:bg-overlay-subtle"
+        : "border-transparent text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
+    }`}
+  >
+    <span className={primary ? "text-accent" : "text-text-muted"}>
+      <Icon />
+    </span>
+    {label}
+  </button>
+);
 
 const NoteButton = ({ note, meta, onClick }) => (
   <button
@@ -243,63 +226,45 @@ const WorkspaceDashboard = () => {
   return (
     <div className="relative h-full overflow-y-auto bg-editor-bg custom-scrollbar">
       <main className="relative z-10 max-w-5xl mx-auto px-6 py-10 md:py-14">
-        <section className="rounded-3xl border border-overlay-subtle bg-bg-base/70 backdrop-blur p-6 md:p-8 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h1 className="font-serif text-3xl md:text-4xl font-semibold tracking-tight text-text-primary">
-                {greeting()}
-              </h1>
-              <p className="text-sm text-text-muted mt-2">{todayLabel()}</p>
-            </div>
-
-            <div
-              className="inline-flex w-fit rounded-2xl border border-overlay-subtle bg-bg-base/70 p-1"
-              role="tablist"
-              aria-label="Workspace dashboard sections"
-            >
-              <TabButton
-                isActive={activeTab === "overview"}
-                onClick={() => setActiveTab("overview")}
-              >
-                Overview
-              </TabButton>
-              <TabButton isActive={activeTab === "stats"} onClick={() => setActiveTab("stats")}>
-                Stats
-              </TabButton>
-            </div>
+        <section>
+          <div className="text-center">
+            <h1 className="font-serif text-3xl md:text-4xl font-semibold tracking-tight text-text-primary">
+              {greeting()}
+            </h1>
+            <p className="text-sm text-text-muted mt-2">{todayLabel()}</p>
           </div>
 
-          <p className="text-xs text-text-muted mt-4 truncate" title={rootFolderPath}>
-            {rootFolderPath}
-          </p>
+          <div className="mt-9 flex flex-wrap items-center justify-center gap-2">
+            <QuickStart icon={NewNoteIcon} label="New page" onClick={handleCreateNote} primary />
+            <QuickStart icon={DailyNoteIcon} label="Daily note" onClick={handleCreateDailyNote} />
+            <QuickStart icon={NewFolderIcon} label="New folder" onClick={handleCreateFolder} />
+          </div>
 
-          <div className="mt-7 grid grid-cols-1 gap-3 lg:grid-cols-3">
-            <ActionButton
-              title="New Note"
-              description="Create a fresh markdown note in the workspace root."
-              icon={NewNoteIcon}
-              onClick={handleCreateNote}
-            />
-            <ActionButton
-              title="New Folder"
-              description="Add a folder for projects, journals, or reference notes."
-              icon={NewFolderIcon}
-              variant="secondary"
-              onClick={handleCreateFolder}
-            />
-            <ActionButton
-              title="Today’s Daily Note"
-              description="Open or create today’s journal note."
-              icon={DailyNoteIcon}
-              variant="secondary"
-              onClick={handleCreateDailyNote}
-            />
+          <div className="mt-8 flex items-center justify-center gap-5 text-xs text-text-muted font-mono">
+            <span>{notes.length} notes</span>
+            <span>{folderCount} folders</span>
+            <span>{wordCount.toLocaleString()} words</span>
           </div>
         </section>
 
+        <div
+          className="mt-10 flex justify-center"
+          role="tablist"
+          aria-label="Workspace dashboard sections"
+        >
+          <div className="inline-flex rounded-xl border border-border bg-bg-editor p-1">
+            <TabButton isActive={activeTab === "overview"} onClick={() => setActiveTab("overview")}>
+              Overview
+            </TabButton>
+            <TabButton isActive={activeTab === "stats"} onClick={() => setActiveTab("stats")}>
+              Stats
+            </TabButton>
+          </div>
+        </div>
+
         {activeTab === "overview" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
-            <section className="rounded-2xl border border-overlay-subtle bg-bg-base/60 p-4">
+            <section className="rounded-2xl border border-border bg-bg-editor p-4">
               <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted mb-3">
                 Pinned
               </h2>
