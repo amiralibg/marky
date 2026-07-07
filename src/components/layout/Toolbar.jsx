@@ -564,7 +564,7 @@ const Toolbar = ({ onInsert }) => {
   };
 
   return (
-    <div className="px-4 py-1.5">
+    <div className="py-1.5">
       <div className="inline-flex flex-wrap items-center gap-0.5 rounded-xl border border-border bg-bg-editor p-1">
         {GROUPS.map((group, gi) => (
           <div key={gi} className="flex items-center gap-0.5">

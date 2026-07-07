@@ -17,7 +17,12 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { bracketMatching, indentOnInput, foldGutter, foldKeymap } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
-import { autocompletion, closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
+import {
+  autocompletion,
+  closeBrackets,
+  closeBracketsKeymap,
+  startCompletion,
+} from "@codemirror/autocomplete";
 import { vim, getCM } from "@replit/codemirror-vim";
 import { markyTheme, markySyntaxHighlighting } from "./theme";
 import { typewriterMode } from "./typewriterMode";
@@ -144,6 +149,25 @@ export function createExtensions(options = {}) {
     indentOnInput(),
     bracketMatching(),
     closeBrackets(),
+
+    // Open the "/" slash-command menu as soon as "/" is typed at line start.
+    // autocompletion's activateOnTyping only fires on word characters, so "/"
+    // needs an explicit trigger.
+    EditorView.updateListener.of((update) => {
+      if (!update.docChanged) return;
+      let typedSlash = false;
+      update.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+        if (inserted.length === 1 && inserted.sliceString(0) === "/") typedSlash = true;
+      });
+      if (!typedSlash) return;
+      const view = update.view;
+      const pos = view.state.selection.main.head;
+      const line = view.state.doc.lineAt(pos);
+      if (/^\s*\/$/.test(view.state.sliceDoc(line.from, pos))) {
+        // Defer: can't dispatch during an update.
+        Promise.resolve().then(() => startCompletion(view));
+      }
+    }),
 
     // Update listener for React state sync
     EditorView.updateListener.of((update) => {

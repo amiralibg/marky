@@ -509,23 +509,25 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
+        className="fixed inset-0 z-50 animate-fadeIn bg-[rgba(30,25,15,0.38)] backdrop-blur-[3px]"
         onClick={onClose}
       />
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <form
-          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col pointer-events-auto animate-slideUp"
+          className="bg-bg-editor border border-border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col pointer-events-auto animate-slideUp overflow-hidden"
           onSubmit={handleSubmit}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="border-b border-glass-border px-6 py-4">
+          <div className="border-b border-border px-6 py-5">
             <div className="flex items-center gap-3">
               <span className="text-3xl" aria-hidden="true">
                 {template.icon}
               </span>
               <div>
-                <h2 className="text-xl font-semibold text-text-primary">Schedule recurring note</h2>
+                <h2 className="text-2xl font-semibold tracking-[-0.015em] text-text-primary">
+                  Schedule recurring note
+                </h2>
                 <p className="text-sm text-text-muted">
                   Automatically create{" "}
                   <span className="text-text-primary font-medium">{template.name}</span> on a

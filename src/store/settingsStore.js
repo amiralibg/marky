@@ -1,185 +1,174 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-// Theme definitions — "Paper / Midnight" redesign. Warm, calm, content-first
-// (Notion as north star). bgEditor = the content "panel"; itemActive = "raised".
+// Theme definitions — "Vault" redesign (claude.ai/design Marky - Vault).
+// bgEditor = the content "panel"; itemActive = "raised"; bar = skeleton bars
+// in home-card / theme-card previews.
+const defineTheme = (id, name, type, t) => ({
+  id,
+  name,
+  type,
+  preview: { bg: t.bg, sidebar: t.sidebar, accent: t.panel, bar: t.bar },
+  colors: {
+    bgBase: t.bg,
+    bgSidebar: t.sidebar,
+    bgEditor: t.panel,
+    overlayBg: type === "light" ? "rgba(30, 25, 15, 0.38)" : "rgba(0, 0, 0, 0.5)",
+    glassBorder: t.border,
+    glassHighlight: t.hover,
+    glassPanelBg: t.panel,
+    textPrimary: t.text,
+    textSecondary: t.text2,
+    textMuted: t.text3,
+    border: t.border,
+    borderLight: t.borderLight,
+    itemHover: t.hover,
+    itemActive: t.raised,
+    titlebarBg: t.sidebar,
+    bar: t.bar,
+  },
+});
+
 export const THEMES = [
-  {
-    id: "paper",
-    name: "Paper",
-    type: "light",
-    preview: { bg: "#f5f2ea", sidebar: "#ece8dd", accent: "#fffdf7" },
-    colors: {
-      bgBase: "#f5f2ea",
-      bgSidebar: "#ece8dd",
-      bgEditor: "#fffdf7",
-      overlayBg: "rgba(245, 242, 234, 0.8)",
-      glassBorder: "rgba(70, 60, 40, 0.12)",
-      glassHighlight: "rgba(70, 60, 40, 0.03)",
-      glassPanelBg: "#fffdf7",
-      textPrimary: "#2c2a26",
-      textSecondary: "#6f6a60",
-      textMuted: "#9c968a",
-      border: "rgba(70, 60, 40, 0.12)",
-      borderLight: "rgba(70, 60, 40, 0.2)",
-      itemHover: "rgba(70, 60, 40, 0.05)",
-      itemActive: "rgba(70, 60, 40, 0.09)",
-      titlebarBg: "#ece8dd",
-    },
-  },
-  {
-    id: "midnight",
-    name: "Midnight",
-    type: "dark",
-    preview: { bg: "#0b0b0e", sidebar: "#121116", accent: "#201e29" },
-    colors: {
-      bgBase: "#0b0b0e",
-      bgSidebar: "#121116",
-      bgEditor: "#17151d",
-      overlayBg: "rgba(11, 11, 14, 0.8)",
-      glassBorder: "rgba(255, 255, 255, 0.075)",
-      glassHighlight: "rgba(255, 255, 255, 0.03)",
-      glassPanelBg: "rgba(23, 21, 29, 0.85)",
-      textPrimary: "#ECECEF",
-      textSecondary: "#9b99a6",
-      textMuted: "#6b6a77",
-      border: "rgba(255, 255, 255, 0.075)",
-      borderLight: "rgba(255, 255, 255, 0.14)",
-      itemHover: "rgba(255, 255, 255, 0.05)",
-      itemActive: "#201e29",
-      titlebarBg: "#0b0b0e",
-    },
-  },
-  {
-    id: "charcoal",
-    name: "Charcoal",
-    type: "dark",
-    preview: { bg: "#1a1a1a", sidebar: "#202020", accent: "#2e2e2e" },
-    colors: {
-      bgBase: "#1a1a1a",
-      bgSidebar: "#202020",
-      bgEditor: "#262626",
-      overlayBg: "rgba(26, 26, 26, 0.85)",
-      glassBorder: "rgba(255, 255, 255, 0.08)",
-      glassHighlight: "rgba(255, 255, 255, 0.04)",
-      glassPanelBg: "rgba(38, 38, 38, 0.85)",
-      textPrimary: "#e8e8e8",
-      textSecondary: "#a0a0a0",
-      textMuted: "#6e6e6e",
-      border: "rgba(255, 255, 255, 0.08)",
-      borderLight: "rgba(255, 255, 255, 0.14)",
-      itemHover: "rgba(255, 255, 255, 0.05)",
-      itemActive: "#2e2e2e",
-      titlebarBg: "#1a1a1a",
-    },
-  },
-  {
-    id: "slate",
-    name: "Slate",
-    type: "dark",
-    preview: { bg: "#0e131c", sidebar: "#121a26", accent: "#1d2a3c" },
-    colors: {
-      bgBase: "#0e131c",
-      bgSidebar: "#121a26",
-      bgEditor: "#16202e",
-      overlayBg: "rgba(14, 19, 28, 0.85)",
-      glassBorder: "rgba(255, 255, 255, 0.07)",
-      glassHighlight: "rgba(255, 255, 255, 0.04)",
-      glassPanelBg: "rgba(22, 32, 46, 0.85)",
-      textPrimary: "#e6ecf5",
-      textSecondary: "#8ea0b8",
-      textMuted: "#5d6e85",
-      border: "rgba(255, 255, 255, 0.07)",
-      borderLight: "rgba(255, 255, 255, 0.13)",
-      itemHover: "rgba(255, 255, 255, 0.05)",
-      itemActive: "#1d2a3c",
-      titlebarBg: "#0e131c",
-    },
-  },
-  {
-    id: "light",
-    name: "Snow",
-    type: "light",
-    preview: { bg: "#f7f7f5", sidebar: "#efeeec", accent: "#ffffff" },
-    colors: {
-      bgBase: "#f7f7f5",
-      bgSidebar: "#efeeec",
-      bgEditor: "#ffffff",
-      overlayBg: "rgba(247, 247, 245, 0.9)",
-      glassBorder: "rgba(20, 20, 20, 0.09)",
-      glassHighlight: "rgba(20, 20, 20, 0.02)",
-      glassPanelBg: "#ffffff",
-      textPrimary: "#1f1f1d",
-      textSecondary: "#6b6a66",
-      textMuted: "#9a9893",
-      border: "rgba(20, 20, 20, 0.09)",
-      borderLight: "rgba(20, 20, 20, 0.16)",
-      itemHover: "rgba(20, 20, 20, 0.04)",
-      itemActive: "rgba(20, 20, 20, 0.07)",
-      titlebarBg: "#efeeec",
-    },
-  },
-  {
-    id: "gruvbox-dark",
-    name: "Gruvbox Dark",
-    type: "dark",
-    preview: { bg: "#282828", sidebar: "#1d2021", accent: "#3c3836" },
-    colors: {
-      bgBase: "#282828",
-      bgSidebar: "#1d2021",
-      bgEditor: "#32302f",
-      overlayBg: "rgba(40, 40, 40, 0.85)",
-      glassBorder: "rgba(235, 219, 178, 0.1)",
-      glassHighlight: "rgba(235, 219, 178, 0.04)",
-      glassPanelBg: "rgba(60, 56, 54, 0.85)",
-      textPrimary: "#ebdbb2",
-      textSecondary: "#a89984",
-      textMuted: "#7c6f64",
-      border: "rgba(235, 219, 178, 0.1)",
-      borderLight: "rgba(235, 219, 178, 0.18)",
-      itemHover: "rgba(235, 219, 178, 0.05)",
-      itemActive: "#3c3836",
-      titlebarBg: "#282828",
-    },
-  },
-  {
-    id: "gruvbox-light",
-    name: "Gruvbox Light",
-    type: "light",
-    preview: { bg: "#f2e5bc", sidebar: "#ebdbb2", accent: "#fbf1c7" },
-    colors: {
-      bgBase: "#f2e5bc",
-      bgSidebar: "#ebdbb2",
-      bgEditor: "#fbf1c7",
-      overlayBg: "rgba(242, 229, 188, 0.9)",
-      glassBorder: "rgba(60, 56, 54, 0.12)",
-      glassHighlight: "rgba(60, 56, 54, 0.03)",
-      glassPanelBg: "#fbf1c7",
-      textPrimary: "#3c3836",
-      textSecondary: "#665c54",
-      textMuted: "#928374",
-      border: "rgba(60, 56, 54, 0.12)",
-      borderLight: "rgba(60, 56, 54, 0.2)",
-      itemHover: "rgba(60, 56, 54, 0.05)",
-      itemActive: "rgba(60, 56, 54, 0.09)",
-      titlebarBg: "#ebdbb2",
-    },
-  },
+  defineTheme("vault", "Vault", "light", {
+    bg: "#ffffff",
+    sidebar: "#f7f7f5",
+    panel: "#ffffff",
+    raised: "#fafaf9",
+    border: "rgba(35, 35, 32, 0.09)",
+    borderLight: "rgba(35, 35, 32, 0.16)",
+    text: "#2f2f2b",
+    text2: "#73726e",
+    text3: "#9f9e9a",
+    hover: "rgba(35, 35, 32, 0.045)",
+    bar: "#e6e5e1",
+  }),
+  defineTheme("vault-dark", "Vault Dark", "dark", {
+    bg: "#1e1e1c",
+    sidebar: "#191918",
+    panel: "#242422",
+    raised: "#2b2b29",
+    border: "rgba(240, 240, 235, 0.09)",
+    borderLight: "rgba(240, 240, 235, 0.16)",
+    text: "#e7e6e2",
+    text2: "#a3a29d",
+    text3: "#71706b",
+    hover: "rgba(240, 240, 235, 0.05)",
+    bar: "#4a4a46",
+  }),
+  defineTheme("paper", "Paper", "light", {
+    bg: "#f6f3ec",
+    sidebar: "#efeae0",
+    panel: "#fffefb",
+    raised: "#fffefb",
+    border: "rgba(55, 50, 40, 0.11)",
+    borderLight: "rgba(55, 50, 40, 0.2)",
+    text: "#38352f",
+    text2: "#75716a",
+    text3: "#a39d92",
+    hover: "rgba(55, 50, 40, 0.05)",
+    bar: "#ddd6c8",
+  }),
+  defineTheme("paper-dark", "Paper Dark", "dark", {
+    bg: "#1c1a16",
+    sidebar: "#191713",
+    panel: "#242019",
+    raised: "#2b271f",
+    border: "rgba(240, 232, 214, 0.10)",
+    borderLight: "rgba(240, 232, 214, 0.18)",
+    text: "#ece5d6",
+    text2: "#a8a092",
+    text3: "#756d5f",
+    hover: "rgba(240, 232, 214, 0.05)",
+    bar: "#524b3e",
+  }),
+  defineTheme("slate", "Slate", "dark", {
+    bg: "#0e131c",
+    sidebar: "#121a26",
+    panel: "#16202e",
+    raised: "#1d2a3c",
+    border: "rgba(255, 255, 255, 0.08)",
+    borderLight: "rgba(255, 255, 255, 0.14)",
+    text: "#e6ecf5",
+    text2: "#8ea0b8",
+    text3: "#5d6e85",
+    hover: "rgba(255, 255, 255, 0.05)",
+    bar: "#46586e",
+  }),
+  defineTheme("midnight", "Midnight", "dark", {
+    bg: "#0b0b0e",
+    sidebar: "#121116",
+    panel: "#17151d",
+    raised: "#201e29",
+    border: "rgba(255, 255, 255, 0.075)",
+    borderLight: "rgba(255, 255, 255, 0.14)",
+    text: "#ECECEF",
+    text2: "#9b99a6",
+    text3: "#6b6a77",
+    hover: "rgba(255, 255, 255, 0.05)",
+    bar: "#5b5766",
+  }),
+  defineTheme("gruvbox-light", "Gruvbox Light", "light", {
+    bg: "#f2e5bc",
+    sidebar: "#ebdbb2",
+    panel: "#fbf1c7",
+    raised: "#fbf1c7",
+    border: "rgba(60, 56, 54, 0.12)",
+    borderLight: "rgba(60, 56, 54, 0.2)",
+    text: "#3c3836",
+    text2: "#665c54",
+    text3: "#928374",
+    hover: "rgba(60, 56, 54, 0.05)",
+    bar: "#d5c4a1",
+  }),
+  defineTheme("gruvbox-dark", "Gruvbox Dark", "dark", {
+    bg: "#282828",
+    sidebar: "#1d2021",
+    panel: "#32302f",
+    raised: "#3c3836",
+    border: "rgba(235, 219, 178, 0.10)",
+    borderLight: "rgba(235, 219, 178, 0.18)",
+    text: "#ebdbb2",
+    text2: "#a89984",
+    text3: "#7c6f64",
+    hover: "rgba(235, 219, 178, 0.05)",
+    bar: "#665c54",
+  }),
 ];
 
-// Predefined accent colors (violet is the Paper default)
+// Predefined accent colors (Vault palette; purple is the default)
 export const ACCENT_COLORS = [
-  { id: "violet", name: "Violet", value: "#6f56d8", hover: "#5d46c4" },
-  { id: "purple", name: "Purple", value: "#8b5cf6", hover: "#7c3aed" },
-  { id: "blue", name: "Blue", value: "#3b82f6", hover: "#2563eb" },
-  { id: "pink", name: "Pink", value: "#ec4899", hover: "#db2777" },
-  { id: "red", name: "Red", value: "#ef4444", hover: "#dc2626" },
-  { id: "orange", name: "Orange", value: "#f97316", hover: "#ea580c" },
-  { id: "amber", name: "Amber", value: "#f59e0b", hover: "#d97706" },
-  { id: "green", name: "Green", value: "#22c55e", hover: "#16a34a" },
-  { id: "teal", name: "Teal", value: "#14b8a6", hover: "#0d9488" },
-  { id: "cyan", name: "Cyan", value: "#06b6d4", hover: "#0891b2" },
+  { id: "purple", name: "Purple", value: "#6d5ce0", hover: "#5b4ad0" },
+  { id: "blue", name: "Blue", value: "#3b6fd0", hover: "#2f5db8" },
+  { id: "pink", name: "Pink", value: "#d65b9a", hover: "#c34787" },
+  { id: "red", name: "Red", value: "#d35450", hover: "#bf413d" },
+  { id: "orange", name: "Orange", value: "#d57a32", hover: "#c16a24" },
+  { id: "green", name: "Green", value: "#4f9d69", hover: "#3f8a58" },
 ];
+
+// Light ↔ dark counterparts for the sidebar mode toggle. Dark-only themes
+// (slate, midnight) fall back to vault when switching to light.
+export const THEME_COUNTERPARTS = {
+  vault: "vault-dark",
+  "vault-dark": "vault",
+  paper: "paper-dark",
+  "paper-dark": "paper",
+  "gruvbox-light": "gruvbox-dark",
+  "gruvbox-dark": "gruvbox-light",
+  slate: "vault",
+  midnight: "vault",
+};
+
+// Persisted ids from earlier designs → Vault equivalents
+const LEGACY_THEME_IDS = { light: "vault", charcoal: "vault-dark" };
+const LEGACY_ACCENT_IDS = {
+  violet: "purple",
+  amber: "orange",
+  teal: "green",
+  cyan: "blue",
+};
+const migrateThemeId = (id) => LEGACY_THEME_IDS[id] || id;
+const migrateAccentId = (id) => LEGACY_ACCENT_IDS[id] || id;
 
 // Default keymaps configuration
 export const DEFAULT_KEYMAPS = {
@@ -267,7 +256,7 @@ export const KEYMAP_CATEGORIES = [
 
 // Helper to apply theme to CSS variables
 export const applyTheme = (themeId) => {
-  const theme = THEMES.find((t) => t.id === themeId);
+  const theme = THEMES.find((t) => t.id === migrateThemeId(themeId));
   if (theme) {
     const { colors } = theme;
     document.documentElement.style.setProperty("--color-bg-base", colors.bgBase);
@@ -285,19 +274,26 @@ export const applyTheme = (themeId) => {
     document.documentElement.style.setProperty("--color-item-hover", colors.itemHover);
     document.documentElement.style.setProperty("--color-item-active", colors.itemActive);
     document.documentElement.style.setProperty("--color-titlebar-bg", colors.titlebarBg);
+    document.documentElement.style.setProperty("--color-bar", colors.bar);
 
     // Set theme type attribute for conditional styling
     document.documentElement.setAttribute("data-theme", theme.type);
   }
 };
 
+// hex "#rrggbb" → "rgba(r,g,b,a)" — used for the soft accent wash
+const hexToRgba = (hex, alpha) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+};
+
 // Helper to apply accent color to CSS variables
 export const applyAccentColor = (colorId) => {
-  const color = ACCENT_COLORS.find((c) => c.id === colorId);
+  const color = ACCENT_COLORS.find((c) => c.id === migrateAccentId(colorId));
   if (color) {
     document.documentElement.style.setProperty("--color-accent", color.value);
     document.documentElement.style.setProperty("--color-accent-hover", color.hover);
-    document.documentElement.style.setProperty("--color-accent-dim", `${color.value}24`);
+    document.documentElement.style.setProperty("--color-accent-dim", hexToRgba(color.value, 0.16));
   }
 };
 
@@ -327,8 +323,8 @@ export const formatKeymap = (keymap) => {
 const normalizeWorkspacePath = (value) => (value ? value.replace(/\\/g, "/") : "");
 
 const createDefaultProfileSettings = () => ({
-  themeId: "paper",
-  accentColorId: "violet",
+  themeId: "vault",
+  accentColorId: "purple",
   vimMode: false,
   scrollSyncEnabled: true,
   autosaveEnabled: false,
@@ -352,11 +348,18 @@ const buildProfileSettingsSnapshot = (state) => ({
   keymaps: { ...DEFAULT_KEYMAPS, ...(state.keymaps || {}) },
 });
 
-const mergeProfileSettings = (profile = {}) => ({
-  ...createDefaultProfileSettings(),
-  ...profile,
-  keymaps: { ...DEFAULT_KEYMAPS, ...migrateLegacyKeymaps(profile?.keymaps || {}) },
-});
+const mergeProfileSettings = (profile = {}) => {
+  const merged = {
+    ...createDefaultProfileSettings(),
+    ...profile,
+    keymaps: { ...DEFAULT_KEYMAPS, ...migrateLegacyKeymaps(profile?.keymaps || {}) },
+  };
+  merged.themeId = migrateThemeId(merged.themeId);
+  merged.accentColorId = migrateAccentId(merged.accentColorId);
+  if (!THEMES.some((t) => t.id === merged.themeId)) merged.themeId = "vault";
+  if (!ACCENT_COLORS.some((c) => c.id === merged.accentColorId)) merged.accentColorId = "purple";
+  return merged;
+};
 
 // Helper to check if a keyboard event matches a keymap
 export const matchesKeymap = (event, keymap) => {
@@ -379,10 +382,10 @@ const useSettingsStore = create(
   persist(
     (set, get) => ({
       // Theme
-      themeId: "paper",
+      themeId: "vault",
 
       // Accent color
-      accentColorId: "violet",
+      accentColorId: "purple",
 
       // Editor settings
       vimMode: false,
@@ -443,6 +446,12 @@ const useSettingsStore = create(
       setAccentColor: (colorId) => {
         get().syncProfileState({ accentColorId: colorId });
         applyAccentColor(colorId);
+      },
+
+      toggleColorScheme: () => {
+        const current = migrateThemeId(get().themeId);
+        const next = THEME_COUNTERPARTS[current] || "vault";
+        get().setTheme(next);
       },
 
       setVimMode: (enabled) => {

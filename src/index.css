@@ -240,38 +240,39 @@
 }
 
 :root {
-  /* "Paper" — warm, calm, content-first default (Notion-like) */
-  --color-bg-base: #f5f2ea;
-  --color-bg-sidebar: #ece8dd;
-  --color-bg-editor: #fffdf7;
+  /* "Vault" — clean, quiet, Notion-like default (light) */
+  --color-bg-base: #ffffff;
+  --color-bg-sidebar: #f7f7f5;
+  --color-bg-editor: #ffffff;
 
   /* Panels & Overlays */
-  --color-overlay-bg: rgba(245, 242, 234, 0.8);
-  --color-glass-border: rgba(70, 60, 40, 0.12);
-  --color-glass-highlight: rgba(70, 60, 40, 0.03);
+  --color-overlay-bg: rgba(30, 25, 15, 0.38);
+  --color-glass-border: rgba(35, 35, 32, 0.09);
+  --color-glass-highlight: rgba(35, 35, 32, 0.045);
 
   /* Text Colors */
-  --color-text-primary: #2c2a26;
-  --color-text-secondary: #6f6a60;
-  --color-text-muted: #9c968a;
+  --color-text-primary: #2f2f2b;
+  --color-text-secondary: #73726e;
+  --color-text-muted: #9f9e9a;
 
   /* Accents */
-  --color-accent: #6f56d8;
-  --color-accent-hover: #5d46c4;
-  --color-accent-dim: rgba(111, 86, 216, 0.14);
+  --color-accent: #6d5ce0;
+  --color-accent-hover: #5b4ad0;
+  --color-accent-dim: rgba(109, 92, 224, 0.16);
 
   /* UI Elements */
-  --color-border: rgba(70, 60, 40, 0.12);
-  --color-border-light: rgba(70, 60, 40, 0.2);
-  --color-item-hover: rgba(70, 60, 40, 0.05);
-  --color-item-active: rgba(70, 60, 40, 0.09);
-  --color-titlebar-bg: #ece8dd;
+  --color-border: rgba(35, 35, 32, 0.09);
+  --color-border-light: rgba(35, 35, 32, 0.16);
+  --color-item-hover: rgba(35, 35, 32, 0.045);
+  --color-item-active: #fafaf9;
+  --color-titlebar-bg: #f7f7f5;
+  --color-bar: #e6e5e1;
 
   /* Theme-aware overlay colors (light defaults) */
-  --color-overlay-subtle: rgba(70, 60, 40, 0.04);
-  --color-overlay-light: rgba(70, 60, 40, 0.07);
-  --color-overlay-medium: rgba(70, 60, 40, 0.11);
-  --color-overlay-strong: rgba(70, 60, 40, 0.16);
+  --color-overlay-subtle: rgba(35, 35, 32, 0.04);
+  --color-overlay-light: rgba(35, 35, 32, 0.07);
+  --color-overlay-medium: rgba(35, 35, 32, 0.11);
+  --color-overlay-strong: rgba(35, 35, 32, 0.16);
 }
 
 /* Dark theme overrides (overlays read as light-on-dark) */
@@ -301,6 +302,7 @@
   --color-item-hover: var(--color-item-hover);
   --color-item-active: var(--color-item-active);
   --color-titlebar-bg: var(--color-titlebar-bg);
+  --color-bar: var(--color-bar);
 
   /* Theme-aware overlay colors */
   --color-overlay-subtle: var(--color-overlay-subtle);
@@ -520,10 +522,10 @@
     }
   }
 
-  /* Custom Scrollbar */
+  /* Custom Scrollbar (Vault: 11px, padded pill thumb) */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 11px;
+    height: 11px;
   }
 
   ::-webkit-scrollbar-track {
@@ -531,12 +533,16 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--color-border);
-    border-radius: 3px;
+    background: var(--color-overlay-strong);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-text-muted);
+    border: 3px solid transparent;
+    background-clip: padding-box;
   }
 
   ::-webkit-scrollbar-corner {

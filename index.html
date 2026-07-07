@@ -4,35 +4,75 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f5f2ea" />
+    <meta name="theme-color" content="#ffffff" />
     <title>Marky - Beautiful Markdown Notes</title>
     <style>
-      /* Prevent flash before CSS loads — Paper warm default */
+      /* Prevent flash before CSS loads — Vault light default */
       body,
       html {
         margin: 0;
         padding: 0;
-        background-color: var(--color-bg-base, #f5f2ea);
+        background-color: var(--color-bg-base, #ffffff);
         overflow: hidden;
       }
       #root {
         width: 100%;
         height: 100%;
-        background-color: var(--color-bg-base, #f5f2ea);
+        background-color: var(--color-bg-base, #ffffff);
       }
     </style>
     <script>
       (() => {
         const themes = {
+          vault: {
+            type: "light",
+            bgBase: "#ffffff",
+            bgSidebar: "#f7f7f5",
+            bgEditor: "#ffffff",
+            textPrimary: "#2f2f2b",
+            textSecondary: "#73726e",
+            textMuted: "#9f9e9a",
+            border: "rgba(35, 35, 32, 0.09)",
+          },
+          "vault-dark": {
+            type: "dark",
+            bgBase: "#1e1e1c",
+            bgSidebar: "#191918",
+            bgEditor: "#242422",
+            textPrimary: "#e7e6e2",
+            textSecondary: "#a3a29d",
+            textMuted: "#71706b",
+            border: "rgba(240, 240, 235, 0.09)",
+          },
           paper: {
             type: "light",
-            bgBase: "#f5f2ea",
-            bgSidebar: "#ece8dd",
-            bgEditor: "#fffdf7",
-            textPrimary: "#2c2a26",
-            textSecondary: "#6f6a60",
-            textMuted: "#9c968a",
-            border: "rgba(70, 60, 40, 0.12)",
+            bgBase: "#f6f3ec",
+            bgSidebar: "#efeae0",
+            bgEditor: "#fffefb",
+            textPrimary: "#38352f",
+            textSecondary: "#75716a",
+            textMuted: "#a39d92",
+            border: "rgba(55, 50, 40, 0.11)",
+          },
+          "paper-dark": {
+            type: "dark",
+            bgBase: "#1c1a16",
+            bgSidebar: "#191713",
+            bgEditor: "#242019",
+            textPrimary: "#ece5d6",
+            textSecondary: "#a8a092",
+            textMuted: "#756d5f",
+            border: "rgba(240, 232, 214, 0.10)",
+          },
+          slate: {
+            type: "dark",
+            bgBase: "#0e131c",
+            bgSidebar: "#121a26",
+            bgEditor: "#16202e",
+            textPrimary: "#e6ecf5",
+            textSecondary: "#8ea0b8",
+            textMuted: "#5d6e85",
+            border: "rgba(255, 255, 255, 0.08)",
           },
           midnight: {
             type: "dark",
@@ -44,46 +84,6 @@
             textMuted: "#6b6a77",
             border: "rgba(255, 255, 255, 0.075)",
           },
-          charcoal: {
-            type: "dark",
-            bgBase: "#1a1a1a",
-            bgSidebar: "#202020",
-            bgEditor: "#262626",
-            textPrimary: "#e8e8e8",
-            textSecondary: "#a0a0a0",
-            textMuted: "#6e6e6e",
-            border: "rgba(255, 255, 255, 0.08)",
-          },
-          slate: {
-            type: "dark",
-            bgBase: "#0e131c",
-            bgSidebar: "#121a26",
-            bgEditor: "#16202e",
-            textPrimary: "#e6ecf5",
-            textSecondary: "#8ea0b8",
-            textMuted: "#5d6e85",
-            border: "rgba(255, 255, 255, 0.07)",
-          },
-          light: {
-            type: "light",
-            bgBase: "#f7f7f5",
-            bgSidebar: "#efeeec",
-            bgEditor: "#ffffff",
-            textPrimary: "#1f1f1d",
-            textSecondary: "#6b6a66",
-            textMuted: "#9a9893",
-            border: "rgba(20, 20, 20, 0.09)",
-          },
-          "gruvbox-dark": {
-            type: "dark",
-            bgBase: "#282828",
-            bgSidebar: "#1d2021",
-            bgEditor: "#32302f",
-            textPrimary: "#ebdbb2",
-            textSecondary: "#a89984",
-            textMuted: "#7c6f64",
-            border: "rgba(235, 219, 178, 0.1)",
-          },
           "gruvbox-light": {
             type: "light",
             bgBase: "#f2e5bc",
@@ -94,27 +94,39 @@
             textMuted: "#928374",
             border: "rgba(60, 56, 54, 0.12)",
           },
+          "gruvbox-dark": {
+            type: "dark",
+            bgBase: "#282828",
+            bgSidebar: "#1d2021",
+            bgEditor: "#32302f",
+            textPrimary: "#ebdbb2",
+            textSecondary: "#a89984",
+            textMuted: "#7c6f64",
+            border: "rgba(235, 219, 178, 0.10)",
+          },
         };
 
+        // Legacy persisted ids → Vault equivalents
+        const themeAlias = { light: "vault", charcoal: "vault-dark" };
+        const accentAlias = { violet: "purple", amber: "orange", teal: "green", cyan: "blue" };
+
         const accents = {
-          violet: { value: "#6f56d8", hover: "#5d46c4" },
-          purple: { value: "#8b5cf6", hover: "#7c3aed" },
-          blue: { value: "#3b82f6", hover: "#2563eb" },
-          pink: { value: "#ec4899", hover: "#db2777" },
-          red: { value: "#ef4444", hover: "#dc2626" },
-          orange: { value: "#f97316", hover: "#ea580c" },
-          amber: { value: "#f59e0b", hover: "#d97706" },
-          green: { value: "#22c55e", hover: "#16a34a" },
-          teal: { value: "#14b8a6", hover: "#0d9488" },
-          cyan: { value: "#06b6d4", hover: "#0891b2" },
+          purple: { value: "#6d5ce0", hover: "#5b4ad0" },
+          blue: { value: "#3b6fd0", hover: "#2f5db8" },
+          pink: { value: "#d65b9a", hover: "#c34787" },
+          red: { value: "#d35450", hover: "#bf413d" },
+          orange: { value: "#d57a32", hover: "#c16a24" },
+          green: { value: "#4f9d69", hover: "#3f8a58" },
         };
 
         try {
           const raw = localStorage.getItem("marky-settings");
           const parsed = raw ? JSON.parse(raw) : null;
           const state = parsed?.state || {};
-          const theme = themes[state.themeId] || themes.paper;
-          const accent = accents[state.accentColorId] || accents.violet;
+          const themeId = themeAlias[state.themeId] || state.themeId;
+          const accentId = accentAlias[state.accentColorId] || state.accentColorId;
+          const theme = themes[themeId] || themes.vault;
+          const accent = accents[accentId] || accents.purple;
 
           document.documentElement.setAttribute("data-theme", theme.type);
           document.documentElement.style.setProperty("--color-bg-base", theme.bgBase);

@@ -553,12 +553,14 @@ const useNotesStore = create(
       loadFolderFromSystem: (folderData) => get().setRootFolder(folderData),
 
       refreshRootFromDisk: async (options = {}) => {
-        const { focusPath, ensureExpandedPath } = options;
+        const { focusPath, ensureExpandedPath, silent = false } = options;
         const state = get();
         const { rootFolderPath } = state;
         if (!rootFolderPath) return [];
 
-        set({ isLoading: true, loadingProgress: null });
+        // `silent` keeps the tree mounted (no loading spinner) so the sidebar
+        // scroll position survives in-place refreshes like drag-moves.
+        if (!silent) set({ isLoading: true, loadingProgress: null });
         try {
           const files = await scanFolder(rootFolderPath);
           const folderData = {
@@ -568,12 +570,20 @@ const useNotesStore = create(
           };
           const { items: fsItems, rootId } = await buildItemsFromFolderData(
             folderData,
-            (progress) => {
-              set({ loadingProgress: progress });
-            }
+            silent
+              ? undefined
+              : (progress) => {
+                  set({ loadingProgress: progress });
+                }
           );
           const previousItems = state.items;
           const ephemeralItems = previousItems.filter((item) => !item.filePath);
+          // Preserve manual sibling order (set by drag-reorder) across disk refreshes.
+          const previousOrderById = new Map(
+            previousItems
+              .filter((item) => item.order !== undefined)
+              .map((item) => [item.id, item.order])
+          );
           const previousNotesById = new Map(
             previousItems.filter((item) => item.type === "note").map((item) => [item.id, item])
           );
@@ -633,7 +643,12 @@ const useNotesStore = create(
               }
               return ensureNoteMetadata(item);
             })
-            .concat(ephemeralItems.map(ensureNoteMetadata));
+            .concat(ephemeralItems.map(ensureNoteMetadata))
+            .map((item) =>
+              previousOrderById.has(item.id)
+                ? { ...item, order: previousOrderById.get(item.id) }
+                : item
+            );
           const validFolderIds = new Set(
             combinedItems.filter((item) => item.type === "folder").map((item) => item.id)
           );
@@ -690,7 +705,7 @@ const useNotesStore = create(
 
           return combinedItems;
         } finally {
-          set({ isLoading: false, loadingProgress: null });
+          if (!silent) set({ isLoading: false, loadingProgress: null });
         }
       },
 
@@ -1217,6 +1232,7 @@ const useNotesStore = create(
         await get().refreshRootFromDisk({
           ensureExpandedPath: targetPath,
           focusPath: item.type === "note" ? newPath : undefined,
+          silent: true,
         });
 
         if (item.type === "note") {
@@ -1250,19 +1266,27 @@ const useNotesStore = create(
 
       reorderItems: (itemId, newParentId, newIndex) => {
         set((state) => {
-          const items = [...state.items];
+          const items = state.items.map((entry) => ({ ...entry }));
           const item = items.find((entry) => entry.id === itemId);
-
           if (!item) return state;
 
-          item.parentId = newParentId;
+          item.parentId = newParentId ?? null;
 
-          const siblings = items.filter(
-            (entry) => entry.parentId === newParentId && entry.id !== itemId
-          );
+          // Sort siblings by their current display order so the inserted index
+          // matches what the user sees (manual order first, then name).
+          const siblings = items
+            .filter(
+              (entry) => (entry.parentId ?? null) === (newParentId ?? null) && entry.id !== itemId
+            )
+            .sort((a, b) => {
+              const ao = a.order ?? Number.MAX_SAFE_INTEGER;
+              const bo = b.order ?? Number.MAX_SAFE_INTEGER;
+              if (ao !== bo) return ao - bo;
+              return a.name.localeCompare(b.name);
+            });
 
-          siblings.splice(newIndex, 0, item);
-
+          const idx = Math.max(0, Math.min(newIndex, siblings.length));
+          siblings.splice(idx, 0, item);
           siblings.forEach((sibling, index) => {
             sibling.order = index;
           });

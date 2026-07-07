@@ -4,7 +4,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App.jsx";
 import "./index.css";
 
-const appWindow = getCurrentWindow();
+// getCurrentWindow throws when the Tauri runtime is absent (e.g. a plain
+// browser). Degrade gracefully so the UI can still mount for previews.
+let appWindow = null;
+try {
+  appWindow = getCurrentWindow();
+} catch {
+  appWindow = null;
+}
 
 // Use createRoot without StrictMode in production for better performance
 const root = ReactDOM.createRoot(document.getElementById("root"));
@@ -23,6 +30,6 @@ if (import.meta.env.DEV) {
 // Show window after paint
 requestAnimationFrame(() => {
   requestAnimationFrame(() => {
-    appWindow.show().catch(console.error);
+    appWindow?.show().catch(console.error);
   });
 });
