@@ -40,8 +40,17 @@ function App() {
     rootFolderPath,
   } = useNotesStore();
   const { keymaps, initializeSettings, isRecordingKeymap } = useSettingsStore();
-  const { focusMode, toggleFocusMode, showWorkspaceModal, setShowWorkspaceModal, addNotification } =
-    useUIStore();
+  const {
+    focusMode,
+    toggleFocusMode,
+    showWorkspaceModal,
+    setShowWorkspaceModal,
+    addNotification,
+    templateRequest,
+    scheduleRequest,
+    clearTemplateRequest,
+    clearScheduleRequest,
+  } = useUIStore();
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
   // Initialize settings (apply accent color) on mount
@@ -67,6 +76,21 @@ function App() {
       settingsState.clearActiveWorkspaceSettings();
     }
   }, [rootFolderPath]);
+
+  // Open top-level modals in response to requests from nested views.
+  useEffect(() => {
+    if (!templateRequest) return;
+    setTemplateParentId(templateRequest.parentId ?? null);
+    setShowTemplateModal(true);
+    clearTemplateRequest();
+  }, [templateRequest, clearTemplateRequest]);
+
+  useEffect(() => {
+    if (!scheduleRequest) return;
+    setScheduleTemplate(scheduleRequest.template ?? null);
+    setShowScheduleModal(true);
+    clearScheduleRequest();
+  }, [scheduleRequest, clearScheduleRequest]);
 
   const startResizingSidebar = useCallback((e) => {
     e.preventDefault();

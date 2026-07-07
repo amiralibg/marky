@@ -15,10 +15,15 @@ const TreeItem = ({
   onSetDropTarget,
   onClearDropTarget,
   dropTargetFolderId,
+  internalDropTargetId,
+  setInternalDropTargetId,
   isExternalDragging,
   onRequestDelete,
   onMoveItemOut,
   onMoveItemIn,
+  reorderTarget,
+  setReorderTarget,
+  onReorder,
   renderChildren = true,
   treeIndex = null,
   virtualTree = null,
@@ -39,7 +44,6 @@ const TreeItem = ({
 
   const [isRenaming, setIsRenaming] = useState(false);
   const [renamingValue, setRenamingValue] = useState(item.name);
-  const [isDragOver, setIsDragOver] = useState(false);
   const autoExpandTimeoutRef = useRef(null);
   const isDraggingRef = useRef(false);
   const dragStartTimeRef = useRef(null);
@@ -80,11 +84,22 @@ const TreeItem = ({
     draggedItem.id !== item.id &&
     !isDescendantOf(item.id, draggedItem.id, getChildren);
 
+  // Drop at a row edge to place the dragged item as a sibling of this row.
+  // Same parent => reorder in place; different parent => move into this row's
+  // parent (e.g. dropping at the edge of a root item moves the item to root).
+  const canReorder =
+    draggedItem &&
+    draggedItem.id !== item.id &&
+    !isDescendantOf(item.id, draggedItem.id, getChildren);
+
   // Determine if this folder is the current external drop target
   const isExternalDropTarget = isFolder && dropTargetFolderId === item.id && isExternalDragging;
 
+  // Only one folder is highlighted at a time (shared target from the sidebar)
+  const isInternalDropTarget = canDrop && internalDropTargetId === item.id;
+
   // Show visual feedback for internal drag or external drop target
-  const showDropHighlight = (isDragOver && canDrop) || isExternalDropTarget;
+  const showDropHighlight = isInternalDropTarget || isExternalDropTarget;
   const isCompactDensity = sidebarDensity === "compact";
   const isSpaciousDensity = sidebarDensity === "spacious";
   const rowDensityClass = isCompactDensity
@@ -103,7 +118,6 @@ const TreeItem = ({
     : isSpaciousDensity
       ? "w-4.5 h-4.5 mr-2.5"
       : "w-4 h-4 mr-2";
-  const noteIconIndentClass = isCompactDensity ? "ml-4" : isSpaciousDensity ? "ml-6" : "ml-5";
   const showInlineMetadata = showSidebarMetadata && !isCompactDensity;
 
   // Auto-expand folder when it's an external drop target
@@ -351,43 +365,64 @@ const TreeItem = ({
     }
   };
 
-  const handleMouseEnter = () => {
-    if (!draggedItem || draggedItem.id === item.id) return;
+  const scheduleAutoExpand = () => {
+    if (!isFolder || isExpanded || autoExpandTimeoutRef.current) return;
+    // Folder opens after a short hover hold so you can drop inside (motion spec 1c).
+    autoExpandTimeoutRef.current = setTimeout(() => {
+      toggleFolder(item.id);
+      autoExpandTimeoutRef.current = null;
+    }, 500);
+  };
 
-    if (canDrop) {
-      setIsDragOver(true);
+  const cancelAutoExpand = () => {
+    if (autoExpandTimeoutRef.current) {
+      clearTimeout(autoExpandTimeoutRef.current);
+      autoExpandTimeoutRef.current = null;
+    }
+  };
 
-      if (isFolder && !isExpanded) {
-        if (autoExpandTimeoutRef.current) {
-          clearTimeout(autoExpandTimeoutRef.current);
-        }
-        autoExpandTimeoutRef.current = setTimeout(() => {
-          toggleFolder(item.id);
-        }, 600);
-      }
+  // While dragging, decide between "nest into folder" (mid-row of a folder)
+  // and "reorder before/after" (row edges, among same-parent siblings).
+  const handleRowDragOver = (e) => {
+    if (!draggedItem || isBeingDragged) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const fraction = rect.height ? (e.clientY - rect.top) / rect.height : 0.5;
+
+    if (canDrop && fraction > 0.3 && fraction < 0.7) {
+      setInternalDropTargetId?.(item.id);
+      setReorderTarget?.(null);
+      scheduleAutoExpand();
+      return;
+    }
+
+    cancelAutoExpand();
+    setInternalDropTargetId?.(null);
+
+    if (canReorder) {
+      setReorderTarget?.({ id: item.id, position: fraction < 0.5 ? "before" : "after" });
+    } else {
+      setReorderTarget?.(null);
     }
   };
 
   const handleMouseLeave = () => {
-    setIsDragOver(false);
-
-    if (autoExpandTimeoutRef.current) {
-      clearTimeout(autoExpandTimeoutRef.current);
-      autoExpandTimeoutRef.current = null;
-    }
+    cancelAutoExpand();
   };
 
   const handleMouseUp = (e) => {
-    if (!draggedItem || !canDrop) return;
+    if (!draggedItem) return;
 
-    e.stopPropagation();
-    onItemMove(draggedItem, item);
-    setIsDragOver(false);
-
-    if (autoExpandTimeoutRef.current) {
-      clearTimeout(autoExpandTimeoutRef.current);
-      autoExpandTimeoutRef.current = null;
+    if (reorderTarget?.id === item.id && canReorder) {
+      e.stopPropagation();
+      onReorder?.(draggedItem, item, reorderTarget.position);
+    } else if (canDrop && internalDropTargetId === item.id) {
+      e.stopPropagation();
+      onItemMove(draggedItem, item);
     }
+
+    setInternalDropTargetId?.(null);
+    setReorderTarget?.(null);
+    cancelAutoExpand();
   };
 
   const handleDoubleClick = (e) => {
@@ -416,41 +451,45 @@ const TreeItem = ({
     metadataParts.length ? `, ${metadataParts.join(", ")}` : ""
   }`;
 
+  const showReorderBar = reorderTarget?.id === item.id && canReorder;
+  const gapBefore = showReorderBar && reorderTarget.position === "before";
+  const gapAfter = showReorderBar && reorderTarget.position === "after";
+
   return (
-    <div className={`relative ${isBeingDragged ? "opacity-40" : ""} transition-opacity`}>
-      {/* Drop indicator line */}
-      {showDropHighlight && (
-        <div
-          className="absolute left-0 right-0 top-0 h-0.5 bg-accent z-20 pointer-events-none"
-          style={{ marginLeft: `${level * 16 + 8}px` }}
+    <div
+      className={`relative ${isBeingDragged ? "opacity-40" : ""}`}
+      style={{ transition: "opacity 200ms ease" }}
+    >
+      {/* Insertion line — 3px accent bar shown ONLY at the current drop target.
+          Rendered conditionally (no fade) so dragging never leaves a trail of
+          lines. Sits in the row gap without shifting layout, so the row itself
+          stays under the cursor and the drop always lands. */}
+      {showReorderBar && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute right-2 z-10 h-[2.5px] rounded-full bg-accent"
+          style={{
+            left: `${level * 16 + 12}px`,
+            top: gapBefore ? "-1.5px" : "auto",
+            bottom: gapAfter ? "-1.5px" : "auto",
+            boxShadow: "0 0 0 2px var(--color-bg-sidebar)",
+          }}
         />
       )}
-
-      {/* Tree indent lines */}
-      {level > 0 && (
-        <div className="absolute left-0 top-0 bottom-0 pointer-events-none">
-          {Array.from({ length: level }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute top-0 bottom-0 w-px bg-overlay-light/50"
-              style={{ left: `${i * 16 + 16}px` }}
-            />
-          ))}
-        </div>
-      )}
-
       <div
         className={`
           flex items-center select-none relative
-          ${rowDensityClass} transition-all duration-150
-          ${isSelected ? "bg-accent/15 text-accent shadow-[inset_2px_0_0_var(--color-accent)]" : "text-text-secondary"}
-          ${!isBeingDragged && !isRenaming ? "hover:bg-overlay-subtle hover:text-text-primary hover:shadow-sm cursor-pointer" : ""}
-          ${showDropHighlight ? "bg-accent/10 text-accent" : ""}
+          ${rowDensityClass} transition-colors duration-150
+          ${isSelected ? "bg-item-active text-text-primary font-medium" : "text-text-secondary"}
+          ${!isBeingDragged && !isRenaming ? "hover:bg-item-hover hover:text-text-primary cursor-pointer" : ""}
+          ${showDropHighlight ? "bg-accent-dim text-text-primary ring-1 ring-accent/40 ring-inset" : ""}
           ${isBeingDragged ? "cursor-grabbing" : "cursor-grab"}
-          focus:outline-none focus:bg-accent/10 focus:text-text-primary focus:ring-2 focus:ring-accent/60 focus:ring-inset
+          focus:outline-none focus:bg-item-hover focus:text-text-primary focus:ring-1 focus:ring-accent/40 focus:ring-inset
           focus-visible:outline-none
         `}
-        style={{ paddingLeft: `${level * 16 + 8}px` }}
+        style={{
+          paddingLeft: `${level * 16 + 8}px`,
+        }}
         data-treeitem-row="true"
         data-tree-index={treeIndex ?? undefined}
         data-item-id={item.id}
@@ -471,54 +510,61 @@ const TreeItem = ({
         onMouseDown={handleMouseDown}
         onKeyDown={handleRowKeyDown}
         onFocus={handleRowFocus}
-        onMouseEnter={handleMouseEnter}
+        onMouseMove={draggedItem ? handleRowDragOver : undefined}
         onMouseLeave={handleMouseLeave}
         onMouseUp={handleMouseUp}
         onDoubleClick={handleDoubleClick}
         onContextMenu={(e) => onContextMenu(e, item)}
         title={item.filePath || item.name}
       >
-        {/* Folder chevron */}
-        {isFolder && (
-          <svg
-            className={`${chevronClass} transition-transform duration-150 text-text-muted ${isExpanded ? "rotate-90" : ""}`}
-            fill="currentColor"
-            viewBox="0 0 20 20"
-            aria-hidden="true"
-          >
-            <path d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" />
-          </svg>
-        )}
+        {/* Chevron — always rendered to keep icon alignment; invisible for notes */}
+        <svg
+          className={`${chevronClass} shrink-0 text-text-muted transition-transform duration-150 ${
+            isFolder ? (isExpanded ? "rotate-90 opacity-70" : "opacity-70") : "opacity-0"
+          }`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path d="M9 6l6 6-6 6" />
+        </svg>
 
         {/* Icon */}
         {isFolder ? (
           <svg
-            className={`${iconClass} transition-colors ${showDropHighlight ? "text-accent" : "text-sky-400/80"}`}
-            fill="currentColor"
-            viewBox="0 0 20 20"
+            className={`${iconClass} shrink-0 transition-colors ${showDropHighlight ? "text-accent" : "text-text-muted"}`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            viewBox="0 0 24 24"
             aria-hidden="true"
           >
-            <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+            <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
           </svg>
         ) : (
-          <div className="flex items-center">
+          <div className="flex items-center shrink-0">
             <svg
-              className={`${iconClass} ${noteIconIndentClass} text-text-muted`}
+              className={`${iconClass} text-text-muted`}
               fill="none"
               stroke="currentColor"
+              strokeWidth={1.75}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               viewBox="0 0 24 24"
               aria-hidden="true"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
+              <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+              <path d="M14 3v5h5" />
             </svg>
             {showSidebarMetadata && isPinned(item.id) && (
               <svg
-                className={`${isCompactDensity ? "w-2.5 h-2.5 mr-0.5" : "w-3 h-3 mr-1"} text-amber-400`}
+                className={`${isCompactDensity ? "w-2.5 h-2.5 mr-0.5" : "w-3 h-3 mr-1"} text-accent`}
                 fill="currentColor"
                 viewBox="0 0 24 24"
                 aria-hidden="true"
@@ -558,7 +604,7 @@ const TreeItem = ({
                 title={`${backlinksCount} backlink${backlinksCount !== 1 ? "s" : ""}`}
               >
                 <svg
-                  className="w-3 h-3 text-purple-400"
+                  className="w-3 h-3 text-text-muted"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -571,7 +617,7 @@ const TreeItem = ({
                     d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
                   />
                 </svg>
-                <span className="text-[10px] text-purple-400 font-medium">{backlinksCount}</span>
+                <span className="text-[10px] text-text-muted font-medium">{backlinksCount}</span>
               </div>
             )}
 
@@ -597,20 +643,12 @@ const TreeItem = ({
           </>
         )}
 
-        {/* Saved indicator */}
+        {/* Saved indicator — small accent dot (Paper design) */}
         {showInlineMetadata && item.type === "note" && item.filePath && (
-          <svg
-            className={`${isSpaciousDensity ? "w-3.5 h-3.5 ml-1.5" : "w-3 h-3 ml-1"} text-emerald-400/70`}
-            fill="currentColor"
-            viewBox="0 0 20 20"
+          <span
+            className="ml-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent/70"
             aria-hidden="true"
-          >
-            <path
-              fillRule="evenodd"
-              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-              clipRule="evenodd"
-            />
-          </svg>
+          />
         )}
       </div>
 
@@ -619,10 +657,13 @@ const TreeItem = ({
         <div role="group">
           {children
             .sort((a, b) => {
+              // Manual drag order wins (may interleave files/folders).
+              const ao = a.order;
+              const bo = b.order;
+              if (ao !== undefined && bo !== undefined) return ao - bo;
+              if (ao !== undefined) return -1;
+              if (bo !== undefined) return 1;
               if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
-              if (a.order !== undefined && b.order !== undefined) {
-                return a.order - b.order;
-              }
               return a.name.localeCompare(b.name);
             })
             .map((child) => (
@@ -639,10 +680,15 @@ const TreeItem = ({
                 onSetDropTarget={onSetDropTarget}
                 onClearDropTarget={onClearDropTarget}
                 dropTargetFolderId={dropTargetFolderId}
+                internalDropTargetId={internalDropTargetId}
+                setInternalDropTargetId={setInternalDropTargetId}
                 isExternalDragging={isExternalDragging}
                 onRequestDelete={onRequestDelete}
                 onMoveItemOut={onMoveItemOut}
                 onMoveItemIn={onMoveItemIn}
+                reorderTarget={reorderTarget}
+                setReorderTarget={setReorderTarget}
+                onReorder={onReorder}
                 renderChildren={renderChildren}
               />
             ))}

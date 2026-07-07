@@ -25,7 +25,23 @@ const TitleBar = ({
   const [platform, setPlatform] = useState(detectPlatform);
   const [isMaximized, setIsMaximized] = useState(false);
 
-  const windowControls = useMemo(() => getCurrentWindow(), []);
+  // getCurrentWindow throws without the Tauri runtime; fall back to a no-op
+  // controller so the UI still renders (e.g. in a plain browser preview).
+  const windowControls = useMemo(() => {
+    try {
+      return getCurrentWindow();
+    } catch {
+      const noop = () => Promise.resolve();
+      return {
+        isMaximized: noop,
+        onResized: () => Promise.resolve(() => {}),
+        toggleMaximize: noop,
+        startDragging: noop,
+        minimize: noop,
+        close: noop,
+      };
+    }
+  }, []);
   const isMac = platform === "macos";
   const isWindows = platform === "windows";
 

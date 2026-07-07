@@ -10,6 +10,7 @@ const CodeMirrorEditor = forwardRef(
       value,
       onChange,
       onVimModeChange,
+      onSelectionChange,
       placeholder = "",
       readOnly = false,
       className = "",
@@ -32,6 +33,11 @@ const CodeMirrorEditor = forwardRef(
     const getTagsRef = useRef(null);
     const suppressOnChangeRef = useRef(false);
     const vimStatusSyncFrameRef = useRef(null);
+    const selectionListenerRef = useRef(null);
+
+    useEffect(() => {
+      selectionListenerRef.current = onSelectionChange;
+    }, [onSelectionChange]);
 
     // Store onChange, onVimModeChange, and getNotes in refs to avoid recreating extensions
     useEffect(() => {
@@ -101,9 +107,43 @@ const CodeMirrorEditor = forwardRef(
         getTags: () => (getTagsRef.current ? getTagsRef.current() : []),
       });
 
+      // Emit selection geometry so the parent can float a selection toolbar.
+      const emitSelection = (view) => {
+        const cb = selectionListenerRef.current;
+        if (!cb) return;
+        const sel = view.state.selection.main;
+        if (sel.empty) {
+          cb({ empty: true });
+          return;
+        }
+        const start = view.coordsAtPos(sel.from);
+        const end = view.coordsAtPos(sel.to);
+        if (!start || !end) {
+          cb({ empty: true });
+          return;
+        }
+        cb({
+          empty: false,
+          from: sel.from,
+          to: sel.to,
+          rect: {
+            top: Math.min(start.top, end.top),
+            bottom: Math.max(start.bottom, end.bottom),
+            left: Math.min(start.left, end.left),
+            right: Math.max(start.right, end.right),
+          },
+        });
+      };
+
+      const selectionExt = EditorView.updateListener.of((update) => {
+        if (update.selectionSet || update.docChanged || update.geometryChanged) {
+          emitSelection(update.view);
+        }
+      });
+
       const state = EditorState.create({
         doc: value || "",
-        extensions,
+        extensions: extensions.concat(selectionExt),
       });
 
       const view = new EditorView({

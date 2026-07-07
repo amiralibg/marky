@@ -14,9 +14,9 @@ import hljs from "highlight.js/lib/common";
 import markedFootnote from "marked-footnote";
 import markedKatex from "marked-katex-extension";
 import "katex/dist/katex.min.css";
-import Toolbar from "../layout/Toolbar";
 import CreateNoteModal from "../modals/CreateNoteModal";
 import CodeMirrorEditor from "./CodeMirrorEditor";
+import SelectionToolbar from "./SelectionToolbar";
 import useNotesStore, { SETTINGS_TAB_ID } from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
 import useSettingsStore from "../../store/settingsStore";
@@ -260,6 +260,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const [markdown, setMarkdown] = useState("");
   const [debouncedMarkdown, setDebouncedMarkdown] = useState(""); // Debounced for preview
   const [viewMode, setViewMode] = useState("split"); // "editor", "preview", or "split"
+  const [selection, setSelection] = useState({ empty: true }); // for the bubble toolbar
   const [showExportModal, setShowExportModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showConflictCompare, setShowConflictCompare] = useState(false);
@@ -1309,6 +1310,31 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   const currentNote = getCurrentNote();
 
+  // Page header chrome (emoji + title + tags) derived from frontmatter / content
+  const titleBlock = useMemo(() => {
+    const { attributes, body } = parseFrontmatter(debouncedMarkdown || "");
+    const h1 = body.match(/^#\s+(.+)$/m);
+    const title =
+      (typeof attributes.title === "string" && attributes.title.trim()) ||
+      (h1 && h1[1].trim()) ||
+      (currentNote?.name || "Untitled").replace(/\.(md|markdown|txt)$/i, "");
+    const icon =
+      typeof attributes.icon === "string" && attributes.icon.trim() ? attributes.icon.trim() : "📝";
+    let tags = [];
+    if (Array.isArray(attributes.tags)) {
+      tags = attributes.tags.map(String);
+    } else if (typeof attributes.tags === "string" && attributes.tags.trim()) {
+      tags = attributes.tags.split(/[,\s]+/).filter(Boolean);
+    }
+    if (tags.length === 0) {
+      const hash = (body.match(/(?:^|\s)#([a-zA-Z0-9_-]+)/g) || []).map((t) =>
+        t.trim().replace(/^#/, "")
+      );
+      tags = [...new Set(hash)];
+    }
+    return { title, icon, tags: tags.slice(0, 6) };
+  }, [debouncedMarkdown, currentNote?.name]);
+
   // Sync editor content when external actions (e.g. Tag Manager / restore) update the current note.
   useEffect(() => {
     const hasPendingLocalEdit =
@@ -1350,13 +1376,56 @@ const MarkdownEditor = forwardRef((props, ref) => {
     );
   }
 
+  const viewModeControl = (
+    <div
+      className="flex items-center gap-0.5 rounded-lg bg-overlay-subtle p-0.5 shrink-0"
+      role="group"
+      aria-label="Editor view mode"
+    >
+      {[
+        { id: "editor", label: "Edit" },
+        { id: "split", label: "Split", smOnly: true },
+        { id: "preview", label: "Read" },
+      ].map((m) => (
+        <button
+          key={m.id}
+          onClick={() => setViewMode(m.id)}
+          aria-pressed={viewMode === m.id}
+          aria-label={`Switch to ${m.label} view`}
+          className={`${m.smOnly ? "hidden md:block" : ""} rounded-md px-[11px] py-[5px] text-[13px] transition-colors ${
+            viewMode === m.id
+              ? "bg-accent-dim font-semibold text-accent"
+              : "text-text-secondary hover:text-text-primary"
+          }`}
+          title={`${m.label} view`}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="h-full flex flex-col overflow-hidden bg-editor-bg">
       {/* Title Bar - Glass effect */}
       {!focusMode && (
         <div className="h-12 border-b border-border flex items-center px-4 bg-bg-base/80 backdrop-blur shrink-0 z-10 justify-between">
           <div className="flex items-center gap-2 min-w-0 flex-1 mr-4">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2 min-w-0">
+              {rootFolderPath && (
+                <>
+                  <button
+                    onClick={() => selectNote(null)}
+                    className="text-sm text-text-muted hover:text-text-primary truncate px-1 py-0.5 rounded transition-colors max-w-[12rem]"
+                    title="Workspace home"
+                  >
+                    {rootFolderPath.split("/").filter(Boolean).pop()}
+                  </button>
+                  <span className="text-text-muted" aria-hidden="true">
+                    /
+                  </span>
+                </>
+              )}
               <span className="text-sm text-text-primary font-semibold truncate">
                 {currentNote.name}
               </span>
@@ -1365,50 +1434,28 @@ const MarkdownEditor = forwardRef((props, ref) => {
               )}
             </div>
             {currentNote.filePath ? (
-              <>
-                <span className="text-xs text-text-muted hidden sm:inline truncate opacity-60">
-                  ({currentNote.filePath})
-                </span>
-                {showSavedIndicator && (
-                  <span className="text-[10px] text-green-300 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 animate-in fade-in duration-200">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    Saved
-                  </span>
-                )}
-                {autosaveEnabled && autosaveStatus === "pending" && (
-                  <span className="text-[10px] text-text-muted bg-overlay-subtle border border-overlay-subtle px-2 py-0.5 rounded-full">
-                    Autosave…
-                  </span>
-                )}
-                {autosaveEnabled && autosaveStatus === "saving" && (
-                  <span className="text-[10px] text-text-muted bg-overlay-subtle border border-overlay-subtle px-2 py-0.5 rounded-full animate-pulse">
-                    Saving…
-                  </span>
-                )}
-                {autosaveEnabled && autosaveStatus === "saved" && !showSavedIndicator && (
-                  <span className="text-[10px] text-green-300 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 animate-in fade-in duration-200">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    Autosaved
-                  </span>
-                )}
-              </>
+              <span className="text-[11px] text-text-muted flex items-center gap-1.5 shrink-0 ml-1">
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    autosaveStatus === "saving"
+                      ? "bg-amber-400 animate-pulse"
+                      : hasUnsavedChanges || autosaveStatus === "pending"
+                        ? "bg-amber-400"
+                        : "bg-green-500"
+                  }`}
+                />
+                {autosaveStatus === "saving"
+                  ? "Saving…"
+                  : hasUnsavedChanges || autosaveStatus === "pending"
+                    ? "Unsaved"
+                    : showSavedIndicator || autosaveStatus === "saved"
+                      ? "Saved"
+                      : "Saved"}
+              </span>
             ) : (
-              <span className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
-                Unsaved
+              <span className="text-[11px] text-amber-400 flex items-center gap-1.5 shrink-0 ml-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                Not saved
               </span>
             )}
           </div>
@@ -1468,7 +1515,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
                   d="M4 6h16M4 12h16M4 18h7"
                 />
               </svg>
-              <span className="hidden sm:inline">TOC</span>
+              <span className="hidden sm:inline">Contents</span>
             </button>
 
             <button
@@ -1538,7 +1585,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
             <button
               onClick={() => setShowExportModal(true)}
-              className="px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-1.5"
+              className="px-3 py-1.5 text-xs text-text-primary border border-border bg-bg-base hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-1.5 font-medium"
               title="Export Note"
               aria-label="Export current note"
             >
@@ -1558,343 +1605,343 @@ const MarkdownEditor = forwardRef((props, ref) => {
               </svg>
               <span className="hidden sm:inline">Export</span>
             </button>
-
-            <div
-              className="flex items-center gap-1 bg-overlay-subtle rounded-lg p-1 border border-overlay-subtle"
-              role="group"
-              aria-label="Editor view mode"
-            >
-              <button
-                onClick={() => setViewMode("editor")}
-                aria-pressed={viewMode === "editor"}
-                aria-label="Switch to editor-only view"
-                className={`p-1.5 rounded-md transition-all ${
-                  viewMode === "editor"
-                    ? "bg-accent text-white shadow-sm"
-                    : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
-                }`}
-                title="Editor Only"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
-              </button>
-              <button
-                onClick={() => setViewMode("split")}
-                aria-pressed={viewMode === "split"}
-                aria-label="Switch to split editor and preview view"
-                className={`hidden md:block p-1.5 rounded-md transition-all ${
-                  viewMode === "split"
-                    ? "bg-accent text-white shadow-sm"
-                    : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
-                }`}
-                title="Split View"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <rect
-                    x="3"
-                    y="5"
-                    width="18"
-                    height="14"
-                    rx="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                  />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setViewMode("preview")}
-                aria-pressed={viewMode === "preview"}
-                aria-label="Switch to preview-only view"
-                className={`p-1.5 rounded-md transition-all ${
-                  viewMode === "preview"
-                    ? "bg-accent text-white shadow-sm"
-                    : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
-                }`}
-                title="Preview Only"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                  />
-                </svg>
-              </button>
-            </div>
           </div>
         </div>
       )}
 
-      {/* Toolbar */}
-      {!focusMode && (viewMode === "editor" || viewMode === "split") && (
-        <div className="border-b border-border bg-bg-base/50 backdrop-blur shrink-0 overflow-x-auto custom-scrollbar">
-          <Toolbar onInsert={insertMarkdown} />
+      {/* Page header: breadcrumb + title + tags + meta */}
+      {!focusMode && (
+        <div
+          className={`shrink-0 px-8 pt-6 pb-2 w-full mx-auto ${viewMode === "split" ? "" : "max-w-4xl"}`}
+        >
+          <div className="mb-2.5 flex items-center gap-1.5 font-mono text-[12px] text-text-muted">
+            {rootFolderPath && (
+              <>
+                <span className="truncate">{rootFolderPath.split("/").filter(Boolean).pop()}</span>
+                <span aria-hidden="true">/</span>
+              </>
+            )}
+            <span className="truncate text-text-secondary">{currentNote.name}</span>
+          </div>
+          <div className="mb-2 flex items-center gap-2.5">
+            <span className="text-[27px] leading-none">{titleBlock.icon}</span>
+            <h1 className="text-[27px] font-[650] tracking-[-0.015em] text-text-primary">
+              {titleBlock.title}
+            </h1>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {titleBlock.tags.map((tag) => (
+              <span
+                key={tag}
+                className="text-[12px] text-text-secondary bg-overlay-subtle rounded-md px-2.5 py-1"
+              >
+                {tag}
+              </span>
+            ))}
+            <span className="text-[12.5px] text-text-muted font-mono ml-1">
+              {statusBarStats.wordCount} words · {statusBarStats.readTime} min read
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* View-mode segmented control (formatting is a selection bubble now) */}
+      {!focusMode && (
+        <div
+          className={`shrink-0 flex items-center justify-end gap-2 w-full mx-auto px-8 pb-1 ${
+            viewMode === "split" ? "" : "max-w-4xl"
+          }`}
+        >
+          {viewModeControl}
         </div>
       )}
 
       {noteConflict && (
         <div
-          className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-3 shrink-0"
+          className="flex items-center gap-3 border-b border-border bg-overlay-subtle px-4 py-2 shrink-0"
           role="alert"
           aria-live="assertive"
         >
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-amber-200">
-                This note changed on disk while you had unsaved edits.
-              </p>
-              <p className="text-xs text-amber-100/80 mt-1">
-                Compare both versions, then load the disk version or overwrite it with your current
-                draft.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setShowConflictCompare(true)}
-                className="px-3 py-1.5 text-xs rounded-md border border-amber-400/30 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20 transition-colors"
-                aria-label="Compare your draft with the version on disk"
-              >
-                Compare Changes
-              </button>
-              <button
-                onClick={handleUseDiskVersion}
-                className="px-3 py-1.5 text-xs rounded-md border border-overlay-light bg-overlay-subtle text-text-primary hover:bg-overlay-light transition-colors"
-                aria-label="Load the disk version and replace your current draft"
-              >
-                Load Disk Version
-              </button>
-              <button
-                onClick={handleOverwriteDiskVersion}
-                className="px-3 py-1.5 text-xs rounded-md bg-amber-500 text-black hover:bg-amber-400 transition-colors font-medium"
-                aria-label="Overwrite the disk version with your current draft"
-              >
-                Overwrite Disk
-              </button>
-            </div>
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-500">
+            <svg
+              className="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+            </svg>
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[13px] text-text-primary">
+            <span className="font-medium">Changed on disk</span>
+            <span className="ml-2 text-text-muted">while you had unsaved edits.</span>
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setShowConflictCompare(true)}
+              className="rounded-md px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary"
+            >
+              Compare
+            </button>
+            <button
+              onClick={handleUseDiskVersion}
+              className="rounded-md px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary"
+            >
+              Load disk
+            </button>
+            <button
+              onClick={handleOverwriteDiskVersion}
+              className="rounded-md bg-amber-500 px-2.5 py-1 text-[12px] font-medium text-black transition-opacity hover:opacity-90"
+            >
+              Overwrite
+            </button>
           </div>
         </div>
       )}
 
       {recoveredDraft && !noteConflict && (
         <div
-          className="border-b border-blue-500/20 bg-blue-500/10 px-4 py-3 shrink-0"
+          className="flex items-center gap-3 border-b border-border bg-accent-dim px-4 py-2 shrink-0"
           role="status"
           aria-live="polite"
         >
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-blue-200">Unsaved draft recovered</p>
-              <p className="text-xs text-blue-100/80 mt-1">
-                Marky recovered unsaved changes from your last session.
-                {recoveredDraft.savedAt && (
-                  <span className="ml-1">
-                    Draft from {new Date(recoveredDraft.savedAt).toLocaleString()}.
-                  </span>
-                )}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={handleDiscardRecoveredDraft}
-                className="px-3 py-1.5 text-xs rounded-md border border-overlay-light bg-overlay-subtle text-text-primary hover:bg-overlay-light transition-colors"
-                aria-label="Discard recovered draft"
-              >
-                Discard Draft
-              </button>
-              <button
-                onClick={() => {
-                  if (currentNoteId)
-                    saveCurrentNoteToDisk()
-                      .then(() => addNotification("Recovered draft saved", "success"))
-                      .catch(() => {});
-                }}
-                className="px-3 py-1.5 text-xs rounded-md bg-blue-500 text-white hover:bg-blue-400 transition-colors font-medium"
-                aria-label="Save recovered draft"
-              >
-                Save Draft
-              </button>
-            </div>
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+            <svg
+              className="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 8v4l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+            </svg>
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[13px] text-text-primary">
+            <span className="font-medium">Unsaved draft recovered</span>
+            {recoveredDraft.savedAt && (
+              <span className="ml-2 text-text-muted">
+                from {new Date(recoveredDraft.savedAt).toLocaleString()}
+              </span>
+            )}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={handleDiscardRecoveredDraft}
+              className="rounded-md px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary"
+            >
+              Discard
+            </button>
+            <button
+              onClick={() => {
+                if (currentNoteId)
+                  saveCurrentNoteToDisk()
+                    .then(() => addNotification("Recovered draft saved", "success"))
+                    .catch(() => {});
+              }}
+              className="rounded-md bg-accent px-2.5 py-1 text-[12px] font-medium text-white transition-opacity hover:opacity-90"
+            >
+              Save draft
+            </button>
           </div>
         </div>
       )}
 
       {/* Content Area */}
       <div
-        className={`flex-1 min-h-0 overflow-hidden flex editor-container relative ${isResizingSplit ? "cursor-col-resize" : ""} ${focusMode ? "justify-center" : ""}`}
+        className={`flex-1 min-h-0 overflow-hidden relative editor-container ${isResizingSplit ? "cursor-col-resize" : ""}`}
       >
-        {/* Table of Contents - Floating Panel */}
-        {showTOC && (
-          <div className="absolute top-4 right-4 z-20 w-72 max-w-[calc(100%-2rem)] animate-in slide-in-from-right-4 fade-in duration-200 shadow-2xl">
-            <Suspense fallback={null}>
-              <TableOfContents markdown={markdown} onHeaderClick={handleTOCHeaderClick} />
-            </Suspense>
-          </div>
-        )}
-
-        {showProperties && (
-          <Suspense fallback={null}>
-            <NotePropertiesPanel
-              markdown={markdown}
-              onApply={handlePropertiesApply}
-              onClose={() => setShowProperties(false)}
-            />
-          </Suspense>
-        )}
-
-        {/* Editor */}
-        {(viewMode === "editor" || viewMode === "split") && (
+        {/* Centered column + rounded bordered editor box (Paper design) */}
+        <div
+          className={`h-full ${
+            focusMode
+              ? "flex justify-center"
+              : `mx-auto w-full px-8 pt-2 pb-8 ${viewMode === "split" ? "" : "max-w-4xl"}`
+          }`}
+        >
           <div
-            className={`flex flex-col relative ${viewMode === "split" ? "border-r border-border" : "w-full"} ${focusMode ? "max-w-3xl mx-auto" : ""}`}
-            style={{ width: viewMode === "split" ? `${editorSplitRatio}%` : "100%" }}
+            className={`h-full flex overflow-hidden ${
+              focusMode ? "w-full justify-center" : "rounded-xl border border-border"
+            }`}
           >
-            {/* Search Controls */}
-            {searchMatches.length > 0 && (
-              <div
-                className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-bg-sidebar border border-border rounded-lg shadow-lg px-3 py-2"
-                role="search"
-                aria-label="Find results controls"
-              >
-                <span
-                  className="text-xs text-text-secondary font-medium"
-                  role="status"
-                  aria-live="polite"
-                >
-                  {currentMatchIndex + 1} of {searchMatches.length}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={previousMatch}
-                    className="p-1 hover:bg-overlay-light rounded transition-colors"
-                    title="Previous match (Shift+Enter)"
-                    aria-label="Go to previous search match"
-                  >
-                    <svg
-                      className="w-4 h-4 text-text-secondary"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 15l7-7 7 7"
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={nextMatch}
-                    className="p-1 hover:bg-overlay-light rounded transition-colors"
-                    title="Next match (Enter)"
-                    aria-label="Go to next search match"
-                  >
-                    <svg
-                      className="w-4 h-4 text-text-secondary"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <div className="w-px h-4 bg-border mx-1" />
-                <button
-                  onClick={clearSearch}
-                  className="p-1 hover:bg-overlay-light rounded transition-colors"
-                  title="Clear search (Esc)"
-                  aria-label="Clear editor search"
-                >
-                  <svg
-                    className="w-4 h-4 text-text-secondary"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
+            {/* Table of Contents - Floating Panel */}
+            {showTOC && (
+              <div className="absolute top-4 right-4 z-20 w-72 max-w-[calc(100%-2rem)] animate-in slide-in-from-right-4 fade-in duration-200 shadow-2xl">
+                <Suspense fallback={null}>
+                  <TableOfContents markdown={markdown} onHeaderClick={handleTOCHeaderClick} />
+                </Suspense>
               </div>
             )}
 
-            <CodeMirrorEditor
-              ref={editorRef}
-              value={markdown}
-              onChange={handleMarkdownChange}
-              onVimModeChange={handleVimModeChange}
-              placeholder="Start typing your markdown here..."
-              className="w-full h-full"
-              enableLineNumbers={true}
-              enableVimMode={vimMode}
-              enableTypewriterMode={typewriterModeEnabled && focusMode}
-              editorSearchKeymap={keymaps.editorSearch}
-              formattingKeymaps={keymaps}
-              getNotes={getNotes}
-              getTags={getAllTags}
-              ariaLabel={`Markdown editor${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
-            />
-          </div>
-        )}
+            {showProperties && (
+              <Suspense fallback={null}>
+                <NotePropertiesPanel
+                  markdown={markdown}
+                  onApply={handlePropertiesApply}
+                  onClose={() => setShowProperties(false)}
+                />
+              </Suspense>
+            )}
 
-        {/* Resize Handle */}
-        {viewMode === "split" && (
-          <div
-            onMouseDown={startResizingSplit}
-            className={`
+            {/* Editor */}
+            {(viewMode === "editor" || viewMode === "split") && (
+              <div
+                className={`flex flex-col relative ${
+                  viewMode === "split"
+                    ? "border-r border-border"
+                    : focusMode
+                      ? "w-full max-w-3xl mx-auto"
+                      : "w-full"
+                }`}
+                style={{ width: viewMode === "split" ? `${editorSplitRatio}%` : "100%" }}
+              >
+                {/* Search Controls */}
+                {searchMatches.length > 0 && (
+                  <div
+                    className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-bg-sidebar border border-border rounded-lg shadow-lg px-3 py-2"
+                    role="search"
+                    aria-label="Find results controls"
+                  >
+                    <span
+                      className="text-xs text-text-secondary font-medium"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      {currentMatchIndex + 1} of {searchMatches.length}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={previousMatch}
+                        className="p-1 hover:bg-overlay-light rounded transition-colors"
+                        title="Previous match (Shift+Enter)"
+                        aria-label="Go to previous search match"
+                      >
+                        <svg
+                          className="w-4 h-4 text-text-secondary"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 15l7-7 7 7"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={nextMatch}
+                        className="p-1 hover:bg-overlay-light rounded transition-colors"
+                        title="Next match (Enter)"
+                        aria-label="Go to next search match"
+                      >
+                        <svg
+                          className="w-4 h-4 text-text-secondary"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="w-px h-4 bg-border mx-1" />
+                    <button
+                      onClick={clearSearch}
+                      className="p-1 hover:bg-overlay-light rounded transition-colors"
+                      title="Clear search (Esc)"
+                      aria-label="Clear editor search"
+                    >
+                      <svg
+                        className="w-4 h-4 text-text-secondary"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+
+                <CodeMirrorEditor
+                  ref={editorRef}
+                  value={markdown}
+                  onChange={handleMarkdownChange}
+                  onVimModeChange={handleVimModeChange}
+                  onSelectionChange={setSelection}
+                  placeholder="Write markdown, select text to format, or press / for blocks…"
+                  className="w-full h-full"
+                  enableLineNumbers={true}
+                  enableVimMode={vimMode}
+                  enableTypewriterMode={typewriterModeEnabled && focusMode}
+                  editorSearchKeymap={keymaps.editorSearch}
+                  formattingKeymaps={keymaps}
+                  getNotes={getNotes}
+                  getTags={getAllTags}
+                  ariaLabel={`Markdown editor${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
+                />
+              </div>
+            )}
+
+            {/* Resize Handle */}
+            {viewMode === "split" && (
+              <div
+                onMouseDown={startResizingSplit}
+                className={`
               w-1 h-full cursor-col-resize hover:bg-accent/50 transition-colors z-10 shrink-0
               ${isResizingSplit ? "bg-accent" : "bg-transparent"}
             `}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize editor and preview panes"
-          />
-        )}
-
-        {/* Preview */}
-        {(viewMode === "preview" || viewMode === "split") && (
-          <div
-            ref={previewPaneRef}
-            className={`flex flex-col bg-bg-editor overflow-y-auto ${isResizingSplit ? "pointer-events-none" : ""} ${focusMode ? "max-w-3xl mx-auto" : ""}`}
-            style={{ width: viewMode === "split" ? `${100 - editorSplitRatio}%` : "100%" }}
-            onClick={handlePreviewClick}
-            role="region"
-            aria-label={`Markdown preview${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
-          >
-            <div className="p-6">
-              <div
-                className="markdown-preview prose prose-invert max-w-none"
-                dir="auto"
-                dangerouslySetInnerHTML={previewHtml}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize editor and preview panes"
               />
-            </div>
+            )}
+
+            {/* Preview */}
+            {(viewMode === "preview" || viewMode === "split") && (
+              <div
+                ref={previewPaneRef}
+                className={`flex flex-col bg-bg-editor overflow-y-auto ${isResizingSplit ? "pointer-events-none" : ""} ${focusMode ? "max-w-3xl mx-auto" : ""}`}
+                style={{ width: viewMode === "split" ? `${100 - editorSplitRatio}%` : "100%" }}
+                onClick={handlePreviewClick}
+                role="region"
+                aria-label={`Markdown preview${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
+              >
+                <div className="w-full px-10 py-9">
+                  <div
+                    className="markdown-preview prose prose-invert max-w-none"
+                    dir="auto"
+                    dangerouslySetInnerHTML={previewHtml}
+                  />
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
+
+      {/* Notion-style selection formatting bubble */}
+      {viewMode !== "preview" && (
+        <SelectionToolbar selection={selection} onInsert={insertMarkdown} />
+      )}
 
       {/* Status Bar */}
       {currentNote && !focusMode && (

@@ -144,60 +144,143 @@
   font-display: swap;
 }
 
-:root {
-  /* Modern Zinc/Slate Dark Theme */
-  --color-bg-base: #09090b;
-  /* Zinc 950 */
-  --color-bg-sidebar: #121215;
-  /* Custom darker zinc */
-  --color-bg-editor: #0c0c0e;
-  /* Deep matte black/zinc */
+/* Redesign fonts — self-hosted from Google Fonts (latin + latin-ext variable
+   woff2). No runtime network dependency. To extend coverage, re-run the
+   download with more subsets. */
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./assets/fonts/HankenGrotesk-normal-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
 
-  /* Glassmorphism & Overlays */
-  --color-overlay-bg: rgba(9, 9, 11, 0.8);
-  --color-glass-border: rgba(255, 255, 255, 0.08);
-  --color-glass-highlight: rgba(255, 255, 255, 0.03);
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./assets/fonts/HankenGrotesk-normal-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("./assets/fonts/JetBrainsMono-normal-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("./assets/fonts/JetBrainsMono-normal-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: italic;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("./assets/fonts/Newsreader-italic-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: italic;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("./assets/fonts/Newsreader-italic-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./assets/fonts/Newsreader-normal-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./assets/fonts/Newsreader-normal-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  /* "Vault" — clean, quiet, Notion-like default (light) */
+  --color-bg-base: #ffffff;
+  --color-bg-sidebar: #f7f7f5;
+  --color-bg-editor: #ffffff;
+
+  /* Panels & Overlays */
+  --color-overlay-bg: rgba(30, 25, 15, 0.38);
+  --color-glass-border: rgba(35, 35, 32, 0.09);
+  --color-glass-highlight: rgba(35, 35, 32, 0.045);
 
   /* Text Colors */
-  --color-text-primary: #f4f4f5;
-  /* Zinc 100 */
-  --color-text-secondary: #a1a1aa;
-  /* Zinc 400 */
-  --color-text-muted: #52525b;
-  /* Zinc 600 */
+  --color-text-primary: #2f2f2b;
+  --color-text-secondary: #73726e;
+  --color-text-muted: #9f9e9a;
 
   /* Accents */
-  --color-accent: #3b82f6;
-  /* Blue 500 */
-  --color-accent-hover: #2563eb;
-  /* Blue 600 */
-  --color-accent-dim: rgba(59, 130, 246, 0.1);
+  --color-accent: #6d5ce0;
+  --color-accent-hover: #5b4ad0;
+  --color-accent-dim: rgba(109, 92, 224, 0.16);
 
   /* UI Elements */
-  --color-border: #27272a;
-  /* Zinc 800 */
-  --color-border-light: #3f3f46;
-  /* Zinc 700 */
-  --color-item-hover: #18181b;
-  /* Zinc 900 */
-  --color-item-active: #27272a;
-  /* Zinc 800 */
-  --color-titlebar-bg: #09090b;
-  /* Title bar background - matches base */
+  --color-border: rgba(35, 35, 32, 0.09);
+  --color-border-light: rgba(35, 35, 32, 0.16);
+  --color-item-hover: rgba(35, 35, 32, 0.045);
+  --color-item-active: #fafaf9;
+  --color-titlebar-bg: #f7f7f5;
+  --color-bar: #e6e5e1;
 
-  /* Theme-aware overlay colors (dark mode defaults) */
+  /* Theme-aware overlay colors (light defaults) */
+  --color-overlay-subtle: rgba(35, 35, 32, 0.04);
+  --color-overlay-light: rgba(35, 35, 32, 0.07);
+  --color-overlay-medium: rgba(35, 35, 32, 0.11);
+  --color-overlay-strong: rgba(35, 35, 32, 0.16);
+}
+
+/* Dark theme overrides (overlays read as light-on-dark) */
+[data-theme="dark"] {
   --color-overlay-subtle: rgba(255, 255, 255, 0.05);
   --color-overlay-light: rgba(255, 255, 255, 0.1);
   --color-overlay-medium: rgba(255, 255, 255, 0.15);
   --color-overlay-strong: rgba(255, 255, 255, 0.2);
-}
-
-/* Light theme overrides */
-[data-theme="light"] {
-  --color-overlay-subtle: rgba(0, 0, 0, 0.03);
-  --color-overlay-light: rgba(0, 0, 0, 0.06);
-  --color-overlay-medium: rgba(0, 0, 0, 0.1);
-  --color-overlay-strong: rgba(0, 0, 0, 0.15);
 }
 
 @theme {
@@ -219,6 +302,7 @@
   --color-item-hover: var(--color-item-hover);
   --color-item-active: var(--color-item-active);
   --color-titlebar-bg: var(--color-titlebar-bg);
+  --color-bar: var(--color-bar);
 
   /* Theme-aware overlay colors */
   --color-overlay-subtle: var(--color-overlay-subtle);
@@ -226,10 +310,18 @@
   --color-overlay-medium: var(--color-overlay-medium);
   --color-overlay-strong: var(--color-overlay-strong);
 
-  /* Fonts */
+  /* Fonts — Hanken Grotesk UI, Newsreader serif headings/reading, JetBrains mono.
+     Self-hosted (@font-face above); Raleway/Georgia/system are fallbacks. */
   --font-family-sans:
-    "Raleway", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+    "Hanken Grotesk", "Raleway", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
+    sans-serif;
+  --font-family-serif: "Newsreader", Georgia, "Times New Roman", serif;
   --font-family-mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
+
+  /* Tailwind v4 utility namespace (font-sans / font-serif / font-mono) */
+  --font-sans: var(--font-family-sans);
+  --font-serif: var(--font-family-serif);
+  --font-mono: var(--font-family-mono);
 
   /* Typography Scale */
   --text-xs: 0.75rem;
@@ -323,29 +415,7 @@
     line-height: 1.6;
   }
 
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(
-        circle at 12% 18%,
-        color-mix(in srgb, var(--color-accent) 18%, transparent) 0,
-        transparent 28rem
-      ),
-      radial-gradient(
-        circle at 88% 8%,
-        color-mix(in srgb, var(--color-border-light) 42%, transparent) 0,
-        transparent 24rem
-      ),
-      linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--color-bg-sidebar) 72%, transparent),
-        transparent 42%
-      );
-    opacity: 0.55;
-  }
+  /* ponytail: calm flat surface — no ambient glow (Notion-like). */
 
   input,
   textarea,
@@ -366,25 +436,6 @@
     isolation: isolate;
   }
 
-  .app-shell::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--color-glass-highlight) 85%, transparent),
-        transparent 26%
-      ),
-      radial-gradient(
-        circle at 50% -10%,
-        color-mix(in srgb, var(--color-accent) 10%, transparent),
-        transparent 36rem
-      );
-  }
-
   .glass {
     background: var(--color-glass-highlight);
     backdrop-filter: blur(12px);
@@ -393,12 +444,11 @@
 
   .glass-panel {
     background: var(--color-glass-panel-bg, rgba(18, 18, 21, 0.7));
-    backdrop-filter: blur(24px);
+    backdrop-filter: blur(20px);
     border: 1px solid var(--color-glass-border);
     box-shadow:
-      0 24px 70px -36px color-mix(in srgb, var(--color-accent) 35%, transparent),
-      0 12px 32px -20px rgba(0, 0, 0, 0.55),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      0 24px 70px -34px rgba(40, 33, 20, 0.28),
+      0 10px 28px -18px rgba(20, 16, 10, 0.18);
   }
 
   .custom-titlebar {
@@ -472,10 +522,10 @@
     }
   }
 
-  /* Custom Scrollbar */
+  /* Custom Scrollbar (Vault: 11px, padded pill thumb) */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 11px;
+    height: 11px;
   }
 
   ::-webkit-scrollbar-track {
@@ -483,12 +533,16 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--color-border);
-    border-radius: 3px;
+    background: var(--color-overlay-strong);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-text-muted);
+    border: 3px solid transparent;
+    background-clip: padding-box;
   }
 
   ::-webkit-scrollbar-corner {
@@ -618,6 +672,6 @@
 
 /* Selection */
 ::selection {
-  background: var(--color-accent);
-  color: white;
+  background: var(--color-accent-dim);
+  color: var(--color-text-primary);
 }

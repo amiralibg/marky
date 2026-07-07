@@ -4,109 +4,144 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#09090b" />
+    <meta name="theme-color" content="#ffffff" />
     <title>Marky - Beautiful Markdown Notes</title>
     <style>
-      /* Prevent white flash before CSS loads */
+      /* Prevent flash before CSS loads — Vault light default */
       body,
       html {
         margin: 0;
         padding: 0;
-        background-color: var(--color-bg-base, #09090b);
+        background-color: var(--color-bg-base, #ffffff);
         overflow: hidden;
       }
       #root {
         width: 100%;
         height: 100%;
-        background-color: var(--color-bg-base, #09090b);
+        background-color: var(--color-bg-base, #ffffff);
       }
     </style>
     <script>
       (() => {
         const themes = {
-          midnight: {
-            type: "dark",
-            bgBase: "#09090b",
-            textPrimary: "#f4f4f5",
-            textSecondary: "#a1a1aa",
-            textMuted: "#52525b",
-            border: "#27272a",
+          vault: {
+            type: "light",
+            bgBase: "#ffffff",
+            bgSidebar: "#f7f7f5",
+            bgEditor: "#ffffff",
+            textPrimary: "#2f2f2b",
+            textSecondary: "#73726e",
+            textMuted: "#9f9e9a",
+            border: "rgba(35, 35, 32, 0.09)",
           },
-          charcoal: {
+          "vault-dark": {
             type: "dark",
-            bgBase: "#1a1a1e",
-            textPrimary: "#f4f4f5",
-            textSecondary: "#a1a1aa",
-            textMuted: "#71717a",
-            border: "#3f3f46",
+            bgBase: "#1e1e1c",
+            bgSidebar: "#191918",
+            bgEditor: "#242422",
+            textPrimary: "#e7e6e2",
+            textSecondary: "#a3a29d",
+            textMuted: "#71706b",
+            border: "rgba(240, 240, 235, 0.09)",
+          },
+          paper: {
+            type: "light",
+            bgBase: "#f6f3ec",
+            bgSidebar: "#efeae0",
+            bgEditor: "#fffefb",
+            textPrimary: "#38352f",
+            textSecondary: "#75716a",
+            textMuted: "#a39d92",
+            border: "rgba(55, 50, 40, 0.11)",
+          },
+          "paper-dark": {
+            type: "dark",
+            bgBase: "#1c1a16",
+            bgSidebar: "#191713",
+            bgEditor: "#242019",
+            textPrimary: "#ece5d6",
+            textSecondary: "#a8a092",
+            textMuted: "#756d5f",
+            border: "rgba(240, 232, 214, 0.10)",
           },
           slate: {
             type: "dark",
-            bgBase: "#0f172a",
-            textPrimary: "#f1f5f9",
-            textSecondary: "#94a3b8",
-            textMuted: "#64748b",
-            border: "#334155",
+            bgBase: "#0e131c",
+            bgSidebar: "#121a26",
+            bgEditor: "#16202e",
+            textPrimary: "#e6ecf5",
+            textSecondary: "#8ea0b8",
+            textMuted: "#5d6e85",
+            border: "rgba(255, 255, 255, 0.08)",
           },
-          light: {
+          midnight: {
+            type: "dark",
+            bgBase: "#0b0b0e",
+            bgSidebar: "#121116",
+            bgEditor: "#17151d",
+            textPrimary: "#ECECEF",
+            textSecondary: "#9b99a6",
+            textMuted: "#6b6a77",
+            border: "rgba(255, 255, 255, 0.075)",
+          },
+          "gruvbox-light": {
             type: "light",
-            bgBase: "#ffffff",
-            textPrimary: "#0f172a",
-            textSecondary: "#475569",
-            textMuted: "#94a3b8",
-            border: "#e2e8f0",
+            bgBase: "#f2e5bc",
+            bgSidebar: "#ebdbb2",
+            bgEditor: "#fbf1c7",
+            textPrimary: "#3c3836",
+            textSecondary: "#665c54",
+            textMuted: "#928374",
+            border: "rgba(60, 56, 54, 0.12)",
           },
           "gruvbox-dark": {
             type: "dark",
             bgBase: "#282828",
+            bgSidebar: "#1d2021",
+            bgEditor: "#32302f",
             textPrimary: "#ebdbb2",
-            textSecondary: "#d5c4a1",
-            textMuted: "#928374",
-            border: "#504945",
-          },
-          "gruvbox-light": {
-            type: "light",
-            bgBase: "#fbf1c7",
-            textPrimary: "#3c3836",
-            textSecondary: "#504945",
-            textMuted: "#928374",
-            border: "#d5c4a1",
+            textSecondary: "#a89984",
+            textMuted: "#7c6f64",
+            border: "rgba(235, 219, 178, 0.10)",
           },
         };
 
+        // Legacy persisted ids → Vault equivalents
+        const themeAlias = { light: "vault", charcoal: "vault-dark" };
+        const accentAlias = { violet: "purple", amber: "orange", teal: "green", cyan: "blue" };
+
         const accents = {
-          blue: { value: "#3b82f6", hover: "#2563eb" },
-          purple: { value: "#8b5cf6", hover: "#7c3aed" },
-          pink: { value: "#ec4899", hover: "#db2777" },
-          red: { value: "#ef4444", hover: "#dc2626" },
-          orange: { value: "#f97316", hover: "#ea580c" },
-          amber: { value: "#f59e0b", hover: "#d97706" },
-          green: { value: "#22c55e", hover: "#16a34a" },
-          teal: { value: "#14b8a6", hover: "#0d9488" },
-          cyan: { value: "#06b6d4", hover: "#0891b2" },
+          purple: { value: "#6d5ce0", hover: "#5b4ad0" },
+          blue: { value: "#3b6fd0", hover: "#2f5db8" },
+          pink: { value: "#d65b9a", hover: "#c34787" },
+          red: { value: "#d35450", hover: "#bf413d" },
+          orange: { value: "#d57a32", hover: "#c16a24" },
+          green: { value: "#4f9d69", hover: "#3f8a58" },
         };
 
         try {
           const raw = localStorage.getItem("marky-settings");
           const parsed = raw ? JSON.parse(raw) : null;
           const state = parsed?.state || {};
-          const theme = themes[state.themeId] || themes.midnight;
-          const accent = accents[state.accentColorId] || accents.blue;
+          const themeId = themeAlias[state.themeId] || state.themeId;
+          const accentId = accentAlias[state.accentColorId] || state.accentColorId;
+          const theme = themes[themeId] || themes.vault;
+          const accent = accents[accentId] || accents.purple;
 
           document.documentElement.setAttribute("data-theme", theme.type);
           document.documentElement.style.setProperty("--color-bg-base", theme.bgBase);
-          document.documentElement.style.setProperty("--color-bg-sidebar", theme.bgBase);
-          document.documentElement.style.setProperty("--color-bg-editor", theme.bgBase);
+          document.documentElement.style.setProperty("--color-bg-sidebar", theme.bgSidebar);
+          document.documentElement.style.setProperty("--color-bg-editor", theme.bgEditor);
           document.documentElement.style.setProperty("--color-text-primary", theme.textPrimary);
           document.documentElement.style.setProperty("--color-text-secondary", theme.textSecondary);
           document.documentElement.style.setProperty("--color-text-muted", theme.textMuted);
           document.documentElement.style.setProperty("--color-border", theme.border);
           document.documentElement.style.setProperty("--color-accent", accent.value);
           document.documentElement.style.setProperty("--color-accent-hover", accent.hover);
-          document.documentElement.style.setProperty("--color-accent-dim", `${accent.value}1a`);
+          document.documentElement.style.setProperty("--color-accent-dim", `${accent.value}24`);
           document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme.bgBase);
         } catch (error) {
-          document.documentElement.setAttribute("data-theme", "dark");
+          document.documentElement.setAttribute("data-theme", "light");
         }
       })();
     </script>

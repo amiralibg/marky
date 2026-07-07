@@ -1,4 +1,3 @@
-import { useState } from "react";
 import useSettingsStore, { formatKeymap } from "../../store/settingsStore";
 
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
@@ -347,12 +346,6 @@ const ICONS = {
 
 // ─── Tab & Button Definitions ────────────────────────────────────────────────
 
-const TABS = [
-  { id: "text", label: "Text", icon: ICONS.text },
-  { id: "structure", label: "Structure", icon: ICONS.structure },
-  { id: "insert", label: "Insert", icon: ICONS.insert },
-];
-
 const TABLE_TEMPLATE =
   "\n| Header 1 | Header 2 | Header 3 |\n| -------- | -------- | -------- |\n| Cell 1   | Cell 2   | Cell 3   |\n";
 
@@ -552,11 +545,12 @@ const TAB_BUTTONS = {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-const Toolbar = ({ onInsert }) => {
-  const [activeTab, setActiveTab] = useState("text");
-  const keymaps = useSettingsStore((state) => state.keymaps);
+// Slim, icon-first, grouped toolbar (Notion-like). Groups: text / structure /
+// insert, separated by thin rules. Labels live in hover tooltips, not chips.
+const GROUPS = [TAB_BUTTONS.text, TAB_BUTTONS.structure, TAB_BUTTONS.insert];
 
-  const buttons = TAB_BUTTONS[activeTab];
+const Toolbar = ({ onInsert }) => {
+  const keymaps = useSettingsStore((state) => state.keymaps);
 
   const getTooltip = (btn) => {
     let tip = btn.tooltip;
@@ -570,44 +564,25 @@ const Toolbar = ({ onInsert }) => {
   };
 
   return (
-    <div className="px-4 py-2">
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 mb-2">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`
-              flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full
-              transition-colors duration-150
-              ${
-                activeTab === tab.id
-                  ? "bg-accent/15 text-accent"
-                  : "text-text-muted hover:text-text-secondary hover:bg-overlay-subtle"
-              }
-            `}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Buttons */}
-      <div className="flex flex-wrap gap-1">
-        {buttons.map((btn) => (
-          <button
-            key={btn.id}
-            className="px-2.5 py-1.5 text-xs font-medium text-text-secondary
-                     bg-border hover:bg-border/80 rounded
-                     transition-colors duration-150 flex items-center gap-1.5
-                     border border-border-light"
-            onClick={() => onInsert(btn.before, btn.after, btn.placeholder)}
-            title={getTooltip(btn)}
-          >
-            {btn.icon}
-            <span className="hidden sm:inline">{btn.label}</span>
-          </button>
+    <div className="py-1.5">
+      <div className="inline-flex flex-wrap items-center gap-0.5 rounded-xl border border-border bg-bg-editor p-1">
+        {GROUPS.map((group, gi) => (
+          <div key={gi} className="flex items-center gap-0.5">
+            {gi > 0 && <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />}
+            {group.map((btn) => (
+              <button
+                key={btn.id}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary
+                         hover:bg-overlay-subtle hover:text-text-primary
+                         transition-colors duration-150"
+                onClick={() => onInsert(btn.before, btn.after, btn.placeholder)}
+                title={getTooltip(btn)}
+                aria-label={btn.label}
+              >
+                {btn.icon}
+              </button>
+            ))}
+          </div>
         ))}
       </div>
     </div>

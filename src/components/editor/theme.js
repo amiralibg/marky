@@ -80,16 +80,16 @@ export const buildSyntaxHighlighting = (
 export const markyTheme = EditorView.theme(
   {
     "&": {
-      backgroundColor: "var(--color-bg-editor)",
+      backgroundColor: "var(--color-bg-sidebar)",
       color: "var(--color-text-primary)",
       height: "100%",
-      fontSize: "15px",
+      fontSize: "13.5px",
       fontFamily: "var(--font-family-mono)",
     },
     ".cm-content": {
       caretColor: "var(--color-accent)",
       padding: "1.5rem",
-      lineHeight: "1.75",
+      lineHeight: "2",
     },
     ".cm-rtl-line": {
       textAlign: "right",
@@ -127,9 +127,11 @@ export const markyTheme = EditorView.theme(
     },
     ".cm-lineNumbers .cm-gutterElement": {
       paddingBlock: "0",
-      paddingInlineStart: "0.5rem",
-      paddingInlineEnd: "0.25rem",
+      paddingInlineStart: "0.75rem",
+      paddingInlineEnd: "0.5rem",
       fontSize: "13px",
+      color: "var(--color-text-muted)",
+      opacity: "0.55",
     },
     ".cm-foldGutter .cm-gutterElement": {
       width: "0.75rem",
@@ -172,16 +174,144 @@ export const markyTheme = EditorView.theme(
       padding: "0 0.5em",
       borderRadius: "3px",
     },
+    // ── Autocomplete / slash-command / wiki-link menus ──────────────
+    // Refined to match the app ("Vault") design: panel surface, soft border,
+    // rounded, UI sans font, accent-soft selected row, mono syntax hints.
     ".cm-tooltip": {
-      backgroundColor: "var(--color-titlebar-bg)",
+      backgroundColor: "var(--color-bg-editor)",
       border: "1px solid var(--color-border)",
-      borderRadius: "4px",
+      borderRadius: "11px",
+      color: "var(--color-text-primary)",
+      fontFamily: "var(--font-family-sans)",
+      boxShadow: "0 12px 34px rgba(20, 20, 15, 0.18)",
+      overflow: "hidden",
     },
-    ".cm-tooltip-autocomplete": {
-      "& > ul > li[aria-selected]": {
-        backgroundColor: "var(--color-accent)",
-        color: "#ffffff",
-      },
+    ".cm-tooltip.cm-tooltip-autocomplete": {
+      padding: "5px",
+    },
+    ".cm-tooltip-autocomplete > ul": {
+      maxHeight: "18rem",
+      fontFamily: "var(--font-family-sans)",
+    },
+    ".cm-tooltip-autocomplete > ul > li": {
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      minHeight: "auto",
+      padding: "7px 10px",
+      borderRadius: "7px",
+      margin: "1px 2px",
+      fontSize: "13px",
+      lineHeight: "1.3",
+      color: "var(--color-text-primary)",
+      cursor: "pointer",
+    },
+    ".cm-tooltip-autocomplete > ul > li:hover": {
+      backgroundColor: "var(--color-item-hover)",
+    },
+    ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
+      backgroundColor: "var(--color-accent-dim)",
+      color: "var(--color-accent)",
+      fontWeight: "500",
+    },
+    // Drop CodeMirror's built-in completion type icons (the "abc"/key glyphs).
+    ".cm-completionIcon": {
+      display: "none",
+    },
+    ".cm-completionLabel": {
+      fontFamily: "var(--font-family-sans)",
+    },
+    ".cm-completionMatchedText": {
+      color: "var(--color-accent)",
+      textDecoration: "none",
+      fontWeight: "700",
+    },
+    // The right-aligned hint (markdown syntax for blocks, "Note"/"Tag" for links).
+    ".cm-completionDetail": {
+      marginInlineStart: "auto",
+      paddingInlineStart: "14px",
+      fontFamily: "var(--font-family-mono)",
+      fontSize: "11px",
+      fontStyle: "normal",
+      color: "var(--color-text-muted)",
+    },
+    ".cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail": {
+      color: "color-mix(in srgb, var(--color-accent) 65%, var(--color-text-muted))",
+    },
+    // ── "/" block menu — richer rows: icon tile + name + description + hint ──
+    ".cm-tooltip-autocomplete > ul > li.cm-slash-option": {
+      gap: "11px",
+      padding: "6px 9px",
+      margin: "1px 3px",
+      borderRadius: "9px",
+    },
+    ".cm-slash-tile": {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "28px",
+      height: "28px",
+      flexShrink: 0,
+      borderRadius: "7px",
+      backgroundColor: "var(--color-item-hover)",
+      border: "1px solid var(--color-border)",
+      color: "var(--color-text-secondary)",
+      transition: "background-color 0.12s ease, color 0.12s ease",
+    },
+    ".cm-tooltip-autocomplete > ul > li[aria-selected] .cm-slash-tile": {
+      backgroundColor: "var(--color-accent)",
+      borderColor: "transparent",
+      color: "#ffffff",
+    },
+    "li.cm-slash-option .cm-completionLabel": {
+      fontWeight: "500",
+      fontSize: "13.5px",
+      flexShrink: 0,
+    },
+    ".cm-slash-desc": {
+      flex: "1 1 auto",
+      minWidth: 0,
+      marginInlineStart: "2px",
+      fontSize: "11.5px",
+      color: "var(--color-text-muted)",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    },
+    "li[aria-selected] .cm-slash-desc": {
+      color: "color-mix(in srgb, var(--color-accent) 55%, var(--color-text-muted))",
+    },
+    // The syntax hint becomes a small mono badge on block rows.
+    "li.cm-slash-option .cm-completionDetail": {
+      flexShrink: 0,
+      marginInlineStart: "0",
+      paddingInline: "6px",
+      paddingBlock: "1px",
+      borderRadius: "5px",
+      backgroundColor: "var(--color-item-hover)",
+      border: "1px solid var(--color-border)",
+      color: "var(--color-text-muted)",
+      fontSize: "10.5px",
+    },
+    "li[aria-selected].cm-slash-option .cm-completionDetail": {
+      backgroundColor: "transparent",
+      borderColor: "color-mix(in srgb, var(--color-accent) 30%, transparent)",
+      color: "color-mix(in srgb, var(--color-accent) 70%, var(--color-text-muted))",
+    },
+
+    // Side info panel (e.g. a note's path on wiki-link completion).
+    ".cm-completionInfo": {
+      backgroundColor: "var(--color-bg-editor)",
+      border: "1px solid var(--color-border)",
+      borderRadius: "9px",
+      padding: "8px 11px",
+      marginInline: "6px",
+      fontFamily: "var(--font-family-sans)",
+      fontSize: "12px",
+      lineHeight: "1.5",
+      color: "var(--color-text-secondary)",
+      boxShadow: "0 12px 34px rgba(20, 20, 15, 0.18)",
+      maxWidth: "260px",
     },
 
     // Search panel styling for CodeMirror's built-in find/replace UI
@@ -404,8 +534,8 @@ export const markySyntaxHighlighting = buildSyntaxHighlighting("dark");
 export const themeIdToPaletteKey = (themeId) => {
   if (themeId === "gruvbox-dark") return "gruvbox-dark";
   if (themeId === "gruvbox-light") return "gruvbox-light";
-  // light-type themes (Snow, Gruvbox Light, etc.)
-  const lightThemes = ["light"];
+  // light-type themes (Paper, Snow, etc.) use the light syntax palette
+  const lightThemes = ["paper", "light"];
   if (lightThemes.includes(themeId)) return "light";
   return "dark";
 };

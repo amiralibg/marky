@@ -437,17 +437,21 @@ const GraphModal = ({ isOpen, onClose }) => {
       };
     if (isDimmed)
       return {
-        fill: "rgb(51 65 85 / 0.4)",
-        stroke: "rgba(148, 163, 184, 0.15)",
+        fill: "var(--color-bg-editor)",
+        stroke: "var(--color-border)",
         opacity: 0.3,
         strokeWidth: 1,
       };
 
-    // Size-based coloring: more backlinks = brighter
-    const intensity = Math.min(1, 0.4 + node.backlinkCount * 0.15);
+    // Size-based coloring: more backlinks = a stronger accent wash. Leaf notes
+    // read as neutral panel nodes with a muted ring (matches Vault design).
+    const intensity = Math.min(1, node.backlinkCount * 0.2);
     return {
-      fill: `color-mix(in srgb, var(--color-accent) ${Math.round(intensity * 60)}%, rgb(51 65 85 / 0.8))`,
-      stroke: `rgba(148, 163, 184, ${0.2 + intensity * 0.3})`,
+      fill:
+        intensity > 0
+          ? `color-mix(in srgb, var(--color-accent) ${Math.round(20 + intensity * 40)}%, var(--color-bg-editor))`
+          : "var(--color-bg-editor)",
+      stroke: intensity > 0 ? "var(--color-accent)" : "var(--color-text-muted)",
       opacity: 1,
       strokeWidth: 1.5,
     };
@@ -496,7 +500,7 @@ const GraphModal = ({ isOpen, onClose }) => {
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
+        className="fixed inset-0 z-50 animate-fadeIn bg-[rgba(30,25,15,0.38)] backdrop-blur-[3px]"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -573,7 +577,7 @@ const GraphModal = ({ isOpen, onClose }) => {
                     />
                   </svg>
                 </button>
-                <div className="w-px h-4 bg-white/10 mx-1" />
+                <div className="w-px h-4 bg-overlay-light mx-1" />
                 <button
                   onClick={handleFit}
                   className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
@@ -622,7 +626,7 @@ const GraphModal = ({ isOpen, onClose }) => {
 
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-overlay-light rounded-lg transition-colors border border-white/5"
+                className="p-2 hover:bg-overlay-light rounded-lg transition-colors border border-border"
                 title="Close"
               >
                 <svg
@@ -693,7 +697,7 @@ const GraphModal = ({ isOpen, onClose }) => {
                         y1={edge.source.y}
                         x2={edge.target.x}
                         y2={edge.target.y}
-                        stroke={isHighlighted ? "var(--color-accent)" : "rgba(148, 163, 184, 0.2)"}
+                        stroke={isHighlighted ? "var(--color-accent)" : "var(--color-border)"}
                         strokeWidth={isHighlighted ? 2 : 1}
                         opacity={isDimmed ? 0.08 : isHighlighted ? 0.8 : 0.4}
                         className="transition-all duration-150"
@@ -783,7 +787,7 @@ const GraphModal = ({ isOpen, onClose }) => {
             )}
 
             {/* Zoom Indicator */}
-            <div className="absolute bottom-4 right-6 px-2 py-1 bg-black/20 dark:bg-black/40 backdrop-blur rounded text-[10px] text-text font-mono border border-white/5 pointer-events-none">
+            <div className="absolute bottom-4 right-6 px-2 py-1 bg-black/20 dark:bg-black/40 backdrop-blur rounded text-[10px] text-text font-mono border border-border pointer-events-none">
               {Math.round(transform.k * 100)}%
             </div>
 

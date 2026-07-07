@@ -28,6 +28,7 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
   const [isExportingSettings, setIsExportingSettings] = useState(false);
   const [isImportingSettings, setIsImportingSettings] = useState(false);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [activeSection, setActiveSection] = useState("appearance");
   const appUpdate = useUIStore((state) => state.appUpdate);
 
   const {
@@ -166,23 +167,53 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
   const isCheckingForUpdates = appUpdate.status === "checking";
   const isUpdating = ["downloading", "installing"].includes(appUpdate.status);
 
+  const navItems = [
+    { id: "appearance", label: "Appearance" },
+    { id: "editor", label: "Editor" },
+    { id: "shortcuts", label: "Shortcuts" },
+    { id: "scheduling", label: "Scheduling" },
+    { id: "tags", label: "Tags" },
+    { id: "workspace", label: "Workspace" },
+    { id: "updates", label: "Updates" },
+    { id: "backup", label: "Backup" },
+    { id: "batch", label: "Batch export" },
+    { id: "portability", label: "Sync settings" },
+  ];
+
+  const goToSection = (id) => {
+    setActiveSection(id);
+    document.getElementById(`sec-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <>
-      <div className="flex-1 flex flex-col overflow-hidden bg-bg-base animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between px-8 py-6 border-b border-border">
-          <div>
-            <h1 className="text-2xl font-bold text-text-primary">Settings</h1>
-            <p className="text-sm text-text-muted">
-              Customize appearance, keyboard shortcuts, and automations.
-            </p>
+      <div className="flex-1 flex overflow-hidden bg-bg-base animate-in fade-in zoom-in-95 duration-200">
+        <nav className="w-53 shrink-0 border-r border-border px-3 py-8 overflow-y-auto custom-scrollbar">
+          <div className="px-2.5 pb-3 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+            Settings
           </div>
-        </div>
+          <div className="flex flex-col gap-px">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => goToSection(item.id)}
+                className={`text-left px-2.5 py-1.5 rounded-lg text-[13px] transition-colors ${
+                  activeSection === item.id
+                    ? "bg-accent-dim text-accent font-medium"
+                    : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </nav>
 
-        <div className="flex-1 overflow-y-auto px-8 py-6 space-y-10 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-12 py-10 space-y-12 custom-scrollbar">
           {/* Appearance Section */}
-          <section className="space-y-4">
+          <section id="sec-appearance" className="space-y-4">
             <header>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
                 <svg
                   className="w-5 h-5 text-accent"
                   fill="none"
@@ -202,15 +233,15 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                 Personalize the look of your workspace.
               </p>
             </header>
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+            <div className="bg-bg-editor rounded-xl border border-border p-6">
               <AppearanceSettings />
             </div>
           </section>
 
           {/* Editor Section */}
-          <section className="space-y-4">
+          <section id="sec-editor" className="space-y-4">
             <header>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
                 <svg
                   className="w-5 h-5 text-accent"
                   fill="none"
@@ -230,15 +261,15 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                 Configure editor behavior and keybindings.
               </p>
             </header>
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+            <div className="bg-bg-editor rounded-xl border border-border p-6">
               <EditorSettings />
             </div>
           </section>
 
           {/* Keyboard Shortcuts Section */}
-          <section className="space-y-4">
+          <section id="sec-shortcuts" className="space-y-4">
             <header>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
                 <svg
                   className="w-5 h-5 text-accent"
                   fill="none"
@@ -258,15 +289,15 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                 Configure keyboard shortcuts for quick actions.
               </p>
             </header>
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+            <div className="bg-bg-editor rounded-xl border border-border p-6">
               <KeymapsSettings onOpenKeymapsModal={onOpenKeymapsModal} />
             </div>
           </section>
 
           {/* Scheduled Notes Section */}
-          <section className="space-y-4">
+          <section id="sec-scheduling" className="space-y-4">
             <header>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
                 <svg
                   className="w-5 h-5 text-accent"
                   fill="none"
@@ -286,15 +317,15 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                 View and manage recurring note creation.
               </p>
             </header>
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+            <div className="bg-bg-editor rounded-xl border border-border p-6">
               <ScheduledNotesManager />
             </div>
           </section>
 
           {/* Tag Manager Section */}
-          <section className="space-y-4">
+          <section id="sec-tags" className="space-y-4">
             <header>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
                 <svg
                   className="w-5 h-5 text-accent"
                   fill="none"
@@ -314,16 +345,16 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                 Rename, merge, or delete hashtags across your workspace.
               </p>
             </header>
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+            <div className="bg-bg-editor rounded-xl border border-border p-6">
               <TagManager />
             </div>
           </section>
 
           {/* Backup Section */}
           {/* Workspace Section */}
-          <section className="space-y-4">
+          <section id="sec-workspace" className="space-y-4">
             <header>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
                 <svg
                   className="w-5 h-5 text-accent"
                   fill="none"
@@ -343,7 +374,7 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                 Control how Marky handles your workspace on launch.
               </p>
             </header>
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
+            <div className="bg-bg-editor rounded-xl border border-border p-6 space-y-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium text-text-secondary">
@@ -421,9 +452,9 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
           </section>
 
           {/* App Updates Section */}
-          <section className="space-y-4">
+          <section id="sec-updates" className="space-y-4">
             <header>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
                 <UpdateIcon className="w-5 h-5 text-accent" />
                 App Updates
               </h2>
@@ -431,7 +462,7 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                 Check for Marky releases and install updates in-app.
               </p>
             </header>
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+            <div className="bg-bg-editor rounded-xl border border-border p-6">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <p className="text-sm text-text-secondary">
@@ -483,9 +514,9 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
             </div>
           </section>
 
-          <section className="space-y-4">
+          <section id="sec-backup" className="space-y-4">
             <header>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
                 <svg
                   className="w-5 h-5 text-accent"
                   fill="none"
@@ -505,7 +536,7 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                 Export your workspace as a zip archive.
               </p>
             </header>
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+            <div className="bg-bg-editor rounded-xl border border-border p-6">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm text-text-secondary">
@@ -562,9 +593,9 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
           </section>
 
           {/* Batch Export Section */}
-          <section className="space-y-4">
+          <section id="sec-batch" className="space-y-4">
             <header>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
                 <svg
                   className="w-5 h-5 text-accent"
                   fill="none"
@@ -584,7 +615,7 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                 Export multiple notes at once as Markdown or HTML files.
               </p>
             </header>
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6 flex items-center justify-between gap-4">
+            <div className="bg-bg-editor rounded-xl border border-border p-6 flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm text-text-secondary">
                   Choose a selection of notes (or all notes) and download them as a ZIP.
@@ -611,9 +642,9 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
           </section>
 
           {/* Settings JSON Section */}
-          <section className="space-y-4">
+          <section id="sec-portability" className="space-y-4">
             <header>
-              <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+              <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
                 <svg
                   className="w-5 h-5 text-accent"
                   fill="none"
@@ -640,7 +671,7 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                 export.
               </p>
             </header>
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+            <div className="bg-bg-editor rounded-xl border border-border p-6">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm text-text-secondary">

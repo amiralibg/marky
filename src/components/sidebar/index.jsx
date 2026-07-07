@@ -10,7 +10,7 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import useNotesStore from "../../store/notesStore";
-import useSettingsStore from "../../store/settingsStore";
+import useSettingsStore, { THEMES } from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
 import { checkForAppUpdate, installAppUpdate } from "../../utils/appUpdater";
 
@@ -23,7 +23,6 @@ import {
 
 import TreeItem from "./TreeItem";
 import ContextMenu from "./ContextMenu";
-import BacklinkItem from "./BacklinkItem";
 import ConfirmDialog from "../modals/ConfirmDialog";
 import { UpdateIcon } from "../icons/AppUpdateIcon";
 
@@ -38,12 +37,19 @@ const VIRTUAL_TREE_OVERSCAN = 8;
 const sortSidebarItems = (entries, sortBy, isRootLevel = false) => {
   const items = [...entries];
   return items.sort((a, b) => {
+    // Manual drag order wins outright (and may interleave files/folders). Once a
+    // sibling group has been reordered, reorderItems stamps every sibling with an
+    // `order`, so this branch drives the whole group.
+    const ao = a.order;
+    const bo = b.order;
+    if (ao !== undefined && bo !== undefined) return ao - bo;
+    if (ao !== undefined) return -1;
+    if (bo !== undefined) return 1;
+
+    // No manual order yet: folders first, then by the active sort setting.
     if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
 
     if (!isRootLevel) {
-      if (a.order !== undefined && b.order !== undefined) {
-        return a.order - b.order;
-      }
       return a.name.localeCompare(b.name);
     }
 
@@ -97,47 +103,35 @@ const Sidebar = forwardRef(
     const {
       items,
       createFolder,
-      createNote,
       getCurrentNote,
       updateNotePath,
       loadFolderFromSystem,
       moveItem,
       moveItemToRoot,
+      reorderItems,
       rootFolderPath,
       refreshRootFromDisk,
-      getRecentNotes,
-      getBrokenWikiLinks,
-      getBacklinks,
       selectNote,
-      getPinnedNotes,
       expandedFolders,
-      toggleTagFilter,
       selectedTags,
-      clearTagFilters,
-      setTagFilters,
-      getSavedWorkspaceViews,
-      saveWorkspaceView,
-      deleteWorkspaceView,
-      savedWorkspaceViews: allSavedWorkspaceViews,
       isLoading,
       loadingProgress,
       recentWorkspaces,
+      dirtyNoteIds,
     } = useNotesStore();
     const sidebarDensity = useSettingsStore((state) => state.sidebarDensity);
+    const themeId = useSettingsStore((state) => state.themeId);
+    const toggleColorScheme = useSettingsStore((state) => state.toggleColorScheme);
     const { addNotification, setShowWorkspaceModal, appUpdate } = useUIStore();
     const [contextMenu, setContextMenu] = useState(null);
     const [draggedItem, setDraggedItem] = useState(null);
     const [dragPosition, setDragPosition] = useState(null);
+    // Single shared "drop into this folder" target for internal drags (one highlight at a time)
+    const [internalDropTargetId, setInternalDropTargetId] = useState(null);
+    // Reorder drop indicator: { id, position: 'before' | 'after' }
+    const [reorderTarget, setReorderTarget] = useState(null);
     const [searchQuery, setSearchQuery] = useState("");
-    const [showRecentNotes, setShowRecentNotes] = useState(false);
-    const [showPinnedNotes, setShowPinnedNotes] = useState(true);
-    const [showSavedViews, setShowSavedViews] = useState(true);
-    const [showTags, setShowTags] = useState(false);
-    const [showBrokenLinks, setShowBrokenLinks] = useState(true);
-    const [showBacklinks, setShowBacklinks] = useState(true);
-    const [tagSortMode, setTagSortMode] = useState("frequency"); // 'frequency' | 'alpha' | 'recent'
-    const [sortBy, setSortBy] = useState("name-asc"); // 'name-asc', 'name-desc', 'date-desc', 'date-asc'
-    const [showSortMenu, setShowSortMenu] = useState(false);
+    const [sortBy] = useState("name-asc"); // 'name-asc', 'name-desc', 'date-desc', 'date-asc'
     const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
     const [dropTargetFolder, setDropTargetFolder] = useState(null);
     const [isExternalDragging, setIsExternalDragging] = useState(false);
@@ -145,58 +139,33 @@ const Sidebar = forwardRef(
     const [pendingDeleteItem, setPendingDeleteItem] = useState(null);
     const [treeScrollTop, setTreeScrollTop] = useState(0);
     const [treeViewportHeight, setTreeViewportHeight] = useState(0);
-    const [viewNameInput, setViewNameInput] = useState("");
-    const activeSortLabel =
-      sortBy === "name-asc"
-        ? "Name A to Z"
-        : sortBy === "name-desc"
-          ? "Name Z to A"
-          : sortBy === "date-desc"
-            ? "Date newest first"
-            : "Date oldest first";
     const dropHandledRef = useRef(false);
     const dropTargetRef = useRef(null);
     const sidebarRef = useRef(null);
     const currentNote = getCurrentNote();
-    const backlinks = useMemo(
-      () => (currentNote ? getBacklinks(currentNote.id) : []),
-      [currentNote?.id, items]
+    const workspaceName = rootFolderPath
+      ? rootFolderPath.split("/").filter(Boolean).pop() || rootFolderPath
+      : "";
+    // "/Users/name/Documents/My Vault" → "~/Documents/My Vault"
+    const displayWorkspacePath = rootFolderPath
+      ? rootFolderPath.replace(/^\/(Users|home)\/[^/]+/, "~")
+      : "";
+    const dirtyCount = dirtyNoteIds?.length || 0;
+    const isDarkTheme = useMemo(
+      () => THEMES.find((t) => t.id === themeId)?.type === "dark",
+      [themeId]
     );
-    const brokenWikiLinks = useMemo(() => getBrokenWikiLinks(), [getBrokenWikiLinks, items]);
-    const savedWorkspaceViews = useMemo(
-      () => getSavedWorkspaceViews(),
-      [getSavedWorkspaceViews, rootFolderPath, allSavedWorkspaceViews]
-    );
-
-    // Compute all tags from items - this will re-compute when items change
-    const allTagsArray = useMemo(() => {
-      const tagCounts = items
-        .filter((item) => item.type === "note" && item.content)
-        .reduce((acc, note) => {
-          const tags = (note.content.match(/(?:^|[\s])#([a-zA-Z0-9_-]+)/g) || []).map((t) =>
-            t.trim().substring(1).toLowerCase()
-          );
-          tags.forEach((tag) => {
-            acc[tag] = (acc[tag] || 0) + 1;
-          });
-          return acc;
-        }, {});
-      const arr = Object.entries(tagCounts).map(([tag, count]) => ({ tag, count }));
-      if (tagSortMode === "alpha") return arr.sort((a, b) => a.tag.localeCompare(b.tag));
-      if (tagSortMode === "recent") {
-        const recentTagSet = new Map();
-        [...items].reverse().forEach((item) => {
-          if (item.type !== "note" || !item.tags) return;
-          item.tags.forEach((tag) => {
-            if (!recentTagSet.has(tag)) recentTagSet.set(tag, recentTagSet.size);
-          });
-        });
-        return arr.sort(
-          (a, b) => (recentTagSet.get(a.tag) ?? Infinity) - (recentTagSet.get(b.tag) ?? Infinity)
-        );
-      }
-      return arr.sort((a, b) => b.count - a.count);
-    }, [items, tagSortMode]);
+    const lastSavedLabel = useMemo(() => {
+      const timestamps = items
+        .filter((item) => item.type === "note" && (item.updatedAt || item.createdAt))
+        .map((item) => new Date(item.updatedAt || item.createdAt).getTime());
+      if (timestamps.length === 0) return "";
+      const ageMs = Date.now() - Math.max(...timestamps);
+      if (ageMs < 90 * 1000) return "just now";
+      if (ageMs < 60 * 60 * 1000) return `${Math.round(ageMs / 60000)}m ago`;
+      if (ageMs < 24 * 60 * 60 * 1000) return `${Math.round(ageMs / 3600000)}h ago`;
+      return `${Math.round(ageMs / 86400000)}d ago`;
+    }, [items]);
 
     // Search filtering function
     const filterItemsBySearch = useCallback((items, query) => {
@@ -263,16 +232,6 @@ const Sidebar = forwardRef(
     }, [items, selectedTags, searchQuery, filterItemsBySearch]);
 
     const isTreeFiltered = searchQuery || selectedTags.length > 0;
-    const hasViewCriteria = searchQuery.trim() || selectedTags.length > 0 || sortBy !== "name-asc";
-    const currentViewSummary = [
-      searchQuery.trim() ? `search “${searchQuery.trim()}”` : null,
-      selectedTags.length > 0
-        ? `${selectedTags.length} tag${selectedTags.length !== 1 ? "s" : ""}`
-        : null,
-      sortBy !== "name-asc" ? activeSortLabel.toLowerCase() : null,
-    ]
-      .filter(Boolean)
-      .join(", ");
     const treeSourceItems = useMemo(
       () => (isTreeFiltered ? filteredItems : items),
       [filteredItems, isTreeFiltered, items]
@@ -341,12 +300,29 @@ const Sidebar = forwardRef(
       });
     };
 
+    // Moving an item rebuilds the tree from disk, which remounts the moved row
+    // and (for large virtualized trees) drops the scroll container to the top.
+    // Reassert the captured scrollTop across several frames so it survives the
+    // async re-scan, the virtual-row recompute, and the length-change effect.
+    const restoreTreeScroll = (top) => {
+      let frame = 0;
+      const tick = () => {
+        const viewport = sidebarRef.current;
+        if (viewport) {
+          if (Math.abs(viewport.scrollTop - top) > 1) viewport.scrollTop = top;
+          setTreeScrollTop(top);
+        }
+        if (frame++ < 8) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    };
+
     const handleItemMove = async (draggedItem, targetFolder) => {
       if (!draggedItem || !targetFolder) return;
       if (draggedItem.id === targetFolder.id) return;
       if (targetFolder.type !== "folder") return;
 
-      // Moving: draggedItem.name, in to: targetFolder.name
+      const scrollTop = sidebarRef.current?.scrollTop ?? 0;
 
       // Set flag to prevent handleDropToRoot from firing
       dropHandledRef.current = true;
@@ -361,7 +337,53 @@ const Sidebar = forwardRef(
         console.error("❌ Failed to move item:", error);
         addNotification("Failed to move item: " + error.message, "error");
       } finally {
+        restoreTreeScroll(scrollTop);
         // Reset the flag after a brief delay
+        setTimeout(() => {
+          dropHandledRef.current = false;
+        }, 100);
+      }
+    };
+
+    const handleReorder = async (dragged, reference, position) => {
+      if (!dragged || !reference || dragged.id === reference.id) return;
+
+      const scrollTop = sidebarRef.current?.scrollTop ?? 0;
+
+      // Prevent the empty-space root-drop handler from also firing on this mouseup.
+      dropHandledRef.current = true;
+      setDraggedItem(null);
+      setReorderTarget(null);
+
+      const targetParentId = reference.parentId ?? null;
+      const sameParent = (dragged.parentId ?? null) === targetParentId;
+
+      try {
+        if (sameParent) {
+          // In-place reorder among existing siblings.
+          const isRootLevel = targetParentId === null;
+          const siblings = sortSidebarItems(
+            (treeChildrenByParent.get(targetParentId ?? "__root__") || []).filter(
+              (entry) => entry.id !== dragged.id
+            ),
+            sortBy,
+            isRootLevel
+          );
+          let refIndex = siblings.findIndex((entry) => entry.id === reference.id);
+          if (refIndex === -1) refIndex = siblings.length - 1;
+          reorderItems(dragged.id, targetParentId, position === "after" ? refIndex + 1 : refIndex);
+        } else if (targetParentId === null) {
+          // Dropped at the edge of a root item => move to workspace root.
+          await moveItemToRoot(dragged.id);
+        } else {
+          // Move into the folder that owns the reference row.
+          await moveItem(dragged.id, targetParentId);
+        }
+      } catch (error) {
+        console.error("Failed to move item:", error);
+        addNotification("Failed to move item: " + error.message, "error");
+      } finally {
+        if (!sameParent) restoreTreeScroll(scrollTop);
         setTimeout(() => {
           dropHandledRef.current = false;
         }, 100);
@@ -405,29 +427,6 @@ const Sidebar = forwardRef(
         }
       }
     }, [createFolder]);
-
-    const handleCreateBrokenLinkNote = useCallback(
-      async (target) => {
-        try {
-          const noteId = await createNote(null, null, target);
-          if (noteId) {
-            selectNote(noteId);
-            addNotification(`Note "${target}" created`, "success");
-          }
-        } catch (error) {
-          if (error?.message && /exists/i.test(error.message)) {
-            return;
-          }
-          console.error("Failed to create note from broken link:", error);
-          if (/workspace/i.test(error.message)) {
-            setShowWorkspaceModal(true);
-          } else {
-            addNotification("Failed to create note: " + error.message, "error");
-          }
-        }
-      },
-      [addNotification, createNote, selectNote, setShowWorkspaceModal]
-    );
 
     const handleOpenFile = useCallback(async () => {
       try {
@@ -579,56 +578,6 @@ const Sidebar = forwardRef(
       [addNotification, getFolderMoveTarget, moveItem]
     );
 
-    const handleSaveCurrentView = useCallback(() => {
-      const fallbackName =
-        searchQuery.trim() ||
-        (selectedTags.length > 0 ? selectedTags.map((tag) => `#${tag}`).join(" ") : "") ||
-        activeSortLabel;
-      const savedView = saveWorkspaceView({
-        name: viewNameInput || fallbackName,
-        searchQuery,
-        selectedTags,
-        sortBy,
-      });
-
-      if (!savedView) {
-        addNotification("Add a search, tag filter, or sort order before saving a view", "warning");
-        return;
-      }
-
-      setViewNameInput("");
-      setShowSavedViews(true);
-      addNotification(`Saved view "${savedView.name}"`, "success");
-    }, [
-      activeSortLabel,
-      addNotification,
-      saveWorkspaceView,
-      searchQuery,
-      selectedTags,
-      sortBy,
-      viewNameInput,
-    ]);
-
-    const handleApplyView = useCallback(
-      (view) => {
-        setSearchQuery(view.searchQuery || "");
-        setTagFilters(view.selectedTags || []);
-        setSortBy(view.sortBy || "name-asc");
-        setShowSavedViews(true);
-        addNotification(`Applied view "${view.name}"`, "info");
-      },
-      [addNotification, setTagFilters]
-    );
-
-    const handleDeleteView = useCallback(
-      (event, view) => {
-        event.stopPropagation();
-        deleteWorkspaceView(view.id);
-        addNotification(`Deleted view "${view.name}"`, "info");
-      },
-      [addNotification, deleteWorkspaceView]
-    );
-
     const getDeleteMessage = useCallback(
       (item) => {
         if (!item) return;
@@ -744,6 +693,8 @@ const Sidebar = forwardRef(
       if (!draggedItem) {
         setDragPosition(null);
         setIsRootDropActive(false);
+        setInternalDropTargetId(null);
+        setReorderTarget(null);
         return;
       }
 
@@ -1058,15 +1009,127 @@ const Sidebar = forwardRef(
     }, [rootFolderPath, refreshRootFromDisk, addNotification]);
 
     return (
-      <aside
-        className="w-full bg-sidebar-bg flex flex-col h-full bg-linear-to-b from-sidebar-bg to-bg-base/50"
-        aria-label="Workspace sidebar"
-      >
-        {/* Search Bar */}
-        <div className="px-4 py-3 bg-transparent shrink-0">
+      <aside className="w-full bg-sidebar-bg flex flex-col h-full" aria-label="Workspace sidebar">
+        {/* Workspace Switcher */}
+        <div className="px-2.5 pt-2 pb-1 shrink-0 relative">
+          <button
+            onClick={() => setShowWorkspaceSwitcher((v) => !v)}
+            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-overlay-subtle transition-colors text-text-primary"
+            title="Switch workspace"
+            aria-expanded={showWorkspaceSwitcher}
+          >
+            <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] bg-overlay-subtle border border-border text-text-secondary">
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+            </span>
+            <span className="flex-1 min-w-0 flex flex-col text-left">
+              <span className="text-[13.5px] font-semibold tracking-[-0.01em] truncate">
+                {workspaceName || "Marky"}
+              </span>
+              {displayWorkspacePath && (
+                <span className="text-[10.5px] text-text-muted font-mono truncate">
+                  {displayWorkspacePath}
+                </span>
+              )}
+            </span>
+            <svg
+              className={`w-3 h-3 shrink-0 text-text-muted transition-transform ${showWorkspaceSwitcher ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+          {showWorkspaceSwitcher && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowWorkspaceSwitcher(false)} />
+              <div className="absolute left-2.5 right-2.5 z-20 mt-1 bg-sidebar-bg border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                {recentWorkspaces.filter((ws) => ws.path !== rootFolderPath).length > 0 && (
+                  <>
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                      Recent
+                    </p>
+                    {recentWorkspaces
+                      .filter((ws) => ws.path !== rootFolderPath)
+                      .map((ws) => (
+                        <button
+                          key={ws.path}
+                          onClick={async () => {
+                            setShowWorkspaceSwitcher(false);
+                            try {
+                              const { invoke } = await import("@tauri-apps/api/core");
+                              const files = await invoke("scan_folder_for_markdown", {
+                                folderPath: ws.path,
+                              });
+                              await loadFolderFromSystem({
+                                folderPath: ws.path,
+                                folderName: ws.name,
+                                files,
+                              });
+                            } catch (err) {
+                              addNotification("Could not open workspace: " + err.message, "error");
+                            }
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+                        >
+                          <span className="truncate" title={ws.path || ws.name}>
+                            {ws.name}
+                          </span>
+                        </button>
+                      ))}
+                    <div className="mx-3 my-1 border-t border-border" />
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    setShowWorkspaceSwitcher(false);
+                    handleOpenFolder();
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-accent hover:bg-accent/10 transition-colors"
+                >
+                  <svg
+                    className="w-3.5 h-3.5 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Open another folder…
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Search */}
+        <div className="px-2.5 pb-1 shrink-0">
           <div className="relative group">
             <svg
-              className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-accent transition-colors pointer-events-none"
+              className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -1083,14 +1146,22 @@ const Sidebar = forwardRef(
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search..."
+              placeholder="Search"
               aria-label="Search notes and folders in sidebar"
-              className="w-full pl-9 pr-8 py-2 bg-overlay-subtle border border-overlay-subtle rounded-lg text-sm text-white placeholder-text-muted outline-none focus:bg-white/10 focus:border-accent/50 transition-all"
+              className="w-full pl-8 pr-10 py-[7px] bg-bg-base border border-border rounded-lg text-[13px] text-text-primary placeholder-text-muted outline-none focus:border-accent/50 transition-all"
             />
+            {!searchQuery && (
+              <span
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-text-muted font-mono pointer-events-none"
+                aria-hidden="true"
+              >
+                ⌘K
+              </span>
+            )}
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-overlay-light rounded text-text-muted hover:text-text-primary transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-overlay-light rounded text-text-muted hover:text-text-primary transition-colors"
                 title="Clear search"
                 aria-label="Clear sidebar search"
               >
@@ -1105,839 +1176,89 @@ const Sidebar = forwardRef(
               </button>
             )}
           </div>
-          {searchQuery && (
-            <div className="mt-2 text-xs text-text-muted px-1" role="status" aria-live="polite">
-              Found {filteredItems.filter((i) => i.type === "note").length} notes
-            </div>
-          )}
-          {/* Sort Options */}
-          {!searchQuery && rootFolderPath && (
-            <>
-              {/* Workspace switcher header */}
-              <div className="mt-4 mb-1 relative">
-                <button
-                  onClick={() => setShowWorkspaceSwitcher((v) => !v)}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors group"
-                  title="Switch workspace"
-                  aria-expanded={showWorkspaceSwitcher}
-                  aria-label={`Current workspace: ${
-                    rootFolderPath.split("/").filter(Boolean).pop() || rootFolderPath
-                  }. Switch workspace`}
-                >
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <svg
-                      className="w-3 h-3 shrink-0"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                      />
-                    </svg>
-                    <span
-                      className="font-medium truncate text-text-secondary"
-                      title={rootFolderPath}
-                    >
-                      {rootFolderPath.split("/").filter(Boolean).pop() || rootFolderPath}
-                    </span>
-                  </div>
-                  <svg
-                    className={`w-3 h-3 shrink-0 transition-transform ${showWorkspaceSwitcher ? "rotate-180" : ""}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
-                {showWorkspaceSwitcher && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setShowWorkspaceSwitcher(false)}
-                    />
-                    <div className="absolute left-0 right-0 z-20 mt-1 bg-bg-sidebar border border-glass-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                      {recentWorkspaces.length > 1 && (
-                        <>
-                          <p
-                            id="recent-workspaces-heading"
-                            className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted"
-                          >
-                            Recent
-                          </p>
-                          <div role="menu" aria-labelledby="recent-workspaces-heading">
-                            {recentWorkspaces
-                              .filter((ws) => ws.path !== rootFolderPath)
-                              .map((ws) => (
-                                <button
-                                  key={ws.path}
-                                  role="menuitem"
-                                  onClick={async () => {
-                                    setShowWorkspaceSwitcher(false);
-                                    try {
-                                      const { invoke } = await import("@tauri-apps/api/core");
-                                      const files = await invoke("scan_folder_for_markdown", {
-                                        folderPath: ws.path,
-                                      });
-                                      await loadFolderFromSystem({
-                                        folderPath: ws.path,
-                                        folderName: ws.name,
-                                        files,
-                                      });
-                                    } catch (err) {
-                                      addNotification(
-                                        "Could not open workspace: " + err.message,
-                                        "error"
-                                      );
-                                    }
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
-                                >
-                                  <svg
-                                    className="w-3.5 h-3.5 shrink-0 text-text-muted"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                    aria-hidden="true"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                                    />
-                                  </svg>
-                                  <span className="truncate" title={ws.path || ws.name}>
-                                    {ws.name}
-                                  </span>
-                                </button>
-                              ))}
-                          </div>
-                          <div className="mx-3 my-1 border-t border-glass-border" />
-                        </>
-                      )}
-                      <button
-                        role={recentWorkspaces.length > 1 ? "menuitem" : undefined}
-                        onClick={() => {
-                          setShowWorkspaceSwitcher(false);
-                          handleOpenFolder();
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-accent hover:bg-accent/10 transition-colors"
-                      >
-                        <svg
-                          className="w-3.5 h-3.5 shrink-0"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 4v16m8-8H4"
-                          />
-                        </svg>
-                        Open another folder…
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="mt-2 relative">
-                <button
-                  onClick={() => setShowSortMenu(!showSortMenu)}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:bg-overlay-subtle rounded-md transition-colors"
-                  aria-expanded={showSortMenu}
-                  aria-label={`Choose sidebar sort order. Current sort: ${activeSortLabel}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <svg
-                      className="w-3 h-3"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"
-                      />
-                    </svg>
-                    <span>
-                      Sort:{" "}
-                      {sortBy === "name-asc"
-                        ? "Name (A-Z)"
-                        : sortBy === "name-desc"
-                          ? "Name (Z-A)"
-                          : sortBy === "date-desc"
-                            ? "Date (Newest)"
-                            : "Date (Oldest)"}
-                    </span>
-                  </div>
-                  <svg
-                    className={`w-3 h-3 transition-transform ${showSortMenu ? "rotate-180" : ""}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
-                {showSortMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />
-                    <div className="absolute left-0 right-0 top-full mt-1 glass-panel rounded-lg shadow-xl py-1 z-20 animate-in fade-in zoom-in-95 duration-100">
-                      <button
-                        onClick={() => {
-                          setSortBy("name-asc");
-                          setShowSortMenu(false);
-                        }}
-                        className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "name-asc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
-                        aria-current={sortBy === "name-asc" ? "true" : undefined}
-                      >
-                        Name (A-Z)
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSortBy("name-desc");
-                          setShowSortMenu(false);
-                        }}
-                        className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "name-desc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
-                        aria-current={sortBy === "name-desc" ? "true" : undefined}
-                      >
-                        Name (Z-A)
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSortBy("date-desc");
-                          setShowSortMenu(false);
-                        }}
-                        className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "date-desc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
-                        aria-current={sortBy === "date-desc" ? "true" : undefined}
-                      >
-                        Date (Newest First)
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSortBy("date-asc");
-                          setShowSortMenu(false);
-                        }}
-                        className={`w-full px-3 py-2 text-left text-xs transition-colors ${sortBy === "date-asc" ? "bg-accent/10 text-accent" : "text-text-secondary hover:bg-overlay-light hover:text-text-primary"}`}
-                        aria-current={sortBy === "date-asc" ? "true" : undefined}
-                      >
-                        Date (Oldest First)
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
-          )}
         </div>
 
-        {/* Quick Actions (Pinned, Recent, etc) */}
-        <div className="px-2 pb-2 shrink-0 space-y-1">
-          {/* Pinned Section */}
-          {!searchQuery && getPinnedNotes().length > 0 && (
-            <div className="mb-0.5">
-              <button
-                onClick={() => setShowPinnedNotes(!showPinnedNotes)}
-                className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
-                aria-expanded={showPinnedNotes}
-                aria-label={`${showPinnedNotes ? "Collapse" : "Expand"} pinned notes`}
+        {/* Quick Nav */}
+        {!searchQuery && (
+          <nav className="px-2 pb-1 flex flex-col gap-px shrink-0">
+            <button
+              onClick={() => selectNote(null)}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
+                !currentNote
+                  ? "bg-accent-dim text-accent"
+                  : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
+              }`}
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                viewBox="0 0 24 24"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <div className="flex items-center gap-1.5">
-                  <svg
-                    className="w-3 h-3 opacity-50 group-hover:opacity-100"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                  </svg>
-                  <span>Pinned</span>
-                </div>
-                <svg
-                  className={`w-3 h-3 transition-transform opacity-50 group-hover:opacity-100 ${showPinnedNotes ? "rotate-180" : ""}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              {showPinnedNotes && (
-                <div className="space-y-0.5 mt-0.5">
-                  {getPinnedNotes().map((note) => (
-                    <button
-                      key={note.id}
-                      onClick={() => selectNote(note.id)}
-                      className="w-full px-3 py-1.5 text-left text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-2 group"
-                    >
-                      <span className="truncate" title={note.name}>
-                        {note.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Recent Section */}
-          {!searchQuery && getRecentNotes().length > 0 && (
-            <div className="mb-0.5">
-              <button
-                onClick={() => setShowRecentNotes(!showRecentNotes)}
-                className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
-                aria-expanded={showRecentNotes}
-                aria-label={`${showRecentNotes ? "Collapse" : "Expand"} recent notes`}
+                <path d="M3 11l9-8 9 8M5 10v10h14V10" />
+              </svg>
+              Home
+            </button>
+            <button
+              onClick={onOpenGraph}
+              className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-subtle hover:text-text-primary transition-colors"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                viewBox="0 0 24 24"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <div className="flex items-center gap-1.5">
-                  <svg
-                    className="w-3 h-3 opacity-50 group-hover:opacity-100"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>Recent</span>
-                </div>
-                <svg
-                  className={`w-3 h-3 transition-transform opacity-50 group-hover:opacity-100 ${showRecentNotes ? "rotate-180" : ""}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              {showRecentNotes && (
-                <div className="space-y-0.5 mt-0.5">
-                  {getRecentNotes()
-                    .slice(0, 5)
-                    .map((recent) => (
-                      <button
-                        key={recent.id}
-                        onClick={() => selectNote(recent.id)}
-                        className="w-full px-3 py-1.5 text-left text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-2 group"
-                        title={recent.filePath || recent.name}
-                      >
-                        <span className="truncate" title={recent.filePath || recent.name}>
-                          {recent.name}
-                        </span>
-                      </button>
-                    ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Saved Views Section */}
-          {rootFolderPath && (savedWorkspaceViews.length > 0 || hasViewCriteria) && (
-            <div className="mb-0.5">
-              <button
-                onClick={() => setShowSavedViews(!showSavedViews)}
-                className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
-                aria-expanded={showSavedViews}
-                aria-label={`${showSavedViews ? "Collapse" : "Expand"} saved workspace views`}
+                <circle cx="5" cy="6" r="2.4" />
+                <circle cx="18" cy="9" r="2.4" />
+                <circle cx="9" cy="18" r="2.4" />
+                <path d="M7 7l9 1.5M7.5 16l1-7.5" />
+              </svg>
+              Graph
+            </button>
+            <button
+              onClick={() => onOpenTemplate(null)}
+              className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-subtle hover:text-text-primary transition-colors"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                viewBox="0 0 24 24"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <div className="flex items-center gap-1.5">
-                  <svg
-                    className="w-3 h-3 opacity-50 group-hover:opacity-100"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 5a2 2 0 012-2h14v18l-7-4-7 4V5z"
-                    />
-                  </svg>
-                  <span>Views</span>
-                  {savedWorkspaceViews.length > 0 && (
-                    <span className="ml-1 px-1 py-px bg-accent/20 text-accent text-[9px] rounded-full">
-                      {savedWorkspaceViews.length}
-                    </span>
-                  )}
-                </div>
-                <svg
-                  className={`w-3 h-3 transition-transform opacity-50 group-hover:opacity-100 ${showSavedViews ? "rotate-180" : ""}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
+                <rect x="3" y="5" width="18" height="16" rx="2" />
+                <path d="M3 9h18M8 3v4M16 3v4" />
+              </svg>
+              Scheduled
+            </button>
+          </nav>
+        )}
 
-              {showSavedViews && (
-                <div className="mt-1 space-y-2 px-2">
-                  {hasViewCriteria && (
-                    <div className="rounded-lg border border-overlay-subtle bg-overlay-subtle/50 p-2">
-                      <label className="block text-[10px] font-medium uppercase tracking-wider text-text-muted">
-                        Save current view
-                      </label>
-                      <p className="mt-1 text-[10px] text-text-muted">
-                        {currentViewSummary || "Default sidebar view"}
-                      </p>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          value={viewNameInput}
-                          onChange={(event) => setViewNameInput(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              handleSaveCurrentView();
-                            }
-                          }}
-                          placeholder="View name"
-                          aria-label="Saved workspace view name"
-                          className="min-w-0 flex-1 rounded-md border border-overlay-subtle bg-bg-base/60 px-2 py-1 text-[11px] text-text-primary outline-none focus:border-accent/40"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleSaveCurrentView}
-                          className="shrink-0 rounded-md border border-accent/20 bg-accent/10 px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent/20 transition-colors"
-                        >
-                          Save
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {savedWorkspaceViews.length > 0 ? (
-                    <div className="space-y-1">
-                      {savedWorkspaceViews.map((view) => {
-                        const viewSummary = [
-                          view.searchQuery ? `“${view.searchQuery}”` : null,
-                          view.selectedTags?.length
-                            ? view.selectedTags.map((tag) => `#${tag}`).join(" ")
-                            : null,
-                          view.sortBy && view.sortBy !== "name-asc"
-                            ? view.sortBy.replace("-", " ")
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ");
-
-                        return (
-                          <div
-                            key={view.id}
-                            className="group/view flex w-full items-start gap-1 rounded-lg border border-overlay-subtle bg-overlay-subtle/40 p-1 hover:border-overlay-light hover:bg-overlay-light transition-colors"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => handleApplyView(view)}
-                              className="min-w-0 flex-1 rounded-md px-1 py-1 text-left focus:outline-none focus:ring-1 focus:ring-accent/40"
-                              aria-label={`Apply saved view ${view.name}${viewSummary ? `: ${viewSummary}` : ""}`}
-                            >
-                              <span className="min-w-0">
-                                <span className="block truncate text-xs font-medium text-text-secondary group-hover/view:text-text-primary">
-                                  {view.name}
-                                </span>
-                                {viewSummary && (
-                                  <span className="mt-0.5 block truncate text-[10px] text-text-muted">
-                                    {viewSummary}
-                                  </span>
-                                )}
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(event) => handleDeleteView(event, view)}
-                              className="shrink-0 rounded p-1 text-text-muted opacity-0 hover:bg-red-500/10 hover:text-red-300 group-hover/view:opacity-100 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-red-400/40"
-                              aria-label={`Delete saved view ${view.name}`}
-                            >
-                              <svg
-                                className="h-3.5 w-3.5"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                                aria-hidden="true"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M6 18L18 6M6 6l12 12"
-                                />
-                              </svg>
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="rounded-lg border border-overlay-subtle bg-overlay-subtle/40 px-2 py-3 text-center text-[11px] text-text-muted">
-                      Save a search, tag filter, or sort order to reopen it later.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Tags Section */}
-          {!searchQuery && allTagsArray.length > 0 && (
-            <div className="mb-0.5">
-              <button
-                onClick={() => setShowTags(!showTags)}
-                className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
-                aria-expanded={showTags}
-                aria-label={`${showTags ? "Collapse" : "Expand"} tags section`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <svg
-                    className="w-3 h-3 opacity-50 group-hover:opacity-100"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                    />
-                  </svg>
-                  <span>Tags</span>
-                  {selectedTags.length > 0 && (
-                    <span className="ml-1 px-1 py-px bg-accent/20 text-accent text-[9px] rounded-full">
-                      {selectedTags.length}
-                    </span>
-                  )}
-                </div>
-                <svg
-                  className={`w-3 h-3 transition-transform opacity-50 group-hover:opacity-100 ${showTags ? "rotate-180" : ""}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              {showTags && (
-                <div className="px-2 mt-1">
-                  {/* Sort mode tabs */}
-                  <div className="flex items-center gap-1 mb-2">
-                    {[
-                      { id: "frequency", label: "#" },
-                      { id: "alpha", label: "A–Z" },
-                      { id: "recent", label: "Recent" },
-                    ].map(({ id, label }) => (
-                      <button
-                        key={id}
-                        onClick={() => setTagSortMode(id)}
-                        aria-pressed={tagSortMode === id}
-                        className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
-                          tagSortMode === id
-                            ? "bg-accent/15 text-accent border border-accent/20"
-                            : "text-text-muted hover:text-text-secondary hover:bg-overlay-subtle border border-transparent"
-                        }`}
-                        title={
-                          id === "frequency"
-                            ? "Sort by frequency"
-                            : id === "alpha"
-                              ? "Sort A–Z"
-                              : "Sort by recent use"
-                        }
-                        aria-label={
-                          id === "frequency"
-                            ? "Sort tags by frequency"
-                            : id === "alpha"
-                              ? "Sort tags alphabetically"
-                              : "Sort tags by recent use"
-                        }
-                      >
-                        {label}
-                      </button>
-                    ))}
-                    {selectedTags.length > 0 && (
-                      <button
-                        onClick={clearTagFilters}
-                        className="ml-auto text-[10px] text-accent hover:text-accent-hover flex items-center gap-0.5"
-                        title="Clear tag filters"
-                        aria-label="Clear selected tag filters"
-                      >
-                        <svg
-                          className="w-2.5 h-2.5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {allTagsArray.map(({ tag, count }) => {
-                      const isSelected = selectedTags.includes(tag);
-                      return (
-                        <button
-                          key={tag}
-                          onClick={() => toggleTagFilter(tag)}
-                          title={`${count} note${count !== 1 ? "s" : ""}`}
-                          aria-pressed={isSelected}
-                          aria-label={`${isSelected ? "Remove" : "Add"} tag filter ${tag}, ${count} note${count !== 1 ? "s" : ""}`}
-                          className={`
-                          px-2 py-0.5 text-[10px] rounded-full border transition-all
-                          ${
-                            isSelected
-                              ? "bg-accent/10 border-accent/20 text-accent"
-                              : "bg-overlay-subtle border-overlay-subtle text-text-muted hover:text-text-secondary hover:border-overlay-light"
-                          }
-                        `}
-                        >
-                          #{tag}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Broken Links Section */}
-          {!searchQuery && brokenWikiLinks.length > 0 && (
-            <div className="mb-0.5">
-              <button
-                onClick={() => setShowBrokenLinks(!showBrokenLinks)}
-                className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
-                aria-expanded={showBrokenLinks}
-                aria-label={`${showBrokenLinks ? "Collapse" : "Expand"} broken links section with ${brokenWikiLinks.length} unresolved link${brokenWikiLinks.length !== 1 ? "s" : ""}`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <svg
-                    className="w-3 h-3 opacity-50 group-hover:opacity-100"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13.828 10.172a4 4 0 00-5.656 0l-1 1a4 4 0 105.656 5.656l.172-.172m2-2 1-1m-2-2a4 4 0 015.656-5.656l1 1a4 4 0 01-5.656 5.656l-.172-.172M8 12h8"
-                    />
-                  </svg>
-                  <span>Broken Links</span>
-                  <span className="ml-1 px-1 py-px bg-amber-500/15 text-amber-400 text-[9px] rounded-full">
-                    {brokenWikiLinks.length}
-                  </span>
-                </div>
-                <svg
-                  className={`w-3 h-3 transition-transform opacity-50 group-hover:opacity-100 ${showBrokenLinks ? "rotate-180" : ""}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              {showBrokenLinks && (
-                <div className="space-y-1 mt-1 px-2">
-                  {brokenWikiLinks.map((link) => (
-                    <div
-                      key={link.key}
-                      className="rounded-lg border border-overlay-subtle bg-overlay-subtle/60 p-2"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p
-                            className="text-xs font-medium text-text-primary truncate"
-                            title={link.target}
-                          >
-                            [[{link.target}]]
-                          </p>
-                          <p className="text-[10px] text-text-muted">
-                            Referenced by {link.sources.length} note
-                            {link.sources.length !== 1 ? "s" : ""}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleCreateBrokenLinkNote(link.target)}
-                          className="shrink-0 px-2 py-1 text-[10px] rounded-md bg-accent/10 text-accent hover:bg-accent/20 border border-accent/15 transition-colors"
-                          title={`Create ${link.target}`}
-                          aria-label={`Create note for broken wiki link ${link.target}`}
-                        >
-                          Create
-                        </button>
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {link.sources.slice(0, 3).map((source) => (
-                          <button
-                            key={source.id}
-                            onClick={() => selectNote(source.id)}
-                            className="max-w-full truncate px-1.5 py-0.5 text-[10px] rounded bg-bg-base/60 text-text-muted hover:text-text-secondary hover:bg-overlay-light transition-colors"
-                            title={`Open ${source.name}`}
-                          >
-                            {source.name}
-                          </button>
-                        ))}
-                        {link.sources.length > 3 && (
-                          <span className="px-1.5 py-0.5 text-[10px] text-text-muted">
-                            +{link.sources.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Backlinks Section */}
-          {!searchQuery && currentNote && backlinks.length > 0 && (
-            <div className="mb-0.5">
-              <button
-                onClick={() => setShowBacklinks(!showBacklinks)}
-                className="w-full px-2 py-1.5 flex items-center justify-between text-[11px] font-bold text-text-muted hover:text-text-secondary uppercase tracking-wider transition-colors rounded hover:bg-overlay-subtle group"
-                aria-expanded={showBacklinks}
-                aria-label={`${showBacklinks ? "Collapse" : "Expand"} backlinks section with ${backlinks.length} backlink${backlinks.length !== 1 ? "s" : ""}`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <svg
-                    className="w-3 h-3 opacity-50 group-hover:opacity-100"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                    />
-                  </svg>
-                  <span>Backlinks</span>
-                  <span className="ml-1 px-1 py-px bg-accent/20 text-accent text-[9px] rounded-full">
-                    {backlinks.length}
-                  </span>
-                </div>
-                <svg
-                  className={`w-3 h-3 transition-transform opacity-50 group-hover:opacity-100 ${showBacklinks ? "rotate-180" : ""}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              {showBacklinks && (
-                <div className="space-y-0.5 mt-0.5">
-                  {backlinks.map((backlink) => (
-                    <BacklinkItem key={backlink.id} backlink={backlink} onNavigate={selectNote} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Navigation Buttons Row */}
+        {/* Section header */}
+        <div className="px-3.5 pt-3 pb-1 flex items-center justify-between shrink-0">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+            {searchQuery
+              ? `${filteredItems.filter((i) => i.type === "note").length} results`
+              : "Files"}
+          </span>
           {!searchQuery && (
-            <div className="grid grid-cols-2 gap-1 px-1 mb-3 pt-2">
-              <button
-                onClick={handleOpenFile}
-                className="flex items-center justify-center gap-2 px-2 py-2 bg-overlay-subtle hover:bg-overlay-light rounded-lg text-xs font-medium text-text-secondary hover:text-text-primary transition-colors border border-overlay-subtle"
-                title="Open File (⌘O)"
-                aria-label="Open markdown file"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v8a2 2 0 01-2 2H5z"
-                  />
-                </svg>
-                Open
-              </button>
-              <button
-                onClick={onOpenGraph}
-                className="flex items-center justify-center gap-2 px-2 py-2 bg-overlay-subtle hover:bg-overlay-light rounded-lg text-xs font-medium text-text-secondary hover:text-text-primary transition-colors border border-overlay-subtle"
-                title="Graph View"
-                aria-label="Open graph view"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
-                  />
-                </svg>
-                Graph
-              </button>
-            </div>
+            <button
+              onClick={handleNewNote}
+              className="text-text-muted hover:text-text-primary text-base leading-none p-1 -m-1 transition-colors"
+              title="New note"
+              aria-label="New note"
+            >
+              +
+            </button>
           )}
         </div>
 
@@ -1947,10 +1268,9 @@ const Sidebar = forwardRef(
           data-sidebar-tree-root="true"
           role="tree"
           aria-label="Workspace notes and folders"
-          className={`flex-1 overflow-y-auto px-3 py-2 space-y-0.5 custom-scrollbar bg-transparent relative transition-all duration-150
-            ${draggedItem ? "rounded-lg mx-2" : ""}
-            ${isRootDropActive ? "bg-accent/8 ring-2 ring-accent/50 ring-inset rounded-lg shadow-[inset_0_0_24px_rgba(var(--color-accent-rgb,99,102,241),0.08)]" : ""}
-            ${isExternalDragging && !dropTargetFolder ? "ring-2 ring-accent/50 ring-inset rounded-lg bg-accent/8 shadow-[inset_0_0_24px_rgba(var(--color-accent-rgb,99,102,241),0.08)]" : ""}
+          className={`flex-1 overflow-y-auto px-3 py-2 space-y-0.5 custom-scrollbar bg-transparent relative rounded-lg transition-colors duration-150
+            ${isRootDropActive ? "bg-accent/8 ring-2 ring-accent/50 ring-inset" : ""}
+            ${isExternalDragging && !dropTargetFolder ? "ring-2 ring-accent/50 ring-inset bg-accent/8" : ""}
           `}
           onScroll={
             useVirtualizedTree
@@ -2099,10 +1419,15 @@ const Sidebar = forwardRef(
                       onSetDropTarget={handleSetDropTarget}
                       onClearDropTarget={handleClearDropTarget}
                       dropTargetFolderId={dropTargetFolder?.id}
+                      internalDropTargetId={internalDropTargetId}
+                      setInternalDropTargetId={setInternalDropTargetId}
                       isExternalDragging={isExternalDragging}
                       onRequestDelete={requestDeleteItem}
                       onMoveItemOut={handleMoveItemOut}
                       onMoveItemIn={handleMoveItemIn}
+                      reorderTarget={reorderTarget}
+                      setReorderTarget={setReorderTarget}
+                      onReorder={handleReorder}
                       filteredItems={null}
                     />
                   </div>
@@ -2122,10 +1447,15 @@ const Sidebar = forwardRef(
                 onSetDropTarget={handleSetDropTarget}
                 onClearDropTarget={handleClearDropTarget}
                 dropTargetFolderId={dropTargetFolder?.id}
+                internalDropTargetId={internalDropTargetId}
+                setInternalDropTargetId={setInternalDropTargetId}
                 isExternalDragging={isExternalDragging}
                 onRequestDelete={requestDeleteItem}
                 onMoveItemOut={handleMoveItemOut}
                 onMoveItemIn={handleMoveItemIn}
+                reorderTarget={reorderTarget}
+                setReorderTarget={setReorderTarget}
+                onReorder={handleReorder}
                 filteredItems={isTreeFiltered ? filteredItems : null}
               />
             ))
@@ -2192,73 +1522,133 @@ const Sidebar = forwardRef(
             </div>
           )}
 
+          {/* Sync status */}
+          <div className="flex items-center gap-2 px-2.5 pt-1.5 pb-2 text-[11.5px] text-text-muted">
+            <span
+              className={`w-[7px] h-[7px] rounded-full shrink-0 ${
+                dirtyCount > 0 ? "bg-amber-500" : "bg-[#3f9d63]"
+              }`}
+            />
+            <span className="truncate">
+              {dirtyCount > 0
+                ? `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`
+                : "All changes saved locally"}
+            </span>
+            {dirtyCount === 0 && lastSavedLabel && (
+              <span className="ml-auto font-mono text-[10.5px] shrink-0">{lastSavedLabel}</span>
+            )}
+          </div>
+
           <button
-            onClick={onSettingsClick}
-            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-overlay-light rounded-lg text-text-primary transition-all group"
-            title="Settings"
+            onClick={toggleColorScheme}
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+            title={isDarkTheme ? "Switch to light mode" : "Switch to dark mode"}
           >
-            <div className="p-1.5 bg-overlay-subtle rounded-md group-hover:bg-overlay-light transition-colors">
+            {isDarkTheme ? (
               <svg
-                className="w-4 h-4 text-text-secondary group-hover:text-text-primary"
+                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
+                strokeWidth="1.8"
                 viewBox="0 0 24 24"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19" />
               </svg>
-            </div>
-            <div className="flex flex-col items-start gap-0.5">
-              <span className="text-sm font-medium">Settings</span>
-              <span className="text-[10px] text-text-muted">Preferences & automations</span>
-            </div>
+            ) : (
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                viewBox="0 0 24 24"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 12.8A8 8 0 1111.2 3a6.2 6.2 0 009.8 9.8z" />
+              </svg>
+            )}
+            {isDarkTheme ? "Light" : "Dark"} mode
+          </button>
+          <button
+            onClick={() => onOpenTemplate(null)}
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+            title="Templates"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              viewBox="0 0 24 24"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+              <path d="M4 9h16" />
+            </svg>
+            Templates
+          </button>
+          <button
+            onClick={onSettingsClick}
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+            title="Settings"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              viewBox="0 0 24 24"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            Settings
           </button>
         </div>
 
         {/* Drag Ghost */}
         {draggedItem && dragPosition && (
           <div
-            className={`fixed z-50 pointer-events-none flex items-center gap-2 px-3 py-1.5 rounded-md shadow-lg text-sm max-w-60 transition-colors duration-100 ${
+            className={`fixed left-0 top-0 z-50 pointer-events-none flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm max-w-60 will-change-transform transition-colors duration-100 ${
               isRootDropActive
-                ? "bg-accent/15 border border-accent/40 text-accent"
-                : "bg-bg-sidebar border border-overlay-medium text-text-primary"
+                ? "bg-accent-dim border border-accent/40 text-accent"
+                : "bg-bg-editor border border-border text-text-primary"
             }`}
             style={{
-              left: dragPosition.x + 12,
-              top: dragPosition.y - 12,
+              transform: `translate3d(${dragPosition.x + 12}px, ${dragPosition.y - 12}px, 0) rotate(-3deg) scale(1.03)`,
+              boxShadow: "0 10px 26px rgba(25,25,22,.22)",
             }}
           >
             {draggedItem.type === "folder" ? (
               <svg
-                className="w-3.5 h-3.5 text-sky-400/80 shrink-0"
-                fill="currentColor"
-                viewBox="0 0 20 20"
+                className="w-3.5 h-3.5 text-text-muted shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.75}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                viewBox="0 0 24 24"
               >
-                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
               </svg>
             ) : (
               <svg
                 className="w-3.5 h-3.5 text-text-muted shrink-0"
                 fill="none"
                 stroke="currentColor"
+                strokeWidth={1.75}
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 viewBox="0 0 24 24"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
+                <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                <path d="M14 3v5h5" />
               </svg>
             )}
             <span className="truncate">{draggedItem.name}</span>

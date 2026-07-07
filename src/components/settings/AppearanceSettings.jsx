@@ -4,190 +4,88 @@ const AppearanceSettings = () => {
   const { themeId, setTheme, accentColorId, setAccentColor } = useSettingsStore();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       {/* Theme Selection */}
       <div>
-        <h3 className="text-sm font-semibold text-text-primary mb-1">Theme</h3>
-        <p className="text-xs text-text-muted mb-4">Choose a color scheme for the application.</p>
+        <h3 className="text-[13px] font-semibold text-text-primary mb-0.5">Theme</h3>
+        <p className="text-[13px] text-text-muted mb-4">Applies across the whole app, instantly.</p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" role="radiogroup" aria-label="Theme">
-          {THEMES.map((theme) => (
-            <button
-              key={theme.id}
-              onClick={() => setTheme(theme.id)}
-              role="radio"
-              aria-checked={themeId === theme.id}
-              aria-label={`${theme.name} theme${theme.type === "light" ? ", light" : ""}`}
-              className={`
-                group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all
-                ${
-                  themeId === theme.id
-                    ? "border-accent bg-accent/10"
-                    : "border-transparent bg-overlay-subtle hover:bg-overlay-light hover:border-overlay-light"
-                }
-              `}
-            >
-              {/* Theme preview */}
-              <div
-                className="w-full aspect-4/3 rounded-lg overflow-hidden border border-overlay-light"
-                aria-hidden="true"
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" role="radiogroup" aria-label="Theme">
+          {THEMES.map((theme) => {
+            const selected = themeId === theme.id;
+            return (
+              <button
+                key={theme.id}
+                onClick={() => setTheme(theme.id)}
+                role="radio"
+                aria-checked={selected}
+                aria-label={`${theme.name} theme, ${theme.type}`}
+                className="rounded-[13px] p-[11px] text-left transition-all"
+                style={{
+                  background: "var(--color-bg-editor)",
+                  border: `1.5px solid ${selected ? "var(--color-accent)" : "var(--color-border)"}`,
+                  boxShadow: selected ? "0 0 0 3px var(--color-accent-dim)" : "none",
+                }}
               >
-                <div className="h-full flex" style={{ backgroundColor: theme.preview.bg }}>
-                  {/* Sidebar preview */}
-                  <div className="w-1/3 h-full" style={{ backgroundColor: theme.preview.sidebar }}>
-                    <div
-                      className="w-3/4 h-1.5 mt-2 ml-1 rounded-sm"
-                      style={{ backgroundColor: theme.preview.accent }}
-                    />
-                    <div
-                      className="w-1/2 h-1 mt-1 ml-1 rounded-sm"
-                      style={{ backgroundColor: theme.preview.accent }}
-                    />
-                    <div
-                      className="w-2/3 h-1 mt-1 ml-1 rounded-sm"
-                      style={{ backgroundColor: theme.preview.accent }}
-                    />
-                  </div>
-                  {/* Editor preview */}
-                  <div className="flex-1 p-1.5">
-                    <div
-                      className="w-full h-1 rounded-sm"
-                      style={{ backgroundColor: theme.preview.accent }}
-                    />
-                    <div
-                      className="w-3/4 h-1 mt-1 rounded-sm"
-                      style={{ backgroundColor: theme.preview.accent }}
-                    />
-                    <div
-                      className="w-1/2 h-1 mt-1 rounded-sm"
-                      style={{ backgroundColor: theme.preview.accent }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Theme name */}
-              <div className="flex items-center gap-2">
-                <span
-                  className={`
-                  text-xs font-medium transition-colors
-                  ${themeId === theme.id ? "text-text-primary" : "text-text-muted group-hover:text-text-secondary"}
-                `}
+                <div
+                  className="flex h-[72px] overflow-hidden rounded-lg"
+                  style={{ border: "1px solid rgba(128,128,128,.16)" }}
+                  aria-hidden="true"
                 >
-                  {theme.name}
-                </span>
-                {theme.type === "light" && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400 rounded">
-                    Light
-                  </span>
-                )}
-              </div>
-
-              {/* Checkmark for selected */}
-              {themeId === theme.id && (
-                <div className="absolute top-2 right-2">
-                  <svg
-                    className="w-4 h-4 text-accent"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                    aria-hidden="true"
+                  <div style={{ width: "34%", backgroundColor: theme.preview.sidebar }} />
+                  <div
+                    className="flex-1 px-2 py-[9px]"
+                    style={{ backgroundColor: theme.preview.bg }}
                   >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clipRule="evenodd"
+                    <div
+                      className="mb-[5px] h-1.5 w-[70%] rounded-[3px]"
+                      style={{ backgroundColor: theme.preview.bar }}
                     />
-                  </svg>
+                    <div
+                      className="h-1.5 w-[45%] rounded-[3px] opacity-60"
+                      style={{ backgroundColor: theme.preview.bar }}
+                    />
+                  </div>
                 </div>
-              )}
-            </button>
-          ))}
+                <div className="mt-[9px] flex items-center justify-between">
+                  <span className="text-[13px] font-medium text-text-primary">{theme.name}</span>
+                  <span className="rounded-[5px] bg-overlay-subtle px-1.5 py-px text-[10px] font-semibold text-text-muted">
+                    {theme.type === "light" ? "Light" : "Dark"}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Accent Color */}
       <div>
-        <h3 className="text-sm font-semibold text-text-primary mb-1">Accent Color</h3>
-        <p className="text-xs text-text-muted mb-4">
-          Choose a color for buttons, links, and highlights.
-        </p>
+        <h3 className="text-[13px] font-semibold text-text-primary mb-0.5">Accent color</h3>
+        <p className="text-[13px] text-text-muted mb-4">Used for buttons, links, and highlights.</p>
 
-        <div
-          className="grid grid-cols-3 sm:grid-cols-5 gap-3"
-          role="radiogroup"
-          aria-label="Accent color"
-        >
-          {ACCENT_COLORS.map((color) => (
-            <button
-              key={color.id}
-              onClick={() => setAccentColor(color.id)}
-              role="radio"
-              aria-checked={accentColorId === color.id}
-              aria-label={`${color.name} accent color`}
-              className={`
-                group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all
-                ${
-                  accentColorId === color.id
-                    ? "border-overlay-strong bg-overlay-light"
-                    : "border-transparent bg-overlay-subtle hover:bg-overlay-light hover:border-overlay-light"
-                }
-              `}
-            >
-              {/* Color swatch */}
-              <div
-                className={`
-                  w-8 h-8 rounded-full transition-transform group-hover:scale-110
-                  ${accentColorId === color.id ? "ring-2 ring-white/50 ring-offset-2 ring-offset-bg-base" : ""}
-                `}
-                style={{ backgroundColor: color.value }}
-                aria-hidden="true"
-              />
-
-              {/* Color name */}
-              <span
-                className={`
-                text-xs font-medium transition-colors
-                ${accentColorId === color.id ? "text-text-primary" : "text-text-muted group-hover:text-text-secondary"}
-              `}
+        <div className="flex flex-wrap gap-[13px]" role="radiogroup" aria-label="Accent color">
+          {ACCENT_COLORS.map((color) => {
+            const selected = accentColorId === color.id;
+            return (
+              <button
+                key={color.id}
+                onClick={() => setAccentColor(color.id)}
+                role="radio"
+                aria-checked={selected}
+                aria-label={`${color.name} accent color`}
+                title={color.name}
+                className="rounded-full p-[5px] transition-transform hover:scale-105"
+                style={{ boxShadow: selected ? `0 0 0 2px ${color.value}` : "none" }}
               >
-                {color.name}
-              </span>
-
-              {/* Checkmark for selected */}
-              {accentColorId === color.id && (
-                <div className="absolute top-2 right-2">
-                  <svg
-                    className="w-4 h-4 text-accent"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Preview */}
-      <div className="p-4 bg-overlay-subtle rounded-xl border border-overlay-light">
-        <h4 className="text-sm font-medium text-text-primary mb-3">Preview</h4>
-        <div className="flex flex-wrap items-center gap-3">
-          <button className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors">
-            Primary Button
-          </button>
-          <button className="px-4 py-2 bg-accent/10 hover:bg-accent/20 text-accent text-sm font-medium rounded-lg border border-accent/20 transition-colors">
-            Secondary Button
-          </button>
-          <span className="text-accent text-sm font-medium cursor-pointer hover:underline">
-            Link Text
-          </span>
+                <span
+                  className="block h-[26px] w-[26px] rounded-full"
+                  style={{ backgroundColor: color.value }}
+                  aria-hidden="true"
+                />
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

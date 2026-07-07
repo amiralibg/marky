@@ -14,6 +14,17 @@ const useUIStore = create((set) => ({
   showWorkspaceModal: false,
   setShowWorkspaceModal: (value) => set({ showWorkspaceModal: value }),
 
+  // One-shot requests the App layer listens for, so deeply-nested views
+  // (e.g. the workspace dashboard) can open top-level modals.
+  templateRequest: null,
+  scheduleRequest: null,
+  requestTemplateModal: (parentId = null) =>
+    set({ templateRequest: { parentId, nonce: Date.now() } }),
+  requestScheduleModal: (template = null) =>
+    set({ scheduleRequest: { template, nonce: Date.now() } }),
+  clearTemplateRequest: () => set({ templateRequest: null }),
+  clearScheduleRequest: () => set({ scheduleRequest: null }),
+
   toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),
   setFocusMode: (value) => set({ focusMode: value }),
 
