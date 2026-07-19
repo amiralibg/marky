@@ -95,19 +95,6 @@ export const THEMES = [
     hover: "rgba(255, 255, 255, 0.05)",
     bar: "#46586e",
   }),
-  defineTheme("midnight", "Midnight", "dark", {
-    bg: "#0b0b0e",
-    sidebar: "#121116",
-    panel: "#17151d",
-    raised: "#201e29",
-    border: "rgba(255, 255, 255, 0.075)",
-    borderLight: "rgba(255, 255, 255, 0.14)",
-    text: "#ECECEF",
-    text2: "#9b99a6",
-    text3: "#6b6a77",
-    hover: "rgba(255, 255, 255, 0.05)",
-    bar: "#5b5766",
-  }),
   defineTheme("gruvbox-light", "Gruvbox Light", "light", {
     bg: "#f2e5bc",
     sidebar: "#ebdbb2",
@@ -134,6 +121,112 @@ export const THEMES = [
     hover: "rgba(235, 219, 178, 0.05)",
     bar: "#665c54",
   }),
+  // Dark Matter Code — Amirali's own VS Code theme (Mars = neutral black,
+  // Neptune = navy), both with the signature #a874ff purple accent.
+  defineTheme("dark-matter-mars", "Dark Matter · Mars", "dark", {
+    bg: "#0b0b0b",
+    sidebar: "#101010",
+    panel: "#141414",
+    raised: "#252526",
+    border: "rgba(255, 255, 255, 0.075)",
+    borderLight: "rgba(255, 255, 255, 0.14)",
+    text: "#d4d4d4",
+    text2: "#9a9a9a",
+    text3: "#6b6b6b",
+    hover: "rgba(255, 255, 255, 0.05)",
+    bar: "#3a3a3a",
+  }),
+  defineTheme("dark-matter-neptune", "Dark Matter · Neptune", "dark", {
+    bg: "#131421",
+    sidebar: "#16161e",
+    panel: "#1a1b26",
+    raised: "#24283b",
+    border: "rgba(230, 235, 255, 0.08)",
+    borderLight: "rgba(230, 235, 255, 0.15)",
+    text: "#d5d8e5",
+    text2: "#9fa3bd",
+    text3: "#6b7089",
+    hover: "rgba(230, 235, 255, 0.05)",
+    bar: "#3b4261",
+  }),
+  defineTheme("catppuccin-mocha", "Catppuccin Mocha", "dark", {
+    bg: "#181825",
+    sidebar: "#11111b",
+    panel: "#1e1e2e",
+    raised: "#313244",
+    border: "rgba(205, 214, 244, 0.09)",
+    borderLight: "rgba(205, 214, 244, 0.16)",
+    text: "#cdd6f4",
+    text2: "#a6adc8",
+    text3: "#6c7086",
+    hover: "rgba(205, 214, 244, 0.05)",
+    bar: "#45475a",
+  }),
+  defineTheme("catppuccin-latte", "Catppuccin Latte", "light", {
+    bg: "#e6e9ef",
+    sidebar: "#dce0e8",
+    panel: "#eff1f5",
+    raised: "#dce0e8",
+    border: "rgba(76, 79, 105, 0.11)",
+    borderLight: "rgba(76, 79, 105, 0.2)",
+    text: "#4c4f69",
+    text2: "#6c6f85",
+    text3: "#8c8fa1",
+    hover: "rgba(76, 79, 105, 0.05)",
+    bar: "#ccd0da",
+  }),
+  defineTheme("nord", "Nord", "dark", {
+    bg: "#272c36",
+    sidebar: "#2b303b",
+    panel: "#2e3440",
+    raised: "#3b4252",
+    border: "rgba(216, 222, 233, 0.09)",
+    borderLight: "rgba(216, 222, 233, 0.16)",
+    text: "#e5e9f0",
+    text2: "#9aa3b4",
+    text3: "#6e7789",
+    hover: "rgba(216, 222, 233, 0.05)",
+    bar: "#4c566a",
+  }),
+  defineTheme("dracula", "Dracula", "dark", {
+    bg: "#1e1f29",
+    sidebar: "#191a21",
+    panel: "#282a36",
+    raised: "#343746",
+    border: "rgba(248, 248, 242, 0.09)",
+    borderLight: "rgba(248, 248, 242, 0.16)",
+    text: "#f8f8f2",
+    text2: "#babdcc",
+    text3: "#6272a4",
+    hover: "rgba(248, 248, 242, 0.05)",
+    bar: "#44475a",
+  }),
+  defineTheme("rose-pine", "Rosé Pine", "dark", {
+    bg: "#191724",
+    sidebar: "#15131f",
+    panel: "#1f1d2e",
+    raised: "#26233a",
+    border: "rgba(224, 222, 244, 0.09)",
+    borderLight: "rgba(224, 222, 244, 0.16)",
+    text: "#e0def4",
+    text2: "#908caa",
+    text3: "#6e6a86",
+    hover: "rgba(224, 222, 244, 0.05)",
+    bar: "#403d52",
+  }),
+  defineTheme("rose-pine-dawn", "Rosé Pine Dawn", "light", {
+    bg: "#faf4ed",
+    sidebar: "#f2e9e1",
+    panel: "#fffaf3",
+    raised: "#f2e9e1",
+    border: "rgba(87, 82, 121, 0.11)",
+    borderLight: "rgba(87, 82, 121, 0.2)",
+    text: "#575279",
+    text2: "#797593",
+    text3: "#9893a5",
+    hover: "rgba(87, 82, 121, 0.05)",
+    bar: "#dfdad9",
+  }),
 ];
 
 // Predefined accent colors (Vault palette; purple is the default)
@@ -144,10 +237,14 @@ export const ACCENT_COLORS = [
   { id: "red", name: "Red", value: "#d35450", hover: "#bf413d" },
   { id: "orange", name: "Orange", value: "#d57a32", hover: "#c16a24" },
   { id: "green", name: "Green", value: "#4f9d69", hover: "#3f8a58" },
+  // Signature accents that pair with the added themes (Dark Matter mauve, etc.)
+  { id: "lavender", name: "Lavender", value: "#a874ff", hover: "#9560f0" },
+  { id: "teal", name: "Teal", value: "#3fb0b8", hover: "#329aa1" },
+  { id: "yellow", name: "Yellow", value: "#d3a44a", hover: "#c08f36" },
 ];
 
 // Light ↔ dark counterparts for the sidebar mode toggle. Dark-only themes
-// (slate, midnight) fall back to vault when switching to light.
+// (slate, nord, dracula, …) fall back to vault when switching to light.
 export const THEME_COUNTERPARTS = {
   vault: "vault-dark",
   "vault-dark": "vault",
@@ -156,15 +253,31 @@ export const THEME_COUNTERPARTS = {
   "gruvbox-light": "gruvbox-dark",
   "gruvbox-dark": "gruvbox-light",
   slate: "vault",
-  midnight: "vault",
+  // Themes with a matching light/dark sibling toggle between the two.
+  "catppuccin-mocha": "catppuccin-latte",
+  "catppuccin-latte": "catppuccin-mocha",
+  "rose-pine": "rose-pine-dawn",
+  "rose-pine-dawn": "rose-pine",
+  // Dark-only themes fall back to the default light theme when switching to light.
+  "dark-matter-mars": "vault",
+  "dark-matter-neptune": "vault",
+  nord: "vault",
+  dracula: "vault",
 };
 
 // Persisted ids from earlier designs → Vault equivalents
-const LEGACY_THEME_IDS = { light: "vault", charcoal: "vault-dark" };
+const LEGACY_THEME_IDS = {
+  light: "vault",
+  charcoal: "vault-dark",
+  // Retired near-duplicate themes → their visual twin (kept) so a saved
+  // selection transfers seamlessly instead of resetting to the default.
+  midnight: "dark-matter-mars",
+  "tokyo-night": "dark-matter-neptune",
+  "one-dark": "dracula",
+};
 const LEGACY_ACCENT_IDS = {
   violet: "purple",
   amber: "orange",
-  teal: "green",
   cyan: "blue",
 };
 const migrateThemeId = (id) => LEGACY_THEME_IDS[id] || id;
@@ -326,10 +439,10 @@ const createDefaultProfileSettings = () => ({
   themeId: "vault",
   accentColorId: "purple",
   vimMode: false,
-  scrollSyncEnabled: true,
   autosaveEnabled: false,
   autosaveDelay: 2000,
   typewriterMode: false,
+  showLineNumbers: false,
   sidebarDensity: "comfortable",
   showSidebarMetadata: true,
   keymaps: { ...DEFAULT_KEYMAPS },
@@ -339,10 +452,10 @@ const buildProfileSettingsSnapshot = (state) => ({
   themeId: state.themeId,
   accentColorId: state.accentColorId,
   vimMode: state.vimMode,
-  scrollSyncEnabled: state.scrollSyncEnabled,
   autosaveEnabled: state.autosaveEnabled,
   autosaveDelay: state.autosaveDelay,
   typewriterMode: state.typewriterMode,
+  showLineNumbers: state.showLineNumbers,
   sidebarDensity: state.sidebarDensity,
   showSidebarMetadata: state.showSidebarMetadata,
   keymaps: { ...DEFAULT_KEYMAPS, ...(state.keymaps || {}) },
@@ -389,10 +502,10 @@ const useSettingsStore = create(
 
       // Editor settings
       vimMode: false,
-      scrollSyncEnabled: true,
       autosaveEnabled: false,
       autosaveDelay: 2000, // ms after last keystroke to auto-save
       typewriterMode: false,
+      showLineNumbers: false, // Notion-clean default; toggle in Editor settings
       sidebarDensity: "comfortable", // 'compact' | 'comfortable' | 'spacious'
       showSidebarMetadata: true,
       openRecentOnStartup: true,
@@ -467,6 +580,9 @@ const useSettingsStore = create(
       setTypewriterMode: (enabled) => {
         get().syncProfileState({ typewriterMode: enabled });
       },
+      setShowLineNumbers: (enabled) => {
+        get().syncProfileState({ showLineNumbers: enabled });
+      },
       setSidebarDensity: (density) => {
         get().syncProfileState({ sidebarDensity: density });
       },
@@ -475,14 +591,6 @@ const useSettingsStore = create(
       },
       setOpenRecentOnStartup: (enabled) => {
         set({ openRecentOnStartup: enabled });
-      },
-
-      setScrollSyncEnabled: (enabled) => {
-        get().syncProfileState({ scrollSyncEnabled: enabled });
-      },
-
-      toggleScrollSync: () => {
-        get().syncProfileState((state) => ({ scrollSyncEnabled: !state.scrollSyncEnabled }));
       },
 
       toggleVimMode: () => {
@@ -682,7 +790,6 @@ const useSettingsStore = create(
         themeId: state.themeId,
         accentColorId: state.accentColorId,
         vimMode: state.vimMode,
-        scrollSyncEnabled: state.scrollSyncEnabled,
         autosaveEnabled: state.autosaveEnabled,
         autosaveDelay: state.autosaveDelay,
         typewriterMode: state.typewriterMode,

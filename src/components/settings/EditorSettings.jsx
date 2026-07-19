@@ -4,14 +4,14 @@ const EditorSettings = () => {
   const {
     vimMode,
     toggleVimMode,
-    scrollSyncEnabled,
-    toggleScrollSync,
     autosaveEnabled,
     autosaveDelay,
     setAutosaveEnabled,
     setAutosaveDelay,
     typewriterMode: typewriterModeEnabled,
     setTypewriterMode,
+    showLineNumbers,
+    setShowLineNumbers,
     sidebarDensity,
     setSidebarDensity,
     showSidebarMetadata,
@@ -102,42 +102,42 @@ const EditorSettings = () => {
         </button>
       </div>
 
-      {/* Preview Scroll Sync Toggle */}
+      {/* Line Numbers Toggle */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h3
-            id="scroll-sync-setting-title"
+            id="line-numbers-setting-title"
             className="text-sm font-semibold text-text-primary mb-1"
           >
-            Preview Scroll Sync
+            Line Numbers
           </h3>
           <p
-            id="scroll-sync-setting-description"
+            id="line-numbers-setting-description"
             className="text-xs text-text-muted leading-relaxed"
           >
-            Sync scrolling between the editor and preview in split view. This is approximate and may
-            drift on notes with heavy formatting or diagrams.
+            Show line numbers, fold arrows, and the active-line highlight in the editor. Off by
+            default for a clean, document-style look.
           </p>
         </div>
         <button
-          onClick={toggleScrollSync}
+          onClick={() => setShowLineNumbers(!showLineNumbers)}
           className={`
             relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0
             ${
-              scrollSyncEnabled
+              showLineNumbers
                 ? "bg-accent shadow-lg shadow-accent/30"
                 : "bg-overlay-light hover:bg-overlay-medium"
             }
           `}
-          aria-checked={scrollSyncEnabled}
-          aria-labelledby="scroll-sync-setting-title"
-          aria-describedby="scroll-sync-setting-description"
+          aria-checked={showLineNumbers}
+          aria-labelledby="line-numbers-setting-title"
+          aria-describedby="line-numbers-setting-description"
           role="switch"
         >
           <span
             className={`
               absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200
-              ${scrollSyncEnabled ? "translate-x-7" : "translate-x-0"}
+              ${showLineNumbers ? "translate-x-7" : "translate-x-0"}
             `}
           />
         </button>

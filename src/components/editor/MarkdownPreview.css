@@ -2,10 +2,17 @@
 
 .markdown-preview {
   color: var(--color-text-primary);
-  line-height: 1.75;
+  line-height: 1.7;
   font-size: 1.0625rem;
-  /* Paper: render documents in Newsreader serif for cozier reading. */
-  font-family: var(--font-family-serif);
+  /* Body copy in the clean UI sans for comfortable on-screen reading;
+     headings stay serif below for editorial character. */
+  font-family: var(--font-family-sans);
+  letter-spacing: -0.003em;
+  /* Cap the measure (~72ch) so long lines stay readable in wide/Read mode.
+     In split the pane is narrower than this, so it simply fills the pane. */
+  max-width: 46rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .markdown-preview .markdown-blank-lines {
@@ -19,25 +26,27 @@
 .markdown-preview h4,
 .markdown-preview h5,
 .markdown-preview h6 {
+  font-family: var(--font-family-serif);
   font-weight: 600;
   color: var(--color-text-primary);
-  margin-top: 0.75em;
-  margin-bottom: 0.75em;
-  line-height: 1.25;
+  /* More space above than below so headings group with the text they lead. */
+  margin-top: 1.6em;
+  margin-bottom: 0.5em;
+  line-height: 1.2;
   letter-spacing: -0.015em;
   scroll-margin-top: 1rem;
 }
 
+.markdown-preview > :first-child {
+  margin-top: 0;
+}
+
 .markdown-preview h1 {
-  font-size: 2.25em;
-  padding-bottom: 0.3em;
-  border-bottom: 1px solid var(--color-border);
+  font-size: 2.1em;
 }
 
 .markdown-preview h2 {
-  font-size: 1.75em;
-  padding-bottom: 0.3em;
-  border-bottom: 1px solid var(--color-border);
+  font-size: 1.6em;
 }
 
 .markdown-preview h3 {
@@ -191,6 +200,19 @@
   border-radius: 8px;
   margin: 1.5em 0;
   overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-overlay-light) transparent;
+}
+
+.markdown-preview pre::-webkit-scrollbar {
+  height: 8px;
+}
+
+.markdown-preview pre::-webkit-scrollbar-thumb {
+  background: var(--color-overlay-light);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 .markdown-preview pre code {

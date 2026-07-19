@@ -25,6 +25,7 @@ import {
 } from "@codemirror/autocomplete";
 import { vim, getCM } from "@replit/codemirror-vim";
 import { markyTheme, markySyntaxHighlighting } from "./theme";
+import { livePreview } from "./livePreview";
 import { typewriterMode } from "./typewriterMode";
 import { buildMarkyKeymaps } from "./keymaps";
 import { createWikiLinkAutocomplete } from "./wikiLinkAutocomplete";
@@ -98,6 +99,7 @@ export function createExtensions(options = {}) {
     enableWikiLinkAutocomplete = true,
     enableVimMode = false,
     enableTypewriterMode = false,
+    enableLivePreview = false,
     formattingKeymaps = {},
     getNotes = () => [],
     getTags = () => [],
@@ -120,12 +122,14 @@ export function createExtensions(options = {}) {
     EditorView.perLineTextDirection.of(true),
     bidiLinePlugin(),
 
+    // Soft-wrap long lines (no horizontal scroll / cut-off text) — Notion-style.
+    EditorView.lineWrapping,
+
     // Visual enhancements
     highlightSpecialChars(),
     drawSelection(),
     dropCursor(),
     rectangularSelection(),
-    highlightActiveLine(),
     highlightSelectionMatches(), // Highlight other instances of selected text
 
     // Toggle .cm-has-selection class so active line bg hides when selecting
@@ -193,8 +197,21 @@ export function createExtensions(options = {}) {
   ];
 
   // Optional features
+  // Line numbers, fold arrows and the active-line highlight are the "code IDE"
+  // chrome — grouped so the clean Notion look (default) omits them together.
   if (enableLineNumbers) {
-    extensions.push(lineNumbers(), highlightActiveLineGutter(), foldGutter());
+    extensions.push(
+      lineNumbers(),
+      highlightActiveLineGutter(),
+      foldGutter(),
+      highlightActiveLine()
+    );
+  }
+
+  // Live Preview — Obsidian-style inline rendering. Decoration layer only, so
+  // it composes with vim, RTL, autocomplete etc. Pushed before keymaps.
+  if (enableLivePreview) {
+    extensions.push(livePreview());
   }
 
   if (readOnly) {

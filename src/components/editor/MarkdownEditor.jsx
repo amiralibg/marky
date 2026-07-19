@@ -22,6 +22,7 @@ import useUIStore from "../../store/uiStore";
 import useSettingsStore from "../../store/settingsStore";
 import { slugify } from "../../utils/slugify";
 import { parseFrontmatter } from "../../utils/frontmatter";
+import { saveMarkdownFile } from "../../utils/fileSystem";
 import "./MarkdownPreview.css";
 
 const ExportModal = lazy(() => import("../modals/ExportModal"));
@@ -235,9 +236,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
     selectNote,
     createNote,
     rootFolderPath,
-    editorSplitRatio,
-    setEditorSplitRatio,
     saveCurrentNoteToDisk,
+    updateNotePath,
     isNoteDirty,
     getNoteConflict,
     resolveNoteConflict,
@@ -250,16 +250,16 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const { addNotification, setShowWorkspaceModal } = useUIStore();
   const {
     vimMode,
-    scrollSyncEnabled,
     autosaveEnabled,
     autosaveDelay,
     typewriterMode: typewriterModeEnabled,
+    showLineNumbers,
     keymaps,
   } = useSettingsStore();
 
   const [markdown, setMarkdown] = useState("");
   const [debouncedMarkdown, setDebouncedMarkdown] = useState(""); // Debounced for preview
-  const [viewMode, setViewMode] = useState("split"); // "editor", "preview", or "split"
+  const [viewMode, setViewMode] = useState("live"); // "source" (raw), "live" (inline preview), or "read" (rendered)
   const [selection, setSelection] = useState({ empty: true }); // for the bubble toolbar
   const [showExportModal, setShowExportModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -268,7 +268,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const [pendingNoteName, setPendingNoteName] = useState("");
   const [showTOC, setShowTOC] = useState(false);
   const [showProperties, setShowProperties] = useState(false);
-  const [isResizingSplit, setIsResizingSplit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedIndicator, setShowSavedIndicator] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState("idle"); // 'idle' | 'pending' | 'saving' | 'saved'
@@ -284,10 +283,9 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const autosaveClearTimerRef = useRef(null);
   const previewTimerRef = useRef(null); // Timer for debounced preview updates
   const editorRef = useRef(null);
+  const editorPaneRef = useRef(null); // Outer scroll container for the editor pane
   const previewPaneRef = useRef(null);
   const highlightTimeoutRef = useRef(null);
-  const ignoreNextEditorSyncScrollRef = useRef(false);
-  const ignoreNextPreviewSyncScrollRef = useRef(false);
   const localEditPendingRef = useRef(false);
   const localEditNoteIdRef = useRef(null);
 
@@ -295,45 +293,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const hasUnsavedChanges = isNoteDirty(currentNoteId);
   const noteConflict = currentNoteId ? getNoteConflict(currentNoteId) : null;
   const recoveredDraft = currentNoteId ? getRecoveredDraft(currentNoteId) : null;
-
-  const startResizingSplit = useCallback((e) => {
-    e.preventDefault();
-    setIsResizingSplit(true);
-  }, []);
-
-  const stopResizingSplit = useCallback(() => {
-    setIsResizingSplit(false);
-  }, []);
-
-  const resizeSplit = useCallback(
-    (e) => {
-      if (isResizingSplit) {
-        const container = document.querySelector(".editor-container");
-        if (container) {
-          const rect = container.getBoundingClientRect();
-          const newRatio = ((e.clientX - rect.left) / rect.width) * 100;
-          if (newRatio >= 20 && newRatio <= 80) {
-            setEditorSplitRatio(newRatio);
-          }
-        }
-      }
-    },
-    [isResizingSplit, setEditorSplitRatio]
-  );
-
-  useEffect(() => {
-    if (isResizingSplit) {
-      window.addEventListener("mousemove", resizeSplit);
-      window.addEventListener("mouseup", stopResizingSplit);
-    } else {
-      window.removeEventListener("mousemove", resizeSplit);
-      window.removeEventListener("mouseup", stopResizingSplit);
-    }
-    return () => {
-      window.removeEventListener("mousemove", resizeSplit);
-      window.removeEventListener("mouseup", stopResizingSplit);
-    };
-  }, [isResizingSplit, resizeSplit, stopResizingSplit]);
 
   // Function to find all matches in the text
   const findAllMatches = useCallback(
@@ -483,20 +442,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
   }, [searchMatches, nextMatch, previousMatch, clearSearch]);
 
   useEffect(() => {
-    const handleResize = () => {
-      // Force editor view on small screens if split view is active
-      if (window.innerWidth < 768 && viewMode === "split") {
-        setViewMode("editor");
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-    handleResize(); // Check initial state
-
-    return () => window.removeEventListener("resize", handleResize);
-  }, [viewMode]);
-
-  useEffect(() => {
     // Clear pending update when switching notes
     if (updateTimerRef.current) {
       clearTimeout(updateTimerRef.current);
@@ -564,8 +509,26 @@ const MarkdownEditor = forwardRef((props, ref) => {
     if (!currentNoteId || isSaving) return;
 
     const currentNote = getCurrentNote();
+
+    // Unsaved scratch buffer → Save-As (pick a path), then it becomes a real file.
     if (!currentNote?.filePath) {
-      addNotification("Cannot save: note has no file path", "error");
+      flushPendingNoteUpdate(currentNoteId, markdown);
+      setIsSaving(true);
+      try {
+        const savedPath = await saveMarkdownFile(markdown, null);
+        if (savedPath) {
+          updateNotePath(currentNoteId, savedPath);
+          setShowSavedIndicator(true);
+          if (savedIndicatorTimerRef.current) clearTimeout(savedIndicatorTimerRef.current);
+          savedIndicatorTimerRef.current = setTimeout(() => setShowSavedIndicator(false), 2000);
+          addNotification("Note saved", "success");
+        }
+      } catch (error) {
+        console.error("Save failed:", error);
+        addNotification(`Failed to save: ${error.message}`, "error");
+      } finally {
+        setIsSaving(false);
+      }
       return;
     }
 
@@ -603,6 +566,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     getCurrentNote,
     flushPendingNoteUpdate,
     saveCurrentNoteToDisk,
+    updateNotePath,
     addNotification,
     noteConflict,
   ]);
@@ -852,245 +816,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
     }
   }, [debouncedMarkdown]);
 
-  // Split-view scroll sync between CodeMirror and preview
-  useEffect(() => {
-    if (viewMode !== "split" || !scrollSyncEnabled) return;
-
-    const editorView = editorRef.current?.getView?.();
-    const editorScroller = editorView?.scrollDOM;
-    const previewScroller = previewPaneRef.current;
-
-    if (!editorScroller || !previewScroller) return;
-
-    const setScrollByRatio = (sourceEl, targetEl) => {
-      const sourceScrollable = sourceEl.scrollHeight - sourceEl.clientHeight;
-      const targetScrollable = targetEl.scrollHeight - targetEl.clientHeight;
-      if (sourceScrollable <= 0 || targetScrollable <= 0) return;
-
-      const ratio = sourceEl.scrollTop / sourceScrollable;
-      const nextScrollTop = ratio * targetScrollable;
-      if (Math.abs(targetEl.scrollTop - nextScrollTop) < 1) return;
-      targetEl.scrollTop = nextScrollTop;
-    };
-
-    const parseMarkdownHeadings = (text) => {
-      const headings = [];
-      const lines = (text || "").split("\n");
-
-      for (let i = 0; i < lines.length; i += 1) {
-        const line = lines[i];
-        const atx = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
-        if (atx) {
-          headings.push({
-            line: i + 1,
-            level: atx[1].length,
-            text: atx[2].trim(),
-            id: slugify(atx[2].trim()),
-          });
-        }
-      }
-
-      return headings;
-    };
-
-    const getPreviewHeadingMap = () => {
-      const headingEls = Array.from(
-        previewScroller.querySelectorAll(
-          ".markdown-preview h1[id], .markdown-preview h2[id], .markdown-preview h3[id], .markdown-preview h4[id], .markdown-preview h5[id], .markdown-preview h6[id]"
-        )
-      );
-
-      const offsetAdjustment = 24; // preview container top padding alignment
-      return headingEls.map((el) => ({
-        id: el.id,
-        top: Math.max(0, el.offsetTop - offsetAdjustment),
-      }));
-    };
-
-    let editorToPreviewSections = [];
-    let previewToEditorSections = [];
-    let syncFrameId = null;
-
-    const rebuildSectionMaps = () => {
-      const headings = parseMarkdownHeadings(debouncedMarkdown);
-      const previewHeadings = getPreviewHeadingMap();
-      if (headings.length === 0 || previewHeadings.length === 0) {
-        editorToPreviewSections = [];
-        previewToEditorSections = [];
-        return;
-      }
-
-      const previewById = new Map(previewHeadings.map((h) => [h.id, h]));
-      const sourceById = new Map(headings.map((h) => [h.id, h]));
-
-      editorToPreviewSections = headings
-        .map((heading) => {
-          const previewHeading = previewById.get(heading.id);
-          if (!previewHeading) return null;
-          return {
-            line: heading.line,
-            id: heading.id,
-            previewTop: previewHeading.top,
-          };
-        })
-        .filter(Boolean)
-        .sort((a, b) => a.line - b.line);
-
-      previewToEditorSections = previewHeadings
-        .map((heading) => {
-          const sourceHeading = sourceById.get(heading.id);
-          if (!sourceHeading) return null;
-          return {
-            line: sourceHeading.line,
-            id: heading.id,
-            previewTop: heading.top,
-          };
-        })
-        .filter(Boolean)
-        .sort((a, b) => a.previewTop - b.previewTop);
-    };
-
-    const syncPreviewFromEditorBySections = () => {
-      const sectionPairs = editorToPreviewSections;
-      if (sectionPairs.length === 0) return false;
-
-      const topDocY = -editorView.documentTop;
-      const topBlock = editorView.lineBlockAtHeight(topDocY);
-      const topLine = editorView.state.doc.lineAt(topBlock.from).number;
-
-      let sectionIndex = 0;
-      for (let i = 0; i < sectionPairs.length; i += 1) {
-        if (sectionPairs[i].line <= topLine) sectionIndex = i;
-        else break;
-      }
-
-      const current = sectionPairs[sectionIndex];
-      const next = sectionPairs[sectionIndex + 1];
-      const currentLine = current.line;
-      const nextLine = next ? next.line : editorView.state.doc.lines + 1;
-      const lineSpan = Math.max(1, nextLine - currentLine);
-      const lineRatio = Math.min(1, Math.max(0, (topLine - currentLine) / lineSpan));
-
-      const currentPreviewTop = current.previewTop;
-      const nextPreviewTop = next
-        ? next.previewTop
-        : Math.max(currentPreviewTop, previewScroller.scrollHeight - previewScroller.clientHeight);
-      const previewSpan = Math.max(0, nextPreviewTop - currentPreviewTop);
-      const targetScrollTop = currentPreviewTop + previewSpan * lineRatio;
-
-      if (Math.abs(previewScroller.scrollTop - targetScrollTop) < 2) return true;
-      previewScroller.scrollTop = targetScrollTop;
-      return true;
-    };
-
-    const syncEditorFromPreviewBySections = () => {
-      const sectionPairs = previewToEditorSections;
-      if (sectionPairs.length === 0) return false;
-
-      const previewTop = previewScroller.scrollTop;
-      let sectionIndex = 0;
-      for (let i = 0; i < sectionPairs.length; i += 1) {
-        if (sectionPairs[i].previewTop <= previewTop) sectionIndex = i;
-        else break;
-      }
-
-      const current = sectionPairs[sectionIndex];
-      const next = sectionPairs[sectionIndex + 1];
-      const currentPreviewTop = current.previewTop;
-      const nextPreviewTop = next
-        ? next.previewTop
-        : Math.max(currentPreviewTop, previewScroller.scrollHeight - previewScroller.clientHeight);
-      const previewSpan = Math.max(1, nextPreviewTop - currentPreviewTop);
-      const previewRatio = Math.min(1, Math.max(0, (previewTop - currentPreviewTop) / previewSpan));
-
-      const currentLine = current.line;
-      const nextLine = next ? next.line : editorView.state.doc.lines + 1;
-      const lineSpan = Math.max(1, nextLine - currentLine);
-      const targetLine = Math.min(
-        editorView.state.doc.lines,
-        Math.max(1, Math.round(currentLine + lineSpan * previewRatio))
-      );
-
-      const targetLineInfo = editorView.state.doc.line(targetLine);
-      const targetBlock = editorView.lineBlockAt(targetLineInfo.from);
-      const nextLineInfo =
-        targetLine < editorView.state.doc.lines ? editorView.state.doc.line(targetLine + 1) : null;
-      const nextBlock = nextLineInfo ? editorView.lineBlockAt(nextLineInfo.from) : null;
-      const lineBlockHeight = Math.max(
-        1,
-        (nextBlock?.top ?? targetBlock.top + 20) - targetBlock.top
-      );
-      const targetEditorScrollTop = targetBlock.top + lineBlockHeight * previewRatio;
-
-      if (Math.abs(editorScroller.scrollTop - targetEditorScrollTop) < 2) return true;
-      editorScroller.scrollTop = targetEditorScrollTop;
-      return true;
-    };
-
-    const queueSync = (fn) => {
-      if (syncFrameId !== null) return;
-      syncFrameId = window.requestAnimationFrame(() => {
-        syncFrameId = null;
-        fn();
-      });
-    };
-
-    const handleEditorScroll = () => {
-      if (ignoreNextEditorSyncScrollRef.current) {
-        ignoreNextEditorSyncScrollRef.current = false;
-        return;
-      }
-      queueSync(() => {
-        ignoreNextPreviewSyncScrollRef.current = true;
-        const didSync = syncPreviewFromEditorBySections();
-        if (!didSync) {
-          setScrollByRatio(editorScroller, previewScroller);
-        }
-      });
-    };
-
-    const handlePreviewScroll = () => {
-      if (ignoreNextPreviewSyncScrollRef.current) {
-        ignoreNextPreviewSyncScrollRef.current = false;
-        return;
-      }
-      queueSync(() => {
-        ignoreNextEditorSyncScrollRef.current = true;
-        const didSync = syncEditorFromPreviewBySections();
-        if (!didSync) {
-          setScrollByRatio(previewScroller, editorScroller);
-        }
-      });
-    };
-
-    rebuildSectionMaps();
-
-    editorScroller.addEventListener("scroll", handleEditorScroll, { passive: true });
-    previewScroller.addEventListener("scroll", handlePreviewScroll, { passive: true });
-
-    const resizeObserver =
-      typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => rebuildSectionMaps()) : null;
-    if (resizeObserver) {
-      resizeObserver.observe(previewScroller);
-      const previewContentEl = previewScroller.querySelector(".markdown-preview");
-      if (previewContentEl) resizeObserver.observe(previewContentEl);
-    }
-
-    // Align preview to current editor position when entering split mode or changing notes
-    if (!syncPreviewFromEditorBySections()) {
-      setScrollByRatio(editorScroller, previewScroller);
-    }
-
-    return () => {
-      if (syncFrameId !== null) {
-        window.cancelAnimationFrame(syncFrameId);
-      }
-      resizeObserver?.disconnect();
-      editorScroller.removeEventListener("scroll", handleEditorScroll);
-      previewScroller.removeEventListener("scroll", handlePreviewScroll);
-    };
-  }, [viewMode, debouncedMarkdown, currentNoteId, scrollSyncEnabled]);
-
   // Memoize status bar calculations - only recalculate when debouncedMarkdown changes
   const statusBarStats = useMemo(() => {
     const text = debouncedMarkdown || "";
@@ -1107,7 +832,9 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   // Handle interactive checkboxes in preview - use debouncedMarkdown to avoid running on every keystroke
   useEffect(() => {
-    if (viewMode === "editor" && window.innerWidth >= 768) return;
+    // Only the rendered Read view uses these DOM checkboxes; Live mode toggles
+    // tasks via its own CodeMirror widget.
+    if (viewMode !== "read") return;
 
     const container = document.querySelector(".markdown-preview");
     if (!container) return;
@@ -1186,7 +913,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   // Render mermaid diagrams after preview HTML is in the DOM
   useEffect(() => {
-    if (viewMode === "editor") return;
+    if (viewMode !== "read") return;
 
     const container = document.querySelector(".markdown-preview");
     if (!container) return;
@@ -1295,7 +1022,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
       }
 
       // Also scroll preview to the heading anchor if visible
-      if (viewMode === "split" || viewMode === "preview") {
+      if (viewMode === "read") {
         const previewContainer = document.querySelector(".markdown-preview");
         if (previewContainer && header.id) {
           const targetElement = previewContainer.querySelector(`#${CSS.escape(header.id)}`);
@@ -1311,30 +1038,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const currentNote = getCurrentNote();
 
   // Page header chrome (emoji + title + tags) derived from frontmatter / content
-  const titleBlock = useMemo(() => {
-    const { attributes, body } = parseFrontmatter(debouncedMarkdown || "");
-    const h1 = body.match(/^#\s+(.+)$/m);
-    const title =
-      (typeof attributes.title === "string" && attributes.title.trim()) ||
-      (h1 && h1[1].trim()) ||
-      (currentNote?.name || "Untitled").replace(/\.(md|markdown|txt)$/i, "");
-    const icon =
-      typeof attributes.icon === "string" && attributes.icon.trim() ? attributes.icon.trim() : "📝";
-    let tags = [];
-    if (Array.isArray(attributes.tags)) {
-      tags = attributes.tags.map(String);
-    } else if (typeof attributes.tags === "string" && attributes.tags.trim()) {
-      tags = attributes.tags.split(/[,\s]+/).filter(Boolean);
-    }
-    if (tags.length === 0) {
-      const hash = (body.match(/(?:^|\s)#([a-zA-Z0-9_-]+)/g) || []).map((t) =>
-        t.trim().replace(/^#/, "")
-      );
-      tags = [...new Set(hash)];
-    }
-    return { title, icon, tags: tags.slice(0, 6) };
-  }, [debouncedMarkdown, currentNote?.name]);
-
   // Sync editor content when external actions (e.g. Tag Manager / restore) update the current note.
   useEffect(() => {
     const hasPendingLocalEdit =
@@ -1383,16 +1086,16 @@ const MarkdownEditor = forwardRef((props, ref) => {
       aria-label="Editor view mode"
     >
       {[
-        { id: "editor", label: "Edit" },
-        { id: "split", label: "Split", smOnly: true },
-        { id: "preview", label: "Read" },
+        { id: "source", label: "Source" },
+        { id: "live", label: "Live" },
+        { id: "read", label: "Read" },
       ].map((m) => (
         <button
           key={m.id}
           onClick={() => setViewMode(m.id)}
           aria-pressed={viewMode === m.id}
           aria-label={`Switch to ${m.label} view`}
-          className={`${m.smOnly ? "hidden md:block" : ""} rounded-md px-[11px] py-[5px] text-[13px] transition-colors ${
+          className={`rounded-md px-[11px] py-[5px] text-[13px] transition-colors ${
             viewMode === m.id
               ? "bg-accent-dim font-semibold text-accent"
               : "text-text-secondary hover:text-text-primary"
@@ -1462,6 +1165,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
           {/* View Mode Toggles */}
           <div className="flex items-center gap-3">
+            {viewModeControl}
+            <div className="w-px h-5 bg-border" aria-hidden="true" />
             <button
               onClick={() => setShowProperties(!showProperties)}
               aria-pressed={showProperties}
@@ -1609,53 +1314,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
         </div>
       )}
 
-      {/* Page header: breadcrumb + title + tags + meta */}
-      {!focusMode && (
-        <div
-          className={`shrink-0 px-8 pt-6 pb-2 w-full mx-auto ${viewMode === "split" ? "" : "max-w-4xl"}`}
-        >
-          <div className="mb-2.5 flex items-center gap-1.5 font-mono text-[12px] text-text-muted">
-            {rootFolderPath && (
-              <>
-                <span className="truncate">{rootFolderPath.split("/").filter(Boolean).pop()}</span>
-                <span aria-hidden="true">/</span>
-              </>
-            )}
-            <span className="truncate text-text-secondary">{currentNote.name}</span>
-          </div>
-          <div className="mb-2 flex items-center gap-2.5">
-            <span className="text-[27px] leading-none">{titleBlock.icon}</span>
-            <h1 className="text-[27px] font-[650] tracking-[-0.015em] text-text-primary">
-              {titleBlock.title}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {titleBlock.tags.map((tag) => (
-              <span
-                key={tag}
-                className="text-[12px] text-text-secondary bg-overlay-subtle rounded-md px-2.5 py-1"
-              >
-                {tag}
-              </span>
-            ))}
-            <span className="text-[12.5px] text-text-muted font-mono ml-1">
-              {statusBarStats.wordCount} words · {statusBarStats.readTime} min read
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* View-mode segmented control (formatting is a selection bubble now) */}
-      {!focusMode && (
-        <div
-          className={`shrink-0 flex items-center justify-end gap-2 w-full mx-auto px-8 pb-1 ${
-            viewMode === "split" ? "" : "max-w-4xl"
-          }`}
-        >
-          {viewModeControl}
-        </div>
-      )}
-
       {noteConflict && (
         <div
           className="flex items-center gap-3 border-b border-border bg-overlay-subtle px-4 py-2 shrink-0"
@@ -1754,21 +1412,14 @@ const MarkdownEditor = forwardRef((props, ref) => {
       )}
 
       {/* Content Area */}
-      <div
-        className={`flex-1 min-h-0 overflow-hidden relative editor-container ${isResizingSplit ? "cursor-col-resize" : ""}`}
-      >
-        {/* Centered column + rounded bordered editor box (Paper design) */}
+      <div className="flex-1 min-h-0 overflow-hidden relative editor-container">
+        {/* Centered, single-column measure — no bordered card, so the editor
+            gets the room. Source/Live/Read all share one calm column. */}
         <div
-          className={`h-full ${
-            focusMode
-              ? "flex justify-center"
-              : `mx-auto w-full px-8 pt-2 pb-8 ${viewMode === "split" ? "" : "max-w-4xl"}`
-          }`}
+          className={`h-full ${focusMode ? "flex justify-center" : "mx-auto w-full max-w-[64rem]"}`}
         >
           <div
-            className={`h-full flex overflow-hidden ${
-              focusMode ? "w-full justify-center" : "rounded-xl border border-border"
-            }`}
+            className={`h-full flex overflow-hidden ${focusMode ? "w-full justify-center" : ""}`}
           >
             {/* Table of Contents - Floating Panel */}
             {showTOC && (
@@ -1789,17 +1440,14 @@ const MarkdownEditor = forwardRef((props, ref) => {
               </Suspense>
             )}
 
-            {/* Editor */}
-            {(viewMode === "editor" || viewMode === "split") && (
+            {/* Editor — Source (raw) or Live (inline preview) */}
+            {(viewMode === "source" || viewMode === "live") && (
               <div
-                className={`flex flex-col relative ${
-                  viewMode === "split"
-                    ? "border-r border-border"
-                    : focusMode
-                      ? "w-full max-w-3xl mx-auto"
-                      : "w-full"
+                ref={editorPaneRef}
+                className={`flex flex-col relative w-full ${!focusMode ? "overflow-y-auto quiet-scroll" : ""} ${
+                  focusMode ? "max-w-3xl mx-auto" : ""
                 }`}
-                style={{ width: viewMode === "split" ? `${editorSplitRatio}%` : "100%" }}
+                style={{ width: "100%" }}
               >
                 {/* Search Controls */}
                 {searchMatches.length > 0 && (
@@ -1888,10 +1536,12 @@ const MarkdownEditor = forwardRef((props, ref) => {
                   onVimModeChange={handleVimModeChange}
                   onSelectionChange={setSelection}
                   placeholder="Write markdown, select text to format, or press / for blocks…"
-                  className="w-full h-full"
-                  enableLineNumbers={true}
+                  className={focusMode ? "w-full h-full" : "w-full"}
+                  autoHeight={!focusMode}
+                  enableLineNumbers={showLineNumbers && viewMode === "source"}
                   enableVimMode={vimMode}
                   enableTypewriterMode={typewriterModeEnabled && focusMode}
+                  enableLivePreview={viewMode === "live"}
                   editorSearchKeymap={keymaps.editorSearch}
                   formattingKeymaps={keymaps}
                   getNotes={getNotes}
@@ -1901,33 +1551,19 @@ const MarkdownEditor = forwardRef((props, ref) => {
               </div>
             )}
 
-            {/* Resize Handle */}
-            {viewMode === "split" && (
-              <div
-                onMouseDown={startResizingSplit}
-                className={`
-              w-1 h-full cursor-col-resize hover:bg-accent/50 transition-colors z-10 shrink-0
-              ${isResizingSplit ? "bg-accent" : "bg-transparent"}
-            `}
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize editor and preview panes"
-              />
-            )}
-
-            {/* Preview */}
-            {(viewMode === "preview" || viewMode === "split") && (
+            {/* Read — fully rendered, non-editable */}
+            {viewMode === "read" && (
               <div
                 ref={previewPaneRef}
-                className={`flex flex-col bg-bg-editor overflow-y-auto ${isResizingSplit ? "pointer-events-none" : ""} ${focusMode ? "max-w-3xl mx-auto" : ""}`}
-                style={{ width: viewMode === "split" ? `${100 - editorSplitRatio}%` : "100%" }}
+                className={`flex flex-col bg-bg-editor overflow-y-auto quiet-scroll w-full ${focusMode ? "max-w-3xl mx-auto" : ""}`}
+                style={{ width: "100%" }}
                 onClick={handlePreviewClick}
                 role="region"
                 aria-label={`Markdown preview${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
               >
-                <div className="w-full px-10 py-9">
+                <div className="w-full px-8 md:px-12 py-8">
                   <div
-                    className="markdown-preview prose prose-invert max-w-none"
+                    className="markdown-preview"
                     dir="auto"
                     dangerouslySetInnerHTML={previewHtml}
                   />
@@ -1939,9 +1575,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
       </div>
 
       {/* Notion-style selection formatting bubble */}
-      {viewMode !== "preview" && (
-        <SelectionToolbar selection={selection} onInsert={insertMarkdown} />
-      )}
+      {viewMode !== "read" && <SelectionToolbar selection={selection} onInsert={insertMarkdown} />}
 
       {/* Status Bar */}
       {currentNote && !focusMode && (
