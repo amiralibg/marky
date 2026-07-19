@@ -12,7 +12,9 @@ import useUIStore from "./store/uiStore";
 import { exportWorkspaceAsZip } from "./utils/backup";
 import { checkForAppUpdate } from "./utils/appUpdater";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readMarkdownFile } from "./utils/fileSystem";
 import { useFileWatcher } from "./hooks/useFileWatcher";
 
 const TemplateModal = lazy(() => import("./components/modals/TemplateModal"));
@@ -580,6 +582,67 @@ function App() {
     setShowGraphModal,
     setShowKeymapsModal,
   ]);
+
+  // Open a file the OS handed us ("Open with Marky" / double-click / drag onto icon).
+  const openExternalPath = useCallback(
+    async (path) => {
+      if (!path || typeof path !== "string") return;
+      try {
+        const content = await readMarkdownFile(path);
+        const name = path.split(/[/\\]/).pop();
+        const { loadNoteFromFile, selectNote: select } = useNotesStore.getState();
+        const id = loadNoteFromFile({ content, path, name }, null);
+        if (id) select(id);
+      } catch (error) {
+        console.error("Failed to open external file:", path, error);
+        addNotification("Couldn't open file: " + error.message, "error");
+      }
+    },
+    [addNotification]
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+    const unlisteners = [];
+
+    const setup = async () => {
+      // Drain files queued by the OS before the UI was ready (launch / Open with).
+      try {
+        const pending = await invoke("take_pending_open_paths");
+        if (isMounted && Array.isArray(pending)) {
+          for (const path of pending) {
+            await openExternalPath(path);
+          }
+        }
+      } catch (_error) {
+        // Not running under Tauri, or nothing queued — safe to ignore.
+      }
+
+      // Files opened while the app is already running.
+      try {
+        const unlisten = await listen("open-path", (event) => {
+          if (isMounted) openExternalPath(event.payload);
+        });
+        if (isMounted) unlisteners.push(unlisten);
+        else unlisten();
+      } catch (error) {
+        console.error("Failed to attach open-path listener:", error);
+      }
+    };
+
+    setup();
+
+    return () => {
+      isMounted = false;
+      unlisteners.forEach((fn) => {
+        try {
+          fn();
+        } catch (_error) {
+          // Ignore listener cleanup failures during teardown.
+        }
+      });
+    };
+  }, [openExternalPath]);
 
   useEffect(() => {
     if (typeof processDueSchedules !== "function") {

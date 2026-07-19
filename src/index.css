@@ -558,6 +558,29 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  /* Quiet scrollbar for the editor/preview panes — thin, dim, recedes until hovered */
+  .quiet-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-overlay-light) transparent;
+  }
+
+  .quiet-scroll::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .quiet-scroll::-webkit-scrollbar-thumb {
+    background: var(--color-overlay-light);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .quiet-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--color-overlay-strong);
+    background-clip: padding-box;
+  }
 }
 
 /* ── Diff Viewer ────────────────────────────────────────── */

@@ -19,6 +19,7 @@ import {
   saveMarkdownFile,
   openFolder,
   copyEntriesToFolder,
+  readMarkdownFile,
 } from "../../utils/fileSystem";
 
 import TreeItem from "./TreeItem";
@@ -118,6 +119,10 @@ const Sidebar = forwardRef(
       loadingProgress,
       recentWorkspaces,
       dirtyNoteIds,
+      createScratchNote,
+      openNoteIds,
+      closeNote,
+      currentNoteId,
     } = useNotesStore();
     const sidebarDensity = useSettingsStore((state) => state.sidebarDensity);
     const themeId = useSettingsStore((state) => state.themeId);
@@ -143,6 +148,11 @@ const Sidebar = forwardRef(
     const dropTargetRef = useRef(null);
     const sidebarRef = useRef(null);
     const currentNote = getCurrentNote();
+    // Loose files: opened from anywhere / unsaved scratch buffers, shown in an
+    // "OPEN" group above the vault tree (VSCode-style), independent of any vault.
+    const looseOpenFiles = items.filter(
+      (item) => item.type === "note" && item.isLoose && openNoteIds.includes(item.id)
+    );
     const workspaceName = rootFolderPath
       ? rootFolderPath.split("/").filter(Boolean).pop() || rootFolderPath
       : "";
@@ -405,12 +415,18 @@ const Sidebar = forwardRef(
 
     const handleNewNote = useCallback(async () => {
       try {
+        // With no vault there's nowhere to save a template-based note, so create an
+        // in-memory scratch buffer (saved later via Save-As). VSCode-style.
+        if (!rootFolderPath) {
+          createScratchNote();
+          return;
+        }
         // Show template modal instead of creating directly
         onOpenTemplate(null);
       } catch (error) {
-        console.error("Failed to open template modal:", error);
+        console.error("Failed to create note:", error);
       }
-    }, [onOpenTemplate]);
+    }, [onOpenTemplate, rootFolderPath, createScratchNote]);
 
     const handleNewFolder = useCallback(async () => {
       try {
@@ -959,26 +975,46 @@ const Sidebar = forwardRef(
 
               try {
                 if (targetFolder && targetFolder.filePath) {
+                  // Dropped onto a specific vault folder → copy into the vault.
                   await copyEntriesToFolder(paths, targetFolder.filePath);
-
-                  if (rootFolderPath) {
-                    await refreshRootFromDisk();
-                    addNotification(
-                      `Copied ${paths.length} item(s) to ${targetFolder.name}`,
-                      "success"
-                    );
-                  }
-                } else if (rootFolderPath) {
-                  // If no specific folder target, copy to root
-                  await copyEntriesToFolder(paths, rootFolderPath);
                   await refreshRootFromDisk();
-                  addNotification(`Copied ${paths.length} item(s) to workspace root`, "success");
+                  addNotification(
+                    `Copied ${paths.length} item(s) to ${targetFolder.name}`,
+                    "success"
+                  );
                 } else {
-                  addNotification("Open a workspace folder first to drop files into it", "info");
+                  // Dropped on the editor / empty sidebar → open in place (no copy).
+                  const openablePaths = paths.filter((p) => /\.(md|markdown|txt|mdx)$/i.test(p));
+                  if (openablePaths.length === 0) {
+                    addNotification(
+                      "Drop a Markdown or text file to open it, or drop onto a vault folder to import.",
+                      "info"
+                    );
+                  } else {
+                    const { loadNoteFromFile } = useNotesStore.getState();
+                    let lastId = null;
+                    for (const filePath of openablePaths) {
+                      try {
+                        const content = await readMarkdownFile(filePath);
+                        const fileName = filePath.split(/[/\\]/).pop();
+                        lastId = loadNoteFromFile(
+                          { content, path: filePath, name: fileName },
+                          null
+                        );
+                      } catch (readError) {
+                        console.error("Failed to open dropped file:", filePath, readError);
+                        addNotification(
+                          `Couldn't open ${filePath.split(/[/\\]/).pop()}: ${readError.message}`,
+                          "error"
+                        );
+                      }
+                    }
+                    if (lastId) selectNote(lastId);
+                  }
                 }
               } catch (error) {
-                console.error("Failed to copy files:", error);
-                addNotification("Failed to copy files: " + error.message, "error");
+                console.error("Failed to handle dropped files:", error);
+                addNotification("Failed to open files: " + error.message, "error");
               } finally {
                 dropTargetRef.current = null;
                 setDropTargetFolder(null);
@@ -1006,7 +1042,7 @@ const Sidebar = forwardRef(
           unlisten();
         }
       };
-    }, [rootFolderPath, refreshRootFromDisk, addNotification]);
+    }, [rootFolderPath, refreshRootFromDisk, addNotification, selectNote]);
 
     return (
       <aside className="w-full bg-sidebar-bg flex flex-col h-full" aria-label="Workspace sidebar">
@@ -1243,12 +1279,97 @@ const Sidebar = forwardRef(
           </nav>
         )}
 
+        {/* Open files (loose / unsaved) — shown above the vault tree */}
+        {!searchQuery && looseOpenFiles.length > 0 && (
+          <div className="shrink-0">
+            <div className="px-3.5 pt-3 pb-1 flex items-center">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                Open
+              </span>
+            </div>
+            <div className="px-2 pb-1 flex flex-col gap-px">
+              {looseOpenFiles.map((file) => {
+                const isActive = file.id === currentNoteId;
+                const isDirty = dirtyNoteIds.includes(file.id);
+                const locationHint = file.filePath
+                  ? file.filePath
+                      .replace(/^\/(Users|home)\/[^/]+/, "~")
+                      .split(/[/\\]/)
+                      .slice(0, -1)
+                      .join("/")
+                  : "Unsaved";
+                return (
+                  <div
+                    key={file.id}
+                    onClick={() => selectNote(file.id)}
+                    title={file.filePath || file.name}
+                    className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] cursor-pointer transition-colors ${
+                      isActive
+                        ? "bg-accent-dim text-accent"
+                        : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
+                    }`}
+                  >
+                    {isDirty ? (
+                      <span
+                        className="w-1.5 h-1.5 shrink-0 rounded-full bg-accent"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <svg
+                        className="w-4 h-4 shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        viewBox="0 0 24 24"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                        <path d="M14 3v5h5" />
+                      </svg>
+                    )}
+                    <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                    {locationHint && (
+                      <span className="shrink-0 max-w-[7rem] truncate text-[10px] text-text-muted group-hover:hidden">
+                        {locationHint}
+                      </span>
+                    )}
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        closeNote(file.id);
+                      }}
+                      className="shrink-0 opacity-0 group-hover:opacity-100 text-text-muted hover:text-text-primary transition-opacity p-0.5 -m-0.5 rounded"
+                      title="Close"
+                      aria-label={`Close ${file.name}`}
+                    >
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Section header */}
         <div className="px-3.5 pt-3 pb-1 flex items-center justify-between shrink-0">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
             {searchQuery
               ? `${filteredItems.filter((i) => i.type === "note").length} results`
-              : "Files"}
+              : rootFolderPath
+                ? "Files"
+                : "Vault"}
           </span>
           {!searchQuery && (
             <button

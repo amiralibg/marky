@@ -4,6 +4,14 @@ import { EditorState } from "@codemirror/state";
 import { getCM } from "@replit/codemirror-vim";
 import { createExtensions } from "./extensions";
 
+// When the editor should grow to fit its content and let an outer container
+// handle scrolling (so a page header can scroll away with the text), override
+// the base theme's fixed height and internal scroller.
+const autoHeightTheme = EditorView.theme({
+  "&": { height: "auto !important" },
+  ".cm-scroller": { overflow: "visible !important" },
+});
+
 const CodeMirrorEditor = forwardRef(
   (
     {
@@ -17,11 +25,13 @@ const CodeMirrorEditor = forwardRef(
       enableLineNumbers = true,
       enableVimMode = false,
       enableTypewriterMode = false,
+      enableLivePreview = false,
       editorSearchKeymap = null,
       formattingKeymaps = {},
       getNotes = () => [],
       getTags = () => [],
       ariaLabel = "Markdown editor",
+      autoHeight = false,
     },
     ref
   ) => {
@@ -101,6 +111,7 @@ const CodeMirrorEditor = forwardRef(
         enableLineNumbers,
         enableVimMode,
         enableTypewriterMode,
+        enableLivePreview,
         editorSearchKeymap,
         formattingKeymaps,
         getNotes: () => (getNotesRef.current ? getNotesRef.current() : []),
@@ -143,7 +154,9 @@ const CodeMirrorEditor = forwardRef(
 
       const state = EditorState.create({
         doc: value || "",
-        extensions: extensions.concat(selectionExt),
+        extensions: autoHeight
+          ? extensions.concat(selectionExt, autoHeightTheme)
+          : extensions.concat(selectionExt),
       });
 
       const view = new EditorView({
@@ -175,9 +188,11 @@ const CodeMirrorEditor = forwardRef(
       enableLineNumbers,
       enableVimMode,
       enableTypewriterMode,
+      enableLivePreview,
       editorSearchKeymap,
       formattingKeymaps,
       ariaLabel,
+      autoHeight,
     ]);
 
     // Some Vim mode transitions (notably Insert -> Normal via Esc) may not dispatch
@@ -301,7 +316,11 @@ const CodeMirrorEditor = forwardRef(
       <div
         ref={editorRef}
         className={`codemirror-wrapper editor-textarea ${className}`}
-        style={{ height: "100%", overflow: "auto" }}
+        style={
+          autoHeight
+            ? { height: "auto", overflow: "visible" }
+            : { height: "100%", overflow: "auto" }
+        }
       />
     );
   }

@@ -42,6 +42,24 @@ struct WatcherState {
     >,
 }
 
+// Files the OS asked us to open (via "Open with Marky" / double-click) before the
+// frontend was ready to receive them. The UI drains this on startup.
+struct PendingOpen(Arc<Mutex<Vec<String>>>);
+
+/// True for the file types Marky can open (keep in sync with tauri.conf.json fileAssociations).
+fn is_supported_file(path: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            matches!(
+                ext.to_lowercase().as_str(),
+                "md" | "markdown" | "mdx" | "txt" | "text"
+            )
+        })
+        .unwrap_or(false)
+}
+
 fn ensure_valid_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("Name cannot be empty".to_string());
@@ -489,12 +507,20 @@ async fn open_recent_note(path: String, app: tauri::AppHandle) -> Result<(), Str
     Ok(())
 }
 
+// Drain any files the OS queued for us before the UI was ready (see PendingOpen).
+#[tauri::command]
+fn take_pending_open_paths(state: State<PendingOpen>) -> Vec<String> {
+    let mut guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    std::mem::take(&mut *guard)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(WatcherState {
             _watcher: Arc::new(Mutex::new(None)),
         })
+        .manage(PendingOpen(Arc::new(Mutex::new(Vec::new()))))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .menu(|app| {
@@ -766,22 +792,62 @@ fn main() {
             stop_watching,
             show_main_window,
             update_dock_menu,
-            open_recent_note
+            open_recent_note,
+            take_pending_open_paths
         ])
-        .setup(|_app| {
+        .setup(|app| {
             #[cfg(not(target_os = "macos"))]
             {
-                let window = _app.get_webview_window("main").unwrap();
+                let window = app.get_webview_window("main").unwrap();
                 let _ = window.set_decorations(false);
+            }
+
+            // Files passed on the command line — Windows/Linux "Open with" and
+            // launch-by-double-click. macOS delivers these via RunEvent::Opened below.
+            let launch_paths: Vec<String> = std::env::args()
+                .skip(1)
+                .filter(|arg| is_supported_file(arg))
+                .collect();
+            if !launch_paths.is_empty() {
+                if let Ok(mut queued) = app.state::<PendingOpen>().0.lock() {
+                    queued.extend(launch_paths.iter().cloned());
+                }
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    // Give the frontend a moment to register its listener.
+                    std::thread::sleep(Duration::from_millis(800));
+                    for path in launch_paths {
+                        let _ = handle.emit("open-path", path);
+                    }
+                });
             }
 
             #[cfg(debug_assertions)]
             {
-                let window = _app.get_webview_window("main").unwrap();
+                let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app_handle, event| {
+            // macOS delivers "Open with Marky" / double-clicked files as an Opened
+            // run-event, both at launch and while the app is already running.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = &event {
+                for url in urls {
+                    if let Ok(path) = url.to_file_path() {
+                        let path = path.to_string_lossy().to_string();
+                        if is_supported_file(&path) {
+                            if let Ok(mut queued) = app_handle.state::<PendingOpen>().0.lock() {
+                                queued.push(path.clone());
+                            }
+                            let _ = app_handle.emit("open-path", path);
+                        }
+                    }
+                }
+            }
+            let _ = (app_handle, event);
+        });
 }

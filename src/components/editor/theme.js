@@ -80,7 +80,8 @@ export const buildSyntaxHighlighting = (
 export const markyTheme = EditorView.theme(
   {
     "&": {
-      backgroundColor: "var(--color-bg-sidebar)",
+      // Same surface as the preview so the split reads as one calm document.
+      backgroundColor: "var(--color-bg-editor)",
       color: "var(--color-text-primary)",
       height: "100%",
       fontSize: "13.5px",
@@ -88,8 +89,8 @@ export const markyTheme = EditorView.theme(
     },
     ".cm-content": {
       caretColor: "var(--color-accent)",
-      padding: "1.5rem",
-      lineHeight: "2",
+      padding: "2rem 2.25rem",
+      lineHeight: "1.9",
     },
     ".cm-rtl-line": {
       textAlign: "right",
@@ -98,22 +99,22 @@ export const markyTheme = EditorView.theme(
       borderInlineStartColor: "var(--color-accent)",
       borderInlineStartWidth: "2px",
     },
-    // Selection backgrounds - always use theme accent color
+    // Selection backgrounds - softer, calmer accent wash
     ".cm-selectionBackground": {
-      backgroundColor: "color-mix(in srgb, var(--color-accent) 40%, transparent) !important",
+      backgroundColor: "color-mix(in srgb, var(--color-accent) 22%, transparent) !important",
       color: "var(--color-text-primary) !important",
     },
     "&.cm-focused .cm-selectionBackground": {
-      backgroundColor: "color-mix(in srgb, var(--color-accent) 50%, transparent) !important",
+      backgroundColor: "color-mix(in srgb, var(--color-accent) 28%, transparent) !important",
       color: "var(--color-text-primary) !important",
     },
     // Override browser default selection
     "& ::selection": {
-      backgroundColor: "color-mix(in srgb, var(--color-accent) 50%, transparent) !important",
+      backgroundColor: "color-mix(in srgb, var(--color-accent) 28%, transparent) !important",
       color: "var(--color-text-primary) !important",
     },
     ".cm-gutters": {
-      backgroundColor: "var(--color-bg-sidebar)",
+      backgroundColor: "var(--color-bg-editor)",
       color: "var(--color-text-muted)",
       border: "none",
       paddingInlineEnd: "0.125rem",

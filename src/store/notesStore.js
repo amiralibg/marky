@@ -514,18 +514,26 @@ const useNotesStore = create(
           }
         );
         const previousItems = get().items;
-        const ephemeralItems = previousItems.filter((item) => !item.filePath);
-        const combinedItems = [...fsItems, ...ephemeralItems].map(ensureNoteMetadata);
-        set({
+        const scannedPaths = new Set(
+          fsItems.filter((item) => item.normalizedPath).map((item) => item.normalizedPath)
+        );
+        // Keep unsaved scratch buffers and loose files (and their tabs) when a
+        // vault is opened, so opening a workspace doesn't close what you're editing.
+        const preservedItems = previousItems.filter(
+          (item) => !item.filePath || (item.isLoose && !scannedPaths.has(item.normalizedPath))
+        );
+        const preservedIds = new Set(preservedItems.map((item) => item.id));
+        const combinedItems = [...fsItems, ...preservedItems].map(ensureNoteMetadata);
+        set((current) => ({
           rootFolderPath: folderData.folderPath,
           rootFolderId: rootId,
           items: combinedItems,
-          currentNoteId: null,
-          openNoteIds: [],
+          currentNoteId: preservedIds.has(current.currentNoteId) ? current.currentNoteId : null,
+          openNoteIds: current.openNoteIds.filter((id) => preservedIds.has(id)),
           expandedFolders: [rootId],
           isLoading: false,
           loadingProgress: null,
-        });
+        }));
 
         // Record in recent workspaces (most-recent first, capped at 10)
         const workspacePath = normalizePath(folderData.folderPath);
@@ -577,7 +585,16 @@ const useNotesStore = create(
                 }
           );
           const previousItems = state.items;
-          const ephemeralItems = previousItems.filter((item) => !item.filePath);
+          // Paths that the fresh disk scan already covers — used to avoid keeping a
+          // duplicate loose entry for a file that now lives inside the vault.
+          const scannedPaths = new Set(
+            fsItems.filter((item) => item.normalizedPath).map((item) => item.normalizedPath)
+          );
+          // Preserve unsaved scratch buffers (no filePath) and loose files opened
+          // from outside the vault, so a rescan/refresh never wipes them.
+          const ephemeralItems = previousItems.filter(
+            (item) => !item.filePath || (item.isLoose && !scannedPaths.has(item.normalizedPath))
+          );
           // Preserve manual sibling order (set by drag-reorder) across disk refreshes.
           const previousOrderById = new Map(
             previousItems
@@ -839,6 +856,22 @@ const useNotesStore = create(
 
       loadNoteFromFile: (fileData, parentId = null) => {
         const { content, path, name } = fileData;
+        const normalized = normalizePath(path);
+
+        // De-dupe: if this file is already open (loose or in-tree), just focus it.
+        const existing = get().items.find(
+          (item) => item.type === "note" && item.normalizedPath === normalized
+        );
+        if (existing) {
+          set((current) => ({
+            currentNoteId: existing.id,
+            openNoteIds: current.openNoteIds.includes(existing.id)
+              ? current.openNoteIds
+              : [...current.openNoteIds, existing.id],
+          }));
+          return existing.id;
+        }
+
         const timestamp = new Date().toISOString();
         const noteId = Date.now();
 
@@ -847,9 +880,11 @@ const useNotesStore = create(
           name: stripExtension(name) || "Untitled",
           parentId,
           type: "note",
+          // A loose file lives outside the vault tree: no parent, opened in place.
+          isLoose: !parentId,
           content,
           filePath: path,
-          normalizedPath: normalizePath(path),
+          normalizedPath: normalized,
           createdAt: timestamp,
           updatedAt: timestamp,
         };
@@ -859,9 +894,41 @@ const useNotesStore = create(
         set((current) => ({
           items: [...current.items, enrichedNote],
           currentNoteId: enrichedNote.id,
+          openNoteIds: current.openNoteIds.includes(noteId)
+            ? current.openNoteIds
+            : [...current.openNoteIds, noteId],
           expandedFolders: parentId
             ? Array.from(new Set([...current.expandedFolders, parentId]))
             : current.expandedFolders,
+        }));
+
+        return noteId;
+      },
+
+      // Create an in-memory, unsaved "scratch" note (no file path). Used when
+      // there is no vault, or for quick throwaway buffers. Saving triggers Save-As.
+      createScratchNote: () => {
+        const timestamp = new Date().toISOString();
+        const noteId = Date.now();
+        const newNote = ensureNoteMetadata({
+          id: noteId,
+          name: "Untitled",
+          parentId: null,
+          type: "note",
+          isLoose: true,
+          content: "",
+          filePath: null,
+          normalizedPath: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+
+        set((current) => ({
+          items: [...current.items, newNote],
+          currentNoteId: noteId,
+          openNoteIds: current.openNoteIds.includes(noteId)
+            ? current.openNoteIds
+            : [...current.openNoteIds, noteId],
         }));
 
         return noteId;
@@ -991,7 +1058,11 @@ const useNotesStore = create(
             })
           );
 
-          return { items, currentNoteId, noteConflicts, recoveredDrafts };
+          // Saving a scratch/loose buffer changes its id (Date.now -> path-based),
+          // so keep the open tab pointing at the new id.
+          const openNoteIds = state.openNoteIds.map((id) => (id === noteId ? replacementId : id));
+
+          return { items, currentNoteId, openNoteIds, noteConflicts, recoveredDrafts };
         });
       },
 
@@ -1356,6 +1427,18 @@ const useNotesStore = create(
           // If we closed the active note, switch to another one if available
           if (currentNoteId === noteId) {
             currentNoteId = openNoteIds.length > 0 ? openNoteIds[openNoteIds.length - 1] : null;
+          }
+
+          // Loose files / scratch buffers only exist while open — closing the tab
+          // removes them entirely (vault notes stay in the tree).
+          const closed = state.items.find((item) => item.id === noteId);
+          if (closed?.isLoose) {
+            return {
+              openNoteIds,
+              currentNoteId,
+              items: state.items.filter((item) => item.id !== noteId),
+              dirtyNoteIds: state.dirtyNoteIds.filter((id) => id !== noteId),
+            };
           }
 
           return { openNoteIds, currentNoteId };
@@ -2068,17 +2151,27 @@ const useNotesStore = create(
         savedWorkspaceViews: state.savedWorkspaceViews,
       }),
       onRehydrateStorage: () => (state) => {
-        if (!state?.rootFolderPath) return;
+        if (!state) return;
+        // Loose files (opened from anywhere) and scratch buffers live in `items`
+        // independent of any vault, so they restore automatically. Keep only those
+        // when we drop the vault below.
+        const looseItems = (state.items || []).filter((item) => !item.filePath || item.isLoose);
+        const looseIds = new Set(looseItems.map((item) => item.id));
+
+        if (!state.rootFolderPath) return; // no vault: keep whatever was persisted (loose files)
+
         // Dynamically read the setting so we don't create a circular dep
         const { openRecentOnStartup } = window.__markySettings?.getState?.() ?? {};
         const shouldReopen = openRecentOnStartup !== false; // default true if setting not yet loaded
         if (shouldReopen) {
           state.refreshRootFromDisk?.();
         } else {
-          // Clear the persisted workspace so the workspace-required modal shows
+          // Drop the persisted workspace (so the home screen shows) but keep loose files.
           state.rootFolderPath = null;
           state.rootFolderId = null;
-          state.items = [];
+          state.items = looseItems;
+          state.openNoteIds = (state.openNoteIds || []).filter((id) => looseIds.has(id));
+          state.currentNoteId = looseIds.has(state.currentNoteId) ? state.currentNoteId : null;
         }
       },
     }
