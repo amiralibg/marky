@@ -23,6 +23,7 @@ import useSettingsStore from "../../store/settingsStore";
 import { slugify } from "../../utils/slugify";
 import { parseFrontmatter } from "../../utils/frontmatter";
 import { saveMarkdownFile } from "../../utils/fileSystem";
+import { isolateBidiRuns } from "../../utils/bidi";
 import "./MarkdownPreview.css";
 
 const ExportModal = lazy(() => import("../modals/ExportModal"));
@@ -829,6 +830,17 @@ const MarkdownEditor = forwardRef((props, ref) => {
       readTime: Math.ceil(words.length / 200),
     };
   }, [debouncedMarkdown]);
+
+  // Isolate mixed-direction runs in the rendered preview. `dir="auto"` on each
+  // block only picks a base direction; without isolation the neutral characters
+  // between an English and a Persian phrase get reordered and the line becomes
+  // unreadable. Runs before the checkbox/mermaid effects so they see final DOM.
+  useEffect(() => {
+    if (viewMode !== "read") return;
+    const container = document.querySelector(".markdown-preview");
+    if (!container) return;
+    isolateBidiRuns(container);
+  }, [previewHtml, viewMode]);
 
   // Handle interactive checkboxes in preview - use debouncedMarkdown to avoid running on every keystroke
   useEffect(() => {

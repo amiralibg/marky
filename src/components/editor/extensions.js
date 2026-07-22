@@ -2,6 +2,7 @@ import {
   EditorView,
   ViewPlugin,
   Decoration,
+  Direction,
   keymap,
   lineNumbers,
   highlightActiveLine,
@@ -29,62 +30,74 @@ import { livePreview } from "./livePreview";
 import { typewriterMode } from "./typewriterMode";
 import { buildMarkyKeymaps } from "./keymaps";
 import { createWikiLinkAutocomplete } from "./wikiLinkAutocomplete";
-
-// Regex matching RTL Unicode ranges (Arabic, Hebrew, Persian, Thaana, Syriac, etc.)
-const RTL_CHAR =
-  /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0780-\u07BF\u0860-\u086F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
-// Regex matching LTR characters (Latin, Greek, Cyrillic, CJK, etc.)
-const LTR_CHAR = /[A-Za-z\u00C0-\u02AF\u0370-\u03FF\u0400-\u04FF\u1E00-\u1EFF]/;
+import { isRTLLine, findIsolateRuns } from "../../utils/bidi";
 
 const rtlLineDeco = Decoration.line({ attributes: { dir: "rtl", class: "cm-rtl-line" } });
 
-/**
- * Detect the base direction of a string using first-strong-character heuristic
- * (Unicode Bidi Algorithm rules P2/P3).
- */
-function isRTLLine(text) {
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (RTL_CHAR.test(ch)) return true;
-    if (LTR_CHAR.test(ch)) return false;
-  }
-  return false;
-}
+// Isolate marks for runs that go against their line's base direction. The
+// `bidiIsolate` spec is what lets CodeMirror map screen coordinates back to
+// document positions; the `dir` attribute is what makes the browser actually
+// isolate the run (the HTML UA stylesheet applies `unicode-bidi: isolate` to
+// any element carrying a `dir` attribute).
+const rtlIsolateDeco = Decoration.mark({
+  bidiIsolate: Direction.RTL,
+  attributes: { dir: "rtl", class: "cm-bidi-isolate" },
+});
+const ltrIsolateDeco = Decoration.mark({
+  bidiIsolate: Direction.LTR,
+  attributes: { dir: "ltr", class: "cm-bidi-isolate" },
+});
 
 function buildDecorations(view) {
-  const decorations = [];
+  const lineDecos = [];
+  const isolateDecos = [];
+
   for (const { from, to } of view.visibleRanges) {
     let pos = from;
     while (pos <= to) {
       const line = view.state.doc.lineAt(pos);
-      if (isRTLLine(line.text)) {
-        decorations.push(rtlLineDeco.range(line.from));
+      const isRTL = isRTLLine(line.text);
+      if (isRTL) {
+        lineDecos.push(rtlLineDeco.range(line.from));
+      }
+      if (line.length) {
+        const deco = isRTL ? ltrIsolateDeco : rtlIsolateDeco;
+        for (const run of findIsolateRuns(line.text, isRTL ? "rtl" : "ltr")) {
+          isolateDecos.push(deco.range(line.from + run.start, line.from + run.end));
+        }
       }
       pos = line.to + 1;
     }
   }
-  return RangeSet.of(decorations);
+
+  return {
+    // Isolates are mark decorations and line decorations sit at line starts, so
+    // the combined set needs sorting.
+    decorations: Decoration.set([...lineDecos, ...isolateDecos], true),
+    isolates: RangeSet.of(isolateDecos),
+  };
 }
 
 /**
- * ViewPlugin that adds `dir="rtl"` and alignment to lines whose first
- * strong character is RTL. Updates on doc changes and viewport scrolls.
+ * ViewPlugin that adds `dir="rtl"` to lines whose first strong character is
+ * RTL, and wraps opposite-direction runs inside each line in bidi isolates so
+ * mixed English/Persian lines keep the order they were typed in.
  */
-function bidiLinePlugin() {
-  return ViewPlugin.define(
-    (view) => ({
-      decorations: buildDecorations(view),
-      update(update) {
-        if (update.docChanged || update.viewportChanged) {
-          this.decorations = buildDecorations(update.view);
-        }
-      },
-    }),
-    {
-      decorations: (v) => v.decorations,
-    }
-  );
-}
+const bidiPlugin = ViewPlugin.define(
+  (view) => ({
+    ...buildDecorations(view),
+    update(update) {
+      if (update.docChanged || update.viewportChanged) {
+        Object.assign(this, buildDecorations(update.view));
+      }
+    },
+  }),
+  {
+    decorations: (v) => v.decorations,
+    provide: (plugin) =>
+      EditorView.bidiIsolatedRanges.of((view) => view.plugin(plugin)?.isolates ?? Decoration.none),
+  }
+);
 
 export function createExtensions(options = {}) {
   const {
@@ -118,9 +131,9 @@ export function createExtensions(options = {}) {
       codeLanguages: [], // Can add language support for code blocks later
     }),
 
-    // BiDi support - auto-detect RTL/LTR per line
+    // BiDi support - auto-detect RTL/LTR per line, isolate mixed-script runs
     EditorView.perLineTextDirection.of(true),
-    bidiLinePlugin(),
+    bidiPlugin,
 
     // Soft-wrap long lines (no horizontal scroll / cut-off text) — Notion-style.
     EditorView.lineWrapping,
