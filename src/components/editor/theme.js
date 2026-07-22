@@ -95,6 +95,12 @@ export const markyTheme = EditorView.theme(
     ".cm-rtl-line": {
       textAlign: "right",
     },
+    // Runs that go against their line's base direction. The `dir` attribute
+    // already triggers isolation via the UA stylesheet; this makes it explicit
+    // and immune to a resetting `unicode-bidi` rule further up the cascade.
+    ".cm-bidi-isolate": {
+      unicodeBidi: "isolate",
+    },
     "&.cm-focused .cm-cursor, .cm-cursor, &.cm-focused .cm-dropCursor, .cm-dropCursor": {
       borderInlineStartColor: "var(--color-accent)",
       borderInlineStartWidth: "2px",

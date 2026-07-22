@@ -39,6 +39,7 @@
 
 .markdown-preview > :first-child {
   margin-top: 0;
+  padding-left: 1.3rem;
 }
 
 .markdown-preview h1 {
@@ -433,6 +434,15 @@
   border-radius: 4px 0 0 4px;
 }
 
+/* Mixed-direction runs wrapped by isolateBidiRuns(). The UA stylesheet already
+   isolates <bdi>; restated here so no inherited rule can undo it, and so the
+   wrapper stays fully transparent to layout. */
+.markdown-preview bdi {
+  unicode-bidi: isolate;
+  font: inherit;
+  color: inherit;
+}
+
 .markdown-preview blockquote p {
   margin-bottom: 0;
 }
@@ -440,7 +450,7 @@
 /* Lists */
 .markdown-preview ul,
 .markdown-preview ol {
-  margin: 1.25em 0;
+  margin: 0 0;
   padding-inline-start: 1.75em;
   color: var(--color-text-secondary);
 }
@@ -451,6 +461,7 @@
 
 .markdown-preview ol {
   list-style: decimal outside;
+  padding-left: 1.4rem;
 }
 
 .markdown-preview ul ul {
