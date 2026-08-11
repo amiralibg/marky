@@ -89,7 +89,16 @@ export const markyTheme = EditorView.theme(
     },
     ".cm-content": {
       caretColor: "var(--color-accent)",
-      padding: "2rem 2.25rem",
+      // The 40vh tail is deliberate: it lets the last line of a note scroll up
+      // to the middle of the window instead of sticking to the bottom edge, so
+      // you're never typing at the rim of the screen.
+      //
+      // The side gutter is a variable so Live mode can widen it for the hanging
+      // heading hashes (see `liveGutterTheme` in livePreview.js). It has to be a
+      // variable rather than an override: this rule comes from
+      // `EditorView.theme`, which outranks anything the live-preview extension
+      // can declare, so a plain `.cm-content { padding-inline }` there loses.
+      padding: "2rem var(--marky-editor-gutter, 2.25rem) 40vh",
       lineHeight: "1.9",
     },
     ".cm-rtl-line": {

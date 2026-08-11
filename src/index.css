@@ -1,149 +1,5 @@
 @import "tailwindcss";
 
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-Thin.ttf") format("truetype");
-  font-weight: 100;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-ThinItalic.ttf") format("truetype");
-  font-weight: 100;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-ExtraLight.ttf") format("truetype");
-  font-weight: 200;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-ExtraLightItalic.ttf") format("truetype");
-  font-weight: 200;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-Light.ttf") format("truetype");
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-LightItalic.ttf") format("truetype");
-  font-weight: 300;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-Regular.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-Italic.ttf") format("truetype");
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-Medium.ttf") format("truetype");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-MediumItalic.ttf") format("truetype");
-  font-weight: 500;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-SemiBold.ttf") format("truetype");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-SemiBoldItalic.ttf") format("truetype");
-  font-weight: 600;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-Bold.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-BoldItalic.ttf") format("truetype");
-  font-weight: 700;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-ExtraBold.ttf") format("truetype");
-  font-weight: 800;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-ExtraBoldItalic.ttf") format("truetype");
-  font-weight: 800;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-Black.ttf") format("truetype");
-  font-weight: 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Raleway";
-  src: url("./assets/fonts/Raleway-BlackItalic.ttf") format("truetype");
-  font-weight: 900;
-  font-style: italic;
-  font-display: swap;
-}
-
 /* Redesign fonts — self-hosted from Google Fonts (latin + latin-ext variable
    woff2). No runtime network dependency. To extend coverage, re-run the
    download with more subsets. */
@@ -311,10 +167,12 @@
   --color-overlay-strong: var(--color-overlay-strong);
 
   /* Fonts — Hanken Grotesk UI, Newsreader serif headings/reading, JetBrains mono.
-     Self-hosted (@font-face above); Raleway/Georgia/system are fallbacks. */
+     Self-hosted as subsetted woff2 (@font-face above); the system stack is the
+     fallback. Raleway used to ship here too — eighteen full TTF weights, 2.8 MB —
+     purely as a fallback behind a font that is itself self-hosted, so it could
+     never actually render. */
   --font-family-sans:
-    "Hanken Grotesk", "Raleway", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
-    sans-serif;
+    "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
   --font-family-serif: "Newsreader", Georgia, "Times New Roman", serif;
   --font-family-mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
 
@@ -522,7 +380,22 @@
     }
   }
 
-  /* Custom Scrollbar (Vault: 11px, padded pill thumb) */
+  /* Custom Scrollbar (Vault: 11px, padded pill thumb).
+
+     Present when needed, invisible when not: the thumb is transparent until
+     the pointer is somewhere over its scroller, which is what `.quiet-scroll`
+     already did for the editor panes. A scrollbar standing at full strength in
+     every sidebar, modal and list is chrome the app never asked for. Firefox
+     gets the same behaviour through `scrollbar-color`. */
+  * {
+    scrollbar-color: transparent transparent;
+  }
+
+  *:hover,
+  *:focus-within {
+    scrollbar-color: var(--color-overlay-strong) transparent;
+  }
+
   ::-webkit-scrollbar {
     width: 11px;
     height: 11px;
@@ -533,9 +406,16 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--color-overlay-strong);
+    background: transparent;
     border-radius: 8px;
     border: 3px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 200ms ease;
+  }
+
+  *:hover::-webkit-scrollbar-thumb,
+  *:focus-within::-webkit-scrollbar-thumb {
+    background: var(--color-overlay-strong);
     background-clip: padding-box;
   }
 

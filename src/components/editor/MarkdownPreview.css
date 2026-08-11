@@ -1,6 +1,44 @@
-/* Markdown Preview Styling - Dark Theme */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Markdown preview
+
+   One reading surface, shared by Read mode and the Live-preview widgets.
+
+   Two rules hold the whole sheet together:
+
+   1. Surfaces are *derived*, never picked. Every fill and hairline is mixed
+      from the theme's own text colour into its editor background, so a block
+      gets the same perceptual step in all sixteen themes. Reading from
+      `--color-item-active` (the old approach) silently produced invisible code
+      blocks in Paper and Gruvbox Light, where "raised" and "panel" are the
+      same colour.
+   2. Blank lines own the vertical rhythm. The renderer emits a
+      `.markdown-blank-lines` spacer for every blank line the author typed, so
+      block margins here stay near zero — otherwise every gap is paid twice and
+      the document drifts apart. Headings are the one exception: they pull the
+      block they introduce back up against themselves.
+
+      Corollary: those margins are fixed `rem`, never `em`. An `em` margin on a
+      heading resolves against the *heading's own* enlarged font-size, so
+      `margin-top: 0.9em` bought an h1 30px and an h4 6px — on top of a blank
+      line that had already paid ~29px. The gap grew with the type and every
+      level sat at a different distance from the text above it.
+   ═════════════════════════════════════════════════════════════════════════ */
 
 .markdown-preview {
+  /* Surfaces: a raised step and a stronger one, both relative to the page. */
+  --md-surface: color-mix(in srgb, var(--color-text-primary) 4.5%, var(--color-bg-editor));
+  --md-surface-strong: color-mix(in srgb, var(--color-text-primary) 8%, var(--color-bg-editor));
+  /* Hairlines: keyed to text, so they survive themes with a near-invisible
+     `--color-border` and never disappear into the page. */
+  --md-line: color-mix(in srgb, var(--color-text-primary) 14%, transparent);
+  --md-line-soft: color-mix(in srgb, var(--color-text-primary) 9%, transparent);
+  --md-accent-soft: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  --md-radius: 10px;
+  /* Floor under every block gap, for the rare pair of blocks the author wrote
+     with no blank line between them. The spacers pay for the rest, so this
+     stays small — at 0.4em it was a second full gap on every fenced block. */
+  --md-block-space: 0.2em;
+
   color: var(--color-text-primary);
   line-height: 1.7;
   font-size: 1.0625rem;
@@ -8,18 +46,54 @@
      headings stay serif below for editorial character. */
   font-family: var(--font-family-sans);
   letter-spacing: -0.003em;
-  /* Cap the measure (~72ch) so long lines stay readable in wide/Read mode.
-     In split the pane is narrower than this, so it simply fills the pane. */
-  max-width: 46rem;
-  margin-left: auto;
-  margin-right: auto;
+  text-underline-offset: 0.16em;
+  /* Cap the measure so long lines stay readable in wide/Read mode. The value
+     comes from the Editor Width setting (see `EDITOR_WIDTHS` in
+     settingsStore.js), which the editor pane publishes as `--editor-measure` —
+     the sheet used to hard-code 46rem while the editor sat at 64rem, so every
+     Source ↔ Read switch reflowed the paragraph you were reading. The fallback
+     covers the standalone contexts (export, history diff) that render this
+     sheet outside the editor. */
+  max-width: var(--editor-measure, 46rem);
+  margin-inline: auto;
+
+  /* Live mode renders these blocks as widgets *inside* `.cm-content`, which
+     CodeMirror styles with `white-space: break-spaces; overflow-wrap: anywhere;
+     word-break: break-word` to wrap source lines. All three inherit into the
+     widget and wreck it: the newlines between generated tags turn into blank
+     lines (a code block grew a dead band above its own first line), and
+     `anywhere` drops a table's min-content width to a single character, so
+     auto layout collapses columns until headings read "Tem / plate". These are
+     the initial values, so the reset is a no-op in Read mode. */
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
+/* ── Vertical rhythm ─────────────────────────────────────────
+   One authored blank line = one line of space. */
 .markdown-preview .markdown-blank-lines {
   height: calc(var(--blank-lines, 1) * 1lh);
 }
 
-/* Headings */
+/* A heading belongs to what follows it, so the blank line under it collapses.
+   Without this every heading floats equidistant between two blocks and the
+   document reads as a flat list of paragraphs. */
+.markdown-preview :is(h1, h2, h3, h4, h5, h6) + .markdown-blank-lines {
+  height: 0.3em;
+}
+
+.markdown-preview > :first-child {
+  margin-top: 0;
+}
+
+.markdown-preview > :last-child {
+  margin-bottom: 0;
+}
+
+/* ── Headings ────────────────────────────────────────────────
+   A clear size step per level — the old scale put h2 (1.6em) and h3 (1.5em)
+   within a hair of each other, so nesting was unreadable. */
 .markdown-preview h1,
 .markdown-preview h2,
 .markdown-preview h3,
@@ -29,190 +103,286 @@
   font-family: var(--font-family-serif);
   font-weight: 600;
   color: var(--color-text-primary);
-  /* More space above than below so headings group with the text they lead. */
-  margin-top: 1.6em;
-  margin-bottom: 0.5em;
-  line-height: 1.2;
+  /* Fixed, and the same for every level — see the `rem`-not-`em` note up top.
+     The blank line above already carries the bulk of the gap; this is the
+     extra beat that sets a heading apart from the paragraph before it. */
+  margin-top: 0.6rem;
+  margin-bottom: 0.25em;
+  line-height: 1.25;
   letter-spacing: -0.015em;
+  text-wrap: balance;
   scroll-margin-top: 1rem;
 }
 
-.markdown-preview > :first-child {
-  margin-top: 0;
-  padding-left: 1.3rem;
-}
-
 .markdown-preview h1 {
-  font-size: 2.1em;
+  font-size: 2em;
+  letter-spacing: -0.022em;
 }
 
 .markdown-preview h2 {
-  font-size: 1.6em;
+  font-size: 1.55em;
+  letter-spacing: -0.018em;
 }
 
 .markdown-preview h3 {
-  font-size: 1.5em;
+  font-size: 1.26em;
 }
 
 .markdown-preview h4 {
-  font-size: 1.25em;
+  font-size: 1.1em;
 }
 
 .markdown-preview h5 {
   font-size: 1em;
-  font-weight: 600;
 }
 
+/* h6 is a label, not a heading — set it in the UI sans as small caps. */
 .markdown-preview h6 {
-  font-size: 0.875em;
+  font-family: var(--font-family-sans);
+  font-size: 0.78em;
+  font-weight: 600;
   color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.07em;
 }
 
-/* Paragraphs */
+/* ── Body copy ───────────────────────────────────────────────
+   `break-spaces` keeps the line breaks and runs of spaces the author typed,
+   so Read mode matches what the editor shows. */
 .markdown-preview p {
-  margin-bottom: 0;
+  margin: 0;
   color: var(--color-text-primary);
   white-space: break-spaces;
 }
 
-.markdown-preview li,
 .markdown-preview blockquote,
 .markdown-preview th,
 .markdown-preview td {
   white-space: break-spaces;
 }
 
-/* Links */
-.markdown-preview a {
-  color: var(--color-accent);
-  text-decoration: none;
-  transition: color 0.2s;
+/* Plain items only. An item holding block content — a nested list, a loose
+   paragraph, a footnote body — also holds the newlines the parser puts around
+   that block, and `break-spaces` renders every one of them as a blank line.
+   That is what used to tear nested lists apart and push footnote text onto the
+   line below its own number. Those items collapse whitespace instead; any
+   paragraph inside them still preserves the author's spacing via the `p` rule
+   above. */
+.markdown-preview li:not(:has(ul, ol, p, pre, blockquote, table, div)) {
+  white-space: break-spaces;
 }
 
-.markdown-preview a:hover {
-  color: var(--color-accent-hover);
-  text-decoration: underline;
-}
-
-.markdown-preview a.wikilink {
-  color: var(--color-accent);
-  border-bottom: 1px dashed var(--color-accent);
-  opacity: 0.9;
-}
-
-.markdown-preview a.wikilink:hover {
-  border-bottom-style: solid;
-  opacity: 1;
-}
-
-.markdown-preview a.wikilink[data-wikilink-exists="false"] {
-  color: #fb923c;
-  /* Orange 400 */
-  border-bottom-color: rgba(251, 146, 60, 0.5);
-}
-
-/* Strong and Emphasis */
 .markdown-preview strong {
-  font-weight: 600;
+  font-weight: 650;
   color: var(--color-text-primary);
 }
 
 .markdown-preview em {
   font-style: italic;
-  color: var(--color-text-primary);
 }
 
-/* Inline Code */
-.markdown-preview code {
-  background: var(--color-item-hover);
+.markdown-preview del {
+  color: var(--color-text-muted);
+  text-decoration-thickness: 1px;
+}
+
+.markdown-preview mark {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
   color: var(--color-text-primary);
-  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  padding: 0.05em 0.2em;
+}
+
+/* Mixed-direction runs wrapped by isolateBidiRuns(). The UA stylesheet already
+   isolates <bdi>; restated here so no inherited rule can undo it, and so the
+   wrapper stays fully transparent to layout. */
+.markdown-preview bdi {
+  unicode-bidi: isolate;
+  font: inherit;
+  color: inherit;
+}
+
+/* ── Links ───────────────────────────────────────────────────
+   Underlined at rest but with a faint rule, so links are scannable without
+   striping the paragraph. Hover brings the underline up to full strength. */
+.markdown-preview a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 32%, transparent);
+  text-decoration-thickness: 1px;
+  transition:
+    color 140ms ease,
+    text-decoration-color 140ms ease;
+}
+
+.markdown-preview a:hover {
+  color: var(--color-accent-hover);
+  text-decoration-color: currentColor;
+}
+
+.markdown-preview a.wikilink {
+  text-decoration-style: dashed;
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+
+.markdown-preview a.wikilink:hover {
+  text-decoration-style: solid;
+}
+
+/* A link to a note that doesn't exist yet — amber, not an error state. */
+.markdown-preview a.wikilink[data-wikilink-exists="false"] {
+  color: #d97706;
+  text-decoration-color: rgba(217, 119, 6, 0.45);
+}
+
+[data-theme="dark"] .markdown-preview a.wikilink[data-wikilink-exists="false"] {
+  color: #fbbf24;
+  text-decoration-color: rgba(251, 191, 36, 0.45);
+}
+
+/* ── Inline code ─────────────────────────────────────────────
+   A soft pill, no outline. A border here made every `like this` read as a
+   tiny boxed widget and broke up the line. */
+.markdown-preview code {
+  background: var(--md-surface-strong);
+  color: var(--color-text-primary);
+  padding: 0.14em 0.38em;
   border-radius: 4px;
   font-family: var(--font-family-mono);
-  font-size: 0.875em;
-  border: 1px solid var(--color-border);
+  font-size: 0.855em;
+  font-variant-ligatures: none;
+  /* Long identifiers shouldn't force a horizontal scroll on the whole pane. */
+  overflow-wrap: anywhere;
 }
 
-/* Code Block Wrapper */
+/* ── Code blocks ─────────────────────────────────────────────
+   One object: a raised surface with the language sitting in its corner and no
+   internal divider. */
 .markdown-preview .code-block-wrapper {
   position: relative;
-  margin: 1.5em 0;
-  border-radius: 8px;
+  margin: var(--md-block-space) 0;
+  border-radius: var(--md-radius);
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-base);
+  border: 1px solid var(--md-line-soft);
+  background: var(--md-surface);
 }
 
 .markdown-preview .code-block-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5em 1em;
-  background: var(--color-bg-sidebar);
-  border-bottom: 1px solid var(--color-border);
+  /* Tight and flush with the code below — no second surface, no divider. */
+  padding: 0.5em 0.7em 0 0.95em;
+  background: transparent;
+  border: none;
 }
 
 .markdown-preview .code-block-lang {
-  font-size: 0.75em;
+  font-family: var(--font-family-mono);
+  font-size: 0.68em;
   color: var(--color-text-muted);
-  text-transform: uppercase;
   font-weight: 500;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  user-select: none;
 }
 
+/* The copy button is chrome — it stays out of the way until you're on the
+   block, then fades in. Focus keeps it visible for keyboard users. */
 .markdown-preview .code-copy-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.35em;
+  padding: 0.32em;
   background: transparent;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: all 0.2s;
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.markdown-preview .code-block-wrapper:hover .code-copy-btn,
+.markdown-preview .code-copy-btn:focus-visible {
+  opacity: 1;
 }
 
 .markdown-preview .code-copy-btn:hover {
-  background: var(--color-item-hover);
+  background: var(--md-surface-strong);
   color: var(--color-text-primary);
+}
+
+.markdown-preview .code-copy-btn:active {
+  transform: scale(0.94);
 }
 
 .markdown-preview .code-copy-btn .check-icon {
   color: #22c55e;
 }
 
-/* Code Blocks */
 .markdown-preview .code-block-wrapper pre {
   margin: 0;
-  padding: 1.25em;
+  padding: 0.45em 1.05em 1.05em;
   overflow-x: auto;
   background: transparent;
   border: none;
   border-radius: 0;
 }
 
+/* Bare <pre> (no wrapper) gets the same surface. */
 .markdown-preview pre {
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border);
-  padding: 1.25em;
-  border-radius: 8px;
-  margin: 1.5em 0;
+  background: var(--md-surface);
+  border: 1px solid var(--md-line-soft);
+  padding: 1.05em;
+  border-radius: var(--md-radius);
+  margin: var(--md-block-space) 0;
   overflow-x: auto;
+}
+
+/* Quiet scrollbars: present when needed, invisible when not. */
+.markdown-preview pre,
+.markdown-preview .table-wrap,
+.markdown-preview .mermaid-wrapper,
+.markdown-preview .katex-display {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-overlay-light) transparent;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 200ms ease;
 }
 
-.markdown-preview pre::-webkit-scrollbar {
-  height: 8px;
+.markdown-preview pre:hover,
+.markdown-preview .code-block-wrapper:hover pre,
+.markdown-preview .table-wrap:hover,
+.markdown-preview .mermaid-wrapper:hover,
+.markdown-preview .katex-display:hover {
+  scrollbar-color: var(--md-line) transparent;
 }
 
-.markdown-preview pre::-webkit-scrollbar-thumb {
-  background: var(--color-overlay-light);
+.markdown-preview ::-webkit-scrollbar {
+  height: 9px;
+  width: 9px;
+}
+
+.markdown-preview ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.markdown-preview ::-webkit-scrollbar-thumb {
+  background: transparent;
   border-radius: 6px;
   border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 200ms ease;
+}
+
+.markdown-preview pre:hover::-webkit-scrollbar-thumb,
+.markdown-preview .table-wrap:hover::-webkit-scrollbar-thumb,
+.markdown-preview .mermaid-wrapper:hover::-webkit-scrollbar-thumb,
+.markdown-preview .katex-display:hover::-webkit-scrollbar-thumb {
+  background: var(--md-line);
   background-clip: padding-box;
 }
 
@@ -221,18 +391,323 @@
   color: var(--color-text-primary);
   padding: 0;
   border: none;
-  font-size: 0.875em;
-  line-height: 1.6;
+  border-radius: 0;
+  font-size: 0.855em;
+  line-height: 1.62;
   display: block;
+  /* Code keeps its own line breaks; only the block scrolls. */
+  overflow-wrap: normal;
+  white-space: pre;
+  tab-size: 2;
 }
 
-.markdown-preview .code-block-wrapper pre code {
-  background: transparent;
+/* ── Blockquotes ─────────────────────────────────────────────
+   A rule in the margin, no fill. The old filled box read as a grey slab the
+   width of the column and buried the quote it was meant to lift. */
+.markdown-preview blockquote {
+  border-inline-start: 3px solid var(--md-accent-soft);
+  border-radius: 1px;
+  margin: var(--md-block-space) 0;
+  padding-inline-start: 1.1em;
+  color: var(--color-text-secondary);
+  background: none;
+}
+
+.markdown-preview blockquote blockquote {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.markdown-preview blockquote code {
+  font-style: normal;
+}
+
+/* ── Lists ───────────────────────────────────────────────────
+   List text is body text: it reads at full contrast, not dimmed. */
+.markdown-preview ul,
+.markdown-preview ol {
+  margin: 0.15em 0;
+  padding-inline-start: 1.6em;
+  color: var(--color-text-primary);
+}
+
+.markdown-preview ul {
+  list-style: disc outside;
+}
+
+.markdown-preview ol {
+  list-style: decimal outside;
+}
+
+.markdown-preview ul ul {
+  list-style-type: circle;
+}
+
+.markdown-preview ul ul ul {
+  list-style-type: square;
+}
+
+.markdown-preview ol ol {
+  list-style-type: lower-alpha;
+}
+
+.markdown-preview ol ol ol {
+  list-style-type: lower-roman;
+}
+
+.markdown-preview :is(ul, ol) :is(ul, ol) {
+  margin: 0.2em 0;
+}
+
+.markdown-preview li {
+  margin: 0.25em 0;
+  padding-inline-start: 0.3em;
+  display: list-item;
+}
+
+.markdown-preview li > p {
+  margin-bottom: 0.4em;
+}
+
+.markdown-preview li > p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-preview ul li::marker {
+  color: var(--color-accent);
+  font-size: 1.05em;
+}
+
+.markdown-preview ol li::marker {
+  color: var(--color-accent);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Task lists ──────────────────────────────────────────────
+   Pulled out to the list's outer edge so the checkbox sits where the bullet
+   would, and the text column stays aligned with its siblings. */
+.markdown-preview li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-inline-start: -1.6em;
+  padding-inline-start: 0;
+}
+
+.markdown-preview input[type="checkbox"] {
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 0.5em;
+  vertical-align: -0.1em;
+  accent-color: var(--color-accent);
+  cursor: default;
+}
+
+/* A done item recedes without being struck through. */
+.markdown-preview li:has(> input[type="checkbox"]:checked) {
+  color: var(--color-text-muted);
+}
+
+/* ── Horizontal rule ─────────────────────────────────────────
+   A section break, not a box edge: short, centred, and quiet. Spaced like
+   every other block — at 1.4em it collected ~53px on each side once the two
+   blank lines around it were counted, and the rule floated in a dead band. */
+.markdown-preview hr {
   border: none;
-  padding: 0;
+  height: 1px;
+  background: var(--md-line);
+  margin: var(--md-block-space) auto;
+  width: 100%;
 }
 
-/* Syntax Highlighting - Dark Theme (GitHub Dark) */
+/* ── Tables ──────────────────────────────────────────────────
+   The wrapper owns the frame and the horizontal scroll, so a table too wide
+   for the reading measure scrolls inside its own box instead of pushing the
+   column out. `fit-content` makes the frame hug a small table — stretching a
+   three-column table across the full 46rem measure leaves a dead strip of
+   border and reads as a broken layout — while a big one still fills the pane
+   and wraps its prose columns. */
+.markdown-preview .table-wrap {
+  width: fit-content;
+  max-width: 100%;
+  margin: var(--md-block-space) 0;
+  border: 1px solid var(--md-line-soft);
+  border-radius: var(--md-radius);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.markdown-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+  font-size: 0.94em;
+  font-variant-numeric: tabular-nums;
+}
+
+.markdown-preview thead {
+  background: var(--md-surface);
+}
+
+/* `th` and `td` are both matched: older renderer output emitted header cells
+   as `td`, and notes rendered before that fix still live in the history view. */
+.markdown-preview :is(th, td) {
+  padding: 0.6em 0.95em;
+  vertical-align: top;
+  line-height: 1.55;
+}
+
+/* Header cells wrap like any other cell — pinning them to `nowrap` let one
+   long label set the width of the whole column. */
+.markdown-preview thead :is(th, td) {
+  text-align: start;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--md-line);
+}
+
+.markdown-preview td {
+  color: var(--color-text-primary);
+}
+
+/* Hairlines between rows only — column rules turned every table into a grid
+   and fought the text for attention. */
+.markdown-preview tbody tr:not(:last-child) :is(th, td) {
+  border-bottom: 1px solid var(--md-line-soft);
+}
+
+.markdown-preview tbody tr {
+  transition: background-color 120ms ease;
+}
+
+.markdown-preview tbody tr:hover {
+  background: color-mix(in srgb, var(--color-text-primary) 3%, transparent);
+}
+
+/* Code in a cell is a label: it must not break mid-identifier the way body
+   copy may, or a column of API names turns into confetti. */
+.markdown-preview :is(td, th) code {
+  font-size: 0.88em;
+  padding: 0.1em 0.34em;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+/* ── Images ──────────────────────────────────────────────────
+   No frame: a border around every screenshot is chrome the note didn't ask
+   for. Just a radius, centred, with a whisper of lift on light themes. */
+.markdown-preview img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: var(--md-block-space) auto;
+  border-radius: var(--md-radius);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+}
+
+[data-theme="dark"] .markdown-preview img {
+  box-shadow: none;
+}
+
+/* ── Footnotes ───────────────────────────────────────────────
+   Apparatus, not content: smaller, quieter, behind a rule. */
+.markdown-preview .footnotes {
+  /* Keeps more air than a normal block — it *is* a section break — but in
+     `rem`, and not the ~92px the old `em` values bought once the blank line
+     above was counted. */
+  margin-top: 1.25rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--md-line-soft);
+  font-size: 0.88em;
+  color: var(--color-text-secondary);
+}
+
+.markdown-preview .footnotes ol {
+  padding-inline-start: 1.4em;
+  color: var(--color-text-secondary);
+}
+
+.markdown-preview .footnotes li {
+  margin: 0.35em 0;
+}
+
+.markdown-preview .footnotes li::marker {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.markdown-preview .footnotes p {
+  margin: 0;
+  display: inline;
+}
+
+.markdown-preview sup a[href^="#fn"],
+.markdown-preview .footnote-ref a {
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9em;
+  padding: 0 0.15em;
+}
+
+.markdown-preview a.footnote-backref,
+.markdown-preview .footnote-backref a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  margin-inline-start: 0.35em;
+}
+
+.markdown-preview a.footnote-backref:hover {
+  color: var(--color-accent);
+}
+
+/* ── Mermaid diagrams ────────────────────────────────────────
+   Same frame as code blocks so generated blocks read as one family. */
+.markdown-preview .mermaid-wrapper {
+  margin: var(--md-block-space) 0;
+  padding: 1.05em;
+  background: var(--md-surface);
+  border: 1px solid var(--md-line-soft);
+  border-radius: var(--md-radius);
+  overflow-x: auto;
+}
+
+.markdown-preview .mermaid {
+  display: flex;
+  justify-content: center;
+}
+
+.markdown-preview .mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── Math ────────────────────────────────────────────────────
+   Display math is a block: centred, and allowed to scroll rather than spill. */
+.markdown-preview .katex {
+  color: var(--color-text-primary);
+  font-size: 1.08em;
+}
+
+.markdown-preview .katex-display {
+  margin: var(--md-block-space) 0;
+  padding: 0.6em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.markdown-preview .katex-display > .katex {
+  text-align: center;
+}
+
+/* ── Selection ───────────────────────────────────────────────*/
+.markdown-preview ::selection {
+  background: color-mix(in srgb, var(--color-accent) 26%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Syntax highlighting — GitHub Dark / GitHub Light, keyed to the theme type.
+   ═════════════════════════════════════════════════════════════════════════ */
+
 [data-theme="dark"] .hljs {
   color: #c9d1d9;
   background: transparent;
@@ -325,7 +800,6 @@
   background-color: #67060c;
 }
 
-/* Syntax Highlighting - Light Theme (GitHub Light) */
 [data-theme="light"] .hljs {
   color: #24292f;
   background: transparent;
@@ -416,260 +890,4 @@
 [data-theme="light"] .hljs-deletion {
   color: #82071e;
   background-color: #ffebe9;
-}
-
-/* Blockquotes */
-.markdown-preview blockquote {
-  border-inline-start: 4px solid var(--color-border);
-  margin: 1.5em 0;
-  color: var(--color-text-muted);
-  font-style: italic;
-  background: rgba(255, 255, 255, 0.02);
-  padding: 1em;
-  padding-inline-start: 1.25em;
-  border-radius: 0 4px 4px 0;
-}
-
-.markdown-preview blockquote[dir="rtl"] {
-  border-radius: 4px 0 0 4px;
-}
-
-/* Mixed-direction runs wrapped by isolateBidiRuns(). The UA stylesheet already
-   isolates <bdi>; restated here so no inherited rule can undo it, and so the
-   wrapper stays fully transparent to layout. */
-.markdown-preview bdi {
-  unicode-bidi: isolate;
-  font: inherit;
-  color: inherit;
-}
-
-.markdown-preview blockquote p {
-  margin-bottom: 0;
-}
-
-/* Lists */
-.markdown-preview ul,
-.markdown-preview ol {
-  margin: 0 0;
-  padding-inline-start: 1.75em;
-  color: var(--color-text-secondary);
-}
-
-.markdown-preview ul {
-  list-style: disc outside;
-}
-
-.markdown-preview ol {
-  list-style: decimal outside;
-  padding-left: 1.4rem;
-}
-
-.markdown-preview ul ul {
-  list-style-type: circle;
-  margin: 0.35em 0;
-}
-
-.markdown-preview ul ul ul {
-  list-style-type: square;
-}
-
-.markdown-preview ol ol {
-  list-style-type: lower-alpha;
-  margin: 0.35em 0;
-}
-
-.markdown-preview ol ol ol {
-  list-style-type: lower-roman;
-}
-
-.markdown-preview li {
-  margin: 0.5em 0;
-  padding-inline-start: 0.35em;
-  display: list-item;
-}
-
-.markdown-preview li > p {
-  margin-bottom: 0.5em;
-}
-
-.markdown-preview li > p:last-child {
-  margin-bottom: 0;
-}
-
-.markdown-preview ul li::marker {
-  color: var(--color-accent);
-  font-size: 1.1em;
-}
-
-.markdown-preview ol li::marker {
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-/* Ensure bullets are visible in both themes */
-[data-theme="dark"] .markdown-preview ul li::marker {
-  color: var(--color-accent);
-}
-
-[data-theme="dark"] .markdown-preview ol li::marker {
-  color: var(--color-accent);
-}
-
-[data-theme="light"] .markdown-preview ul li::marker {
-  color: var(--color-accent);
-}
-
-[data-theme="light"] .markdown-preview ol li::marker {
-  color: var(--color-accent);
-}
-
-/* Horizontal Rule */
-.markdown-preview hr {
-  border: none;
-  height: 1px;
-  background: var(--color-border);
-  margin: 2.5em 0;
-}
-
-/* Tables */
-.markdown-preview table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  margin: 1.5em 0;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.markdown-preview thead {
-  background: var(--color-bg-sidebar);
-}
-
-.markdown-preview th {
-  border-bottom: 1px solid var(--color-border);
-  border-inline-end: 1px solid var(--color-border);
-  padding: 0.75em 1em;
-  text-align: start;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.markdown-preview th:last-child {
-  border-inline-end: none;
-}
-
-.markdown-preview td {
-  border-bottom: 1px solid var(--color-border);
-  border-inline-end: 1px solid var(--color-border);
-  padding: 0.75em 1em;
-  color: var(--color-text-secondary);
-}
-
-.markdown-preview td:last-child {
-  border-inline-end: none;
-}
-
-.markdown-preview tr:last-child td {
-  border-bottom: none;
-}
-
-.markdown-preview tbody tr:hover {
-  background: var(--color-item-hover);
-}
-
-/* Images */
-.markdown-preview img {
-  max-width: 100%;
-  height: auto;
-  margin: 1.5em 0;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-/* Task Lists */
-.markdown-preview input[type="checkbox"] {
-  margin-inline-end: 0.75em;
-  accent-color: var(--color-accent);
-}
-
-.markdown-preview li:has(> input[type="checkbox"]) {
-  list-style: none;
-  margin-inline-start: -1.75em;
-  padding-inline-start: 0;
-}
-
-/* Strikethrough */
-.markdown-preview del {
-  color: var(--color-text-muted);
-  text-decoration: line-through;
-}
-
-/* Footnotes */
-.markdown-preview .footnotes {
-  margin-top: 3em;
-  padding-top: 1.5em;
-  border-top: 1px solid var(--color-border);
-  font-size: 0.875em;
-}
-
-.markdown-preview .footnotes ol {
-  padding-inline-start: 1.5em;
-}
-
-.markdown-preview .footnotes li {
-  margin: 0.5em 0;
-  color: var(--color-text-secondary);
-}
-
-.markdown-preview sup a[href^="#fn"],
-.markdown-preview .footnote-ref a {
-  color: var(--color-accent);
-  text-decoration: none;
-  font-weight: 600;
-  padding: 0 0.15em;
-}
-
-.markdown-preview a.footnote-backref,
-.markdown-preview .footnote-backref a {
-  color: var(--color-accent);
-  text-decoration: none;
-  margin-inline-start: 0.25em;
-}
-
-/* Mermaid Diagrams */
-.markdown-preview .mermaid-wrapper {
-  margin: 1.5em 0;
-  padding: 1em;
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  overflow-x: auto;
-}
-
-.markdown-preview .mermaid {
-  display: flex;
-  justify-content: center;
-}
-
-.markdown-preview .mermaid svg {
-  max-width: 100%;
-  height: auto;
-}
-
-/* KaTeX Math */
-.markdown-preview .katex {
-  color: var(--color-text-primary);
-  font-size: 1.1em;
-}
-
-.markdown-preview .katex-display {
-  margin: 1.5em 0;
-  padding: 1em 0;
-  overflow-x: auto;
-}
-
-.markdown-preview .katex-display > .katex {
-  text-align: center;
 }

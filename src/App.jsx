@@ -15,7 +15,16 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { readMarkdownFile } from "./utils/fileSystem";
+import {
+  migrateLegacyStorage,
+  ensureDraftsHydrated,
+  setSideStoreErrorHandler,
+} from "./utils/sideStore";
+import { openNoteInNewWindow } from "./utils/noteWindows";
 import { useFileWatcher } from "./hooks/useFileWatcher";
+
+const getErrorMessage = (error) =>
+  typeof error === "string" ? error : error?.message || "Please try again.";
 
 const TemplateModal = lazy(() => import("./components/modals/TemplateModal"));
 const ScheduleNoteModal = lazy(() => import("./components/modals/ScheduleNoteModal"));
@@ -59,6 +68,36 @@ function App() {
   useEffect(() => {
     initializeSettings();
   }, [initializeSettings]);
+
+  // Note history and unsaved drafts live on disk now. Migrate anything left in
+  // localStorage from an older build, then load the drafts into memory so the
+  // vault loader can read them synchronously. Failures are surfaced rather than
+  // swallowed — silently losing a draft is what the old storage did.
+  useEffect(() => {
+    let cancelled = false;
+
+    setSideStoreErrorHandler((action, error) => {
+      if (cancelled) return;
+      addNotification(`Marky couldn’t ${action}. ${getErrorMessage(error)}`, "error");
+    });
+
+    (async () => {
+      const moved = await migrateLegacyStorage();
+      await ensureDraftsHydrated();
+      if (cancelled) return;
+      if (moved.drafts || moved.history) {
+        addNotification(
+          `Moved ${moved.drafts} draft${moved.drafts === 1 ? "" : "s"} and ${moved.history} history snapshot${moved.history === 1 ? "" : "s"} to disk storage`,
+          "success"
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      setSideStoreErrorHandler(null);
+    };
+  }, [addNotification]);
 
   useEffect(() => {
     if (!import.meta.env.PROD) return;
@@ -290,6 +329,17 @@ function App() {
           } else {
             addNotification("No note is selected", "info");
           }
+          break;
+        }
+        case "openCurrentNoteInNewWindow": {
+          const currentNote = useNotesStore.getState().getCurrentNote();
+          if (!currentNote?.filePath) {
+            addNotification("Save this note to a file before opening it in a window", "warning");
+            break;
+          }
+          openNoteInNewWindow(currentNote.filePath).catch((error) =>
+            addNotification("Could not open a new window: " + error.message, "error")
+          );
           break;
         }
         case "copyCurrentNotePath": {

@@ -12,6 +12,7 @@ import {
   highlightSpecialChars,
   drawSelection,
   placeholder,
+  tooltips,
 } from "@codemirror/view";
 import { EditorState, Prec, RangeSet } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
@@ -25,6 +26,7 @@ import {
   startCompletion,
 } from "@codemirror/autocomplete";
 import { vim, getCM } from "@replit/codemirror-vim";
+import { setVimVisualLineMotion, vimBlockStepSync } from "./vimSetup";
 import { markyTheme, markySyntaxHighlighting } from "./theme";
 import { livePreview } from "./livePreview";
 import { typewriterMode } from "./typewriterMode";
@@ -111,6 +113,7 @@ export function createExtensions(options = {}) {
     enableAutocomplete = false,
     enableWikiLinkAutocomplete = true,
     enableVimMode = false,
+    vimVisualLineMotion = true,
     enableTypewriterMode = false,
     enableLivePreview = false,
     formattingKeymaps = {},
@@ -137,6 +140,13 @@ export function createExtensions(options = {}) {
 
     // Soft-wrap long lines (no horizontal scroll / cut-off text) — Notion-style.
     EditorView.lineWrapping,
+
+    // Render tooltips (wiki-link + slash-command completions) into <body>
+    // rather than into `.cm-editor`. The editor sits inside `EditorScrollFade`,
+    // whose `mask-image` clips its descendants and neutralises their
+    // `backdrop-filter` — a tooltip opened near the top or bottom of the
+    // viewport would fade out along with the text behind it.
+    tooltips({ parent: document.body }),
 
     // Visual enhancements
     highlightSpecialChars(),
@@ -244,9 +254,14 @@ export function createExtensions(options = {}) {
     extensions.push(createWikiLinkAutocomplete(getNotes, getTags));
   }
 
-  // Vim mode
+  // Vim mode. The visual-line mapping lives in Vim's shared keymap rather than
+  // in this extension list, so it is (un)applied alongside the extension.
+  setVimVisualLineMotion(enableVimMode && vimVisualLineMotion);
   if (enableVimMode) {
     extensions.push(vim());
+    // Only Live Preview rewrites a motion's landing place, so only it can leave
+    // vim's visual selection stale.
+    if (enableLivePreview) extensions.push(vimBlockStepSync);
   }
 
   // Typewriter mode

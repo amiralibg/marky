@@ -7,7 +7,7 @@ vi.mock("../utils/fileSystem", () => ({
   renameEntryOnDisk: vi.fn(),
   deleteEntryOnDisk: vi.fn(),
   moveEntryOnDisk: vi.fn(),
-  scanFolder: vi.fn(),
+  readWorkspaceFiles: vi.fn(),
   writeMarkdownFileOnDisk: vi.fn(),
 }));
 
@@ -171,5 +171,136 @@ describe("notesStore core behavior", () => {
 
     expect(id).toBe(dailyNote.id);
     expect(store.getState().currentNoteId).toBe(dailyNote.id);
+  });
+});
+
+describe("workspace refresh reads only what changed", () => {
+  // The whole workspace now arrives in one call instead of a scan plus one IPC
+  // round-trip per note. Deciding what to re-read happens in Rust; what the
+  // store owns is sending accurate `known` stats and honouring a null content.
+  const entry = (name, modified, size, content = `content of ${name}`) => ({
+    name,
+    path: `/workspace/${name}`,
+    is_dir: false,
+    modified,
+    size,
+    content,
+  });
+
+  let fs;
+
+  beforeEach(async () => {
+    window.localStorage.clear();
+    fs = await import("../utils/fileSystem");
+    fs.readWorkspaceFiles.mockReset();
+  });
+
+  const refreshWith = async (store, entries) => {
+    fs.readWorkspaceFiles.mockResolvedValue(entries);
+    await store.getState().refreshRootFromDisk({ silent: true });
+  };
+
+  const lastKnown = () => fs.readWorkspaceFiles.mock.calls.at(-1)[2];
+
+  it("asks for everything on the first load", async () => {
+    const store = await loadStore();
+    seedStore(store);
+    store.setState({ items: [] });
+
+    await refreshWith(store, [entry("A.md", 1000, 10)]);
+
+    expect(lastKnown()).toEqual([]);
+  });
+
+  it("reports the stats of notes it already holds, so they can be skipped", async () => {
+    const store = await loadStore();
+    seedStore(store);
+
+    await refreshWith(store, [entry("A.md", 1000, 10), entry("B.md", 2000, 20)]);
+    await refreshWith(store, [entry("A.md", 1000, 10), entry("B.md", 2000, 20)]);
+
+    expect(lastKnown()).toEqual(
+      expect.arrayContaining([
+        { path: "/workspace/A.md", modified: 1000, size: 10 },
+        { path: "/workspace/B.md", modified: 2000, size: 20 },
+      ])
+    );
+  });
+
+  it("keeps the cached body when the backend says a file is unchanged", async () => {
+    const store = await loadStore();
+    seedStore(store);
+
+    await refreshWith(store, [entry("A.md", 1000, 10, "original body")]);
+    // `content: null` is the backend's "unchanged, reuse what you have".
+    await refreshWith(store, [entry("A.md", 1000, 10, null)]);
+
+    const note = store.getState().items.find((i) => i.filePath === "/workspace/A.md");
+    expect(note.content).toBe("original body");
+  });
+
+  it("takes the new body when the backend sends one", async () => {
+    const store = await loadStore();
+    seedStore(store);
+
+    await refreshWith(store, [entry("A.md", 1000, 10, "original body")]);
+    await refreshWith(store, [entry("A.md", 3000, 25, "edited body")]);
+
+    const note = store.getState().items.find((i) => i.filePath === "/workspace/A.md");
+    expect(note.content).toBe("edited body");
+  });
+
+  it("omits notes with unknown stats from `known`, so they are always re-read", async () => {
+    const store = await loadStore();
+    seedStore(store);
+
+    // `0` means "no metadata", which must never be reported as a known state.
+    await refreshWith(store, [entry("A.md", 0, 0), entry("B.md", 2000, 20)]);
+    await refreshWith(store, [entry("A.md", 0, 0), entry("B.md", 2000, 20)]);
+
+    expect(lastKnown()).toEqual([{ path: "/workspace/B.md", modified: 2000, size: 20 }]);
+  });
+});
+
+describe("persisted shape", () => {
+  // localStorage holds ~5 MB. Persisting note bodies put the whole vault in
+  // there on every store change, for content that `refreshRootFromDisk`
+  // re-reads from disk on the next launch anyway.
+  const readPersisted = () => JSON.parse(window.localStorage.getItem("marky-storage")).state;
+
+  it("persists vault notes without their content", async () => {
+    const store = await loadStore();
+    seedStore(store);
+    // Nudge the store so persist middleware flushes.
+    store.setState({ sidebarWidth: 281 });
+
+    const persisted = readPersisted();
+    const note = persisted.items.find((item) => item.id === homeNote.id);
+
+    expect(note).toBeDefined();
+    expect(note.content).toBeNull();
+    // Metadata the sidebar needs before the disk read finishes still survives.
+    expect(note.name).toBe("Home");
+    expect(note.filePath).toBe("/workspace/Home.md");
+  });
+
+  it("keeps content for scratch buffers and loose files, which have no disk copy", async () => {
+    const store = await loadStore();
+    seedStore(store);
+
+    const scratch = { id: "note::scratch", name: "Scratch", type: "note", content: "unsaved" };
+    const loose = {
+      ...homeNote,
+      id: "note::/elsewhere/Loose.md",
+      filePath: "/elsewhere/Loose.md",
+      isLoose: true,
+      content: "loose body",
+    };
+    store.setState({ items: [rootFolder, homeNote, scratch, loose] });
+
+    const persisted = readPersisted();
+
+    expect(persisted.items.find((i) => i.id === "note::scratch").content).toBe("unsaved");
+    expect(persisted.items.find((i) => i.id === loose.id).content).toBe("loose body");
   });
 });

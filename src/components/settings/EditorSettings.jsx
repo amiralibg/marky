@@ -1,9 +1,11 @@
-import useSettingsStore from "../../store/settingsStore";
+import useSettingsStore, { EDITOR_WIDTHS } from "../../store/settingsStore";
 
 const EditorSettings = () => {
   const {
     vimMode,
     toggleVimMode,
+    vimVisualLineMotion,
+    toggleVimVisualLineMotion,
     autosaveEnabled,
     autosaveDelay,
     setAutosaveEnabled,
@@ -12,6 +14,10 @@ const EditorSettings = () => {
     setTypewriterMode,
     showLineNumbers,
     setShowLineNumbers,
+    editorWidth,
+    setEditorWidth,
+    ignorePatterns,
+    setIgnorePatterns,
     sidebarDensity,
     setSidebarDensity,
     showSidebarMetadata,
@@ -46,6 +52,10 @@ const EditorSettings = () => {
   ];
   const selectedDensityIndex = Math.max(
     densityOptions.findIndex((option) => option.value === sidebarDensity),
+    0
+  );
+  const selectedWidthIndex = Math.max(
+    EDITOR_WIDTHS.findIndex((option) => option.id === editorWidth),
     0
   );
 
@@ -141,6 +151,97 @@ const EditorSettings = () => {
             `}
           />
         </button>
+      </div>
+
+      {/* Editor Width — one measure for the editor and the rendered preview, so
+          switching Source → Live → Read never reflows the text. */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <h3 id="editor-width-title" className="text-sm font-semibold text-text-primary mb-1">
+            Editor Width
+          </h3>
+          <p id="editor-width-description" className="text-xs text-text-muted leading-relaxed">
+            How wide the text column is allowed to grow. Narrow keeps lines at a comfortable reading
+            length; wide fills the window. The same measure applies in Source, Live, and Read.
+          </p>
+          <div className="mt-3 rounded-2xl border border-overlay-subtle bg-overlay-subtle/40 p-1.5 shadow-inner shadow-black/10">
+            <div
+              className="relative grid grid-cols-3 gap-1"
+              role="group"
+              aria-labelledby="editor-width-title"
+              aria-describedby="editor-width-description"
+            >
+              <span
+                className="absolute inset-y-0 left-0 w-1/3 rounded-xl border border-accent/30 bg-accent/10 shadow-sm shadow-accent/10 transition-transform duration-200 ease-out"
+                style={{ transform: `translateX(${selectedWidthIndex * 100}%)` }}
+                aria-hidden="true"
+              />
+              {EDITOR_WIDTHS.map((option, index) => {
+                const isActive = editorWidth === option.id;
+                // Three stacked rules that grow with the option — a miniature of
+                // the text column the choice produces.
+                const barWidth = ["w-2.5", "w-3.5", "w-full"][index];
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setEditorWidth(option.id)}
+                    className={`relative z-10 rounded-xl px-2.5 py-2.5 text-left transition-colors ${
+                      isActive ? "text-accent" : "text-text-muted hover:text-text-primary"
+                    }`}
+                    aria-pressed={isActive}
+                    aria-label={`${option.label} editor width: ${option.description}`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 shrink-0 flex-col justify-center gap-1 rounded-lg border border-overlay-subtle bg-bg-sidebar/70 px-1">
+                        {[0, 1, 2].map((line) => (
+                          <span
+                            key={line}
+                            className={`h-0.5 rounded-full ${barWidth} ${
+                              isActive ? "bg-accent" : "bg-text-muted/50"
+                            }`}
+                          />
+                        ))}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-xs font-semibold">{option.label}</span>
+                        <span className="block truncate text-[11px] text-text-muted">
+                          {option.description}
+                        </span>
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Workspace excludes */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <h3 id="ignore-patterns-title" className="text-sm font-semibold text-text-primary mb-1">
+            Excluded Folders
+          </h3>
+          <p id="ignore-patterns-description" className="text-xs text-text-muted leading-relaxed">
+            Marky already honours <code className="font-mono text-[11px]">.gitignore</code> and
+            always skips <code className="font-mono text-[11px]">node_modules</code>. Add anything
+            else you don’t want in the sidebar or search — one gitignore-style pattern per line.
+            Takes effect on the next workspace refresh.
+          </p>
+          <textarea
+            value={ignorePatterns}
+            onChange={(event) => setIgnorePatterns(event.target.value)}
+            rows={4}
+            spellCheck={false}
+            placeholder={"Archive/\nattachments/\n*.excalidraw.md"}
+            aria-labelledby="ignore-patterns-title"
+            aria-describedby="ignore-patterns-description"
+            className="mt-3 w-full resize-y rounded-xl border border-overlay-subtle bg-overlay-subtle/40 px-3 py-2 font-mono text-xs leading-relaxed text-text-primary placeholder:text-text-muted focus:border-accent/50"
+          />
+        </div>
       </div>
 
       {/* Vim Mode Toggle */}
@@ -332,6 +433,47 @@ const EditorSettings = () => {
           />
         </button>
       </div>
+
+      {vimMode && (
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h3 id="vim-visual-line-title" className="text-sm font-semibold text-text-primary mb-1">
+              Move by visual line
+            </h3>
+            <p id="vim-visual-line-description" className="text-xs text-text-muted leading-relaxed">
+              Long paragraphs wrap across several rows on screen but are a single line in the file.
+              With this on, <code className="font-mono">j</code>,{" "}
+              <code className="font-mono">k</code>, <code className="font-mono">0</code> and{" "}
+              <code className="font-mono">$</code> step through the rows you can see instead of
+              jumping a whole paragraph at a time. Operators are untouched —{" "}
+              <code className="font-mono">dd</code> and <code className="font-mono">d$</code> still
+              work on whole lines.
+            </p>
+          </div>
+          <button
+            onClick={toggleVimVisualLineMotion}
+            className={`
+              relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0
+              ${
+                vimVisualLineMotion
+                  ? "bg-accent shadow-lg shadow-accent/30"
+                  : "bg-overlay-light hover:bg-overlay-medium"
+              }
+            `}
+            aria-checked={vimVisualLineMotion}
+            aria-labelledby="vim-visual-line-title"
+            aria-describedby="vim-visual-line-description"
+            role="switch"
+          >
+            <span
+              className={`
+                absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200
+                ${vimVisualLineMotion ? "translate-x-7" : "translate-x-0"}
+              `}
+            />
+          </button>
+        </div>
+      )}
 
       {/* Vim Mode Quick Reference */}
       {vimMode && (

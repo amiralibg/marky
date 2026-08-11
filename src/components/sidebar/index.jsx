@@ -344,7 +344,7 @@ const Sidebar = forwardRef(
       try {
         await moveItem(draggedItem.id, targetFolder.id);
       } catch (error) {
-        console.error("❌ Failed to move item:", error);
+        console.error("Failed to move item:", error);
         addNotification("Failed to move item: " + error.message, "error");
       } finally {
         restoreTreeScroll(scrollTop);
@@ -696,7 +696,7 @@ const Sidebar = forwardRef(
       try {
         await moveItemToRoot(draggedItem.id);
       } catch (error) {
-        console.error("❌ Failed to move item:", error);
+        console.error("Failed to move item:", error);
         addNotification("Failed to move item: " + error.message, "error");
       }
 
@@ -1110,14 +1110,11 @@ const Sidebar = forwardRef(
                           onClick={async () => {
                             setShowWorkspaceSwitcher(false);
                             try {
-                              const { invoke } = await import("@tauri-apps/api/core");
-                              const files = await invoke("scan_folder_for_markdown", {
-                                folderPath: ws.path,
-                              });
+                              // No `files`: the store reads the folder itself,
+                              // so the ignore patterns apply here too.
                               await loadFolderFromSystem({
                                 folderPath: ws.path,
                                 folderName: ws.name,
-                                files,
                               });
                             } catch (err) {
                               addNotification("Could not open workspace: " + err.message, "error");

@@ -17,17 +17,21 @@ import "katex/dist/katex.min.css";
 import CreateNoteModal from "../modals/CreateNoteModal";
 import CodeMirrorEditor from "./CodeMirrorEditor";
 import SelectionToolbar from "./SelectionToolbar";
+import OutlineRail from "./OutlineRail";
+import EditorScrollFade from "./EditorScrollFade";
+import EditorActionsMenu from "./EditorActionsMenu";
 import useNotesStore, { SETTINGS_TAB_ID } from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
-import useSettingsStore from "../../store/settingsStore";
+import useSettingsStore, { editorWidthValue } from "../../store/settingsStore";
 import { slugify } from "../../utils/slugify";
+import { parseHeadings } from "../../utils/headings";
 import { parseFrontmatter } from "../../utils/frontmatter";
+import { insertBlankLineSpacers } from "../../utils/blankLineSpacers";
 import { saveMarkdownFile } from "../../utils/fileSystem";
-import { isolateBidiRuns } from "../../utils/bidi";
+import { isolateBidiRuns, detectBaseDirection } from "../../utils/bidi";
 import "./MarkdownPreview.css";
 
 const ExportModal = lazy(() => import("../modals/ExportModal"));
-const TableOfContents = lazy(() => import("./TableOfContents"));
 const SettingsPage = lazy(() => import("../settings/SettingsPage"));
 const NoteHistoryModal = lazy(() => import("../modals/NoteHistoryModal"));
 const ConflictCompareModal = lazy(() => import("../modals/ConflictCompareModal"));
@@ -151,13 +155,30 @@ if (!extensionsRegistered) {
       },
       blockquote(token) {
         const body = typeof token === "object" ? token.text : token;
-        return `<blockquote dir="auto">${body}</blockquote>\n`;
+        // `dir="auto"` only considers text that isn't already inside an element
+        // carrying its own `dir` — and every paragraph in here has one, so the
+        // blockquote always resolved LTR and hung its rule on the left of a
+        // Persian quote. Resolve the direction from the quote's own text.
+        const dir = detectBaseDirection(body.replace(/<[^>]*>/g, ""));
+        return `<blockquote dir="${dir}">${body}</blockquote>\n`;
       },
-      tablecell(token) {
-        const content = typeof token === "object" ? token.text : token;
-        const isHeader = typeof token === "object" ? token.header : false;
+      // Wrap tables so a wide one scrolls inside its own box instead of
+      // stretching the reading column. The wrapper also carries the rounded
+      // border, which a <table> can't clip on its own.
+      table(header, body) {
+        const tbody = body ? `<tbody>${body}</tbody>` : "";
+        return `<div class="table-wrap"><table><thead>${header}</thead>${tbody}</table></div>\n`;
+      },
+      // marked 9 calls this as `tablecell(content, { header, align })`; newer
+      // versions pass a single token. Reading only the token shape dropped both
+      // flags, so every header cell rendered as a <td> and the column alignment
+      // from `|:---:|` was thrown away.
+      tablecell(token, flags) {
+        const isToken = typeof token === "object";
+        const content = isToken ? token.text : token;
+        const isHeader = isToken ? token.header : Boolean(flags?.header);
+        const align = (isToken ? token.align : flags?.align) || "";
         const tag = isHeader ? "th" : "td";
-        const align = typeof token === "object" ? token.align : "";
         const alignAttr = align ? ` style="text-align:${align}"` : "";
         return `<${tag} dir="auto"${alignAttr}>${content}</${tag}>\n`;
       },
@@ -177,21 +198,29 @@ if (!extensionsRegistered) {
         const langLabel = lang || "text";
         const escapedCode = text.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
-        return `<div class="code-block-wrapper">
-          <div class="code-block-header">
-            <span class="code-block-lang">${escapeHtml(langLabel)}</span>
-            <button class="code-copy-btn" data-code="${escapedCode}" title="Copy code">
-              <svg class="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-              <svg class="check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-            </button>
-          </div>
-          <pre><code class="hljs language-${escapeHtml(langLabel)}">${highlighted}</code></pre>
-        </div>`;
+        // Emitted without whitespace between tags. Indenting this template put
+        // real newlines in the DOM, and in Live mode the widget inherits
+        // `white-space: break-spaces` from `.cm-content`, which renders each
+        // one as a blank line inside the block.
+        const copyIcon =
+          '<svg class="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+          '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>' +
+          '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>' +
+          "</svg>";
+        const checkIcon =
+          '<svg class="check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">' +
+          '<polyline points="20 6 9 17 4 12"></polyline>' +
+          "</svg>";
+
+        return (
+          '<div class="code-block-wrapper">' +
+          '<div class="code-block-header">' +
+          `<span class="code-block-lang">${escapeHtml(langLabel)}</span>` +
+          `<button class="code-copy-btn" data-code="${escapedCode}" title="Copy code">${copyIcon}${checkIcon}</button>` +
+          "</div>" +
+          `<pre><code class="hljs language-${escapeHtml(langLabel)}">${highlighted}</code></pre>` +
+          "</div>"
+        );
       },
     },
   });
@@ -201,20 +230,17 @@ if (!extensionsRegistered) {
 const renderMarkdownPreview = (markdown) => {
   const previewMarkdown = parseFrontmatter(markdown).body;
   const tokens = marked.lexer(previewMarkdown);
-  const tokensWithBlankLines = tokens.map((token) => {
-    if (token.type !== "space") return token;
 
-    const newlineCount = (token.raw.match(/\n/g) || []).length;
-    const blankLineCount = Math.max(1, newlineCount - 1);
+  // The footnote extension emits its section as the first token and relies on
+  // `marked.parse()` to place it. Rendering through `lexer` + `parser` (which
+  // we do, to turn blank lines into spacers) skips that step, so the notes
+  // landed above the document title. Move the section to the end ourselves.
+  const footnotesIndex = tokens.findIndex((token) => token.type === "footnotes");
+  if (footnotesIndex !== -1) {
+    tokens.push(...tokens.splice(footnotesIndex, 1));
+  }
 
-    return {
-      type: "html",
-      raw: token.raw,
-      text: `<div class="markdown-blank-lines" style="--blank-lines: ${blankLineCount}" aria-hidden="true"></div>`,
-      pre: false,
-      block: true,
-    };
-  });
+  const tokensWithBlankLines = insertBlankLineSpacers(tokens);
 
   marked.walkTokens(tokensWithBlankLines, (token) => {
     if (token.type === "wikilink") {
@@ -255,8 +281,14 @@ const MarkdownEditor = forwardRef((props, ref) => {
     autosaveDelay,
     typewriterMode: typewriterModeEnabled,
     showLineNumbers,
+    editorWidth,
+    vimVisualLineMotion,
     keymaps,
   } = useSettingsStore();
+  // One measure for every view mode. Published as a CSS variable so the
+  // rendered preview sheet (MarkdownPreview.css) reads the same value the
+  // editor pane is capped at, instead of hard-coding its own.
+  const measure = editorWidthValue(editorWidth);
 
   const [markdown, setMarkdown] = useState("");
   const [debouncedMarkdown, setDebouncedMarkdown] = useState(""); // Debounced for preview
@@ -267,7 +299,9 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const [showConflictCompare, setShowConflictCompare] = useState(false);
   const [showCreateNoteModal, setShowCreateNoteModal] = useState(false);
   const [pendingNoteName, setPendingNoteName] = useState("");
-  const [showTOC, setShowTOC] = useState(false);
+  // 1-based document line the outline rail highlights against — the line at the
+  // top of the viewport, so the rail tracks reading position, not the cursor.
+  const [outlineLine, setOutlineLine] = useState(1);
   const [showProperties, setShowProperties] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedIndicator, setShowSavedIndicator] = useState(false);
@@ -824,9 +858,11 @@ const MarkdownEditor = forwardRef((props, ref) => {
       .trim()
       .split(/\s+/)
       .filter((w) => w.length > 0);
+    const paragraphs = text.split(/\n{2,}/).filter((block) => block.trim().length > 0);
     return {
       wordCount: words.length,
       charCount: text.length,
+      paragraphCount: paragraphs.length,
       readTime: Math.ceil(words.length / 200),
     };
   }, [debouncedMarkdown]);
@@ -1047,6 +1083,56 @@ const MarkdownEditor = forwardRef((props, ref) => {
     [markdown, viewMode]
   );
 
+  // Keep the outline rail in sync with what's at the top of the viewport.
+  // Source/Live ask CodeMirror which document position sits at the pane's top
+  // edge; Read walks the rendered headings and picks the last one above it.
+  useEffect(() => {
+    const pane = viewMode === "read" ? previewPaneRef.current : editorPaneRef.current;
+    if (!pane) return undefined;
+
+    let frame = null;
+
+    const measure = () => {
+      frame = null;
+      const rect = pane.getBoundingClientRect();
+      const probeY = rect.top + 6;
+
+      if (viewMode === "read") {
+        const nodes = pane.querySelectorAll("h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]");
+        let line = 1;
+        let index = 0;
+        for (const node of nodes) {
+          index += 1;
+          if (node.getBoundingClientRect().top <= probeY + 4) line = index;
+          else break;
+        }
+        // Read mode has no document lines to point at, so translate the
+        // heading's ordinal back into its source line.
+        const headings = parseHeadings(markdown);
+        setOutlineLine(headings[line - 1]?.line ?? 1);
+        return;
+      }
+
+      const view = editorRef.current?.getView?.();
+      if (!view) return;
+      const pos = view.posAtCoords({ x: rect.left + 12, y: probeY }, false);
+      if (pos == null) return;
+      setOutlineLine(view.state.doc.lineAt(pos).number);
+    };
+
+    const onScroll = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(measure);
+    };
+
+    measure();
+    pane.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      pane.removeEventListener("scroll", onScroll);
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [viewMode, markdown, focusMode]);
+
   const currentNote = getCurrentNote();
 
   // Page header chrome (emoji + title + tags) derived from frontmatter / content
@@ -1120,208 +1206,89 @@ const MarkdownEditor = forwardRef((props, ref) => {
     </div>
   );
 
+  const mod = navigator.platform.includes("Mac") ? "⌘" : "Ctrl";
+  const actionMenuItems = [
+    {
+      id: "save",
+      label: isSaving ? "Saving…" : "Save",
+      shortcut: `${mod}S`,
+      disabled: isSaving || !currentNote.filePath,
+      title: noteConflict
+        ? "Resolve the external conflict first"
+        : currentNote.filePath
+          ? "Save this note"
+          : "This note has no file path yet",
+      iconPath:
+        "M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4",
+      onSelect: handleSave,
+    },
+    {
+      id: "properties",
+      label: "Note properties",
+      active: showProperties,
+      iconPath: "M9 12h6m-6 4h6M8 4h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2z",
+      onSelect: () => setShowProperties((v) => !v),
+    },
+    currentNote.filePath && {
+      id: "history",
+      label: "Note history",
+      iconPath: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
+      onSelect: () => setShowHistoryModal(true),
+    },
+    {
+      id: "export",
+      label: "Export…",
+      iconPath: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
+      onSelect: () => setShowExportModal(true),
+    },
+  ];
+
   return (
     <div className="h-full flex flex-col overflow-hidden bg-editor-bg">
-      {/* Title Bar - Glass effect */}
+      {/* Header — breadcrumb and view mode only. Everything else that used to
+          sit here (Properties / Contents / Save / History / Export) is now one
+          "⋯" menu, and the outline moved to the rail on the right edge. */}
       {!focusMode && (
-        <div className="h-12 border-b border-border flex items-center px-4 bg-bg-base/80 backdrop-blur shrink-0 z-10 justify-between">
-          <div className="flex items-center gap-2 min-w-0 flex-1 mr-4">
-            <div className="flex items-center gap-2 min-w-0">
-              {rootFolderPath && (
-                <>
-                  <button
-                    onClick={() => selectNote(null)}
-                    className="text-sm text-text-muted hover:text-text-primary truncate px-1 py-0.5 rounded transition-colors max-w-[12rem]"
-                    title="Workspace home"
-                  >
-                    {rootFolderPath.split("/").filter(Boolean).pop()}
-                  </button>
-                  <span className="text-text-muted" aria-hidden="true">
-                    /
-                  </span>
-                </>
-              )}
-              <span className="text-sm text-text-primary font-semibold truncate">
-                {currentNote.name}
-              </span>
-              {currentNote.filePath && hasUnsavedChanges && (
-                <div className="w-2 h-2 rounded-full bg-accent shrink-0" title="Unsaved changes" />
-              )}
-            </div>
-            {currentNote.filePath ? (
-              <span className="text-[11px] text-text-muted flex items-center gap-1.5 shrink-0 ml-1">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    autosaveStatus === "saving"
-                      ? "bg-amber-400 animate-pulse"
-                      : hasUnsavedChanges || autosaveStatus === "pending"
-                        ? "bg-amber-400"
-                        : "bg-green-500"
-                  }`}
-                />
-                {autosaveStatus === "saving"
-                  ? "Saving…"
-                  : hasUnsavedChanges || autosaveStatus === "pending"
-                    ? "Unsaved"
-                    : showSavedIndicator || autosaveStatus === "saved"
-                      ? "Saved"
-                      : "Saved"}
-              </span>
-            ) : (
-              <span className="text-[11px] text-amber-400 flex items-center gap-1.5 shrink-0 ml-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                Not saved
-              </span>
+        <div className="h-11 flex items-center gap-3 px-4 shrink-0 z-10 justify-between">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            {rootFolderPath && (
+              <>
+                <button
+                  onClick={() => selectNote(null)}
+                  className="text-[13px] text-text-muted hover:text-text-primary truncate rounded px-1 py-0.5 transition-colors max-w-[12rem]"
+                  title="Workspace home"
+                >
+                  {rootFolderPath.split("/").filter(Boolean).pop()}
+                </button>
+                <span className="text-text-muted/60 text-[13px]" aria-hidden="true">
+                  /
+                </span>
+              </>
+            )}
+            <span className="text-[13px] text-text-primary font-medium truncate">
+              {currentNote.name}
+            </span>
+            {/* One dot carries the whole save story: amber = in flight or
+                unsaved, nothing at all = saved and quiet. */}
+            {(!currentNote.filePath || hasUnsavedChanges || autosaveStatus === "saving") && (
+              <span
+                className={`ms-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 ${
+                  autosaveStatus === "saving" ? "animate-pulse" : ""
+                }`}
+                title={
+                  !currentNote.filePath
+                    ? "Not saved to disk yet"
+                    : autosaveStatus === "saving"
+                      ? "Saving…"
+                      : "Unsaved changes"
+                }
+              />
             )}
           </div>
 
-          {/* View Mode Toggles */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 shrink-0">
             {viewModeControl}
-            <div className="w-px h-5 bg-border" aria-hidden="true" />
-            <button
-              onClick={() => setShowProperties(!showProperties)}
-              aria-pressed={showProperties}
-              aria-label={`${showProperties ? "Hide" : "Show"} note properties`}
-              className={`px-2 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
-                showProperties
-                  ? "bg-accent/10 text-accent"
-                  : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
-              }`}
-              title="Toggle Note Properties"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6M8 4h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2z"
-                />
-              </svg>
-              <span className="hidden sm:inline">Properties</span>
-            </button>
-
-            <button
-              onClick={() => setShowTOC(!showTOC)}
-              aria-pressed={showTOC}
-              aria-label={`${showTOC ? "Hide" : "Show"} table of contents`}
-              className={`px-2 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
-                showTOC
-                  ? "bg-accent/10 text-accent"
-                  : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
-              }`}
-              title="Toggle Table of Contents"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h7"
-                />
-              </svg>
-              <span className="hidden sm:inline">Contents</span>
-            </button>
-
-            <button
-              onClick={handleSave}
-              disabled={isSaving || !currentNote.filePath}
-              aria-label={
-                noteConflict
-                  ? "Save disabled until the external conflict is resolved"
-                  : currentNote.filePath
-                    ? "Save current note"
-                    : "Save disabled because this note has no file path"
-              }
-              className={`px-2 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
-                isSaving || !currentNote.filePath
-                  ? "text-text-muted cursor-not-allowed opacity-50"
-                  : "text-text-secondary hover:text-text-primary hover:bg-overlay-subtle"
-              }`}
-              title={
-                noteConflict
-                  ? "Resolve external conflict first"
-                  : currentNote.filePath
-                    ? "Save (Ctrl+S / Cmd+S)"
-                    : "Cannot save: no file path"
-              }
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-                />
-              </svg>
-              <span className="hidden sm:inline">{isSaving ? "Saving..." : "Save"}</span>
-            </button>
-
-            {currentNote.filePath && (
-              <button
-                onClick={() => setShowHistoryModal(true)}
-                className="px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-1.5"
-                title="Note History"
-                aria-label="Open note history"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span className="hidden sm:inline">History</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="px-3 py-1.5 text-xs text-text-primary border border-border bg-bg-base hover:bg-overlay-subtle rounded-md transition-colors flex items-center gap-1.5 font-medium"
-              title="Export Note"
-              aria-label="Export current note"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                />
-              </svg>
-              <span className="hidden sm:inline">Export</span>
-            </button>
+            <EditorActionsMenu items={actionMenuItems} />
           </div>
         </div>
       )}
@@ -1428,20 +1395,12 @@ const MarkdownEditor = forwardRef((props, ref) => {
         {/* Centered, single-column measure — no bordered card, so the editor
             gets the room. Source/Live/Read all share one calm column. */}
         <div
-          className={`h-full ${focusMode ? "flex justify-center" : "mx-auto w-full max-w-[64rem]"}`}
+          className={`h-full ${focusMode ? "flex justify-center" : "mx-auto w-full"}`}
+          style={{ "--editor-measure": measure, maxWidth: focusMode ? undefined : measure }}
         >
           <div
             className={`h-full flex overflow-hidden ${focusMode ? "w-full justify-center" : ""}`}
           >
-            {/* Table of Contents - Floating Panel */}
-            {showTOC && (
-              <div className="absolute top-4 right-4 z-20 w-72 max-w-[calc(100%-2rem)] animate-in slide-in-from-right-4 fade-in duration-200 shadow-2xl">
-                <Suspense fallback={null}>
-                  <TableOfContents markdown={markdown} onHeaderClick={handleTOCHeaderClick} />
-                </Suspense>
-              </div>
-            )}
-
             {showProperties && (
               <Suspense fallback={null}>
                 <NotePropertiesPanel
@@ -1454,33 +1413,75 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
             {/* Editor — Source (raw) or Live (inline preview) */}
             {(viewMode === "source" || viewMode === "live") && (
-              <div
+              <EditorScrollFade
                 ref={editorPaneRef}
-                className={`flex flex-col relative w-full ${!focusMode ? "overflow-y-auto quiet-scroll" : ""} ${
-                  focusMode ? "max-w-3xl mx-auto" : ""
-                }`}
-                style={{ width: "100%" }}
-              >
-                {/* Search Controls */}
-                {searchMatches.length > 0 && (
-                  <div
-                    className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-bg-sidebar border border-border rounded-lg shadow-lg px-3 py-2"
-                    role="search"
-                    aria-label="Find results controls"
-                  >
-                    <span
-                      className="text-xs text-text-secondary font-medium"
-                      role="status"
-                      aria-live="polite"
+                enabled={!focusMode}
+                className={focusMode ? "max-w-3xl mx-auto" : ""}
+                overlay={
+                  /* Find results sit *outside* the faded scroller — pinned to
+                     its top edge, they would otherwise dissolve into the top
+                     gradient along with the text behind them. */
+                  searchMatches.length > 0 ? (
+                    <div
+                      className="absolute top-4 right-4 z-20 flex items-center gap-2 bg-bg-sidebar border border-border rounded-lg shadow-lg px-3 py-2"
+                      role="search"
+                      aria-label="Find results controls"
                     >
-                      {currentMatchIndex + 1} of {searchMatches.length}
-                    </span>
-                    <div className="flex items-center gap-1">
+                      <span
+                        className="text-xs text-text-secondary font-medium"
+                        role="status"
+                        aria-live="polite"
+                      >
+                        {currentMatchIndex + 1} of {searchMatches.length}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={previousMatch}
+                          className="p-1 hover:bg-overlay-light rounded transition-colors"
+                          title="Previous match (Shift+Enter)"
+                          aria-label="Go to previous search match"
+                        >
+                          <svg
+                            className="w-4 h-4 text-text-secondary"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M5 15l7-7 7 7"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={nextMatch}
+                          className="p-1 hover:bg-overlay-light rounded transition-colors"
+                          title="Next match (Enter)"
+                          aria-label="Go to next search match"
+                        >
+                          <svg
+                            className="w-4 h-4 text-text-secondary"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="w-px h-4 bg-border mx-1" />
                       <button
-                        onClick={previousMatch}
+                        onClick={clearSearch}
                         className="p-1 hover:bg-overlay-light rounded transition-colors"
-                        title="Previous match (Shift+Enter)"
-                        aria-label="Go to previous search match"
+                        title="Clear search (Esc)"
+                        aria-label="Clear editor search"
                       >
                         <svg
                           className="w-4 h-4 text-text-secondary"
@@ -1492,55 +1493,14 @@ const MarkdownEditor = forwardRef((props, ref) => {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth={2}
-                            d="M5 15l7-7 7 7"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={nextMatch}
-                        className="p-1 hover:bg-overlay-light rounded transition-colors"
-                        title="Next match (Enter)"
-                        aria-label="Go to next search match"
-                      >
-                        <svg
-                          className="w-4 h-4 text-text-secondary"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
+                            d="M6 18L18 6M6 6l12 12"
                           />
                         </svg>
                       </button>
                     </div>
-                    <div className="w-px h-4 bg-border mx-1" />
-                    <button
-                      onClick={clearSearch}
-                      className="p-1 hover:bg-overlay-light rounded transition-colors"
-                      title="Clear search (Esc)"
-                      aria-label="Clear editor search"
-                    >
-                      <svg
-                        className="w-4 h-4 text-text-secondary"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                )}
-
+                  ) : null
+                }
+              >
                 <CodeMirrorEditor
                   ref={editorRef}
                   value={markdown}
@@ -1552,6 +1512,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
                   autoHeight={!focusMode}
                   enableLineNumbers={showLineNumbers && viewMode === "source"}
                   enableVimMode={vimMode}
+                  vimVisualLineMotion={vimVisualLineMotion}
                   enableTypewriterMode={typewriterModeEnabled && focusMode}
                   enableLivePreview={viewMode === "live"}
                   editorSearchKeymap={keymaps.editorSearch}
@@ -1560,84 +1521,81 @@ const MarkdownEditor = forwardRef((props, ref) => {
                   getTags={getAllTags}
                   ariaLabel={`Markdown editor${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
                 />
-              </div>
+              </EditorScrollFade>
             )}
 
             {/* Read — fully rendered, non-editable */}
             {viewMode === "read" && (
-              <div
+              <EditorScrollFade
                 ref={previewPaneRef}
-                className={`flex flex-col bg-bg-editor overflow-y-auto quiet-scroll w-full ${focusMode ? "max-w-3xl mx-auto" : ""}`}
-                style={{ width: "100%" }}
-                onClick={handlePreviewClick}
-                role="region"
-                aria-label={`Markdown preview${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
+                className={`bg-bg-editor ${focusMode ? "max-w-3xl mx-auto" : ""}`}
               >
-                <div className="w-full px-8 md:px-12 py-8">
+                {/* The 40vh tail matches `.cm-content` in theme.js, so the end
+                    of a note can scroll to mid-window in Read mode too. */}
+                <div
+                  className="w-full px-8 md:px-12 pt-8 pb-[40vh]"
+                  onClick={handlePreviewClick}
+                  role="region"
+                  aria-label={`Markdown preview${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
+                >
                   <div
                     className="markdown-preview"
                     dir="auto"
                     dangerouslySetInnerHTML={previewHtml}
                   />
                 </div>
-              </div>
+              </EditorScrollFade>
             )}
           </div>
         </div>
+
+        {/* Outline — hairline ticks on the right edge, expanding on hover */}
+        {!focusMode && (
+          <OutlineRail
+            markdown={markdown}
+            activeLine={outlineLine}
+            onSelect={handleTOCHeaderClick}
+          />
+        )}
       </div>
 
       {/* Notion-style selection formatting bubble */}
       {viewMode !== "read" && <SelectionToolbar selection={selection} onInsert={insertMarkdown} />}
 
-      {/* Status Bar */}
+      {/* Status line — no bar, no border, no fill. Just the counts sitting
+          quietly in the bottom corner, plus the Vim mode when it's on. The
+          view mode is already visible in the header, so it's dropped here. */}
       {currentNote && !focusMode && (
         <div
-          className="shrink-0 px-4 py-1.5 bg-overlay-subtle border-t border-border flex items-center justify-between text-xs text-text-muted"
+          className="shrink-0 flex items-center justify-between gap-4 px-5 pb-2 pt-1 text-[11px] text-text-muted"
           role="status"
           aria-live="polite"
         >
-          <div className="flex items-center gap-4">
-            <span>{statusBarStats.wordCount} words</span>
-            <span className="text-text-muted/50">•</span>
-            <span>{statusBarStats.charCount} characters</span>
-            <span className="text-text-muted/50">•</span>
-            <span>{statusBarStats.readTime} min read</span>
-          </div>
-          <div className="flex items-center gap-4">
+          <span className="flex min-w-0 items-center gap-3 truncate">
             {vimMode && (
-              <>
-                <div className="flex items-center gap-2">
-                  <span className="text-text-muted/50">Vim:</span>
-                  <span
-                    className={`font-mono font-semibold px-2 py-0.5 rounded ${
-                      vimModeStatus.mode === "insert"
-                        ? "bg-green-500/20 text-green-400"
-                        : vimModeStatus.mode === "visual"
-                          ? "bg-blue-500/20 text-blue-400"
-                          : vimModeStatus.mode === "replace"
-                            ? "bg-amber-500/20 text-amber-400"
-                            : "bg-accent/20 text-accent"
-                    }`}
-                  >
-                    {vimModeStatus.mode === "normal"
-                      ? "-- NORMAL --"
-                      : vimModeStatus.mode === "insert"
-                        ? "-- INSERT --"
-                        : vimModeStatus.mode === "visual"
-                          ? "-- VISUAL --"
-                          : vimModeStatus.mode === "replace"
-                            ? "-- REPLACE --"
-                            : `-- ${vimModeStatus.mode.toUpperCase()} --`}
-                  </span>
-                </div>
-                <span className="text-text-muted/50">•</span>
-              </>
+              <span
+                className={`font-mono font-medium ${
+                  vimModeStatus.mode === "insert"
+                    ? "text-green-500"
+                    : vimModeStatus.mode === "visual"
+                      ? "text-blue-500"
+                      : vimModeStatus.mode === "replace"
+                        ? "text-amber-500"
+                        : "text-accent"
+                }`}
+              >
+                {vimModeStatus.mode.toUpperCase()}
+              </span>
             )}
-            <div className="flex items-center gap-2">
-              <span className="text-text-muted/50">View:</span>
-              <span className="text-text-secondary capitalize">{viewMode}</span>
-            </div>
-          </div>
+            {/* A save confirmation that fades on its own — the header dot only
+                shows the *unsaved* state, so this closes the loop. */}
+            {showSavedIndicator && <span className="animate-fade-in">Saved</span>}
+          </span>
+          <span className="flex shrink-0 items-center gap-4 tabular-nums">
+            <span>{statusBarStats.wordCount.toLocaleString()} words</span>
+            <span>{statusBarStats.charCount.toLocaleString()} characters</span>
+            <span>{statusBarStats.paragraphCount.toLocaleString()} paragraphs</span>
+          </span>
         </div>
       )}
 

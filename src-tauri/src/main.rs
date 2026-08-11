@@ -21,6 +21,14 @@ struct MarkdownFile {
     name: String,
     path: String,
     is_dir: bool,
+    /// Modification time in epoch milliseconds, and byte length. Together these
+    /// let the frontend skip re-reading a file whose contents cannot have
+    /// changed — the workspace refresh runs on every watcher event, so without
+    /// this a single save re-read the entire vault.
+    #[serde(default)]
+    modified: u64,
+    #[serde(default)]
+    size: u64,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -145,6 +153,228 @@ fn resolve_unique_path(
     }
 
     Err("Unable to find available name".to_string())
+}
+
+// ── Durable side storage: note history and unsaved drafts ──────────────────
+//
+// Both used to live in `localStorage`, which is capped around 5 MB in the
+// WebView. Note history keeps up to 20 full copies of every note, so a modest
+// vault blew the quota — and the write failure was swallowed, so version
+// history silently stopped recording while still appearing to work. The draft
+// cache shared that quota, which put *unsaved* work behind the same cliff.
+//
+// One file per note under the app data dir: a snapshot write touches only that
+// note, so there is no read-modify-write race between windows and no whole-map
+// rewrite on every keystroke. The note's real path is stored inside the file,
+// so a hash collision is detectable rather than silently serving another note's
+// history.
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct NoteSnapshot {
+    content: String,
+    #[serde(rename = "savedAt")]
+    saved_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct NoteHistoryFile {
+    path: String,
+    snapshots: Vec<NoteSnapshot>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct DraftEntry {
+    path: String,
+    content: String,
+    #[serde(rename = "updatedAt")]
+    updated_at: String,
+}
+
+/// FNV-1a, written out rather than using `DefaultHasher`: these values become
+/// file names, and `DefaultHasher`'s output is explicitly not guaranteed stable
+/// across Rust releases. A change there would orphan every stored file.
+fn path_key(path: &str) -> String {
+    let normalized = path.replace('\\', "/");
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in normalized.as_bytes() {
+        hash ^= *byte as u64;
+        hash = hash.wrapping_mul(0x100_0000_01b3);
+    }
+    format!("{:016x}", hash)
+}
+
+fn side_store_dir(app: &tauri::AppHandle, name: &str) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?
+        .join(name);
+    fs::create_dir_all(&base).map_err(|e| format!("Failed to create {} dir: {}", name, e))?;
+    Ok(base)
+}
+
+/// Write via a temp file + rename so a crash mid-write can't truncate an
+/// existing record. `fs::write` alone can leave a half-written file behind.
+fn write_atomic(target: &Path, contents: &str) -> Result<(), String> {
+    let tmp = target.with_extension("tmp");
+    fs::write(&tmp, contents).map_err(|e| format!("Failed to write: {}", e))?;
+    fs::rename(&tmp, target).map_err(|e| format!("Failed to commit write: {}", e))
+}
+
+fn read_json_file<T: for<'de> Deserialize<'de>>(path: &Path) -> Option<T> {
+    let raw = fs::read_to_string(path).ok()?;
+    serde_json::from_str(&raw).ok()
+}
+
+#[tauri::command]
+fn read_note_history(
+    app: tauri::AppHandle,
+    file_path: String,
+) -> Result<Vec<NoteSnapshot>, String> {
+    let dir = side_store_dir(&app, "history")?;
+    let target = dir.join(format!("{}.json", path_key(&file_path)));
+    match read_json_file::<NoteHistoryFile>(&target) {
+        // Guard against a hash collision serving another note's history.
+        Some(file) if file.path == file_path => Ok(file.snapshots),
+        _ => Ok(Vec::new()),
+    }
+}
+
+#[tauri::command]
+fn append_note_history(
+    app: tauri::AppHandle,
+    file_path: String,
+    content: String,
+    saved_at: String,
+    max_snapshots: usize,
+) -> Result<(), String> {
+    let dir = side_store_dir(&app, "history")?;
+    let target = dir.join(format!("{}.json", path_key(&file_path)));
+
+    let mut snapshots = match read_json_file::<NoteHistoryFile>(&target) {
+        Some(file) if file.path == file_path => file.snapshots,
+        _ => Vec::new(),
+    };
+    snapshots.insert(0, NoteSnapshot { content, saved_at });
+    snapshots.truncate(max_snapshots.max(1));
+
+    let payload = NoteHistoryFile {
+        path: file_path,
+        snapshots,
+    };
+    write_atomic(
+        &target,
+        &serde_json::to_string(&payload).map_err(|e| e.to_string())?,
+    )
+}
+
+#[tauri::command]
+fn remove_note_history(app: tauri::AppHandle, file_path: String) -> Result<(), String> {
+    let dir = side_store_dir(&app, "history")?;
+    let target = dir.join(format!("{}.json", path_key(&file_path)));
+    if target.exists() {
+        fs::remove_file(&target).map_err(|e| format!("Failed to remove history: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn move_note_history(
+    app: tauri::AppHandle,
+    old_path: String,
+    new_path: String,
+) -> Result<(), String> {
+    let dir = side_store_dir(&app, "history")?;
+    let source = dir.join(format!("{}.json", path_key(&old_path)));
+    let snapshots = match read_json_file::<NoteHistoryFile>(&source) {
+        Some(file) if file.path == old_path => file.snapshots,
+        _ => return Ok(()),
+    };
+
+    let payload = NoteHistoryFile {
+        path: new_path.clone(),
+        snapshots,
+    };
+    write_atomic(
+        &dir.join(format!("{}.json", path_key(&new_path))),
+        &serde_json::to_string(&payload).map_err(|e| e.to_string())?,
+    )?;
+    let _ = fs::remove_file(&source);
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_all_history(app: tauri::AppHandle) -> Result<(), String> {
+    let dir = side_store_dir(&app, "history")?;
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                let _ = fs::remove_file(&path);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn read_all_drafts(app: tauri::AppHandle) -> Result<Vec<DraftEntry>, String> {
+    let dir = side_store_dir(&app, "drafts")?;
+    let mut drafts = Vec::new();
+    let entries = fs::read_dir(&dir).map_err(|e| format!("Failed to read drafts: {}", e))?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        if let Some(draft) = read_json_file::<DraftEntry>(&path) {
+            drafts.push(draft);
+        }
+    }
+    Ok(drafts)
+}
+
+#[tauri::command]
+fn write_draft(
+    app: tauri::AppHandle,
+    file_path: String,
+    content: String,
+    updated_at: String,
+) -> Result<(), String> {
+    let dir = side_store_dir(&app, "drafts")?;
+    let payload = DraftEntry {
+        path: file_path.clone(),
+        content,
+        updated_at,
+    };
+    write_atomic(
+        &dir.join(format!("{}.json", path_key(&file_path))),
+        &serde_json::to_string(&payload).map_err(|e| e.to_string())?,
+    )
+}
+
+#[tauri::command]
+fn remove_draft(app: tauri::AppHandle, file_path: String) -> Result<(), String> {
+    let dir = side_store_dir(&app, "drafts")?;
+    let target = dir.join(format!("{}.json", path_key(&file_path)));
+    if target.exists() {
+        fs::remove_file(&target).map_err(|e| format!("Failed to remove draft: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_all_drafts(app: tauri::AppHandle) -> Result<(), String> {
+    let dir = side_store_dir(&app, "drafts")?;
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                let _ = fs::remove_file(&path);
+            }
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -336,8 +566,89 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Folders never worth scanning for notes, regardless of `.gitignore`.
+///
+/// Deliberately short. Names like `build` and `dist` are plausible folder names
+/// in someone's notes, so they are left to `.gitignore` and the user's own list
+/// rather than guessed at here. `node_modules` is the pathological case — point
+/// a workspace at a JS project and it used to pull in every bundled README.
+const ALWAYS_IGNORED: [&str; 2] = ["node_modules", ".git"];
+
+/// True for the extensions Marky treats as notes.
+fn is_note_extension(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|ext| ext == "md" || ext == "markdown" || ext == "txt")
+}
+
+/// Epoch-millis mtime and byte length, or `(0, 0)` when the platform won't say.
+/// Zero means "unknown", which callers must treat as "assume changed".
+fn file_stats(entry: &ignore::DirEntry) -> (u64, u64) {
+    entry
+        .metadata()
+        .map(|meta| {
+            let millis = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            (millis, meta.len())
+        })
+        .unwrap_or((0, 0))
+}
+
+/// A walker that honours `.gitignore`, `.ignore`, git's global excludes, the
+/// built-in deny list and the caller's own patterns.
+///
+/// `require_git(false)`: a notes folder is usually not a git repo, and a
+/// `.gitignore` sitting in one should still be honoured. Hidden entries stay
+/// skipped, matching the original dotfile behaviour.
+fn build_walker(
+    root: &Path,
+    ignore_patterns: Option<Vec<String>>,
+) -> Result<ignore::WalkBuilder, String> {
+    // `!pattern` in an override means "ignore this". With only negated patterns
+    // present, anything that matches nothing is still included — adding a single
+    // non-negated pattern would flip the matcher to allow-list mode and hide the
+    // whole vault.
+    let mut overrides = ignore::overrides::OverrideBuilder::new(root);
+    for name in ALWAYS_IGNORED {
+        overrides
+            .add(&format!("!{}", name))
+            .map_err(|e| format!("Invalid built-in ignore pattern: {}", e))?;
+        overrides
+            .add(&format!("!{}/**", name))
+            .map_err(|e| format!("Invalid built-in ignore pattern: {}", e))?;
+    }
+    for pattern in ignore_patterns.unwrap_or_default() {
+        let trimmed = pattern.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        // A bad user pattern shouldn't fail the whole scan — skip it and carry on.
+        let _ = overrides.add(&format!("!{}", trimmed));
+    }
+    let overrides = overrides
+        .build()
+        .map_err(|e| format!("Failed to build ignore rules: {}", e))?;
+
+    let mut builder = ignore::WalkBuilder::new(root);
+    builder
+        .hidden(true)
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .require_git(false)
+        .overrides(overrides)
+        .follow_links(false);
+    Ok(builder)
+}
+
 #[tauri::command]
-fn scan_folder_for_markdown(folder_path: String) -> Result<Vec<MarkdownFile>, String> {
+fn scan_folder_for_markdown(
+    folder_path: String,
+    ignore_patterns: Option<Vec<String>>,
+) -> Result<Vec<MarkdownFile>, String> {
     let path = PathBuf::from(&folder_path);
 
     if !path.exists() {
@@ -349,46 +660,167 @@ fn scan_folder_for_markdown(folder_path: String) -> Result<Vec<MarkdownFile>, St
     }
 
     let mut markdown_files = Vec::new();
+    let walker = build_walker(&path, ignore_patterns)?.build();
 
-    fn scan_directory(dir: &PathBuf, files: &mut Vec<MarkdownFile>) -> Result<(), String> {
-        let entries = fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {}", e))?;
+    for entry in walker {
+        // An unreadable subdirectory (permissions, a broken link) skips that
+        // entry rather than failing the load of the entire vault.
+        let Ok(entry) = entry else { continue };
 
-        for entry in entries {
-            let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-            let path = entry.path();
-            let file_name = entry.file_name().to_string_lossy().to_string();
-
-            if file_name.starts_with('.') {
-                continue;
-            }
-
-            if path.is_dir() {
-                files.push(MarkdownFile {
-                    name: file_name,
-                    path: path.to_string_lossy().to_string(),
-                    is_dir: true,
-                });
-
-                scan_directory(&path, files)?;
-            } else if path.is_file() {
-                if let Some(ext) = path.extension() {
-                    if ext == "md" || ext == "markdown" || ext == "txt" {
-                        files.push(MarkdownFile {
-                            name: file_name,
-                            path: path.to_string_lossy().to_string(),
-                            is_dir: false,
-                        });
-                    }
-                }
-            }
+        // Depth 0 is the workspace root itself; the caller adds that separately.
+        if entry.depth() == 0 {
+            continue;
         }
 
-        Ok(())
+        let entry_path = entry.path();
+        let file_name = entry.file_name().to_string_lossy().to_string();
+        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+
+        if is_dir {
+            markdown_files.push(MarkdownFile {
+                name: file_name,
+                path: entry_path.to_string_lossy().to_string(),
+                is_dir: true,
+                modified: 0,
+                size: 0,
+            });
+        } else if is_note_extension(entry_path) {
+            let (modified, size) = file_stats(&entry);
+            markdown_files.push(MarkdownFile {
+                name: file_name,
+                path: entry_path.to_string_lossy().to_string(),
+                is_dir: false,
+                modified,
+                size,
+            });
+        }
     }
 
-    scan_directory(&path, &mut markdown_files)?;
-
     Ok(markdown_files)
+}
+
+/// A file the caller already holds content for, with the stats it was read at.
+#[derive(Debug, Deserialize)]
+struct KnownFile {
+    path: String,
+    modified: u64,
+    size: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct WorkspaceFile {
+    name: String,
+    path: String,
+    is_dir: bool,
+    modified: u64,
+    size: u64,
+    /// `None` means "unchanged since you last read it — reuse what you have".
+    content: Option<String>,
+}
+
+/// Walk the workspace and return its notes *with their contents* in one call.
+///
+/// This replaces a walk followed by one `readTextFile` IPC round-trip per note.
+/// On a vault of any size that per-file chatter, not the file IO, dominated the
+/// load — a thousand notes meant a thousand round-trips, each serialising a
+/// whole file through the bridge. Here the walk and the reads happen together
+/// on the walker's thread pool and cross the bridge once.
+///
+/// `known` carries the stats the caller already has content for; those files are
+/// returned with `content: None` so an incremental refresh re-reads only what
+/// actually changed. A `0` stat means the platform gave us no metadata, which is
+/// always treated as "changed".
+#[tauri::command]
+fn read_workspace_files(
+    folder_path: String,
+    ignore_patterns: Option<Vec<String>>,
+    known: Option<Vec<KnownFile>>,
+) -> Result<Vec<WorkspaceFile>, String> {
+    let path = PathBuf::from(&folder_path);
+
+    if !path.exists() {
+        return Err("Folder does not exist".to_string());
+    }
+    if !path.is_dir() {
+        return Err("Path is not a directory".to_string());
+    }
+
+    let known: std::collections::HashMap<String, (u64, u64)> = known
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|k| k.modified != 0 && k.size != 0)
+        .map(|k| (k.path.replace('\\', "/"), (k.modified, k.size)))
+        .collect();
+
+    let collected = Arc::new(Mutex::new(Vec::new()));
+
+    build_walker(&path, ignore_patterns)?
+        .build_parallel()
+        .run(|| {
+            let collected = Arc::clone(&collected);
+            let known = &known;
+            Box::new(move |entry| {
+                let Ok(entry) = entry else {
+                    return ignore::WalkState::Continue;
+                };
+                if entry.depth() == 0 {
+                    return ignore::WalkState::Continue;
+                }
+
+                let entry_path = entry.path();
+                let name = entry.file_name().to_string_lossy().to_string();
+                let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                let path_string = entry_path.to_string_lossy().to_string();
+
+                let file = if is_dir {
+                    WorkspaceFile {
+                        name,
+                        path: path_string,
+                        is_dir: true,
+                        modified: 0,
+                        size: 0,
+                        content: None,
+                    }
+                } else if is_note_extension(entry_path) {
+                    let (modified, size) = file_stats(&entry);
+                    let unchanged = known
+                        .get(&path_string.replace('\\', "/"))
+                        .is_some_and(|(m, s)| *m == modified && *s == size)
+                        && modified != 0
+                        && size != 0;
+
+                    WorkspaceFile {
+                        name,
+                        path: path_string,
+                        is_dir: false,
+                        modified,
+                        size,
+                        // A file that fails to read comes back as empty rather
+                        // than failing the whole load, matching the previous
+                        // per-file behaviour.
+                        content: if unchanged {
+                            None
+                        } else {
+                            Some(fs::read_to_string(entry_path).unwrap_or_default())
+                        },
+                    }
+                } else {
+                    return ignore::WalkState::Continue;
+                };
+
+                if let Ok(mut out) = collected.lock() {
+                    out.push(file);
+                }
+                ignore::WalkState::Continue
+            })
+        });
+
+    let files = Arc::try_unwrap(collected)
+        .map_err(|_| "Walker outlived the collector".to_string())?
+        .into_inner()
+        .map_err(|e| format!("Failed to collect scan results: {}", e))?;
+
+    Ok(files)
 }
 
 #[tauri::command]
@@ -419,7 +851,7 @@ fn watch_folder(
                             }
 
                             if path.is_dir()
-                                || path.extension().map_or(false, |ext| {
+                                || path.extension().is_some_and(|ext| {
                                     ext == "md" || ext == "markdown" || ext == "txt"
                                 })
                             {
@@ -436,7 +868,6 @@ fn watch_folder(
                                 };
 
                                 let _ = app_clone.emit("file-change", change_event);
-                            } else {
                             }
                         }
                     }
@@ -782,6 +1213,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             scan_folder_for_markdown,
+            read_workspace_files,
             create_folder,
             create_markdown_file,
             rename_entry,
@@ -793,7 +1225,16 @@ fn main() {
             show_main_window,
             update_dock_menu,
             open_recent_note,
-            take_pending_open_paths
+            take_pending_open_paths,
+            read_note_history,
+            append_note_history,
+            remove_note_history,
+            move_note_history,
+            clear_all_history,
+            read_all_drafts,
+            write_draft,
+            remove_draft,
+            clear_all_drafts
         ])
         .setup(|app| {
             #[cfg(not(target_os = "macos"))]
@@ -850,4 +1291,192 @@ fn main() {
             }
             let _ = (app_handle, event);
         });
+}
+
+#[cfg(test)]
+mod scan_tests {
+    use super::*;
+    use std::fs;
+
+    fn touch(path: &Path) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, "# note").unwrap();
+    }
+
+    fn names(files: &[MarkdownFile]) -> Vec<String> {
+        let mut out: Vec<String> = files.iter().map(|f| f.name.clone()).collect();
+        out.sort();
+        out
+    }
+
+    fn fixture(tag: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("marky_scan_{}", tag));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        touch(&root.join("Keep.md"));
+        touch(&root.join("node_modules/pkg/README.md"));
+        touch(&root.join("Archive/Old.md"));
+        touch(&root.join("build/Generated.md"));
+        root
+    }
+
+    #[test]
+    fn skips_node_modules_but_keeps_real_notes() {
+        let root = fixture("basic");
+        let files = scan_folder_for_markdown(root.to_string_lossy().to_string(), None).unwrap();
+        let found = names(&files);
+
+        assert!(found.contains(&"Keep.md".to_string()));
+        assert!(!found.contains(&"README.md".to_string()));
+        // Nothing else is guessed at: `build/` survives without a rule.
+        assert!(found.contains(&"Generated.md".to_string()));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn honors_gitignore_without_a_git_repo() {
+        let root = fixture("gitignore");
+        fs::write(root.join(".gitignore"), "build/\n").unwrap();
+
+        let files = scan_folder_for_markdown(root.to_string_lossy().to_string(), None).unwrap();
+        let found = names(&files);
+
+        assert!(!found.contains(&"Generated.md".to_string()));
+        assert!(found.contains(&"Keep.md".to_string()));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn applies_user_patterns() {
+        let root = fixture("user");
+        let files = scan_folder_for_markdown(
+            root.to_string_lossy().to_string(),
+            Some(vec!["Archive/".to_string()]),
+        )
+        .unwrap();
+        let found = names(&files);
+
+        assert!(!found.contains(&"Old.md".to_string()));
+        assert!(found.contains(&"Keep.md".to_string()));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_bad_user_pattern_does_not_hide_the_vault() {
+        let root = fixture("badpattern");
+        let files = scan_folder_for_markdown(
+            root.to_string_lossy().to_string(),
+            Some(vec![
+                "[".to_string(),
+                "".to_string(),
+                "# comment".to_string(),
+            ]),
+        )
+        .unwrap();
+
+        assert!(names(&files).contains(&"Keep.md".to_string()));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    fn by_name<'a>(files: &'a [WorkspaceFile], name: &str) -> &'a WorkspaceFile {
+        files.iter().find(|f| f.name == name).expect("file present")
+    }
+
+    #[test]
+    fn bulk_read_returns_content_in_one_call() {
+        let root = fixture("bulk");
+        let files = read_workspace_files(root.to_string_lossy().to_string(), None, None).unwrap();
+
+        assert_eq!(
+            by_name(&files, "Keep.md").content.as_deref(),
+            Some("# note")
+        );
+        // Same ignore rules as the plain scan.
+        assert!(!files.iter().any(|f| f.name == "README.md"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn bulk_read_skips_content_for_unchanged_files() {
+        let root = fixture("known");
+        let first = read_workspace_files(root.to_string_lossy().to_string(), None, None).unwrap();
+
+        let known: Vec<KnownFile> = first
+            .iter()
+            .filter(|f| !f.is_dir)
+            .map(|f| KnownFile {
+                path: f.path.clone(),
+                modified: f.modified,
+                size: f.size,
+            })
+            .collect();
+
+        let second =
+            read_workspace_files(root.to_string_lossy().to_string(), None, Some(known)).unwrap();
+
+        // Nothing changed on disk, so nothing is re-read.
+        assert!(second
+            .iter()
+            .filter(|f| !f.is_dir)
+            .all(|f| f.content.is_none()));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn bulk_read_returns_content_for_a_changed_file() {
+        let root = fixture("changed");
+        let first = read_workspace_files(root.to_string_lossy().to_string(), None, None).unwrap();
+
+        let known: Vec<KnownFile> = first
+            .iter()
+            .filter(|f| !f.is_dir)
+            .map(|f| KnownFile {
+                path: f.path.clone(),
+                modified: f.modified,
+                size: f.size,
+            })
+            .collect();
+
+        // Rewrite one file with a different length.
+        fs::write(root.join("Keep.md"), "# note, now longer").unwrap();
+
+        let second =
+            read_workspace_files(root.to_string_lossy().to_string(), None, Some(known)).unwrap();
+
+        assert_eq!(
+            by_name(&second, "Keep.md").content.as_deref(),
+            Some("# note, now longer")
+        );
+        assert!(by_name(&second, "Old.md").content.is_none());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn bulk_read_treats_unknown_stats_as_changed() {
+        let root = fixture("zerostat");
+        let known = vec![KnownFile {
+            path: root.join("Keep.md").to_string_lossy().to_string(),
+            modified: 0,
+            size: 0,
+        }];
+
+        let files =
+            read_workspace_files(root.to_string_lossy().to_string(), None, Some(known)).unwrap();
+
+        // A `0` stat means "no metadata", never "unchanged".
+        assert!(by_name(&files, "Keep.md").content.is_some());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn omits_the_root_itself() {
+        let root = fixture("root");
+        let files = scan_folder_for_markdown(root.to_string_lossy().to_string(), None).unwrap();
+        let root_str = root.to_string_lossy().to_string();
+
+        assert!(!files.iter().any(|f| f.path == root_str));
+        let _ = fs::remove_dir_all(&root);
+    }
 }

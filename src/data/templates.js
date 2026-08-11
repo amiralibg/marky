@@ -14,7 +14,7 @@ export const builtInTemplates = [
   {
     id: "blank",
     name: "Blank Note",
-    icon: "📄",
+    icon: "note",
     description: "Start with an empty note",
     getContent: () => "",
     getSuggestedTitle: () => null,
@@ -22,7 +22,7 @@ export const builtInTemplates = [
   {
     id: "meeting",
     name: "Meeting Notes",
-    icon: "📋",
+    icon: "template",
     description: "Template for meeting notes",
     getContent: () => {
       const today = formatDate(new Date());
@@ -52,7 +52,7 @@ export const builtInTemplates = [
   {
     id: "todo",
     name: "Todo List",
-    icon: "✅",
+    icon: "check",
     description: "Task list template",
     getContent: () => {
       const today = formatDate(new Date());
@@ -82,7 +82,7 @@ export const builtInTemplates = [
   {
     id: "daily",
     name: "Daily Journal",
-    icon: "📆",
+    icon: "calendar",
     description: "Daily journal entry",
     getContent: () => {
       const now = new Date();
@@ -117,7 +117,7 @@ export const builtInTemplates = [
   {
     id: "project",
     name: "Project Plan",
-    icon: "🎯",
+    icon: "target",
     description: "Project planning template",
     getContent: () => {
       const today = formatDate(new Date());
@@ -158,7 +158,7 @@ export const builtInTemplates = [
   {
     id: "research",
     name: "Research Notes",
-    icon: "🔍",
+    icon: "search",
     description: "Research and study notes",
     getContent: () => {
       const today = formatDate(new Date());
@@ -195,7 +195,7 @@ export const builtInTemplates = [
   {
     id: "brainstorm",
     name: "Brainstorming",
-    icon: "💡",
+    icon: "idea",
     description: "Ideas and brainstorming",
     getContent: () => {
       const today = formatDate(new Date());
@@ -207,9 +207,9 @@ export const builtInTemplates = [
 
 
 ## Ideas
-- 💡 
-- 💡 
-- 💡 
+- 
+- 
+- 
 
 ## Pros & Cons
 

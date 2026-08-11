@@ -7,13 +7,35 @@ import {
   renameEntryOnDisk,
   deleteEntryOnDisk,
   moveEntryOnDisk,
-  scanFolder,
+  readWorkspaceFiles,
   writeMarkdownFileOnDisk,
 } from "../utils/fileSystem";
 import { resolveTemplateById } from "../data/templates";
 import { addMinutes, calculateNextRun } from "../utils/schedule";
 import { buildDailyNoteContent, formatDailyNoteTitle } from "../utils/dailyNotes";
 import { getNoteProperties } from "../utils/frontmatter";
+import useSettingsStore, { parseIgnorePatterns } from "./settingsStore";
+// History and drafts live on disk (see utils/sideStore.js). They used to sit in
+// `localStorage`, where they shared a ~5 MB quota and failed silently.
+import {
+  addNoteHistorySnapshot,
+  removeNoteHistory,
+  moveNoteHistory,
+  getDraftCacheEntry,
+  setDraftCacheEntry,
+  removeDraftCacheEntry,
+  moveDraftCacheEntry,
+  clearDraftCache,
+  clearNoteHistory,
+  ensureDraftsHydrated,
+} from "../utils/sideStore";
+
+export { getNoteHistorySnapshots } from "../utils/sideStore";
+
+// Safe as a static import: settingsStore pulls nothing from here, so there is
+// no cycle. Read at scan time rather than captured, so editing the patterns and
+// refreshing picks up the change without a reload.
+const getIgnorePatterns = () => parseIgnorePatterns(useSettingsStore.getState().ignorePatterns);
 
 // Special ID for the Settings tab
 export const SETTINGS_TAB_ID = "settings::special";
@@ -216,134 +238,6 @@ const reserveUniqueName = (baseName, reservedNames) => {
 
 const pendingWriteTimers = new Map();
 const pendingMetadataTimers = new Map();
-const DRAFT_STORAGE_KEY = "marky-draft-cache";
-const NOTE_HISTORY_KEY = "marky-note-history";
-const NOTE_HISTORY_MAX_SNAPSHOTS = 20;
-
-const readNoteHistory = () => {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(NOTE_HISTORY_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-};
-
-const writeNoteHistory = (history) => {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(NOTE_HISTORY_KEY, JSON.stringify(history));
-  } catch {
-    // localStorage quota exceeded - silently skip
-  }
-};
-
-export const addNoteHistorySnapshot = (filePath, content) => {
-  if (!filePath || content == null) return;
-  const key = normalizePath(filePath);
-  const history = readNoteHistory();
-  const snapshots = Array.isArray(history[key]) ? history[key] : [];
-  const newSnapshot = { content, savedAt: new Date().toISOString() };
-  const next = [newSnapshot, ...snapshots].slice(0, NOTE_HISTORY_MAX_SNAPSHOTS);
-  history[key] = next;
-  writeNoteHistory(history);
-};
-
-export const getNoteHistorySnapshots = (filePath) => {
-  if (!filePath) return [];
-  const key = normalizePath(filePath);
-  const history = readNoteHistory();
-  return Array.isArray(history[key]) ? history[key] : [];
-};
-
-export const removeNoteHistory = (filePath) => {
-  if (!filePath) return;
-  const key = normalizePath(filePath);
-  const history = readNoteHistory();
-  delete history[key];
-  writeNoteHistory(history);
-};
-
-export const moveNoteHistory = (oldPath, newPath) => {
-  if (!oldPath || !newPath) return;
-  const oldKey = normalizePath(oldPath);
-  const newKey = normalizePath(newPath);
-  const history = readNoteHistory();
-  if (!(oldKey in history)) return;
-  history[newKey] = history[oldKey];
-  delete history[oldKey];
-  writeNoteHistory(history);
-};
-
-const readDraftCache = () => {
-  if (typeof window === "undefined") return {};
-
-  try {
-    const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch (error) {
-    console.error("Failed to read draft cache:", error);
-    return {};
-  }
-};
-
-const writeDraftCache = (cache) => {
-  if (typeof window === "undefined") return;
-
-  try {
-    window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(cache));
-  } catch (error) {
-    console.error("Failed to write draft cache:", error);
-  }
-};
-
-const setDraftCacheEntry = (filePath, content, updatedAt = new Date().toISOString()) => {
-  if (!filePath) return;
-  const key = normalizePath(filePath);
-  const cache = readDraftCache();
-  cache[key] = { content, updatedAt };
-  writeDraftCache(cache);
-};
-
-const getDraftCacheEntry = (filePath) => {
-  if (!filePath) return null;
-  const key = normalizePath(filePath);
-  return readDraftCache()[key] || null;
-};
-
-const removeDraftCacheEntry = (filePath) => {
-  if (!filePath) return;
-  const key = normalizePath(filePath);
-  const cache = readDraftCache();
-  if (!(key in cache)) return;
-  delete cache[key];
-  writeDraftCache(cache);
-};
-
-const moveDraftCacheEntry = (oldPath, newPath) => {
-  if (!oldPath || !newPath) return;
-  const oldKey = normalizePath(oldPath);
-  const newKey = normalizePath(newPath);
-  const cache = readDraftCache();
-  if (!(oldKey in cache)) return;
-  cache[newKey] = cache[oldKey];
-  delete cache[oldKey];
-  writeDraftCache(cache);
-};
-
-const clearDraftCache = () => {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(DRAFT_STORAGE_KEY);
-  } catch (error) {
-    console.error("Failed to clear draft cache:", error);
-  }
-};
 
 const scheduleMetadataUpdate = (noteId, content) => {
   const existing = pendingMetadataTimers.get(noteId);
@@ -389,7 +283,47 @@ const cancelAllPendingMetadataUpdates = () => {
   pendingMetadataTimers.clear();
 };
 
-const buildItemsFromFolderData = async ({ folderPath, folderName, files }, onProgress) => {
+/**
+ * Notes whose bytes on disk cannot have changed since we last read them, keyed
+ * by normalized path.
+ *
+ * The workspace refresh runs on *every* watcher event — including the ones
+ * Marky's own saves produce — and it used to re-read every file in the vault
+ * each time. Comparing the scan's `modified`/`size` against what we already
+ * hold turns that into reading only what actually changed.
+ *
+ * A file is only reused when both stats match and are non-zero: a `0` means the
+ * platform gave us no metadata, and the safe reading of "unknown" is "re-read".
+ */
+const buildReusableContentMap = (previousItems = []) => {
+  const map = new Map();
+  for (const item of previousItems) {
+    if (item.type !== "note" || !item.normalizedPath) continue;
+    if (item.content == null || !item.modified || !item.size) continue;
+    map.set(item.normalizedPath, item);
+  }
+  return map;
+};
+
+/**
+ * The stats for notes we already hold content for, in the shape the Rust bulk
+ * read expects. Sending these lets it skip re-reading files that cannot have
+ * changed and return `content: null` for them instead.
+ */
+const buildKnownFiles = (items = []) =>
+  items
+    .filter(
+      (item) =>
+        item.type === "note" && item.filePath && item.content != null && item.modified && item.size
+    )
+    .map((item) => ({ path: item.filePath, modified: item.modified, size: item.size }));
+
+const buildItemsFromFolderData = async (
+  { folderPath, folderName, files },
+  onProgress,
+  previousItems = []
+) => {
+  const reusable = buildReusableContentMap(previousItems);
   const now = new Date().toISOString();
   const normalizedRoot = normalizePath(folderPath);
   const rootId = buildId("folder", folderPath);
@@ -414,25 +348,26 @@ const buildItemsFromFolderData = async ({ folderPath, folderName, files }, onPro
     return a.path.toLowerCase().localeCompare(b.path.toLowerCase());
   });
 
-  // Load all note contents in parallel for tag extraction
+  // Contents arrive with the walk, in the same payload. An entry whose
+  // `content` is null was unchanged since we last read it, so the cached copy
+  // stands — that is what keeps a single save from re-reading the whole vault.
+  // Anything still missing (a file that appeared without stats, or a read that
+  // failed on the Rust side) falls back to empty rather than blocking the load.
   const noteContentMap = new Map();
   const noteEntries = sortedEntries.filter((entry) => !entry.is_dir);
   const total = noteEntries.length;
   let loaded = 0;
 
-  const noteLoadPromises = noteEntries.map(async (entry) => {
-    try {
-      const content = await readMarkdownFile(entry.path);
-      noteContentMap.set(entry.path, content);
-    } catch (error) {
-      console.error(`Failed to load note content for ${entry.path}:`, error);
-      noteContentMap.set(entry.path, ""); // Use empty string as fallback
+  for (const entry of noteEntries) {
+    if (entry.content != null) {
+      noteContentMap.set(entry.path, entry.content);
+    } else {
+      const cached = reusable.get(normalizePath(entry.path));
+      noteContentMap.set(entry.path, cached ? cached.content : "");
     }
     loaded++;
     if (onProgress) onProgress({ current: loaded, total, phase: "Loading notes" });
-  });
-
-  await Promise.all(noteLoadPromises);
+  }
 
   sortedEntries.forEach((entry) => {
     const normalizedEntry = normalizePath(entry.path);
@@ -467,6 +402,9 @@ const buildItemsFromFolderData = async ({ folderPath, folderName, files }, onPro
         updatedAt: now,
         linkKey: buildNoteLinkKey(entry.name),
         links: extractWikiLinks(noteContent),
+        // Carried so the next refresh can tell whether this file changed.
+        modified: entry.modified,
+        size: entry.size,
       });
     }
   });
@@ -507,8 +445,14 @@ const useNotesStore = create(
 
       setRootFolder: async (folderData) => {
         set({ isLoading: true, loadingProgress: null });
+        await ensureDraftsHydrated();
+        // Callers hand over the folder's identity; reading it happens here so
+        // the user's ignore patterns are applied on the very first open too.
+        const files =
+          folderData.files ??
+          (await readWorkspaceFiles(folderData.folderPath, getIgnorePatterns()));
         const { items: fsItems, rootId } = await buildItemsFromFolderData(
-          folderData,
+          { ...folderData, files },
           (progress) => {
             set({ loadingProgress: progress });
           }
@@ -570,21 +514,29 @@ const useNotesStore = create(
         // scroll position survives in-place refreshes like drag-moves.
         if (!silent) set({ isLoading: true, loadingProgress: null });
         try {
-          const files = await scanFolder(rootFolderPath);
+          // Drafts must be in memory before the item map below reads them
+          // synchronously; a no-op once hydrated.
+          await ensureDraftsHydrated();
+          const files = await readWorkspaceFiles(
+            rootFolderPath,
+            getIgnorePatterns(),
+            buildKnownFiles(state.items)
+          );
           const folderData = {
             folderPath: rootFolderPath,
             folderName: folderNameFromPath(rootFolderPath),
             files,
           };
+          const previousItems = state.items;
           const { items: fsItems, rootId } = await buildItemsFromFolderData(
             folderData,
             silent
               ? undefined
               : (progress) => {
                   set({ loadingProgress: progress });
-                }
+                },
+            previousItems
           );
-          const previousItems = state.items;
           // Paths that the fresh disk scan already covers — used to avoid keeping a
           // duplicate loose entry for a file that now lives inside the vault.
           const scannedPaths = new Set(
@@ -1130,9 +1082,26 @@ const useNotesStore = create(
         const item = state.items.find((entry) => entry.id === itemId);
         if (!item) return;
 
-        if (item.filePath) {
-          cancelPendingNoteWrite(item.filePath);
-          removeDraftCacheEntry(item.filePath);
+        // Drop the side storage for the item *and everything under it*. Deleting
+        // a folder used to clear only its own draft, and history was never
+        // cleared at all — so every deleted note left its snapshots behind
+        // forever. Back when this lived in localStorage those orphans were a
+        // large part of what filled the quota.
+        const sideStorePaths = (() => {
+          const collect = (id) => {
+            const children = state.items.filter((entry) => entry.parentId === id);
+            return [id, ...children.flatMap((child) => collect(child.id))];
+          };
+          return collect(itemId)
+            .map((id) => state.items.find((entry) => entry.id === id))
+            .filter((entry) => entry?.type === "note" && entry.filePath)
+            .map((entry) => entry.filePath);
+        })();
+
+        for (const path of sideStorePaths) {
+          cancelPendingNoteWrite(path);
+          removeDraftCacheEntry(path);
+          removeNoteHistory(path);
         }
 
         if (!item.filePath) {
@@ -1647,7 +1616,12 @@ const useNotesStore = create(
         return recentNotes
           .map((recent) => {
             const note = items.find((item) => item.id === recent.id);
-            return note ? { ...recent, exists: true } : { ...recent, exists: false };
+            // `recentNotes` persists only the light fields (id, name, path,
+            // timestamp). Content comes from the live item so callers can show a
+            // real excerpt; it is `null` until the workspace finishes loading.
+            return note
+              ? { ...recent, exists: true, content: note.content }
+              : { ...recent, exists: false };
           })
           .filter((r) => r.exists);
       },
@@ -1910,7 +1884,7 @@ const useNotesStore = create(
           templateId: config.templateId,
           templateType: config.templateType || null,
           templateName: config.templateName || "Template",
-          templateIcon: config.templateIcon || "📝",
+          templateIcon: config.templateIcon || "note",
           noteName: config.noteName ? config.noteName.trim() : null,
           folderId: config.folderId || null,
           frequency: config.frequency,
@@ -2127,7 +2101,7 @@ const useNotesStore = create(
           try {
             window.localStorage.removeItem("marky-storage");
             clearDraftCache();
-            window.localStorage.removeItem(NOTE_HISTORY_KEY);
+            clearNoteHistory();
           } catch (error) {
             console.error("Failed to clear persisted store:", error);
           }
@@ -2137,7 +2111,19 @@ const useNotesStore = create(
     {
       name: "marky-storage",
       partialize: (state) => ({
-        items: state.items,
+        // Vault-backed notes persist as metadata only. Their content is re-read
+        // from disk by `refreshRootFromDisk` on the very next launch, so keeping
+        // it here wrote the entire vault into localStorage's ~5 MB bucket on
+        // every store change — for data that was then thrown away. Unsaved work
+        // is not at risk: `dirtyNoteIds` isn't persisted, so the in-session
+        // recovery path can't fire on a cold start, and drafts come back from
+        // the on-disk draft store instead.
+        //
+        // Scratch buffers and loose files keep their content: they have no file
+        // on disk to reload from.
+        items: state.items.map((item) =>
+          item.type === "note" && item.filePath && !item.isLoose ? { ...item, content: null } : item
+        ),
         currentNoteId: state.currentNoteId,
         expandedFolders: state.expandedFolders,
         rootFolderPath: state.rootFolderPath,

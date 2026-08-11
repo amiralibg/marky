@@ -433,12 +433,47 @@ export const formatKeymap = (keymap) => {
   return parts;
 };
 
+/**
+ * How wide the text column is allowed to get. One measure drives the editor
+ * pane *and* the rendered preview, so switching Source → Live → Read never
+ * reflows the paragraph you were reading — before this the editor sat at 64rem
+ * and the preview at 46rem, and every mode switch moved the line breaks.
+ *
+ * `narrow` is the classic ~70-character measure; `wide` is what the editor
+ * used to do unconditionally.
+ */
+export const EDITOR_WIDTHS = [
+  { id: "narrow", label: "Narrow", value: "46rem", description: "Book measure, ~70 characters" },
+  { id: "default", label: "Default", value: "56rem", description: "Balanced" },
+  { id: "wide", label: "Wide", value: "64rem", description: "Fills the window" },
+];
+
+export const editorWidthValue = (id) =>
+  (EDITOR_WIDTHS.find((w) => w.id === id) || EDITOR_WIDTHS[1]).value;
+
+/**
+ * Extra gitignore-style globs the workspace scanner skips, one per line.
+ *
+ * `.gitignore`, `.ignore` and git's global excludes are always honoured, and
+ * `node_modules` / `.git` are always skipped — this is for the folders a user
+ * knows aren't notes but hasn't gitignored (`Archive/`, `*.excalidraw.md`, an
+ * attachments directory).
+ */
+export const parseIgnorePatterns = (raw) =>
+  (raw || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+
 const normalizeWorkspacePath = (value) => (value ? value.replace(/\\/g, "/") : "");
 
 const createDefaultProfileSettings = () => ({
   themeId: "vault",
   accentColorId: "purple",
+  editorWidth: "default",
+  ignorePatterns: "",
   vimMode: false,
+  vimVisualLineMotion: true,
   autosaveEnabled: false,
   autosaveDelay: 2000,
   typewriterMode: false,
@@ -451,7 +486,10 @@ const createDefaultProfileSettings = () => ({
 const buildProfileSettingsSnapshot = (state) => ({
   themeId: state.themeId,
   accentColorId: state.accentColorId,
+  editorWidth: state.editorWidth,
+  ignorePatterns: state.ignorePatterns,
   vimMode: state.vimMode,
+  vimVisualLineMotion: state.vimVisualLineMotion,
   autosaveEnabled: state.autosaveEnabled,
   autosaveDelay: state.autosaveDelay,
   typewriterMode: state.typewriterMode,
@@ -471,6 +509,7 @@ const mergeProfileSettings = (profile = {}) => {
   merged.accentColorId = migrateAccentId(merged.accentColorId);
   if (!THEMES.some((t) => t.id === merged.themeId)) merged.themeId = "vault";
   if (!ACCENT_COLORS.some((c) => c.id === merged.accentColorId)) merged.accentColorId = "purple";
+  if (!EDITOR_WIDTHS.some((w) => w.id === merged.editorWidth)) merged.editorWidth = "default";
   return merged;
 };
 
@@ -502,10 +541,15 @@ const useSettingsStore = create(
 
       // Editor settings
       vimMode: false,
+      // Make vim's j/k/0/$ follow wrapped display lines instead of logical
+      // lines — see components/editor/vimSetup.js.
+      vimVisualLineMotion: true,
       autosaveEnabled: false,
       autosaveDelay: 2000, // ms after last keystroke to auto-save
       typewriterMode: false,
       showLineNumbers: false, // Notion-clean default; toggle in Editor settings
+      editorWidth: "default", // 'narrow' | 'default' | 'wide' — see EDITOR_WIDTHS
+      ignorePatterns: "", // extra scanner excludes, one glob per line
       sidebarDensity: "comfortable", // 'compact' | 'comfortable' | 'spacious'
       showSidebarMetadata: true,
       openRecentOnStartup: true,
@@ -571,6 +615,16 @@ const useSettingsStore = create(
         get().syncProfileState({ vimMode: enabled });
       },
 
+      setVimVisualLineMotion: (enabled) => {
+        get().syncProfileState({ vimVisualLineMotion: enabled });
+      },
+
+      toggleVimVisualLineMotion: () => {
+        get().syncProfileState((state) => ({
+          vimVisualLineMotion: !state.vimVisualLineMotion,
+        }));
+      },
+
       setAutosaveEnabled: (enabled) => {
         get().syncProfileState({ autosaveEnabled: enabled });
       },
@@ -582,6 +636,12 @@ const useSettingsStore = create(
       },
       setShowLineNumbers: (enabled) => {
         get().syncProfileState({ showLineNumbers: enabled });
+      },
+      setEditorWidth: (width) => {
+        get().syncProfileState({ editorWidth: width });
+      },
+      setIgnorePatterns: (patterns) => {
+        get().syncProfileState({ ignorePatterns: patterns });
       },
       setSidebarDensity: (density) => {
         get().syncProfileState({ sidebarDensity: density });
@@ -790,9 +850,12 @@ const useSettingsStore = create(
         themeId: state.themeId,
         accentColorId: state.accentColorId,
         vimMode: state.vimMode,
+        vimVisualLineMotion: state.vimVisualLineMotion,
         autosaveEnabled: state.autosaveEnabled,
         autosaveDelay: state.autosaveDelay,
         typewriterMode: state.typewriterMode,
+        editorWidth: state.editorWidth,
+        ignorePatterns: state.ignorePatterns,
         sidebarDensity: state.sidebarDensity,
         showSidebarMetadata: state.showSidebarMetadata,
         keymaps: state.keymaps,

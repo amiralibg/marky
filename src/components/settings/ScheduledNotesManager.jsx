@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import ConfirmDialog from "../modals/ConfirmDialog";
 import useNotesStore from "../../store/notesStore";
+import { TemplateGlyph } from "../icons";
 
 const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -135,8 +136,8 @@ const ScheduledNotesManager = () => {
           >
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div className="flex items-start gap-3">
-                <span className="text-2xl" aria-hidden="true">
-                  {schedule.templateIcon || "📝"}
+                <span className="text-text-muted" aria-hidden="true">
+                  <TemplateGlyph icon={schedule.templateIcon} className="h-6 w-6" />
                 </span>
                 <div>
                   <h3 className="text-lg font-semibold text-text-primary">

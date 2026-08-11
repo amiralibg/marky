@@ -152,15 +152,12 @@ export async function openFolder() {
     // selected is a string path in Tauri v2
     const folderPath = typeof selected === "string" ? selected : selected.path;
 
-    // Call Rust backend to scan folder
-    const files = await invoke("scan_folder_for_markdown", {
-      folderPath: folderPath,
-    });
-
+    // Just the identity of the folder. Reading it is the store's job, because
+    // that is where the user's ignore patterns live — scanning here silently
+    // skipped them on the first open of a workspace.
     return {
       folderPath: folderPath,
       folderName: folderPath.split("/").pop() || "Folder",
-      files,
     };
   } catch (error) {
     console.error("Error opening folder:", error);
@@ -173,13 +170,45 @@ export async function openFolder() {
  * @param {string} folderPath
  * @returns {Promise<Array>}
  */
-export async function scanFolder(folderPath) {
+/**
+ * Scan a folder for markdown files.
+ *
+ * The Rust side honours `.gitignore` (and `.ignore`, and git's global excludes)
+ * plus the caller's own glob patterns, so a workspace that happens to be a code
+ * repo no longer drags its dependencies into the vault.
+ *
+ * @param {string} folderPath - Absolute path to the workspace root
+ * @param {string[]} [ignorePatterns] - Extra gitignore-style globs to skip
+ */
+export async function scanFolder(folderPath, ignorePatterns = []) {
   try {
-    const files = await invoke("scan_folder_for_markdown", { folderPath });
+    const files = await invoke("scan_folder_for_markdown", { folderPath, ignorePatterns });
     return files;
   } catch (error) {
     console.error("Error scanning folder:", error);
     wrapFsError(error, "scan this folder", folderPath);
+  }
+}
+
+/**
+ * Walk the workspace and return its notes *with their contents* in one call.
+ *
+ * The old path was a scan plus one `readTextFile` per note. That per-file IPC
+ * chatter, not the disk IO, is what made opening a large vault slow: a thousand
+ * notes meant a thousand round-trips across the bridge. This crosses once.
+ *
+ * @param {string} folderPath - Absolute path to the workspace root
+ * @param {string[]} ignorePatterns - Extra gitignore-style globs to skip
+ * @param {Array<{path: string, modified: number, size: number}>} known
+ *   Files the caller already holds content for. Matching entries come back with
+ *   `content: null`, so a refresh re-reads only what changed.
+ */
+export async function readWorkspaceFiles(folderPath, ignorePatterns = [], known = []) {
+  try {
+    return await invoke("read_workspace_files", { folderPath, ignorePatterns, known });
+  } catch (error) {
+    console.error("Error reading workspace:", error);
+    wrapFsError(error, "read this folder", folderPath);
   }
 }
 

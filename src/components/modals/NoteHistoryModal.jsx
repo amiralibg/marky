@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { getNoteHistorySnapshots } from "../../store/notesStore";
 import { computeLineDiff } from "../../utils/diff";
 
@@ -110,10 +110,30 @@ const NoteHistoryModal = ({ isOpen, onClose, note, onRestore }) => {
   const [confirmingIndex, setConfirmingIndex] = useState(null);
   const [viewMode, setViewMode] = useState("diff");
 
-  const snapshots = useMemo(() => {
-    if (!note?.filePath) return [];
-    // Skip the latest snapshot (index 0) — it matches the current saved content
-    return getNoteHistorySnapshots(note.filePath).slice(1);
+  // History moved from localStorage to disk, so this is a read rather than a
+  // lookup. The modal renders its empty state while the read is in flight.
+  const [snapshots, setSnapshots] = useState([]);
+
+  useEffect(() => {
+    if (!isOpen || !note?.filePath) {
+      setSnapshots([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    getNoteHistorySnapshots(note.filePath).then((loaded) => {
+      if (cancelled) return;
+      // Skip the latest snapshot (index 0) — it matches the current saved content
+      setSnapshots(loaded.slice(1));
+      // The list changed under the selection; start from the top rather than
+      // pointing at an index the new list may not have.
+      setSelectedIndex(0);
+      setConfirmingIndex(null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [note?.filePath, isOpen]);
 
   const selectedSnapshot = snapshots[selectedIndex] ?? null;
