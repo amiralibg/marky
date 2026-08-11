@@ -1153,7 +1153,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     return (
       <Suspense
         fallback={
-          <div className="h-full flex items-center justify-center bg-editor-bg text-sm text-text-muted">
+          <div className="h-full flex items-center justify-center bg-bg-editor text-sm text-text-muted">
             Loading settings...
           </div>
         }
@@ -1167,7 +1167,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     return (
       <Suspense
         fallback={
-          <div className="h-full flex items-center justify-center bg-editor-bg text-sm text-text-muted">
+          <div className="h-full flex items-center justify-center bg-bg-editor text-sm text-text-muted">
             Loading workspace...
           </div>
         }
@@ -1244,7 +1244,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
   ];
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-editor-bg">
+    <div className="h-full flex flex-col overflow-hidden bg-bg-editor">
       {/* Header — breadcrumb and view mode only. Everything else that used to
           sit here (Properties / Contents / Save / History / Export) is now one
           "⋯" menu, and the outline moved to the rail on the right edge. */}

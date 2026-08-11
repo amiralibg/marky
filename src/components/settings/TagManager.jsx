@@ -110,7 +110,7 @@ const TagManager = () => {
 
   if (tags.length === 0) {
     return (
-      <div className="border border-border rounded-xl bg-sidebar-bg/40 px-6 py-8 text-center text-text-muted">
+      <div className="border border-border rounded-xl bg-bg-sidebar/40 px-6 py-8 text-center text-text-muted">
         <p className="text-lg font-semibold text-text-primary mb-2">No tags yet</p>
         <p className="text-sm">
           Add hashtags like <code className="text-accent">#todo</code> in notes to manage them here.
@@ -121,7 +121,7 @@ const TagManager = () => {
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[minmax(220px,300px)_1fr] gap-4">
-      <div className="border border-overlay-subtle rounded-xl bg-sidebar-bg/40 p-3">
+      <div className="border border-overlay-subtle rounded-xl bg-bg-sidebar/40 p-3">
         <div className="mb-3">
           <label className="block text-xs font-medium text-text-muted mb-1">Filter tags</label>
           <input
@@ -162,7 +162,7 @@ const TagManager = () => {
         </div>
       </div>
 
-      <div className="border border-overlay-subtle rounded-xl bg-sidebar-bg/40 p-4 space-y-4">
+      <div className="border border-overlay-subtle rounded-xl bg-bg-sidebar/40 p-4 space-y-4">
         <div>
           <p className="text-sm text-text-muted">Selected tag</p>
           <div className="mt-1 flex items-center gap-2">

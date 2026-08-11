@@ -241,7 +241,7 @@ const WorkspaceDashboard = () => {
 
   if (!hasWorkspace) {
     return (
-      <div className="relative h-full overflow-hidden bg-editor-bg">
+      <div className="relative h-full overflow-hidden bg-bg-editor">
         <main className="relative z-10 flex h-full items-center justify-center px-6">
           <section className="w-full max-w-xl rounded-3xl border border-border bg-bg-base/75 p-7 text-center shadow-2xl shadow-black/10 backdrop-blur md:p-9">
             <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-accent/20 bg-accent/10 text-accent">
@@ -271,7 +271,7 @@ const WorkspaceDashboard = () => {
   }
 
   return (
-    <div className="relative h-full overflow-y-auto bg-editor-bg custom-scrollbar">
+    <div className="relative h-full overflow-y-auto bg-bg-editor custom-scrollbar">
       <main className="relative z-10 mx-auto max-w-[840px] px-14 pb-[72px] pt-[88px]">
         <div className="mb-[38px] text-center">
           <h1 className="text-[40px] font-semibold leading-[1.1] tracking-[-0.015em] text-text-primary">
