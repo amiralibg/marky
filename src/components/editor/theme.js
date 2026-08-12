@@ -87,9 +87,26 @@ export const markyTheme = EditorView.theme(
       fontSize: "13.5px",
       fontFamily: "var(--font-family-mono)",
     },
+    // CodeMirror's base theme rings the focused editor with `1px dotted
+    // #212121`. On this dark surface only the bottom edge reads — and in
+    // auto-height mode that edge sits wherever the content ends plus the 40vh
+    // tail, so an empty note drew a stray rule across the middle of the page.
+    // The caret already says where focus is.
+    "&.cm-focused": {
+      outline: "none",
+    },
     ".cm-content": {
       caretColor: "var(--color-accent)",
-      padding: "2rem 2.25rem",
+      // The 40vh tail is deliberate: it lets the last line of a note scroll up
+      // to the middle of the window instead of sticking to the bottom edge, so
+      // you're never typing at the rim of the screen.
+      //
+      // The side gutter is a variable so Live mode can widen it for the hanging
+      // heading hashes (see `liveGutterTheme` in livePreview.js). It has to be a
+      // variable rather than an override: this rule comes from
+      // `EditorView.theme`, which outranks anything the live-preview extension
+      // can declare, so a plain `.cm-content { padding-inline }` there loses.
+      padding: "2rem var(--marky-editor-gutter, 2.25rem) 40vh",
       lineHeight: "1.9",
     },
     ".cm-rtl-line": {

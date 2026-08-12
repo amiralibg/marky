@@ -2,6 +2,7 @@ import { useState } from "react";
 import useNotesStore from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
 import ConfirmDialog from "../modals/ConfirmDialog";
+import { openNoteInNewWindow } from "../../utils/noteWindows";
 
 // Count all descendant notes inside a folder recursively
 const getDescendantCount = (folderId) => {
@@ -41,6 +42,10 @@ const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
         return;
       } else if (action === "pin") {
         togglePinNote(item.id);
+        onClose();
+        return;
+      } else if (action === "openInWindow") {
+        await openNoteInNewWindow(item.filePath);
         onClose();
         return;
       } else if (action === "delete") {
@@ -162,6 +167,28 @@ const ContextMenu = ({ x, y, item, onClose, onRename, onShowTemplate }) => {
                   />
                 </svg>
                 {isNotePinned ? "Unpin" : "Pin to top"}
+              </button>
+            )}
+            {item.type === "note" && item.filePath && (
+              <button
+                className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
+                onClick={() => handleAction("openInWindow")}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 10a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2h-6a2 2 0 01-2-2v-6z"
+                  />
+                </svg>
+                Open in New Window
               </button>
             )}
             <div className="my-1 border-t border-glass-border" />

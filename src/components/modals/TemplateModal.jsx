@@ -9,6 +9,7 @@ import {
 } from "../../data/templates";
 import { exportTemplatesAsJson, importTemplatesFromJson } from "../../utils/backup";
 import useModalAccessibility from "../../hooks/useModalAccessibility";
+import { TemplateGlyph } from "../icons";
 
 const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }) => {
   const { customTemplates, addCustomTemplate, deleteCustomTemplate } = useNotesStore();
@@ -23,7 +24,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
   const [scheduleFreq, setScheduleFreq] = useState("daily");
   const [newTemplate, setNewTemplate] = useState({
     name: "",
-    icon: "📝",
+    icon: "note",
     description: "",
     content: "",
   });
@@ -137,7 +138,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
     if (!name || !content) return;
 
     addCustomTemplate(newTemplate);
-    setNewTemplate({ name: "", icon: "📝", description: "", content: "" });
+    setNewTemplate({ name: "", icon: "note", description: "", content: "" });
     setShowCreateForm(false);
   };
 
@@ -235,7 +236,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
                       setNewTemplate({ ...newTemplate, icon: event.target.value })
                     }
                     className="w-full px-3 py-2 bg-bg-base border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
-                    placeholder="📝"
+                    placeholder="note"
                     maxLength={2}
                   />
                 </div>
@@ -270,7 +271,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
                   <button
                     onClick={() => {
                       setShowCreateForm(false);
-                      setNewTemplate({ name: "", icon: "📝", description: "", content: "" });
+                      setNewTemplate({ name: "", icon: "note", description: "", content: "" });
                     }}
                     className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-light rounded-lg transition-colors"
                   >
@@ -337,7 +338,9 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
                         }`}
                         title={template.name}
                       >
-                        <span className="text-xl shrink-0">{template.icon}</span>
+                        <span className="shrink-0 text-text-muted">
+                          <TemplateGlyph icon={template.icon} className="h-5 w-5" />
+                        </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-semibold text-text-primary truncate">
                             {template.name}

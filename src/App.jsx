@@ -15,7 +15,16 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { readMarkdownFile } from "./utils/fileSystem";
+import {
+  migrateLegacyStorage,
+  ensureDraftsHydrated,
+  setSideStoreErrorHandler,
+} from "./utils/sideStore";
+import { openNoteInNewWindow } from "./utils/noteWindows";
 import { useFileWatcher } from "./hooks/useFileWatcher";
+
+const getErrorMessage = (error) =>
+  typeof error === "string" ? error : error?.message || "Please try again.";
 
 const TemplateModal = lazy(() => import("./components/modals/TemplateModal"));
 const ScheduleNoteModal = lazy(() => import("./components/modals/ScheduleNoteModal"));
@@ -59,6 +68,36 @@ function App() {
   useEffect(() => {
     initializeSettings();
   }, [initializeSettings]);
+
+  // Note history and unsaved drafts live on disk now. Migrate anything left in
+  // localStorage from an older build, then load the drafts into memory so the
+  // vault loader can read them synchronously. Failures are surfaced rather than
+  // swallowed — silently losing a draft is what the old storage did.
+  useEffect(() => {
+    let cancelled = false;
+
+    setSideStoreErrorHandler((action, error) => {
+      if (cancelled) return;
+      addNotification(`Marky couldn’t ${action}. ${getErrorMessage(error)}`, "error");
+    });
+
+    (async () => {
+      const moved = await migrateLegacyStorage();
+      await ensureDraftsHydrated();
+      if (cancelled) return;
+      if (moved.drafts || moved.history) {
+        addNotification(
+          `Moved ${moved.drafts} draft${moved.drafts === 1 ? "" : "s"} and ${moved.history} history snapshot${moved.history === 1 ? "" : "s"} to disk storage`,
+          "success"
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      setSideStoreErrorHandler(null);
+    };
+  }, [addNotification]);
 
   useEffect(() => {
     if (!import.meta.env.PROD) return;
@@ -290,6 +329,17 @@ function App() {
           } else {
             addNotification("No note is selected", "info");
           }
+          break;
+        }
+        case "openCurrentNoteInNewWindow": {
+          const currentNote = useNotesStore.getState().getCurrentNote();
+          if (!currentNote?.filePath) {
+            addNotification("Save this note to a file before opening it in a window", "warning");
+            break;
+          }
+          openNoteInNewWindow(currentNote.filePath).catch((error) =>
+            addNotification("Could not open a new window: " + error.message, "error")
+          );
           break;
         }
         case "copyCurrentNotePath": {
@@ -681,7 +731,12 @@ function App() {
       {/* Custom Title Bar */}
       {!focusMode && (
         <TitleBar
-          sidebarWidth={sidebarWidth + 5}
+          /* Exactly the sidebar's width, not a nudge past it: `titlebar-left`
+             and the sidebar are both border-box with a 1px `border-r`, so equal
+             widths put both hairlines on the same pixel column. The old `+ 5`
+             cleared the resize handle back when it was a 4px column of its
+             own. */
+          sidebarWidth={sidebarWidth}
           showSidebar={showSidebar}
           onNewNote={() => sidebarRef.current?.handleNewNote?.()}
           onNewFolder={() => sidebarRef.current?.handleNewFolder?.()}
@@ -691,12 +746,14 @@ function App() {
       )}
 
       <div className="flex-1 flex relative overflow-hidden">
-        {/* Sidebar */}
+        {/* Sidebar. Its `border-r` is the same hairline `titlebar-left` draws
+            above it, at the same x — the two meet as one line running the full
+            height of the window. */}
         {!focusMode && (
-          <div className="flex border-r border-border">
+          <div className="relative flex">
             <div
               className={`
-              relative shrink-0
+              relative shrink-0 border-r border-border
               ${!showSidebar ? "hidden" : ""}
               ${isResizingSidebar ? "transition-none" : "transition-transform duration-300 ease-in-out"}
               flex flex-col overflow-hidden
@@ -720,13 +777,18 @@ function App() {
                 />
               )}
             </div>
-            {/* Resize Handle */}
+            {/* Resize handle. Absolute and centred on the border rather than a
+                column of its own: a column would push the editor 4px clear of
+                the sidebar and leave a strip of bare background between them.
+                Nothing to see at rest — the border is the only mark there —
+                and the grab strip takes the accent under the pointer. */}
             {showSidebar && !focusMode && (
               <div
                 onMouseDown={startResizingSidebar}
+                style={{ left: `${sidebarWidth}px` }}
                 className={`
-              w-1 h-full cursor-col-resize hover:bg-accent/50 transition-colors z-20 shrink-0
-              ${isResizingSidebar ? "bg-accent opacity-100" : "bg-transparent opacity-0"}
+              absolute inset-y-0 w-1 -translate-x-1/2 cursor-col-resize transition-colors z-20
+              ${isResizingSidebar ? "bg-accent" : "bg-transparent hover:bg-accent/50"}
             `}
               />
             )}

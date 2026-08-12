@@ -2,6 +2,31 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import Fuse from "fuse.js";
 import useNotesStore from "../../store/notesStore";
 import useModalAccessibility from "../../hooks/useModalAccessibility";
+import { notePreview } from "../../utils/notePreview";
+import {
+  NoteIcon,
+  NotePlusIcon,
+  FolderPlusIcon,
+  FolderOpenIcon,
+  CalendarIcon,
+  SaveIcon,
+  SearchIcon,
+  SidebarIcon,
+  EditIcon,
+  SplitIcon,
+  EyeIcon,
+  GraphIcon,
+  ExportIcon,
+  SettingsIcon,
+  KeyboardIcon,
+  FocusIcon,
+  ArchiveIcon,
+  TemplateIcon,
+  WindowIcon,
+  LinkIcon,
+  BookmarkIcon,
+  PinIcon,
+} from "../icons";
 
 const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   const [query, setQuery] = useState("");
@@ -25,7 +50,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "new-note",
         name: "New Note",
         category: "File Operations",
-        icon: "📝",
+        icon: NotePlusIcon,
         action: "newNote",
         keywords: ["create", "add"],
       },
@@ -33,7 +58,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "new-folder",
         name: "New Folder",
         category: "File Operations",
-        icon: "📁",
+        icon: FolderPlusIcon,
         action: "newFolder",
         keywords: ["create", "directory"],
       },
@@ -41,7 +66,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "daily-note",
         name: "Open Today’s Daily Note",
         category: "File Operations",
-        icon: "📆",
+        icon: CalendarIcon,
         action: "openDailyNote",
         keywords: ["journal", "today", "calendar"],
       },
@@ -49,7 +74,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "open-folder",
         name: "Open Folder",
         category: "File Operations",
-        icon: "📂",
+        icon: FolderOpenIcon,
         action: "openFolder",
         keywords: ["import", "load"],
       },
@@ -57,7 +82,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "save",
         name: "Save Note",
         category: "File Operations",
-        icon: "💾",
+        icon: SaveIcon,
         action: "save",
         keywords: ["write"],
       },
@@ -67,7 +92,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "search",
         name: "Search All Notes",
         category: "Navigation",
-        icon: "🔍",
+        icon: SearchIcon,
         action: "search",
         keywords: ["find"],
       },
@@ -75,7 +100,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "toggle-sidebar",
         name: "Toggle Sidebar",
         category: "Navigation",
-        icon: "🎯",
+        icon: SidebarIcon,
         action: "toggleSidebar",
         keywords: ["hide", "show"],
       },
@@ -85,7 +110,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "view-editor",
         name: "Editor Only View",
         category: "View",
-        icon: "✏️",
+        icon: EditIcon,
         action: "viewEditor",
         keywords: ["edit", "write"],
       },
@@ -93,7 +118,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "view-split",
         name: "Split View",
         category: "View",
-        icon: "⚡",
+        icon: SplitIcon,
         action: "viewSplit",
         keywords: ["preview", "both"],
       },
@@ -101,7 +126,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "view-preview",
         name: "Preview Only View",
         category: "View",
-        icon: "👁️",
+        icon: EyeIcon,
         action: "viewPreview",
         keywords: ["render", "show"],
       },
@@ -111,7 +136,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "graph",
         name: "Open Graph View",
         category: "Tools",
-        icon: "🕸️",
+        icon: GraphIcon,
         action: "openGraph",
         keywords: ["network", "connections"],
       },
@@ -119,7 +144,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "export",
         name: "Export Note",
         category: "Tools",
-        icon: "📤",
+        icon: ExportIcon,
         action: "exportNote",
         keywords: ["download", "save as"],
       },
@@ -127,7 +152,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "settings",
         name: "Open Settings",
         category: "Tools",
-        icon: "⚙️",
+        icon: SettingsIcon,
         action: "openSettings",
         keywords: ["preferences", "config"],
       },
@@ -135,7 +160,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "shortcuts",
         name: "Show Keyboard Shortcuts",
         category: "Help",
-        icon: "⌨️",
+        icon: KeyboardIcon,
         action: "showShortcuts",
         keywords: ["help", "keybindings"],
       },
@@ -145,7 +170,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "focus-mode",
         name: "Toggle Focus Mode",
         category: "View",
-        icon: "🎯",
+        icon: FocusIcon,
         action: "toggleFocusMode",
         keywords: ["distraction", "zen", "write", "fullscreen"],
       },
@@ -155,7 +180,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "backup",
         name: "Backup Workspace",
         category: "Tools",
-        icon: "📦",
+        icon: ArchiveIcon,
         action: "backupWorkspace",
         keywords: ["export", "zip", "archive", "save"],
       },
@@ -170,7 +195,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "new-note-current-folder",
         name: "New Note in Current Folder",
         category: "Current Note",
-        icon: "🗂️",
+        icon: NotePlusIcon,
         action: "newNoteInCurrentFolder",
         keywords: ["create", "same folder", "template"],
       },
@@ -178,7 +203,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "template-current-folder",
         name: "Open Templates for Current Folder",
         category: "Current Note",
-        icon: "📋",
+        icon: TemplateIcon,
         action: "openTemplatesForCurrentFolder",
         keywords: ["template", "same folder"],
       },
@@ -186,15 +211,23 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "rename-current-note",
         name: "Rename Current Note",
         category: "Current Note",
-        icon: "✏️",
+        icon: EditIcon,
         action: "renameCurrentNote",
         keywords: ["title", "file name"],
+      },
+      {
+        id: "open-current-in-window",
+        name: "Open Current Note in New Window",
+        category: "Current Note",
+        icon: WindowIcon,
+        action: "openCurrentNoteInNewWindow",
+        keywords: ["window", "split", "side by side", "detach", "popout"],
       },
       {
         id: "copy-current-path",
         name: "Copy Current Note Path",
         category: "Current Note",
-        icon: "🔗",
+        icon: LinkIcon,
         action: "copyCurrentNotePath",
         keywords: ["clipboard", "file path"],
       },
@@ -202,7 +235,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "copy-current-wikilink",
         name: "Copy Current Note Wiki Link",
         category: "Current Note",
-        icon: "🔖",
+        icon: BookmarkIcon,
         action: "copyCurrentNoteWikiLink",
         keywords: ["clipboard", "markdown", "link"],
       },
@@ -210,7 +243,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         id: "toggle-current-pin",
         name: pinLabel,
         category: "Current Note",
-        icon: "📌",
+        icon: PinIcon,
         action: "toggleCurrentNotePin",
         keywords: ["favorite", "pinned"],
       },
@@ -332,18 +365,6 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
     }
 
     onClose();
-  };
-
-  const getCategoryIcon = (category) => {
-    const icons = {
-      "File Operations": "📁",
-      Navigation: "🧭",
-      View: "👁️",
-      Tools: "🛠️",
-      Help: "❓",
-      "Current Note": "📄",
-    };
-    return icons[category] || "⚡";
   };
 
   if (!isOpen) return null;
@@ -483,8 +504,11 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
                 >
                   <div className="flex items-center gap-3">
                     {/* Icon */}
-                    <div className="shrink-0 text-xl" aria-hidden="true">
-                      {isNote ? "📄" : item.icon}
+                    <div className="shrink-0 text-text-muted" aria-hidden="true">
+                      {(() => {
+                        const Glyph = isNote ? NoteIcon : item.icon;
+                        return Glyph ? <Glyph className="w-[18px] h-[18px]" /> : null;
+                      })()}
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -504,14 +528,13 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
                       <p
                         className="text-xs text-text-muted truncate"
                         title={
-                          isNote
-                            ? item.content || "Empty note"
-                            : `${getCategoryIcon(item.category)} ${item.category}`
+                          isNote ? notePreview(item.content, 200) || "Empty note" : item.category
                         }
                       >
-                        {isNote
-                          ? item.content?.slice(0, 80) || "Empty note"
-                          : `${getCategoryIcon(item.category)} ${item.category}`}
+                        {/* The row already carries an icon on the left, so the
+                            category needs no second glyph. Notes show cleaned
+                            prose rather than raw markdown. */}
+                        {isNote ? notePreview(item.content, 80) || "Empty note" : item.category}
                       </p>
                     </div>
 

@@ -1,6 +1,6 @@
 [package]
 name = "marky"
-version = "1.1.1"
+version = "1.2.0"
 description = "A beautiful markdown note-taking app"
 authors = ["you"]
 edition = "2021"
@@ -20,6 +20,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 notify = "6.1"
 notify-debouncer-full = "0.3"
+# Gitignore-aware directory walking (the crate behind ripgrep). Replaces the
+# hand-rolled recursive scan, which skipped only dotfiles — so a workspace that
+# happened to be a code repo pulled every README in node_modules into memory.
+ignore = "0.4"
 
 [profile.release]
 panic = "abort"

@@ -97,9 +97,36 @@ const getManualChunk = (id) => {
   return group?.name;
 };
 
+/**
+ * Ship only KaTeX's woff2 fonts.
+ *
+ * `katex.min.css` lists woff2, woff and ttf for every face, so Vite emitted all
+ * three — 1.17 MB of fonts where the WebView only ever loads the first, woff2.
+ * Rewriting the `src` before Vite resolves those URLs means the other two are
+ * never referenced and never emitted, saving ~876 KB.
+ *
+ * woff2 has been supported since Safari 10 / Chrome 36, so the WebView this app
+ * runs in never needs the fallbacks.
+ */
+const katexWoff2Only = () => ({
+  name: "katex-woff2-only",
+  enforce: "pre",
+  transform(code, id) {
+    if (!id.replace(/\\/g, "/").includes("/node_modules/katex/dist/katex")) return null;
+    if (!code.includes("@font-face")) return null;
+
+    // `src:url(a.woff2) format("woff2"),url(a.woff) format("woff"),…` → woff2 only.
+    const trimmed = code.replace(
+      /src:\s*(url\([^)]*\.woff2\)\s*format\(["']woff2["']\))[^;}]*/g,
+      "src:$1"
+    );
+    return trimmed === code ? null : { code: trimmed, map: null };
+  },
+});
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), katexWoff2Only()],
   test: {
     environment: "jsdom",
     globals: true,

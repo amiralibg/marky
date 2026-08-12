@@ -344,7 +344,7 @@ const Sidebar = forwardRef(
       try {
         await moveItem(draggedItem.id, targetFolder.id);
       } catch (error) {
-        console.error("❌ Failed to move item:", error);
+        console.error("Failed to move item:", error);
         addNotification("Failed to move item: " + error.message, "error");
       } finally {
         restoreTreeScroll(scrollTop);
@@ -696,7 +696,7 @@ const Sidebar = forwardRef(
       try {
         await moveItemToRoot(draggedItem.id);
       } catch (error) {
-        console.error("❌ Failed to move item:", error);
+        console.error("Failed to move item:", error);
         addNotification("Failed to move item: " + error.message, "error");
       }
 
@@ -1045,7 +1045,7 @@ const Sidebar = forwardRef(
     }, [rootFolderPath, refreshRootFromDisk, addNotification, selectNote]);
 
     return (
-      <aside className="w-full bg-sidebar-bg flex flex-col h-full" aria-label="Workspace sidebar">
+      <aside className="w-full bg-bg-sidebar flex flex-col h-full" aria-label="Workspace sidebar">
         {/* Workspace Switcher */}
         <div className="px-2.5 pt-2 pb-1 shrink-0 relative">
           <button
@@ -1096,7 +1096,7 @@ const Sidebar = forwardRef(
           {showWorkspaceSwitcher && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowWorkspaceSwitcher(false)} />
-              <div className="absolute left-2.5 right-2.5 z-20 mt-1 bg-sidebar-bg border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute left-2.5 right-2.5 z-20 mt-1 bg-bg-sidebar border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                 {recentWorkspaces.filter((ws) => ws.path !== rootFolderPath).length > 0 && (
                   <>
                     <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
@@ -1110,14 +1110,11 @@ const Sidebar = forwardRef(
                           onClick={async () => {
                             setShowWorkspaceSwitcher(false);
                             try {
-                              const { invoke } = await import("@tauri-apps/api/core");
-                              const files = await invoke("scan_folder_for_markdown", {
-                                folderPath: ws.path,
-                              });
+                              // No `files`: the store reads the folder itself,
+                              // so the ignore patterns apply here too.
                               await loadFolderFromSystem({
                                 folderPath: ws.path,
                                 folderName: ws.name,
-                                files,
                               });
                             } catch (err) {
                               addNotification("Could not open workspace: " + err.message, "error");

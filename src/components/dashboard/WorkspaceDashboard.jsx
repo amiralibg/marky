@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import useNotesStore from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
 import { countWords } from "../../utils/workspaceStats";
+import { notePreview } from "../../utils/notePreview";
+import { FolderIcon } from "../icons";
 
 const greeting = () => {
   const h = new Date().getHours();
@@ -125,42 +127,71 @@ const QuickStart = ({ label, icon: Icon, onClick, primary = false }) => (
   </button>
 );
 
-const RecentCard = ({ note, date, onClick }) => (
-  <button
-    onClick={onClick}
-    className="group overflow-hidden rounded-xl border border-border bg-bg-editor p-0 text-left transition-colors hover:border-text-muted"
-    title={note.filePath || note.name}
-  >
-    <div className="flex h-[70px] flex-col gap-1.5 bg-bg-base px-3.5 pt-3.5">
-      <div className="h-[5px] w-[78%] rounded-[3px] bg-[var(--color-bar)]" />
-      <div className="h-[5px] w-[55%] rounded-[3px] bg-[var(--color-bar)]" />
-      <div className="h-[5px] w-[66%] rounded-[3px] bg-[var(--color-bar)]" />
-    </div>
-    <div className="flex items-center gap-2 border-t border-border px-3.5 py-[11px]">
-      <svg
-        className="w-4 h-4 shrink-0 text-text-muted"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.8}
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z"
-        />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M14 3v5h5" />
-      </svg>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium text-text-primary group-hover:text-accent">
-          {note.name}
+const RecentCard = ({ note, date, onClick }) => {
+  // The note's own opening lines, not a skeleton. Cheap: the vault already
+  // holds the content, and the excerpt is memoized per card.
+  //
+  // `null` means the workspace read hasn't landed yet, which is different from
+  // an empty file — only the latter deserves "Empty note".
+  const isLoading = note.content == null;
+  const preview = useMemo(() => notePreview(note.content, 160), [note.content]);
+
+  return (
+    <button
+      onClick={onClick}
+      className="group overflow-hidden rounded-xl border border-border bg-bg-editor p-0 text-left transition-colors hover:border-text-muted"
+      title={note.filePath || note.name}
+    >
+      {/* `dir="auto"` so a Persian note reads right-aligned in its own card.
+          The fade at the bottom keeps a clipped third line from ending on a
+          hard cut. */}
+      <div className="relative h-[70px] overflow-hidden bg-bg-base px-3.5 pt-3">
+        {isLoading ? (
+          // Content arrives with the workspace read. The bars are the loading
+          // state — which is all they ever were, they just used to be permanent.
+          <div className="flex flex-col gap-1.5 pt-0.5">
+            <div className="h-[5px] w-[78%] rounded-[3px] bg-[var(--color-bar)]" />
+            <div className="h-[5px] w-[55%] rounded-[3px] bg-[var(--color-bar)]" />
+            <div className="h-[5px] w-[66%] rounded-[3px] bg-[var(--color-bar)]" />
+          </div>
+        ) : preview ? (
+          <p
+            dir="auto"
+            className="text-[10.5px] leading-[1.55] text-text-muted [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] overflow-hidden"
+          >
+            {preview}
+          </p>
+        ) : (
+          <p className="text-[10.5px] italic leading-[1.55] text-text-muted/60">Empty note</p>
+        )}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-5 bg-gradient-to-t from-bg-base to-transparent" />
+      </div>
+      <div className="flex items-center gap-2 border-t border-border px-3.5 py-[11px]">
+        <svg
+          className="w-4 h-4 shrink-0 text-text-muted"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.8}
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z"
+          />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14 3v5h5" />
+        </svg>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] font-medium text-text-primary group-hover:text-accent">
+            {note.name}
+          </span>
+          <span className="block text-[11.5px] text-text-muted">{date || "Note"}</span>
         </span>
-        <span className="block text-[11.5px] text-text-muted">{date || "Note"}</span>
-      </span>
-    </div>
-  </button>
-);
+      </div>
+    </button>
+  );
+};
 
 const SectionLabel = ({ icon, children }) => (
   <div className="flex items-center gap-2 text-[13px] font-semibold text-text-secondary">
@@ -210,11 +241,11 @@ const WorkspaceDashboard = () => {
 
   if (!hasWorkspace) {
     return (
-      <div className="relative h-full overflow-hidden bg-editor-bg">
+      <div className="relative h-full overflow-hidden bg-bg-editor">
         <main className="relative z-10 flex h-full items-center justify-center px-6">
           <section className="w-full max-w-xl rounded-3xl border border-border bg-bg-base/75 p-7 text-center shadow-2xl shadow-black/10 backdrop-blur md:p-9">
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-accent/20 bg-accent/10 text-3xl text-accent">
-              📁
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-accent/20 bg-accent/10 text-accent">
+              <FolderIcon className="h-7 w-7" />
             </div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-accent">
               No Workspace Selected
@@ -240,7 +271,7 @@ const WorkspaceDashboard = () => {
   }
 
   return (
-    <div className="relative h-full overflow-y-auto bg-editor-bg custom-scrollbar">
+    <div className="relative h-full overflow-y-auto bg-bg-editor custom-scrollbar">
       <main className="relative z-10 mx-auto max-w-[840px] px-14 pb-[72px] pt-[88px]">
         <div className="mb-[38px] text-center">
           <h1 className="text-[40px] font-semibold leading-[1.1] tracking-[-0.015em] text-text-primary">
