@@ -383,10 +383,10 @@
   /* Custom Scrollbar (Vault: 11px, padded pill thumb).
 
      Present when needed, invisible when not: the thumb is transparent until
-     the pointer is somewhere over its scroller, which is what `.quiet-scroll`
-     already did for the editor panes. A scrollbar standing at full strength in
-     every sidebar, modal and list is chrome the app never asked for. Firefox
-     gets the same behaviour through `scrollbar-color`. */
+     the pointer is somewhere over its scroller. A scrollbar standing at full
+     strength in every sidebar, modal and list is chrome the app never asked
+     for. Firefox gets the same behaviour through `scrollbar-color`. The
+     editor, live and read panes go further and draw no bar at all. */
   * {
     scrollbar-color: transparent transparent;
   }
@@ -439,27 +439,16 @@
     display: none;
   }
 
-  /* Quiet scrollbar for the editor/preview panes — thin, dim, recedes until hovered */
-  .quiet-scroll {
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-overlay-light) transparent;
+  /* The editor's own scroller — the one CodeMirror owns in focus mode, where
+     the outer `EditorScrollFade` steps aside. Scrolls, never draws a bar, same
+     as every other editor/preview/live surface. */
+  .cm-scroller {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
-  .quiet-scroll::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-
-  .quiet-scroll::-webkit-scrollbar-thumb {
-    background: var(--color-overlay-light);
-    border-radius: 8px;
-    border: 3px solid transparent;
-    background-clip: padding-box;
-  }
-
-  .quiet-scroll::-webkit-scrollbar-thumb:hover {
-    background: var(--color-overlay-strong);
-    background-clip: padding-box;
+  .cm-scroller::-webkit-scrollbar {
+    display: none;
   }
 }
 

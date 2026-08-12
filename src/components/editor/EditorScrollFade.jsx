@@ -4,9 +4,6 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 // Writer uses — marky's panes are often split, and a tall fade eats a split
 // pane's usable height.
 const FADE = 36;
-// Width of the strip the scrollbar lives in. `.quiet-scroll` draws a 10px
-// track; the extra 2px keeps the thumb's rounded edge out of the gradient.
-const GUTTER = 12;
 // Slack so a sub-pixel scroll offset doesn't count as "scrolled".
 const EPSILON = 2;
 
@@ -17,9 +14,8 @@ const EPSILON = 2;
  * reason — at rest the top line sat under the gradient and read as blurred.
  * An edge only fades once there is something hidden behind it.
  *
- * Two gradients composited with `add`: the vertical one does the fading, the
- * horizontal one punches the scrollbar gutters back to opaque so the thumb
- * doesn't fade out along with the text.
+ * A single vertical gradient: the scroller hides its scrollbar, so there is no
+ * thumb to punch back out of the fade.
  */
 const buildMask = (fadeTop, fadeBottom) => {
   if (!fadeTop && !fadeBottom) return undefined;
@@ -27,10 +23,7 @@ const buildMask = (fadeTop, fadeBottom) => {
   const start = fadeTop ? `transparent 0, black ${FADE}px` : "black 0";
   const end = fadeBottom ? `black calc(100% - ${FADE}px), transparent 100%` : "black 100%";
 
-  return [
-    `linear-gradient(to bottom, ${start}, ${end})`,
-    `linear-gradient(to right, black ${GUTTER}px, transparent ${GUTTER}px, transparent calc(100% - ${GUTTER}px), black calc(100% - ${GUTTER}px))`,
-  ].join(", ");
+  return `linear-gradient(to bottom, ${start}, ${end})`;
 };
 
 // A blur that only bites where the mask has already thinned the text, so lines
@@ -47,8 +40,8 @@ function EdgeBlur({ position }) {
       className="pointer-events-none absolute z-10"
       style={{
         [isTop ? "top" : "bottom"]: 0,
-        left: GUTTER,
-        right: GUTTER,
+        left: 0,
+        right: 0,
         height: FADE * 2,
         backdropFilter: "blur(3px)",
         WebkitBackdropFilter: "blur(3px)",
@@ -130,7 +123,7 @@ const EditorScrollFade = forwardRef(
         <div
           ref={attachScroller}
           onScroll={syncEdges}
-          className="quiet-scroll flex min-h-0 w-full flex-1 flex-col overflow-y-auto"
+          className="no-scrollbar flex min-h-0 w-full flex-1 flex-col overflow-y-auto"
           style={{
             maskImage: mask,
             WebkitMaskImage: mask,

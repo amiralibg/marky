@@ -685,7 +685,7 @@
    Display math is a block: centred, and allowed to scroll rather than spill. */
 .markdown-preview .katex {
   color: var(--color-text-primary);
-  font-size: 1.08em;
+  font-size: 2.08em;
 }
 
 .markdown-preview .katex-display {

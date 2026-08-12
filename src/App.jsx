@@ -731,7 +731,12 @@ function App() {
       {/* Custom Title Bar */}
       {!focusMode && (
         <TitleBar
-          sidebarWidth={sidebarWidth + 5}
+          /* Exactly the sidebar's width, not a nudge past it: `titlebar-left`
+             and the sidebar are both border-box with a 1px `border-r`, so equal
+             widths put both hairlines on the same pixel column. The old `+ 5`
+             cleared the resize handle back when it was a 4px column of its
+             own. */
+          sidebarWidth={sidebarWidth}
           showSidebar={showSidebar}
           onNewNote={() => sidebarRef.current?.handleNewNote?.()}
           onNewFolder={() => sidebarRef.current?.handleNewFolder?.()}
@@ -741,12 +746,14 @@ function App() {
       )}
 
       <div className="flex-1 flex relative overflow-hidden">
-        {/* Sidebar */}
+        {/* Sidebar. Its `border-r` is the same hairline `titlebar-left` draws
+            above it, at the same x — the two meet as one line running the full
+            height of the window. */}
         {!focusMode && (
-          <div className="flex border-r border-border">
+          <div className="relative flex">
             <div
               className={`
-              relative shrink-0
+              relative shrink-0 border-r border-border
               ${!showSidebar ? "hidden" : ""}
               ${isResizingSidebar ? "transition-none" : "transition-transform duration-300 ease-in-out"}
               flex flex-col overflow-hidden
@@ -770,13 +777,18 @@ function App() {
                 />
               )}
             </div>
-            {/* Resize Handle */}
+            {/* Resize handle. Absolute and centred on the border rather than a
+                column of its own: a column would push the editor 4px clear of
+                the sidebar and leave a strip of bare background between them.
+                Nothing to see at rest — the border is the only mark there —
+                and the grab strip takes the accent under the pointer. */}
             {showSidebar && !focusMode && (
               <div
                 onMouseDown={startResizingSidebar}
+                style={{ left: `${sidebarWidth}px` }}
                 className={`
-              w-1 h-full cursor-col-resize hover:bg-accent/50 transition-colors z-20 shrink-0
-              ${isResizingSidebar ? "bg-accent opacity-100" : "bg-transparent opacity-0"}
+              absolute inset-y-0 w-1 -translate-x-1/2 cursor-col-resize transition-colors z-20
+              ${isResizingSidebar ? "bg-accent" : "bg-transparent hover:bg-accent/50"}
             `}
               />
             )}

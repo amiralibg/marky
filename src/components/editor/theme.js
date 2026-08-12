@@ -87,6 +87,14 @@ export const markyTheme = EditorView.theme(
       fontSize: "13.5px",
       fontFamily: "var(--font-family-mono)",
     },
+    // CodeMirror's base theme rings the focused editor with `1px dotted
+    // #212121`. On this dark surface only the bottom edge reads — and in
+    // auto-height mode that edge sits wherever the content ends plus the 40vh
+    // tail, so an empty note drew a stray rule across the middle of the page.
+    // The caret already says where focus is.
+    "&.cm-focused": {
+      outline: "none",
+    },
     ".cm-content": {
       caretColor: "var(--color-accent)",
       // The 40vh tail is deliberate: it lets the last line of a note scroll up
