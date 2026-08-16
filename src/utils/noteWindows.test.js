@@ -30,6 +30,7 @@ const loadModule = async () => {
 };
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   getByLabel.mockReset();
   getByLabel.mockResolvedValue(null);
   setFocus.mockReset();
@@ -45,6 +46,15 @@ describe("openNoteInNewWindow", () => {
 
     expect(constructed).toHaveLength(1);
     expect(constructed[0].options.url).toBe("index.html?note=%2Fvault%2FMy%20Note.md");
+  });
+
+  it("removes native decorations when creating a Linux window", async () => {
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Marky Linux");
+
+    const { openNoteInNewWindow } = await loadModule();
+    await openNoteInNewWindow("/vault/A.md");
+
+    expect(constructed[0].options.decorations).toBe(false);
   });
 
   it("builds a label from characters Tauri accepts", async () => {

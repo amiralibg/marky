@@ -1,6 +1,6 @@
 [package]
 name = "marky"
-version = "1.2.1"
+version = "1.2.2"
 description = "A beautiful markdown note-taking app"
 authors = ["you"]
 edition = "2021"
@@ -24,6 +24,7 @@ notify-debouncer-full = "0.3"
 # hand-rolled recursive scan, which skipped only dotfiles — so a workspace that
 # happened to be a code repo pulled every README in node_modules into memory.
 ignore = "0.4"
+tauri-plugin-process = "2.3.1"
 
 [profile.release]
 panic = "abort"

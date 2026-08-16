@@ -12,7 +12,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import useNotesStore from "../../store/notesStore";
 import useSettingsStore, { THEMES } from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
-import { checkForAppUpdate, installAppUpdate } from "../../utils/appUpdater";
+import { checkForAppUpdate, installAppUpdate, restartApp } from "../../utils/appUpdater";
 
 import {
   openMarkdownFile,
@@ -1626,6 +1626,15 @@ const Sidebar = forwardRef(
                   className="mt-3 w-full py-1.5 rounded-lg bg-accent text-bg-base text-xs font-semibold hover:opacity-90 transition-opacity"
                 >
                   Download & Install
+                </button>
+              )}
+
+              {appUpdate.status === "installed" && (
+                <button
+                  onClick={restartApp}
+                  className="mt-3 w-full py-1.5 rounded-lg bg-accent text-bg-base text-xs font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Restart Marky
                 </button>
               )}
 

@@ -14,7 +14,7 @@ import {
   exportSettingsAsJson,
   importSettingsFromJson,
 } from "../../utils/backup";
-import { checkForAppUpdate, installAppUpdate } from "../../utils/appUpdater";
+import { checkForAppUpdate, installAppUpdate, restartApp } from "../../utils/appUpdater";
 import { UpdateIcon } from "../icons/AppUpdateIcon";
 
 const BatchExportModal = lazy(() => import("../modals/BatchExportModal"));
@@ -493,6 +493,14 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                       className="px-4 py-2 rounded-lg font-medium text-sm bg-accent hover:bg-accent/80 text-white transition-all flex items-center gap-2"
                     >
                       Download & Install
+                    </button>
+                  )}
+                  {appUpdate.status === "installed" && (
+                    <button
+                      onClick={restartApp}
+                      className="px-4 py-2 rounded-lg font-medium text-sm bg-accent hover:bg-accent/80 text-white transition-all flex items-center gap-2"
+                    >
+                      Restart Marky
                     </button>
                   )}
                   <button

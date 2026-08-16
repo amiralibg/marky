@@ -3513,6 +3513,37 @@
       "title": "FsScopeEntry"
     }
   },
+  "process": {
+    "default_permission": {
+      "identifier": "default",
+      "description": "This permission set configures which\nprocess features are by default exposed.\n\n#### Granted Permissions\n\nThis enables to quit via `allow-exit` and restart via `allow-restart`\nthe application.\n",
+      "permissions": ["allow-exit", "allow-restart"]
+    },
+    "permissions": {
+      "allow-exit": {
+        "identifier": "allow-exit",
+        "description": "Enables the exit command without any pre-configured scope.",
+        "commands": { "allow": ["exit"], "deny": [] }
+      },
+      "allow-restart": {
+        "identifier": "allow-restart",
+        "description": "Enables the restart command without any pre-configured scope.",
+        "commands": { "allow": ["restart"], "deny": [] }
+      },
+      "deny-exit": {
+        "identifier": "deny-exit",
+        "description": "Denies the exit command without any pre-configured scope.",
+        "commands": { "allow": [], "deny": ["exit"] }
+      },
+      "deny-restart": {
+        "identifier": "deny-restart",
+        "description": "Denies the restart command without any pre-configured scope.",
+        "commands": { "allow": [], "deny": ["restart"] }
+      }
+    },
+    "permission_sets": {},
+    "global_scope_schema": null
+  },
   "updater": {
     "default_permission": {
       "identifier": "default",

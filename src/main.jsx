@@ -14,9 +14,9 @@ const platform = applyPlatformAttribute();
 // GTK packs the app menu bar inside the window, over Marky's own title bar.
 // The main window is dealt with in Rust at startup; every window created after
 // that — a note opened in its own window — asks for the same treatment here,
-// because the JS window API has no `hideMenu`.
+// because the JS window API has no `removeMenu`.
 if (platform === "linux") {
-  invoke("hide_window_menu").catch(() => {});
+  invoke("remove_window_menu").catch(() => {});
 }
 
 // A `?note=` parameter means this window was opened to edit one specific file

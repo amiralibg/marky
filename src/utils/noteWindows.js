@@ -1,4 +1,5 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { detectPlatform } from "./platform";
 
 /**
  * Open a note in its own window.
@@ -27,6 +28,7 @@ export async function openNoteInNewWindow(filePath) {
   if (!filePath) return null;
 
   const label = labelFor(filePath);
+  const isLinux = detectPlatform() === "linux";
 
   const existing = await WebviewWindow.getByLabel(label);
   if (existing) {
@@ -44,6 +46,7 @@ export async function openNoteInNewWindow(filePath) {
     minHeight: 320,
     titleBarStyle: "Overlay",
     hiddenTitle: true,
+    decorations: !isLinux,
     dragDropEnabled: true,
   });
 

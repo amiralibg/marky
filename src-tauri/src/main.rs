@@ -945,34 +945,39 @@ fn take_pending_open_paths(state: State<PendingOpen>) -> Vec<String> {
     std::mem::take(&mut *guard)
 }
 
-/// Hide the native menu bar for a window on GTK.
+/// Remove the native menu bar from a window on GTK.
 ///
 /// macOS puts the app menu in the system bar and Windows draws it in the frame
 /// we already removed, but GTK packs a `GtkMenuBar` *inside* the window, above
-/// the webview — so on Linux the app rendered a stray "Edit / Window / Help"
-/// strip sitting on top of Marky's own title bar. Hiding the widget leaves the
-/// accelerator group attached to the window, so Ctrl+S, Ctrl+O and friends keep
-/// working; only the strip goes away.
+/// the webview — so on Linux the app otherwise renders a stray
+/// "Edit / Window / Help" strip sitting on top of Marky's own title bar.
 ///
-/// `hide_menu` is a no-op on macOS, so the runtime check is all the guarding
-/// this needs — and the call still type-checks on every platform.
-fn hide_native_menu<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
+/// `hide_menu` is not sufficient here: when the initially hidden window is
+/// shown, GTK's `show_all` makes the menu widget visible again. Removing it
+/// keeps the custom title bar stable through startup and later hide/show cycles.
+fn remove_native_menu<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
     if cfg!(target_os = "linux") {
-        let _ = window.hide_menu();
+        if let Err(error) = window.remove_menu() {
+            eprintln!(
+                "Failed to remove native menu from {}: {error}",
+                window.label()
+            );
+        }
     }
 }
 
 /// Windows opened after startup (a note in its own window) inherit the app menu
-/// too, and the frontend cannot reach `hide_menu` — the JS API doesn't expose
+/// too, and the frontend cannot reach `remove_menu` — the JS API doesn't expose
 /// it. Each window asks for this once as it boots.
 #[tauri::command]
-fn hide_window_menu(window: tauri::WebviewWindow) {
-    hide_native_menu(&window);
+fn remove_window_menu(window: tauri::WebviewWindow) {
+    remove_native_menu(&window);
 }
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(WatcherState {
             _watcher: Arc::new(Mutex::new(None)),
         })
@@ -1251,7 +1256,7 @@ fn main() {
             update_dock_menu,
             open_recent_note,
             take_pending_open_paths,
-            hide_window_menu,
+            remove_window_menu,
             read_note_history,
             append_note_history,
             remove_note_history,
@@ -1266,12 +1271,15 @@ fn main() {
             #[cfg(not(target_os = "macos"))]
             {
                 let window = app.get_webview_window("main").unwrap();
-                let _ = window.set_decorations(false);
+                if let Err(error) = window.set_decorations(false) {
+                    eprintln!("Failed to disable native window decorations: {error}");
+                }
             }
 
-            // Do this before the first frame so the strip never flashes.
+            // Remove, rather than hide, because GTK's later `show_all` would
+            // make a hidden menu visible again.
             for window in app.webview_windows().values() {
-                hide_native_menu(window);
+                remove_native_menu(window);
             }
 
             // Files passed on the command line — Windows/Linux "Open with" and
