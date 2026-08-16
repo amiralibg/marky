@@ -60,7 +60,13 @@
     "description": "",
     "local": true,
     "windows": ["main"],
-    "permissions": ["core:default", "dialog:default", "fs:default", "updater:default"],
+    "permissions": [
+      "core:default",
+      "dialog:default",
+      "fs:default",
+      "updater:default",
+      "process:allow-restart"
+    ],
     "platforms": ["macOS", "windows", "linux"]
   }
 }

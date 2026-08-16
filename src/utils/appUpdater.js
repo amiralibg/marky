@@ -1,4 +1,5 @@
 import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import useUIStore from "../store/uiStore";
 
 const isTauriRuntime = () => Boolean(window.__TAURI_INTERNALS__);
@@ -86,9 +87,23 @@ export const checkForAppUpdate = async ({ silent = false } = {}) => {
   }
 };
 
+export const restartApp = async () => {
+  const { addNotification } = useUIStore.getState();
+
+  if (!isTauriRuntime()) {
+    window.location.reload();
+    return;
+  }
+
+  try {
+    await relaunch();
+  } catch (error) {
+    addNotification(`Could not restart Marky: ${getErrorMessage(error)}`, "error", 5000);
+  }
+};
+
 export const installAppUpdate = async (providedUpdate = null) => {
-  const { addNotification, removeNotification, setAppUpdate, updateNotification } =
-    useUIStore.getState();
+  const { addNotification, setAppUpdate, updateNotification } = useUIStore.getState();
   const update = providedUpdate || useUIStore.getState().appUpdate.update;
 
   if (!update) {
@@ -158,9 +173,11 @@ export const installAppUpdate = async (providedUpdate = null) => {
       type: "success",
       progress: 100,
       progressLabel: "Complete",
+      action: {
+        label: "Restart now",
+        callback: restartApp,
+      },
     });
-
-    setTimeout(() => removeNotification(progressNotificationId), 8000);
   } catch (error) {
     const message = getErrorMessage(error);
     setAppUpdate({
