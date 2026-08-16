@@ -1,16 +1,7 @@
 import { useRef, useEffect, useMemo, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import useNotesStore, { SETTINGS_TAB_ID } from "../../store/notesStore";
-
-const detectPlatform = () => {
-  const userAgent = navigator.userAgent.toLowerCase();
-  const platform = navigator.platform.toLowerCase();
-
-  if (userAgent.includes("win") || platform.includes("win")) return "windows";
-  if (userAgent.includes("mac") || platform.includes("mac")) return "macos";
-  if (userAgent.includes("linux") || platform.includes("linux")) return "linux";
-  return "unknown";
-};
+import { detectPlatform } from "../../utils/platform";
 
 const TitleBar = ({
   sidebarWidth,

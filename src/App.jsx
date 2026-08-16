@@ -5,6 +5,7 @@ import OnboardingModal from "./components/modals/OnboardingModal";
 import WorkspaceRequiredModal from "./components/modals/WorkspaceRequiredModal";
 import NotificationToast from "./components/layout/NotificationToast";
 import TitleBar from "./components/layout/TitleBar";
+import WindowResizeHandles from "./components/layout/WindowResizeHandles";
 import ConfirmDialog from "./components/modals/ConfirmDialog";
 import useNotesStore, { SETTINGS_TAB_ID } from "./store/notesStore";
 import useSettingsStore, { matchesKeymap } from "./store/settingsStore";
@@ -21,7 +22,11 @@ import {
   setSideStoreErrorHandler,
 } from "./utils/sideStore";
 import { openNoteInNewWindow } from "./utils/noteWindows";
+import { detectPlatform } from "./utils/platform";
 import { useFileWatcher } from "./hooks/useFileWatcher";
+
+// The platform cannot change while the app runs, so this is read once.
+const isLinux = detectPlatform() === "linux";
 
 const getErrorMessage = (error) =>
   typeof error === "string" ? error : error?.message || "Please try again.";
@@ -728,6 +733,9 @@ function App() {
     <div
       className={`app-shell h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden ${isResizingSidebar ? "select-none cursor-col-resize" : ""}`}
     >
+      {/* Linux draws no frame of its own around an undecorated window. */}
+      {isLinux && <WindowResizeHandles />}
+
       {/* Custom Title Bar */}
       {!focusMode && (
         <TitleBar

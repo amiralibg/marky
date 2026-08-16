@@ -1,9 +1,23 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App.jsx";
 import NoteWindow from "./components/NoteWindow.jsx";
+import { applyPlatformAttribute } from "./utils/platform.js";
 import "./index.css";
+
+// Set before the first render so platform-specific chrome (the Linux window
+// edge) paints with the rest of the app rather than a frame later.
+const platform = applyPlatformAttribute();
+
+// GTK packs the app menu bar inside the window, over Marky's own title bar.
+// The main window is dealt with in Rust at startup; every window created after
+// that — a note opened in its own window — asks for the same treatment here,
+// because the JS window API has no `hideMenu`.
+if (platform === "linux") {
+  invoke("hide_window_menu").catch(() => {});
+}
 
 // A `?note=` parameter means this window was opened to edit one specific file
 // (see `openNoteInNewWindow`). It renders a focused editor rather than a second
