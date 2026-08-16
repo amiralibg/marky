@@ -19,7 +19,7 @@ It is designed for local folder-based note-taking with wiki links, graph navigat
 
 Download the latest desktop build from the [Marky releases page](https://github.com/amiralibg/marky/releases/latest). Installers are attached to each GitHub release after the app is built.
 
-Current first-version target: `0.0.2`.
+Current version: [`v1.2.2`](https://github.com/amiralibg/marky/releases/tag/v1.2.2).
 
 ## Highlights
 
@@ -157,12 +157,12 @@ Use this when the code is ready and committed:
 ```bash
 git status
 git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json
-git commit -m "chore: release v0.0.2"
-git tag v0.0.2
+git commit -m "chore: release v1.2.2"
+git tag v1.2.2
 git push origin main --tags
 ```
 
-When the `v0.0.2` tag is pushed, `.github/workflows/release.yml` runs on GitHub Actions and creates the GitHub Release for that tag.
+When the `v1.2.2` tag is pushed, `.github/workflows/release.yml` runs on GitHub Actions and creates the GitHub Release for that tag.
 
 ### Automatic release from the GitHub UI
 
@@ -170,7 +170,7 @@ Use this if you want to release the current commit without creating a local tag:
 
 1. Open the repository on GitHub.
 2. Go to **Actions** -> **Release** -> **Run workflow**.
-3. Enter a tag such as `v0.0.2`.
+3. Enter a tag such as `v1.2.2`.
 4. Choose whether it is a prerelease.
 5. Run the workflow.
 
