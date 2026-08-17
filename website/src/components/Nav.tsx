@@ -1,0 +1,84 @@
+import { Command, Moon, Sun } from "lucide-react";
+import { GITHUB_REPO_URL } from "../lib/releases";
+import type { Theme } from "../lib/theme";
+
+type Props = {
+  onOpenPalette: () => void;
+  theme: Theme;
+  onToggleTheme: () => void;
+};
+
+export default function Nav({ onOpenPalette, theme, onToggleTheme }: Props) {
+  return (
+    <header className="sticky top-0 z-40 border-b border-line bg-canvas/85 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-6 md:px-10">
+        <a href="#top" className="flex items-center gap-2.5">
+          <img src="/icon.png" alt="" width={28} height={28} className="rounded-sm" />
+          <span className="text-[15px] font-semibold tracking-[-0.02em]">Marky</span>
+        </a>
+
+        <nav className="hidden items-center gap-1 sm:flex" aria-label="Primary">
+          <a
+            href="#features"
+            className="rounded-sm px-3 py-2 text-[14px] font-medium text-ink/55 transition-colors duration-200 hover:text-ink sm:px-4"
+          >
+            Features
+          </a>
+          <a
+            href="#graph"
+            className="hidden rounded-sm px-3 py-2 text-[14px] font-medium text-ink/55 transition-colors duration-200 hover:text-ink md:inline sm:px-4"
+          >
+            Graph
+          </a>
+          <a
+            href="#download"
+            className="rounded-sm px-3 py-2 text-[14px] font-medium text-ink/55 transition-colors duration-200 hover:text-ink sm:px-4"
+          >
+            Download
+          </a>
+          <a
+            href={GITHUB_REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="hidden rounded-sm px-4 py-2 text-[14px] font-medium text-ink/55 transition-colors duration-200 hover:text-ink md:inline"
+          >
+            GitHub
+          </a>
+        </nav>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-line bg-surface text-ink/70 transition-colors duration-200 hover:text-ink"
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? (
+              <Sun size={16} strokeWidth={2} />
+            ) : (
+              <Moon size={16} strokeWidth={2} />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={onOpenPalette}
+            className="inline-flex h-9 items-center gap-2 rounded-sm border border-line bg-surface px-2.5 text-[12px] text-ink/55 transition-colors duration-200 hover:text-ink"
+            aria-label="Open command palette"
+          >
+            <Command size={13} strokeWidth={2} />
+            <span className="hidden sm:inline">Search</span>
+            <kbd className="hidden rounded-sm bg-ink/[0.06] px-1.5 py-0.5 font-mono text-[11px] sm:inline">
+              ⌘K
+            </kbd>
+          </button>
+          <a
+            href="#download"
+            className="btn-accent inline-flex h-9 items-center rounded-sm px-4 text-[14px] font-medium"
+          >
+            Download
+          </a>
+        </div>
+      </div>
+    </header>
+  );
+}

@@ -157,6 +157,17 @@ describe("livePreview decorations", () => {
     expect(hasCheckbox).toBe(true);
   });
 
+  it("keeps every line of a Persian quote ruled on the RTL side", () => {
+    const doc = ["intro", "", "> ۱/", ">", "> متن فارسی", ">", "> 🧵"].join("\n");
+    view = makeView(doc, 0);
+    const quoteLines = collectDecorations(view).filter((d) =>
+      d.deco.spec?.class?.includes?.("cm-lp-quote")
+    );
+
+    expect(quoteLines).toHaveLength(5);
+    expect(quoteLines.every((d) => d.deco.spec.class.includes("cm-lp-quote-rtl"))).toBe(true);
+  });
+
   it("renders a mermaid fence as a mermaid widget when inactive", () => {
     const doc = "intro\n\n```mermaid\ngraph TD; A-->B;\n```\n\nend";
     view = makeView(doc, 0);
