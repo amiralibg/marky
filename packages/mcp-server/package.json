@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "marky-mcp": "./bin/index.js"
+    "marky-mcp": "bin/index.js"
   },
   "files": [
     "bin",
