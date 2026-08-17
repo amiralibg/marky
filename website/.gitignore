@@ -1,0 +1,6 @@
+node_modules
+dist
+*.local
+.DS_Store
+tsconfig.tsbuildinfo
+node_modules/.tmp

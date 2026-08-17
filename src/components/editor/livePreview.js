@@ -3,6 +3,7 @@ import { StateField, StateEffect, EditorState, EditorSelection } from "@codemirr
 import { syntaxTree } from "@codemirror/language";
 import { marked } from "marked";
 import katex from "katex";
+import { detectBaseDirection } from "../../utils/bidi";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Live Preview
@@ -580,13 +581,22 @@ function buildDecorations(state) {
       if (name === "Blockquote") {
         const startLine = doc.lineAt(node.from).number;
         const endLine = doc.lineAt(node.to).number;
+        // A quote is one directional block in Read mode. Keep its rule on that
+        // same physical side in Live mode, including source lines that contain
+        // only `>` or emoji and therefore have no strong character of their own.
+        // Text direction remains per-line; only the quote chrome is block-wide.
+        const quoteDir = detectBaseDirection(doc.sliceString(node.from, node.to));
         protectedRanges.push({
           from: doc.line(startLine).from,
           to: doc.line(endLine).to,
         });
         for (let n = startLine; n <= endLine; n += 1) {
           const line = doc.line(n);
-          ranges.push(Decoration.line({ class: "cm-lp-line cm-lp-quote" }).range(line.from));
+          ranges.push(
+            Decoration.line({
+              class: `cm-lp-line cm-lp-quote cm-lp-quote-${quoteDir}`,
+            }).range(line.from)
+          );
         }
         return;
       }
@@ -919,9 +929,18 @@ const livePreviewTheme = EditorView.baseTheme({
     fontVariantLigatures: "none",
   },
   ".cm-lp-quote": {
-    borderInlineStart: "3px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
-    paddingInlineStart: "1.1em",
     color: "var(--color-text-secondary)",
+  },
+  // Physical sides are intentional. Every source line gets its own CodeMirror
+  // element and may resolve to a different direction (especially a bare `>`
+  // separator), while the quote rule must remain continuous on one side.
+  ".cm-lp-quote-ltr": {
+    borderLeft: "3px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
+    paddingLeft: "1.1em",
+  },
+  ".cm-lp-quote-rtl": {
+    borderRight: "3px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
+    paddingRight: "1.1em",
   },
   ".cm-lp-link": {
     color: "var(--color-accent)",
