@@ -2,7 +2,7 @@
 
 Model Context Protocol (MCP) Server for [Marky](https://github.com/amiralibg/marky) markdown notes vaults.
 
-Connect external AI assistants such as **Claude Desktop**, **Cursor**, **Antigravity**, and **VS Code** directly to your local Marky notes vault over standard I/O (stdio).
+Connect external AI assistants such as **Claude Code**, **Claude Desktop**, **Cursor**, **OpenCode / Cline**, **ChatGPT**, **Zed**, and **Antigravity** directly to your local Marky notes vault over standard I/O (stdio).
 
 ---
 
@@ -25,12 +25,15 @@ npx -y @marky-app/mcp-server
 
 ## 💻 Configuration
 
+### Claude Code (CLI)
+
+```bash
+claude mcp add marky -- npx -y @marky-app/mcp-server /path/to/your/notes
+```
+
 ### Claude Desktop
 
-Add to your `claude_desktop_config.json`:
-
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+Add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -43,16 +46,38 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-### Cursor IDE
+### Cursor / OpenCode / Cline / Roo Code
 
-Add to `.cursor/mcp.json` or Cursor Global Settings:
+Add to `.cursor/mcp.json` or `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "marky": {
       "command": "npx",
-      "args": ["-y", "@marky-app/mcp-server", "/path/to/your/marky/vault"]
+      "args": ["-y", "@marky-app/mcp-server", "/path/to/your/notes"]
+    }
+  }
+}
+```
+
+### ChatGPT Desktop (macOS)
+
+In **Settings → Developer → MCP Servers**, add:
+
+- **Command**: `npx`
+- **Arguments**: `-y @marky-app/mcp-server /path/to/your/notes`
+
+### Zed Editor
+
+In `settings.json`:
+
+```json
+{
+  "context_servers": {
+    "marky": {
+      "command": "npx",
+      "args": ["-y", "@marky-app/mcp-server", "/path/to/your/notes"]
     }
   }
 }

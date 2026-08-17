@@ -40,9 +40,9 @@ Current version: [`v1.2.4`](https://github.com/amiralibg/marky/releases/tag/v1.2
 
 ### AI & Model Context Protocol (MCP)
 
-- Built-in MCP Server (`@marky-app/mcp-server`) connects your notes to Claude Desktop, Cursor, Antigravity, and other AI tools
+- Built-in MCP Server (`@marky-app/mcp-server`) connects your notes to **Claude Code**, **Claude Desktop**, **Cursor**, **OpenCode / Cline**, **ChatGPT**, **Zed**, and other AI tools
 - AI tools can fuzzy search notes, read full content, create new notes, append daily logs, inspect backlinks, and query tags
-- In-app 1-click config generator in Settings -> AI & MCP
+- In-app 1-click config generator in Settings -> AI & MCP for all major AI clients
 - See the [MCP Server Guide](docs/mcp-server.md) for setup instructions
 
 ### Notes and workspace
