@@ -1,12 +1,12 @@
 # Marky MCP (Model Context Protocol) Server
 
-Connect your Marky Markdown notes with AI clients such as **Claude Desktop**, **Cursor**, **Antigravity**, **VS Code**, and **Zed** via the standard Model Context Protocol.
+Connect your Marky Markdown notes with any MCP-compatible AI assistant — including **Claude Code**, **Claude Desktop**, **Cursor**, **OpenCode / Cline / Roo Code**, **ChatGPT Desktop**, **Zed**, and **Antigravity** — via the standard Model Context Protocol.
 
 ---
 
 ## ⚡ Quick Start
 
-You can run the MCP server directly using `npx`:
+Run the MCP server directly using `npx`:
 
 ```bash
 npx -y @marky-app/mcp-server /path/to/your/marky/vault
@@ -21,11 +21,34 @@ npx -y @marky-app/mcp-server
 
 ---
 
-## 💻 Client Configuration
+## 💻 Client Configuration Guides
 
-### 1. Claude Desktop
+### 1. 🤖 Claude Code (CLI)
 
-Add the following to your `claude_desktop_config.json`:
+Add Marky to your Claude Code CLI sessions with one command:
+
+```bash
+claude mcp add marky -- npx -y @marky-app/mcp-server /path/to/your/notes
+```
+
+Or add it to your `~/.claude/mcp.json` or project `.claude/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "marky": {
+      "command": "npx",
+      "args": ["-y", "@marky-app/mcp-server", "/path/to/your/notes"]
+    }
+  }
+}
+```
+
+---
+
+### 2. 🖥️ Claude Desktop
+
+Add to your `claude_desktop_config.json`:
 
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -36,17 +59,15 @@ Add the following to your `claude_desktop_config.json`:
   "mcpServers": {
     "marky": {
       "command": "npx",
-      "args": ["-y", "@marky-app/mcp-server", "/Users/yourname/Documents/MarkyNotes"]
+      "args": ["-y", "@marky-app/mcp-server", "/path/to/your/notes"]
     }
   }
 }
 ```
 
-Restart Claude Desktop, and you will see the Marky tools and prompts available in the tool picker (🔨 icon).
-
 ---
 
-### 2. Cursor IDE
+### 3. 🖱️ Cursor IDE
 
 Add to your project's `.cursor/mcp.json` or your global Cursor Settings:
 
@@ -55,7 +76,7 @@ Add to your project's `.cursor/mcp.json` or your global Cursor Settings:
   "mcpServers": {
     "marky": {
       "command": "npx",
-      "args": ["-y", "@marky-app/mcp-server", "/path/to/your/marky/vault"]
+      "args": ["-y", "@marky-app/mcp-server", "/path/to/your/notes"]
     }
   }
 }
@@ -63,14 +84,58 @@ Add to your project's `.cursor/mcp.json` or your global Cursor Settings:
 
 ---
 
-### 3. In-App Marky Settings
+### 4. 🌐 OpenCode / Cline / Roo Code / Continue.dev
+
+In your extension or CLI MCP settings file (`.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "marky": {
+      "command": "npx",
+      "args": ["-y", "@marky-app/mcp-server", "/path/to/your/notes"]
+    }
+  }
+}
+```
+
+---
+
+### 5. 🧠 ChatGPT Desktop App (macOS)
+
+1. Open **Settings** → **Developer** → **MCP Servers**.
+2. Click **Add Server**:
+   - **Name**: `marky`
+   - **Command**: `npx`
+   - **Arguments**: `-y @marky-app/mcp-server /path/to/your/notes`
+
+---
+
+### 6. ⚡ Zed Editor
+
+Add to your Zed `settings.json`:
+
+```json
+{
+  "context_servers": {
+    "marky": {
+      "command": "npx",
+      "args": ["-y", "@marky-app/mcp-server", "/path/to/your/notes"]
+    }
+  }
+}
+```
+
+---
+
+### 7. 🛠️ In-App Marky Settings
 
 Inside Marky:
 
 1. Open **Settings** (`Cmd/Ctrl+,`).
 2. Go to **AI & MCP**.
-3. Your active workspace path is automatically inserted into the config snippet.
-4. Click **Copy Config** and paste it into your AI client.
+3. Choose your client (Claude Desktop, Claude Code, Cursor, OpenCode, ChatGPT, Zed).
+4. Click **Copy Config** (your current workspace path is automatically inserted).
 
 ---
 
