@@ -74,6 +74,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > packages/mcp-server/.npmrc
           cd packages/mcp-server
           npm publish --access public --tag ${{ inputs.npm_tag || 'latest' }}
 
