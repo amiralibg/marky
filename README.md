@@ -19,7 +19,7 @@ It is designed for local folder-based note-taking with wiki links, graph navigat
 
 Download the latest desktop build from the [Marky releases page](https://github.com/amiralibg/marky/releases/latest). Installers are attached to each GitHub release after the app is built.
 
-Current version: [`v1.2.4`](https://github.com/amiralibg/marky/releases/tag/v1.2.4).
+Current version: [`v1.3.0`](https://github.com/amiralibg/marky/releases/tag/v1.3.0).
 
 ## Highlights
 
