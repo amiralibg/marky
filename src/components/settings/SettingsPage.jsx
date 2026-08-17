@@ -5,6 +5,7 @@ import EditorSettings from "./EditorSettings";
 import KeymapsSettings from "./KeymapsSettings";
 import ScheduledNotesManager from "./ScheduledNotesManager";
 import TagManager from "./TagManager";
+import McpSettings from "./McpSettings";
 import useNotesStore from "../../store/notesStore";
 import useSettingsStore from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
@@ -173,6 +174,7 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
     { id: "shortcuts", label: "Shortcuts" },
     { id: "scheduling", label: "Scheduling" },
     { id: "tags", label: "Tags" },
+    { id: "mcp", label: "AI & MCP" },
     { id: "workspace", label: "Workspace" },
     { id: "updates", label: "Updates" },
     { id: "backup", label: "Backup" },
@@ -730,6 +732,34 @@ const SettingsPage = ({ onOpenKeymapsModal }) => {
                   </button>
                 </div>
               </div>
+            </div>
+          </section>
+
+          {/* MCP Integration Section */}
+          <section id="sec-mcp" className="space-y-4">
+            <header>
+              <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
+                <svg
+                  className="w-5 h-5 text-accent"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
+                </svg>
+                AI & Model Context Protocol (MCP)
+              </h2>
+              <p className="text-sm text-text-muted mt-1">
+                Expose your Marky workspace to Claude Desktop, Cursor, and other AI agents.
+              </p>
+            </header>
+            <div className="bg-bg-editor rounded-xl border border-border p-6">
+              <McpSettings />
             </div>
           </section>
         </div>
