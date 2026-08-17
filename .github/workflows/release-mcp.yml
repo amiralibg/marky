@@ -1,0 +1,99 @@
+name: Release MCP Server
+
+on:
+  push:
+    tags:
+      - "mcp-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 1.0.0)"
+        required: false
+        default: ""
+      npm_tag:
+        description: "NPM dist-tag (e.g. latest, beta)"
+        required: true
+        default: "latest"
+      dry_run:
+        description: "Dry run (do not publish to npm or create release)"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-mcp-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-mcp:
+    name: Test, Build & Publish MCP Server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.3
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run test suite
+        run: pnpm test
+
+      - name: Set package version (if workflow_dispatch input provided)
+        if: ${{ inputs.version != '' }}
+        run: |
+          cd packages/mcp-server
+          npm version ${{ inputs.version }} --no-git-tag-version
+
+      - name: Determine tag & version
+        id: vars
+        run: |
+          VERSION=$(node -p "require('./packages/mcp-server/package.json').version")
+          TAG_NAME="mcp-v${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to NPM
+        if: ${{ !(inputs.dry_run) }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd packages/mcp-server
+          npm publish --access public --tag ${{ inputs.npm_tag || 'latest' }}
+
+      - name: Create GitHub Release
+        if: ${{ !(inputs.dry_run) }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag_name }}
+          name: "Marky MCP Server v${{ steps.vars.outputs.version }}"
+          body: |
+            ## Marky MCP Server v${{ steps.vars.outputs.version }}
+
+            Model Context Protocol server for Marky Markdown vaults.
+
+            ### Quick Run
+            ```bash
+            npx -y @marky-app/mcp-server /path/to/your/marky/vault
+            ```
+
+            ### Documentation
+            See [MCP Server Documentation](https://github.com/amiralibg/marky/blob/main/docs/mcp-server.md) for full configuration instructions with Claude Desktop and Cursor.
+          draft: false
+          prerelease: ${{ inputs.npm_tag == 'beta' || inputs.npm_tag == 'next' }}

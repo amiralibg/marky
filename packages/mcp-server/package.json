@@ -1,0 +1,49 @@
+{
+  "name": "@marky-app/mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) Server for Marky markdown vaults",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "marky-mcp": "./bin/index.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node bin/index.js",
+    "test": "vitest run"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amiralibg/marky.git",
+    "directory": "packages/mcp-server"
+  },
+  "homepage": "https://github.com/amiralibg/marky#readme",
+  "bugs": {
+    "url": "https://github.com/amiralibg/marky/issues"
+  },
+  "keywords": [
+    "marky",
+    "mcp",
+    "model-context-protocol",
+    "markdown",
+    "notes",
+    "ai",
+    "claude",
+    "cursor"
+  ],
+  "author": "Amirali <amiralibg>",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "fuse.js": "^7.1.0",
+    "zod": "^3.25.76"
+  }
+}
