@@ -1,14 +1,20 @@
 @import "tailwindcss";
+@import "./fonts.css";
 
 @theme {
   --color-canvas: #f3efe6;
   --color-surface: #fffdf8;
   --color-ink: #1c1b18;
   --color-ink-soft: #5c594f;
-  --color-ink-faint: #8a867a;
+  /* 4.9:1 on canvas, 5.6:1 on surface — this is body-sized text, so it has to
+     clear WCAG AA (4.5:1). The previous #8a867a sat at 3.2:1. */
+  --color-ink-faint: #6a675e;
   --color-line: rgb(28 27 24 / 0.1);
   --color-accent: #6d5ce0;
   --color-accent-hover: #5b4ad0;
+  /* Accent as a fill passes on white; accent as *text* on canvas does not
+     (4.3:1), so links use this darker step instead. */
+  --color-accent-text: #5b4ad0;
   --color-accent-dim: rgba(109, 92, 224, 0.16);
   --color-marigold: #e4b56a;
   --color-moss: #c9d6b4;
@@ -58,7 +64,10 @@
   --color-surface: #242422;
   --color-ink: #e7e6e2;
   --color-ink-soft: #a3a29d;
-  --color-ink-faint: #71706b;
+  /* 5.2:1 on dark canvas, 4.8:1 on dark surface. Was #71706b at 3.4:1. */
+  --color-ink-faint: #918f8a;
+  /* The light accent is only 3.4:1 on the dark canvas; lift it for text. */
+  --color-accent-text: #8f82e8;
   --color-line: rgb(240 240 235 / 0.1);
   --color-marigold: #c9a056;
   --color-moss: #3f4a36;
@@ -154,7 +163,8 @@ a:focus-visible {
   font-size: 12px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-ink) 55%, transparent);
+  /* 12px uppercase needs the full 4.5:1; 55% ink only reached 3.7:1. */
+  color: color-mix(in srgb, var(--color-ink) 70%, transparent);
 }
 
 .marky-app {
@@ -235,7 +245,7 @@ a:focus-visible {
 
 .marky-live-wiki,
 .marky-read .wikilink {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   text-decoration: underline;
   text-decoration-style: dashed;
   text-decoration-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
@@ -330,7 +340,7 @@ a:focus-visible {
 }
 
 .marky-read ul li::marker {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .marky-read li.task {

@@ -65,6 +65,8 @@ export default function GraphField({ active, onSelect }: Props) {
       h = el.clientHeight;
       svg.setAttribute("width", String(w));
       svg.setAttribute("height", String(h));
+      // Under reduced motion there is no frame loop to pick the new size up.
+      if (reduce) paint();
     });
     ro.observe(el);
     svg.setAttribute("width", String(w));
@@ -111,9 +113,34 @@ export default function GraphField({ active, onSelect }: Props) {
       raf = requestAnimationFrame(tick);
     };
 
-    raf = requestAnimationFrame(tick);
+    const start = () => {
+      if (!raf) raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    };
+
+    // Reduced motion has no animation to run, so paint the resting layout once
+    // instead of scheduling a frame forever.
+    if (reduce) {
+      paint();
+    } else {
+      // Only animate while the graph is actually on screen; this used to spin
+      // the CPU for the whole page even when scrolled far away.
+      const io = new IntersectionObserver(([entry]) => (entry.isIntersecting ? start() : stop()), {
+        threshold: 0,
+      });
+      io.observe(el);
+      return () => {
+        stop();
+        io.disconnect();
+        ro.disconnect();
+      };
+    }
+
     return () => {
-      cancelAnimationFrame(raf);
+      stop();
       ro.disconnect();
     };
   }, []);

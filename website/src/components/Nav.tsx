@@ -8,6 +8,22 @@ type Props = {
   onToggleTheme: () => void;
 };
 
+type NavLink = {
+  href: string;
+  label: string;
+  /** Hidden on narrow viewports, where the bar runs out of room. */
+  wide?: boolean;
+  external?: boolean;
+};
+
+const LINKS: NavLink[] = [
+  { href: "#features", label: "Features" },
+  { href: "#graph", label: "Graph", wide: true },
+  { href: "#mcp", label: "MCP" },
+  { href: "#download", label: "Download" },
+  { href: GITHUB_REPO_URL, label: "GitHub", external: true, wide: true },
+];
+
 export default function Nav({ onOpenPalette, theme, onToggleTheme }: Props) {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-canvas/85 backdrop-blur-md">
@@ -18,32 +34,18 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme }: Props) {
         </a>
 
         <nav className="hidden items-center gap-1 sm:flex" aria-label="Primary">
-          <a
-            href="#features"
-            className="rounded-sm px-3 py-2 text-[14px] font-medium text-ink/55 transition-colors duration-200 hover:text-ink sm:px-4"
-          >
-            Features
-          </a>
-          <a
-            href="#graph"
-            className="hidden rounded-sm px-3 py-2 text-[14px] font-medium text-ink/55 transition-colors duration-200 hover:text-ink md:inline sm:px-4"
-          >
-            Graph
-          </a>
-          <a
-            href="#download"
-            className="rounded-sm px-3 py-2 text-[14px] font-medium text-ink/55 transition-colors duration-200 hover:text-ink sm:px-4"
-          >
-            Download
-          </a>
-          <a
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="hidden rounded-sm px-4 py-2 text-[14px] font-medium text-ink/55 transition-colors duration-200 hover:text-ink md:inline"
-          >
-            GitHub
-          </a>
+          {LINKS.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              {...(link.external ? { target: "_blank", rel: "noreferrer" } : {})}
+              className={`rounded-sm px-3 py-2 text-[14px] font-medium text-ink/70 transition-colors duration-200 hover:text-ink sm:px-4 ${
+                link.wide ? "hidden md:inline" : ""
+              }`}
+            >
+              {link.label}
+            </a>
+          ))}
         </nav>
 
         <div className="flex items-center gap-2">

@@ -68,7 +68,7 @@ type Mode = "source" | "live" | "read";
 function FileIcon({ active }: { active?: boolean }) {
   return (
     <svg
-      className={`size-3.5 shrink-0 ${active ? "text-accent" : "text-[var(--app-text-3)]"}`}
+      className={`size-3.5 shrink-0 ${active ? "text-accent-text" : "text-[var(--app-text-3)]"}`}
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
@@ -496,7 +496,7 @@ export default function AppWindow() {
                 key={id}
                 className={`group flex h-8 min-w-[7.5rem] max-w-[12.5rem] shrink-0 items-center gap-2 border-r border-[var(--app-border)] px-3 ${
                   active
-                    ? "bg-[var(--app-editor)] text-accent"
+                    ? "bg-[var(--app-editor)] text-accent-text"
                     : "text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
                 }`}
               >
@@ -652,7 +652,7 @@ export default function AppWindow() {
                   aria-pressed={mode === id}
                   className={`rounded-sm px-2.5 py-1 text-[12px] capitalize sm:px-[11px] sm:text-[13px] ${
                     mode === id
-                      ? "bg-accent-dim font-semibold text-accent"
+                      ? "bg-accent-dim font-semibold text-accent-text"
                       : "text-[var(--app-text-2)] hover:text-[var(--app-text)]"
                   }`}
                 >

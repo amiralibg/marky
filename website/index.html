@@ -11,24 +11,69 @@
       name="description"
       content="Marky is an offline-first Markdown notes app with local folders, wiki links, graph navigation, and a polished desktop editor. Download for macOS, Windows, and Linux."
     />
+    <link rel="canonical" href="https://marky.amiralibg.xyz/" />
     <meta property="og:title" content="Marky — Offline-first Markdown notes" />
     <meta
       property="og:description"
-      content="Local folders. Wiki links. Graph navigation. Download for macOS, Windows, and Linux — ARM64 and AMD64."
+      content="Local folders. Wiki links. Graph navigation. Connect Claude, Cursor, or ChatGPT over MCP. Download for macOS, Windows, and Linux — ARM64 and AMD64."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/icon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <meta property="og:url" content="https://marky.amiralibg.xyz/" />
+    <meta property="og:site_name" content="Marky" />
+    <!-- TODO: design a 1200x630 social card and swap these to it, then change
+         twitter:card to summary_large_image. Until then this points at the
+         square app icon, which only renders correctly in the small card. -->
+    <meta property="og:image" content="https://marky.amiralibg.xyz/icon.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Marky — Offline-first Markdown notes" />
+    <meta
+      name="twitter:description"
+      content="A desktop Markdown editor for a vault on disk. No account, no cloud. Installers under 10 MB."
+    />
+    <meta name="twitter:image" content="https://marky.amiralibg.xyz/icon.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Marky",
+        "applicationCategory": "ProductivityApplication",
+        "operatingSystem": "macOS, Windows, Linux",
+        "url": "https://marky.amiralibg.xyz/",
+        "description": "Offline-first Markdown notes app with local folders, wiki links, graph navigation, and MCP support for AI assistants.",
+        "license": "https://github.com/amiralibg/marky/blob/main/LICENSE",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+    <!-- Fonts are self-hosted from /public/fonts; see src/fonts.css. The two
+         families used above the fold are preloaded so they start downloading
+         alongside the CSS rather than after it parses. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,500&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      href="/fonts/newsreader-variable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/hanken-grotesk-variable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
     />
     <script>
       (() => {
         try {
           const stored = localStorage.getItem("marky-site-theme");
-          const theme = stored === "dark" ? "dark" : "light";
+          // Keep this in sync with readTheme() in src/lib/theme.ts: an explicit
+          // choice wins, otherwise follow the OS. Running before paint is what
+          // prevents a light flash for dark-mode visitors.
+          const theme =
+            stored === "dark" || stored === "light"
+              ? stored
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
           document.documentElement.setAttribute("data-theme", theme);
           document
             .querySelector('meta[name="theme-color"]')

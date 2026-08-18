@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { archLabel, osLabel, type DetectedPlatform } from "../lib/platform";
 import {
   FALLBACK_RELEASE_URL,
@@ -61,8 +61,12 @@ const ICONS = {
 export default function Download({ release, platform }: Props) {
   const [os, setOs] = useState<Os>(platform.os);
   const [arch, setArch] = useState<Arch>(platform.arch);
+  const touched = useRef(false);
 
+  // refineArch() resolves after mount, so without this guard a visitor who
+  // picks a platform in that window has their choice silently reset.
   useEffect(() => {
+    if (touched.current) return;
     setOs(platform.os);
     setArch(platform.arch);
   }, [platform]);
@@ -95,7 +99,10 @@ export default function Download({ release, platform }: Props) {
         </div>
 
         <div className="rounded-md border border-line bg-surface p-5 md:p-8">
-          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Operating system">
+          {/* Deliberately a group of toggles, not a tablist: these filter the
+              panel below in place rather than swapping tabpanels, and a tablist
+              without tabpanels or arrow-key roving is announced as broken. */}
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Operating system">
             {PLATFORMS.map((id) => {
               const Icon = ICONS[id];
               const selected = os === id;
@@ -103,9 +110,9 @@ export default function Download({ release, platform }: Props) {
                 <button
                   key={id}
                   type="button"
-                  role="tab"
-                  aria-selected={selected}
+                  aria-pressed={selected}
                   onClick={() => {
+                    touched.current = true;
                     setOs(id);
                     setArch(
                       id === platform.os ? platform.arch : id === "macos" ? "arm64" : "amd64"
@@ -124,14 +131,18 @@ export default function Download({ release, platform }: Props) {
             })}
           </div>
 
-          <div className="mt-5 flex gap-2">
+          <div className="mt-5 flex gap-2" role="group" aria-label="Architecture">
             {ARCHES.map((id) => {
               const selected = arch === id;
               return (
                 <button
                   key={id}
                   type="button"
-                  onClick={() => setArch(id)}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    touched.current = true;
+                    setArch(id);
+                  }}
                   className={`min-h-10 rounded-pill px-3 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
                     selected
                       ? "bg-ink text-surface"

@@ -5,6 +5,7 @@ import Features from "./components/Features";
 import Footer from "./components/Footer";
 import GraphSection from "./components/GraphSection";
 import Hero from "./components/Hero";
+import McpSection from "./components/McpSection";
 import Nav from "./components/Nav";
 import type { FeatureId } from "./components/featureData";
 import { detectPlatform, refineArch, type DetectedPlatform } from "./lib/platform";
@@ -91,6 +92,7 @@ export default function App() {
         <Hero release={release} platform={platform} loading={loading} error={error} />
         <Features spotlight={spotlight} />
         <GraphSection active={spotlight} onSelect={selectFeature} />
+        <McpSection />
         <Download release={release} platform={platform} />
       </main>
       <Footer />
