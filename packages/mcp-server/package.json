@@ -1,6 +1,6 @@
 {
   "name": "@marky-app/mcp-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Model Context Protocol (MCP) Server for Marky markdown vaults",
   "type": "module",
   "main": "src/index.js",
@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "start": "node bin/index.js",
-    "test": "vitest run"
+    "test": "vitest run --config vitest.config.js"
   },
   "publishConfig": {
     "access": "public"
