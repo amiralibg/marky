@@ -1600,7 +1600,15 @@ const Sidebar = forwardRef(
                           ? "Update issue"
                           : "Updating Marky"}
                   </div>
-                  <div className="mt-0.5 text-[11px] leading-relaxed text-text-muted">
+                  {/* Updater errors can carry a long unbroken URL, which has no
+                      normal break opportunity and spills out of the card.
+                      break-words splits it; line-clamp keeps one bad message
+                      from pushing the buttons off-screen, with the full text
+                      still available on hover. */}
+                  <div
+                    className="mt-0.5 text-[11px] leading-relaxed text-text-muted break-words line-clamp-3"
+                    title={appUpdate.message || undefined}
+                  >
                     {appUpdate.message || "A Marky update is ready."}
                   </div>
                 </div>
