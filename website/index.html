@@ -2,8 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/icon.png" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- The app's own icon, at the sizes browsers ask for. There used to be a
+         favicon.svg here with an unrelated mark, and SVG wins over PNG, so the
+         tab showed something the app never uses. -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
+    <link rel="icon" type="image/png" sizes="128x128" href="/icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f3efe6" />
     <title>Marky — Offline-first Markdown notes</title>
