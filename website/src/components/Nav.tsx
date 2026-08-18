@@ -18,6 +18,7 @@ type NavLink = {
 
 const LINKS: NavLink[] = [
   { href: "#features", label: "Features" },
+  { href: "#screenshots", label: "Screens", wide: true },
   { href: "#graph", label: "Graph", wide: true },
   { href: "#mcp", label: "MCP" },
   { href: "#download", label: "Download" },

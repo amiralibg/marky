@@ -10,10 +10,24 @@
 
 <p align="center">
   <a href="https://github.com/amiralibg/marky/releases/latest"><strong>Download the latest release</strong></a>
+  ·
+  <a href="https://marky.amiralibg.xyz"><strong>Website</strong></a>
+  ·
+  <a href="docs/mcp-server.md"><strong>MCP setup</strong></a>
+</p>
+
+<p align="center">
+  <img src="docs/images/hero.png" alt="Marky's note graph, showing eight notes connected by twelve wiki links" width="100%" />
 </p>
 
 Marky is an offline-first Markdown notes app built with Tauri, React, and Rust.
 It is designed for local folder-based note-taking with wiki links, graph navigation, a modern editor, and strong customization.
+
+Your notes are ordinary Markdown files in an ordinary folder. No account, no cloud, no database — git them, sync them, or leave them on a USB stick. Native installers stay under 10 MB.
+
+<p align="center">
+  <img src="docs/images/grid.png" alt="Four views of Marky: a daily note, the appearance settings with theme previews, a note with highlighted Rust code, and the note graph" width="100%" />
+</p>
 
 ## Download
 
@@ -56,6 +70,12 @@ Current version: [`v1.3.0`](https://github.com/amiralibg/marky/releases/tag/v1.3
 - Undo last delete
 
 ### Editor and preview
+
+<p align="center">
+  <img src="docs/images/modes.png" alt="The same note shown twice: on the left its raw Markdown source, on the right the reading view with a rendered Mermaid diagram and KaTeX equation" width="100%" />
+</p>
+
+The same note in source view and reading view — Mermaid diagrams and KaTeX maths render inline, and it is still just Markdown on disk.
 
 - CodeMirror 6 markdown editor
 - Editor-only / split / preview-only layouts
@@ -213,8 +233,8 @@ Shortcuts are customizable in Settings.
 
 ## Roadmap
 
-See `/Users/amiralibg/Programming/Git/marky/TODO.md` for the current audit-based roadmap and prioritized next work.
+See [`TODO.md`](TODO.md) for the current audit-based roadmap and prioritized next work.
 
 ## License
 
-MIT. See `/Users/amiralibg/Programming/Git/marky/LICENSE`.
+MIT. See [`LICENSE`](LICENSE).

@@ -653,3 +653,19 @@ a:focus-visible {
     animation: none;
   }
 }
+
+/* Screenshots are pre-rounded in the asset itself; the shadow is applied here
+   so it stays consistent with the sticky notes and the app mockup. */
+.shot {
+  display: block;
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 2px 4px rgb(28 27 24 / 0.06),
+    0 24px 48px -20px rgb(28 27 24 / 0.4);
+}
+
+[data-theme="dark"] .shot {
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 0.3),
+    0 24px 48px -20px rgb(0 0 0 / 0.6);
+}
