@@ -153,7 +153,10 @@ export default function McpSection() {
           <p className="mt-5 text-[14px] text-ink-soft">{client.hint}</p>
 
           <div className="relative mt-3">
-            <pre className="overflow-x-auto rounded-sm bg-ink/[0.04] p-4 pr-14 font-mono text-[12.5px] leading-6 text-ink/90">
+            <pre
+              key={active}
+              className="note-swap overflow-x-auto rounded-sm bg-ink/[0.04] p-4 pr-14 font-mono text-[12.5px] leading-6 text-ink/90"
+            >
               <code>{client.snippet}</code>
             </pre>
             <button

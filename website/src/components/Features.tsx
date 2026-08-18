@@ -63,7 +63,7 @@ function StickyNote({ feature, index, lit, draggable, offset, onDrag, onLift, z 
       ref={ref}
       id={`feature-${feature.id}`}
       data-dragging={dragging || undefined}
-      className={`note ${STOCK[feature.tone]} p-6 pb-9 text-ink ${
+      className={`note ${STOCK[feature.tone]} p-6 pb-9 ${
         feature.wide ? "xl:col-span-2" : ""
       } ${lit ? "outline outline-2 outline-offset-4 outline-ink" : ""}`}
       style={
@@ -86,14 +86,16 @@ function StickyNote({ feature, index, lit, draggable, offset, onDrag, onLift, z 
         onPointerCancel={endDrag}
         aria-hidden
       >
-        <span className="h-1 w-8 rounded-pill bg-ink/15" />
+        <span className="h-1 w-8 rounded-pill bg-note-ink/20" />
       </div>
 
       <p className="kicker">{feature.kicker}</p>
       <h3 className="mt-3 font-display text-[26px] leading-[1.1] tracking-[-0.03em] md:text-[30px]">
         {feature.title}
       </h3>
-      <p className="mt-3 max-w-[34rem] text-[15.5px] leading-[1.55] text-ink/75">{feature.body}</p>
+      <p className="mt-3 max-w-[34rem] text-[15.5px] leading-[1.55] text-note-ink/75">
+        {feature.body}
+      </p>
     </article>
   );
 }

@@ -22,14 +22,18 @@
   --color-sky: #d7e4f2;
 
   /* Sticky-note stock. Decorative only — per the accent rule these never
-     become buttons, links, or borders. Every one carries --color-ink above
-     7:1, so note text stays readable without a per-note override. */
+     become buttons, links, or borders. */
   --color-note-butter: #f4dfa0;
   --color-note-mint: #cfe0bd;
   --color-note-sky: #cfe0f2;
   --color-note-blush: #f2d3cd;
   --color-note-lilac: #ded7f5;
   --color-note-cream: #fdf3d9;
+
+  /* Note paper stays light in both themes, so its ink must NOT follow
+     --color-ink — that flips to near-white in dark mode and makes note text
+     invisible. This is deliberately theme-independent. */
+  --color-note-ink: #1c1b18;
 
   --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
   --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
@@ -76,6 +80,16 @@
   --color-ink-soft: #a3a29d;
   /* 5.2:1 on dark canvas, 4.8:1 on dark surface. Was #71706b at 3.4:1. */
   --color-ink-faint: #918f8a;
+
+  /* Notes keep their dark ink in dark mode (see --color-note-ink), but the
+     paper is knocked back so a wall of bright pastel does not glare against
+     the dark board. */
+  --color-note-butter: #d8c489;
+  --color-note-mint: #b4c4a3;
+  --color-note-sky: #b3c5d6;
+  --color-note-blush: #d7b9b3;
+  --color-note-lilac: #c3bcd9;
+  --color-note-cream: #e2d9c0;
   /* The light accent is only 3.4:1 on the dark canvas; lift it for text. */
   --color-accent-text: #8f82e8;
   --color-line: rgb(240 240 235 / 0.1);
@@ -188,6 +202,8 @@ a:focus-visible {
 
 .note {
   position: relative;
+  /* Paper is light in both themes, so ink is fixed rather than inherited. */
+  color: var(--color-note-ink);
   border-radius: var(--radius-sm);
   transform: rotate(var(--note-tilt, 0deg)) translate3d(var(--note-dx, 0px), var(--note-dy, 0px), 0);
   box-shadow:
@@ -257,6 +273,41 @@ a:focus-visible {
   z-index: 20;
 }
 
+/* Graph nodes are scraps of the same paper, seen from above. The centring
+   translate lives here rather than in a utility class, so it can compose with
+   the tilt instead of being overwritten by it. */
+.graph-note {
+  transform: translate(-50%, -50%) rotate(var(--graph-tilt, 0deg));
+  box-shadow:
+    0 1px 1px rgb(28 27 24 / 0.08),
+    0 4px 10px -6px rgb(28 27 24 / 0.3);
+  transition:
+    transform 240ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    opacity 240ms ease,
+    box-shadow 240ms ease;
+}
+
+.graph-note:hover,
+.graph-note:focus-visible {
+  transform: translate(-50%, -50%) rotate(0deg) scale(1.07);
+  box-shadow:
+    0 2px 2px rgb(28 27 24 / 0.07),
+    0 10px 20px -8px rgb(28 27 24 / 0.36);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-note,
+  .graph-note:hover,
+  .graph-note:focus-visible {
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* .kicker keys off --color-ink; inside a note it has to key off the paper ink. */
+.note .kicker {
+  color: color-mix(in srgb, var(--color-note-ink) 70%, transparent);
+}
+
 .note-grip {
   cursor: grab;
   touch-action: pan-y;
@@ -264,6 +315,70 @@ a:focus-visible {
 
 .note[data-dragging="true"] .note-grip {
   cursor: grabbing;
+}
+
+/* Hero entrance. Runs on load rather than on scroll, since it is already in
+   view, and each child is offset by its own --enter-delay. */
+@keyframes note-settle {
+  from {
+    opacity: 0;
+    transform: translateY(14px) rotate(-1.2deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.enter > * {
+  opacity: 0;
+  animation: note-settle 720ms cubic-bezier(0.2, 0.9, 0.25, 1) forwards;
+  animation-delay: var(--enter-delay, 0ms);
+}
+
+.enter > *:nth-child(1) {
+  --enter-delay: 40ms;
+}
+.enter > *:nth-child(2) {
+  --enter-delay: 130ms;
+}
+.enter > *:nth-child(3) {
+  --enter-delay: 220ms;
+}
+.enter > *:nth-child(4) {
+  --enter-delay: 310ms;
+}
+.enter > *:nth-child(5) {
+  --enter-delay: 390ms;
+}
+.enter > *:nth-child(6) {
+  --enter-delay: 460ms;
+}
+
+/* The highlight pill behind "link" draws itself once the headline has landed. */
+.pill-draw {
+  animation: pill-in 520ms cubic-bezier(0.2, 0.9, 0.25, 1) 420ms backwards;
+  transform-origin: left center;
+}
+
+@keyframes pill-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter > * {
+    opacity: 1;
+    animation: none;
+  }
+
+  .pill-draw {
+    animation: none;
+  }
 }
 
 /* Generic section reveal, used by headings and panels. */
@@ -513,5 +628,28 @@ a:focus-visible {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* The MCP snippet is re-keyed when the client changes, so it animates in as a
+   fresh note handed to the new app rather than silently swapping text. */
+.note-swap {
+  animation: note-swap 340ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+@keyframes note-swap {
+  from {
+    opacity: 0;
+    transform: translateY(6px) rotate(-0.6deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note-swap {
+    animation: none;
   }
 }

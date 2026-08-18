@@ -1,22 +1,26 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { FeatureId } from "./featureData";
 
+type NoteStock = "butter" | "mint" | "sky" | "blush" | "lilac" | "cream";
+
 type NodeDef = {
   id: FeatureId;
   label: string;
   hx: number;
   hy: number;
+  stock: NoteStock;
+  tilt: number;
 };
 
 const NODES: NodeDef[] = [
-  { id: "local", label: "Inbox", hx: 0.18, hy: 0.28 },
-  { id: "wiki", label: "[[Wiki]]", hx: 0.46, hy: 0.18 },
-  { id: "graph", label: "Graph", hx: 0.78, hy: 0.26 },
-  { id: "search", label: "Search", hx: 0.28, hy: 0.58 },
-  { id: "editor", label: "Daily", hx: 0.58, hy: 0.52 },
-  { id: "math", label: "KaTeX", hx: 0.82, hy: 0.62 },
-  { id: "themes", label: "Themes", hx: 0.42, hy: 0.82 },
-  { id: "templates", label: "Daily.md", hx: 0.16, hy: 0.84 },
+  { id: "local", label: "Inbox", hx: 0.18, hy: 0.28, stock: "cream", tilt: -2.4 },
+  { id: "wiki", label: "[[Wiki]]", hx: 0.46, hy: 0.18, stock: "butter", tilt: 1.8 },
+  { id: "graph", label: "Graph", hx: 0.78, hy: 0.26, stock: "sky", tilt: -1.5 },
+  { id: "search", label: "Search", hx: 0.28, hy: 0.58, stock: "blush", tilt: 2.2 },
+  { id: "editor", label: "Daily", hx: 0.58, hy: 0.52, stock: "mint", tilt: -1.9 },
+  { id: "math", label: "KaTeX", hx: 0.82, hy: 0.62, stock: "lilac", tilt: 1.6 },
+  { id: "themes", label: "Themes", hx: 0.42, hy: 0.82, stock: "butter", tilt: -2.1 },
+  { id: "templates", label: "Daily.md", hx: 0.16, hy: 0.84, stock: "sky", tilt: 1.3 },
 ];
 
 const EDGES: Array<[FeatureId, FeatureId]> = [
@@ -211,19 +215,19 @@ export default function GraphField({ active, onSelect }: Props) {
             onMouseEnter={() => setHover(node.id)}
             onFocus={() => setHover(node.id)}
             onClick={() => onSelect(node.id)}
-            className="absolute z-10 min-h-10 -translate-x-1/2 -translate-y-1/2 rounded-pill border px-3 py-2 text-[13px] font-medium transition-colors duration-200"
-            style={{
-              left: `${node.hx * 100}%`,
-              top: `${node.hy * 100}%`,
-              background: selected ? "var(--color-ink)" : "var(--color-surface)",
-              color: selected
-                ? "var(--color-surface)"
-                : hot
-                  ? "var(--color-ink)"
-                  : "color-mix(in srgb, var(--color-ink) 40%, transparent)",
-              borderColor: selected ? "var(--color-ink)" : "var(--color-line)",
-              opacity: hot ? 1 : 0.55,
-            }}
+            className="graph-note absolute z-10 min-h-10 rounded-sm px-3 py-2 text-[13px] font-medium"
+            style={
+              {
+                left: `${node.hx * 100}%`,
+                top: `${node.hy * 100}%`,
+                // Nodes are scraps of the same paper as the feature board, so the
+                // graph reads as the same vault seen from above.
+                "--graph-tilt": `${node.tilt}deg`,
+                background: selected ? "var(--color-ink)" : `var(--color-note-${node.stock})`,
+                color: selected ? "var(--color-surface)" : "var(--color-note-ink)",
+                opacity: hot ? 1 : 0.5,
+              } as React.CSSProperties
+            }
           >
             {node.label}
           </button>
