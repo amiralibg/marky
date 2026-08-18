@@ -92,7 +92,7 @@ export default function McpSection() {
   return (
     <section id="mcp" className="mx-auto max-w-[1440px] px-6 py-20 md:px-10 md:py-28">
       <div className="grid gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-12">
-        <div ref={copyRef} className="reveal">
+        <div ref={copyRef} className="reveal min-w-0">
           <p className="kicker">Model Context Protocol</p>
           <h2 className="display mt-4 text-[clamp(36px,8vw,64px)]">
             Your notes, in your AI assistant.
@@ -124,7 +124,7 @@ export default function McpSection() {
 
         <div
           ref={panelRef}
-          className="reveal rounded-md border border-line bg-surface p-5 md:p-8"
+          className="reveal min-w-0 rounded-md border border-line bg-surface p-5 md:p-8"
           style={{ "--reveal-delay": "120ms" } as React.CSSProperties}
         >
           <div className="flex flex-wrap gap-2" role="group" aria-label="MCP client">

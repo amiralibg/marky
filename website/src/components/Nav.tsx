@@ -11,7 +11,7 @@ type Props = {
 type NavLink = {
   href: string;
   label: string;
-  /** Hidden on narrow viewports, where the bar runs out of room. */
+  /** Hidden below lg, where the bar plus the search button runs out of room. */
   wide?: boolean;
   external?: boolean;
 };
@@ -42,7 +42,7 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme }: Props) {
               href={link.href}
               {...(link.external ? { target: "_blank", rel: "noreferrer" } : {})}
               className={`rounded-sm px-3 py-2 text-[14px] font-medium text-ink/70 transition-colors duration-200 hover:text-ink sm:px-4 ${
-                link.wide ? "hidden md:inline" : ""
+                link.wide ? "hidden lg:inline" : ""
               }`}
             >
               {link.label}
