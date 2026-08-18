@@ -1,296 +1,326 @@
 import { z } from "zod";
+import * as out from "./schemas.js";
+
+/**
+ * A successful result. `structuredContent` is what a client parses;
+ * `content` is what it shows. Read tools serialise the same object into text
+ * so the two never disagree; write tools pass a human sentence instead.
+ */
+const ok = (structured, text) => ({
+  content: [{ type: "text", text: text ?? JSON.stringify(structured, null, 2) }],
+  structuredContent: structured,
+});
+
+/** Error results carry no structure — the SDK exempts them from validation. */
+const failure = (label, err) => ({
+  isError: true,
+  content: [{ type: "text", text: `${label}: ${err.message}` }],
+});
+
+/** Reads never mutate the vault and never reach outside it. */
+const READ_ONLY = { readOnlyHint: true, destructiveHint: false, openWorldHint: false };
+
+/** Writes that only ever add content. */
+const ADDITIVE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 
 export function registerTools(server, vault) {
   // 1. search_notes
-  server.tool(
+  server.registerTool(
     "search_notes",
-    "Fuzzy search across note titles, tags, and content in the Marky vault.",
     {
-      query: z.string().describe("Search query keywords"),
-      tag: z.string().optional().describe("Filter notes by tag (e.g. 'project' or '#project')"),
-      folder: z.string().optional().describe("Filter notes within a specific folder"),
-      limit: z
-        .number()
-        .int()
-        .positive()
-        .max(50)
-        .default(20)
-        .optional()
-        .describe("Maximum number of results to return (default: 20)"),
+      title: "Search notes",
+      description: "Fuzzy search across note titles, tags, and content in the Marky vault.",
+      inputSchema: {
+        query: z.string().describe("Search query keywords"),
+        tag: z.string().optional().describe("Filter notes by tag (e.g. 'project' or '#project')"),
+        folder: z.string().optional().describe("Filter notes within a specific folder"),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .max(50)
+          .optional()
+          .default(20)
+          .describe("Maximum number of results to return (default: 20, max: 50)"),
+      },
+      outputSchema: out.searchNotesOutput,
+      annotations: READ_ONLY,
     },
     async ({ query, tag, folder, limit }) => {
       try {
         const results = vault.searchNotes(query, { tag, folder, limit });
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(results, null, 2),
-            },
-          ],
-        };
+        return ok({ query, returned: results.length, results });
       } catch (err) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Error searching notes: ${err.message}` }],
-        };
+        return failure("Error searching notes", err);
       }
     }
   );
 
   // 2. read_note
-  server.tool(
+  server.registerTool(
     "read_note",
-    "Read the full content, frontmatter properties, tags, outgoing links, and backlinks of a note.",
     {
-      path_or_title: z
-        .string()
-        .describe("The relative path (e.g. 'Projects/Roadmap.md') or note title (e.g. 'Roadmap')"),
+      title: "Read note",
+      description:
+        "Read the full content, frontmatter properties, tags, outgoing links, and backlinks of a note. " +
+        "The returned `hash` can be passed to update_note as `expected_hash` to make a later write conditional.",
+      inputSchema: {
+        path_or_title: z
+          .string()
+          .describe(
+            "The relative path (e.g. 'Projects/Roadmap.md') or note title (e.g. 'Roadmap')"
+          ),
+      },
+      outputSchema: out.readNoteOutput,
+      annotations: READ_ONLY,
     },
     async ({ path_or_title }) => {
       try {
-        const note = vault.readNote(path_or_title);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(note, null, 2),
-            },
-          ],
-        };
+        return ok(vault.readNote(path_or_title));
       } catch (err) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Error reading note: ${err.message}` }],
-        };
+        return failure("Error reading note", err);
       }
     }
   );
 
   // 3. create_note
-  server.tool(
+  server.registerTool(
     "create_note",
-    "Create a new markdown note in the Marky vault with optional frontmatter attributes and tags.",
     {
-      title: z.string().describe("Title of the new note (e.g. 'Architecture Decision 001')"),
-      folder: z
-        .string()
-        .optional()
-        .default("")
-        .describe("Target folder inside the vault (e.g. 'Work/Decisions'). Defaults to vault root"),
-      content: z.string().optional().default("").describe("Initial markdown content of the note"),
-      tags: z
-        .array(z.string())
-        .optional()
-        .describe("List of tags to assign in frontmatter (e.g. ['architecture', 'rfc'])"),
+      title: "Create note",
+      description:
+        "Create a new markdown note in the Marky vault with optional frontmatter attributes and tags. " +
+        "Fails if a note already exists at that path.",
+      inputSchema: {
+        title: z.string().describe("Title of the new note (e.g. 'Architecture Decision 001')"),
+        folder: z
+          .string()
+          .optional()
+          .default("")
+          .describe(
+            "Target folder inside the vault (e.g. 'Work/Decisions'). Must stay within the vault. Defaults to vault root"
+          ),
+        content: z.string().optional().default("").describe("Initial markdown content of the note"),
+        tags: z
+          .array(z.string())
+          .optional()
+          .describe("List of tags to assign in frontmatter (e.g. ['architecture', 'rfc'])"),
+      },
+      outputSchema: out.createNoteOutput,
+      annotations: ADDITIVE,
     },
     async ({ title, folder, content, tags }) => {
       try {
         const result = vault.createNote({ title, folder, content, tags });
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Note created successfully at "${result.relativePath}"`,
-            },
-          ],
-        };
+        // fullPath is deliberately not surfaced; it is an absolute machine path.
+        return ok(
+          { success: true, title: result.title, relativePath: result.relativePath },
+          `Note created successfully at "${result.relativePath}"`
+        );
       } catch (err) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Error creating note: ${err.message}` }],
-        };
+        return failure("Error creating note", err);
       }
     }
   );
 
   // 4. update_note
-  server.tool(
+  server.registerTool(
     "update_note",
-    "Replace the entire content of an existing note.",
     {
-      path_or_title: z.string().describe("The relative path or note title of the note to update"),
-      content: z.string().describe("The complete replacement markdown content"),
+      title: "Update note",
+      description:
+        "Replace the entire content of an existing note. This overwrites the file, so pass " +
+        "`expected_hash` from a recent read_note to abort if the note changed in the meantime.",
+      inputSchema: {
+        path_or_title: z.string().describe("The relative path or note title of the note to update"),
+        content: z.string().describe("The complete replacement markdown content"),
+        expected_hash: z
+          .string()
+          .optional()
+          .describe(
+            "The `hash` from a previous read_note. If given and the note has changed since, the write is refused."
+          ),
+      },
+      outputSchema: out.updateNoteOutput,
+      annotations: {
+        readOnlyHint: false,
+        // Replaces the whole file; a wrong call loses the previous contents.
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
-    async ({ path_or_title, content }) => {
+    async ({ path_or_title, content, expected_hash }) => {
       try {
-        const result = vault.updateNote({ relativePath: path_or_title, content });
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Note "${result.relativePath}" updated successfully at ${result.modified}`,
-            },
-          ],
-        };
+        const result = vault.updateNote({
+          relativePath: path_or_title,
+          content,
+          expectedHash: expected_hash,
+        });
+        return ok(
+          result,
+          `Note "${result.relativePath}" updated successfully at ${result.modified} (hash ${result.hash})`
+        );
       } catch (err) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Error updating note: ${err.message}` }],
-        };
+        return failure("Error updating note", err);
       }
     }
   );
 
   // 5. append_to_note
-  server.tool(
+  server.registerTool(
     "append_to_note",
-    "Append markdown text or sections to the end of an existing note.",
     {
-      path_or_title: z.string().describe("The relative path or note title of the note"),
-      content: z.string().describe("The markdown content to append"),
+      title: "Append to note",
+      description: "Append markdown text or sections to the end of an existing note.",
+      inputSchema: {
+        path_or_title: z.string().describe("The relative path or note title of the note"),
+        content: z.string().describe("The markdown content to append"),
+      },
+      outputSchema: out.appendToNoteOutput,
+      annotations: ADDITIVE,
     },
     async ({ path_or_title, content }) => {
       try {
         const result = vault.appendToNote({ relativePath: path_or_title, content });
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Successfully appended content to "${result.relativePath}"`,
-            },
-          ],
-        };
+        return ok(result, `Successfully appended content to "${result.relativePath}"`);
       } catch (err) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Error appending to note: ${err.message}` }],
-        };
+        return failure("Error appending to note", err);
       }
     }
   );
 
   // 6. list_notes
-  server.tool(
+  server.registerTool(
     "list_notes",
-    "List notes in the vault with metadata, optional folder filtering, and tag filtering.",
     {
-      folder: z.string().optional().describe("Optional folder path to list notes from"),
-      tag: z.string().optional().describe("Optional tag to filter by"),
+      title: "List notes",
+      description:
+        "List notes in the vault with metadata, optional folder filtering, and tag filtering. " +
+        "Results are paginated; the response reports `total` so you can page with `offset`.",
+      inputSchema: {
+        folder: z.string().optional().describe("Optional folder path to list notes from"),
+        tag: z.string().optional().describe("Optional tag to filter by"),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .max(200)
+          .optional()
+          .default(50)
+          .describe("Maximum number of notes to return (default: 50, max: 200)"),
+        offset: z
+          .number()
+          .int()
+          .nonnegative()
+          .optional()
+          .default(0)
+          .describe("Number of notes to skip, for paging through a large vault"),
+      },
+      outputSchema: out.listNotesOutput,
+      annotations: READ_ONLY,
     },
-    async ({ folder, tag }) => {
+    async ({ folder, tag, limit, offset }) => {
       try {
-        const list = vault.listNotes({ folder, tag });
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(list, null, 2),
-            },
-          ],
-        };
+        return ok(vault.listNotes({ folder, tag, limit, offset }));
       } catch (err) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Error listing notes: ${err.message}` }],
-        };
+        return failure("Error listing notes", err);
       }
     }
   );
 
   // 7. get_vault_structure
-  server.tool(
+  server.registerTool(
     "get_vault_structure",
-    "Get the complete folder and file tree hierarchy of the Marky workspace.",
-    {},
+    {
+      title: "Get vault structure",
+      description: "Get the complete folder and file tree hierarchy of the Marky workspace.",
+      inputSchema: {},
+      outputSchema: out.vaultStructureOutput,
+      annotations: READ_ONLY,
+    },
     async () => {
       try {
-        const structure = vault.getVaultStructure();
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(structure, null, 2),
-            },
-          ],
-        };
+        return ok({ root: vault.getVaultStructure() });
       } catch (err) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Error getting vault structure: ${err.message}` }],
-        };
+        return failure("Error getting vault structure", err);
       }
     }
   );
 
   // 8. get_backlinks
-  server.tool(
+  server.registerTool(
     "get_backlinks",
-    "Find all notes that link to a specific note title using [[WikiLinks]].",
     {
-      title: z.string().describe("The note title to inspect backlinks for"),
+      title: "Get backlinks",
+      description: "Find all notes that link to a specific note title using [[WikiLinks]].",
+      inputSchema: {
+        title: z.string().describe("The note title to inspect backlinks for"),
+      },
+      outputSchema: out.backlinksOutput,
+      annotations: READ_ONLY,
     },
     async ({ title }) => {
       try {
-        const backlinks = vault.getBacklinks(title);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(backlinks, null, 2),
-            },
-          ],
-        };
+        return ok(vault.getBacklinks(title));
       } catch (err) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Error getting backlinks: ${err.message}` }],
-        };
+        return failure("Error getting backlinks", err);
       }
     }
   );
 
   // 9. get_tags
-  server.tool(
+  server.registerTool(
     "get_tags",
-    "List all hashtags and frontmatter tags used across the vault along with note counts.",
-    {},
+    {
+      title: "Get tags",
+      description: "List all hashtags and frontmatter tags used across the vault with note counts.",
+      inputSchema: {},
+      outputSchema: out.tagsOutput,
+      annotations: READ_ONLY,
+    },
     async () => {
       try {
-        const tags = vault.getTags();
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(tags, null, 2),
-            },
-          ],
-        };
+        return ok({ tags: vault.getTags() });
       } catch (err) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Error getting tags: ${err.message}` }],
-        };
+        return failure("Error getting tags", err);
       }
     }
   );
 
   // 10. create_or_append_daily_note
-  server.tool(
+  server.registerTool(
     "create_or_append_daily_note",
-    "Create or append entries to a Daily Note (in Daily/YYYY-MM-DD.md format).",
     {
-      date: z.string().optional().describe("Date in YYYY-MM-DD format (defaults to current date)"),
-      content: z.string().optional().describe("Content or log entry to add to the daily note"),
+      title: "Create or append daily note",
+      description:
+        "Create or append entries to the daily note for a date. Daily notes live at the vault " +
+        "root as YYYY-MM-DD.md, the same location and filename the Marky app uses, so the app " +
+        "and this server share one note per day.",
+      inputSchema: {
+        date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD")
+          .optional()
+          .describe("Date in YYYY-MM-DD format (defaults to today, in local time)"),
+        content: z.string().optional().describe("Content or log entry to add to the daily note"),
+      },
+      outputSchema: out.dailyNoteOutput,
+      annotations: ADDITIVE,
     },
     async ({ date, content }) => {
       try {
         const result = vault.createOrAppendDailyNote(date, content);
-        return {
-          content: [
-            {
-              type: "text",
-              text: result.created
-                ? `Created new daily note at "${result.relativePath}"`
-                : `Appended entry to daily note at "${result.relativePath}"`,
-            },
-          ],
-        };
+        return ok(
+          result,
+          result.created
+            ? `Created new daily note at "${result.relativePath}"`
+            : result.updated
+              ? `Appended entry to daily note at "${result.relativePath}"`
+              : `Daily note already exists at "${result.relativePath}" (nothing to append)`
+        );
       } catch (err) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Error in daily note: ${err.message}` }],
-        };
+        return failure("Error in daily note", err);
       }
     }
   );

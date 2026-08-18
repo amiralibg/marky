@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { archLabel, osLabel, type DetectedPlatform } from "../lib/platform";
+import { useReveal } from "../lib/motion";
 import {
   FALLBACK_RELEASE_URL,
   assetsFor,
@@ -61,8 +62,14 @@ const ICONS = {
 export default function Download({ release, platform }: Props) {
   const [os, setOs] = useState<Os>(platform.os);
   const [arch, setArch] = useState<Arch>(platform.arch);
+  const touched = useRef(false);
+  const copyRef = useReveal<HTMLDivElement>();
+  const panelRef = useReveal<HTMLDivElement>();
 
+  // refineArch() resolves after mount, so without this guard a visitor who
+  // picks a platform in that window has their choice silently reset.
   useEffect(() => {
+    if (touched.current) return;
     setOs(platform.os);
     setArch(platform.arch);
   }, [platform]);
@@ -76,7 +83,7 @@ export default function Download({ release, platform }: Props) {
   return (
     <section id="download" className="mx-auto max-w-[1440px] px-6 py-20 md:px-10 md:py-28">
       <div className="grid gap-12 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <div>
+        <div ref={copyRef} className="reveal">
           <p className="kicker">Installers · under 10 MB</p>
           <h2 className="display mt-4 text-[clamp(36px,8vw,72px)]">Mac, Windows, Linux.</h2>
           <p className="mt-6 max-w-[28rem] font-display text-[18px] leading-[1.5] text-ink-soft">
@@ -94,8 +101,15 @@ export default function Download({ release, platform }: Props) {
           )}
         </div>
 
-        <div className="rounded-md border border-line bg-surface p-5 md:p-8">
-          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Operating system">
+        <div
+          ref={panelRef}
+          className="reveal rounded-md border border-line bg-surface p-5 md:p-8"
+          style={{ "--reveal-delay": "120ms" } as React.CSSProperties}
+        >
+          {/* Deliberately a group of toggles, not a tablist: these filter the
+              panel below in place rather than swapping tabpanels, and a tablist
+              without tabpanels or arrow-key roving is announced as broken. */}
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Operating system">
             {PLATFORMS.map((id) => {
               const Icon = ICONS[id];
               const selected = os === id;
@@ -103,9 +117,9 @@ export default function Download({ release, platform }: Props) {
                 <button
                   key={id}
                   type="button"
-                  role="tab"
-                  aria-selected={selected}
+                  aria-pressed={selected}
                   onClick={() => {
+                    touched.current = true;
                     setOs(id);
                     setArch(
                       id === platform.os ? platform.arch : id === "macos" ? "arm64" : "amd64"
@@ -124,14 +138,18 @@ export default function Download({ release, platform }: Props) {
             })}
           </div>
 
-          <div className="mt-5 flex gap-2">
+          <div className="mt-5 flex gap-2" role="group" aria-label="Architecture">
             {ARCHES.map((id) => {
               const selected = arch === id;
               return (
                 <button
                   key={id}
                   type="button"
-                  onClick={() => setArch(id)}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    touched.current = true;
+                    setArch(id);
+                  }}
                   className={`min-h-10 rounded-pill px-3 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
                     selected
                       ? "bg-ink text-surface"

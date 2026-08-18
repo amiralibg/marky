@@ -95,6 +95,9 @@ jobs:
             npx -y @marky-app/mcp-server /path/to/your/marky/vault
             ```
 
+            ### What changed
+            See the [changelog](https://github.com/amiralibg/marky/blob/main/packages/mcp-server/CHANGELOG.md) — check it before upgrading across a major version, as tool output shapes can change.
+
             ### Documentation
             See [MCP Server Documentation](https://github.com/amiralibg/marky/blob/main/docs/mcp-server.md) for full configuration instructions with Claude Desktop and Cursor.
           draft: false

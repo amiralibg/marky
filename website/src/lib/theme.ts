@@ -2,13 +2,26 @@ const STORAGE_KEY = "marky-site-theme";
 
 export type Theme = "light" | "dark";
 
+export function systemTheme(): Theme {
+  try {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+/**
+ * An explicit choice wins; otherwise follow the OS. Defaulting to light meant
+ * dark-mode visitors got a bright flash and had to toggle on every visit.
+ */
 export function readTheme(): Theme {
   try {
-    if (localStorage.getItem(STORAGE_KEY) === "dark") return "dark";
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === "dark" || stored === "light") return stored;
   } catch {
     /* ignore */
   }
-  return "light";
+  return systemTheme();
 }
 
 export function applyTheme(theme: Theme) {

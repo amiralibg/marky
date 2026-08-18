@@ -20,12 +20,14 @@ export default function Hero({ release, platform, loading, error }: Props) {
       id="top"
       className="mx-auto grid max-w-[1440px] gap-10 px-6 pb-16 pt-12 md:px-10 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-12 lg:pb-24 lg:pt-20"
     >
-      <div className="flex max-w-[640px] flex-col justify-center">
+      <div className="enter flex max-w-[640px] flex-col justify-center">
         <p className="kicker">Offline-first · under 10 MB</p>
         <h1 className="display mt-5 text-[clamp(48px,10vw,96px)] text-ink">
           Notes that{" "}
           <em className="not-italic">
-            <span className="relative inline-block rounded-pill bg-marigold px-4 py-1">link</span>
+            <span className="pill-draw relative inline-block rounded-pill bg-marigold px-4 py-1">
+              link
+            </span>
           </em>
           .
         </h1>

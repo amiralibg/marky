@@ -2,6 +2,71 @@ import { useState } from "react";
 import useNotesStore from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
 
+const iconProps = {
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  viewBox: "0 0 24 24",
+  "aria-hidden": true,
+};
+
+const SearchIcon = (props) => (
+  <svg {...iconProps} {...props}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </svg>
+);
+
+const LinkIcon = (props) => (
+  <svg {...iconProps} {...props}>
+    <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+    <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+  </svg>
+);
+
+const PencilIcon = (props) => (
+  <svg {...iconProps} {...props}>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+  </svg>
+);
+
+const CalendarIcon = (props) => (
+  <svg {...iconProps} {...props}>
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <path d="M16 3v4M8 3v4M3 11h18" />
+  </svg>
+);
+
+const CAPABILITIES = [
+  {
+    id: "search",
+    Icon: SearchIcon,
+    title: "Fuzzy search & filter",
+    body: "Search your vault by title, tags, content, or a specific folder.",
+  },
+  {
+    id: "links",
+    Icon: LinkIcon,
+    title: "Backlinks & wiki links",
+    body: "Inspect graph connections, find backlinks, and suggest new [[links]].",
+  },
+  {
+    id: "write",
+    Icon: PencilIcon,
+    title: "Read, create & append",
+    body: "Draft new notes, append meeting notes, or update frontmatter.",
+  },
+  {
+    id: "daily",
+    Icon: CalendarIcon,
+    title: "Daily notes workflow",
+    body: "Log action items or review recent daily notes for standup reports.",
+  },
+];
+
 const CLIENTS = [
   { id: "claude-desktop", label: "Claude Desktop" },
   { id: "claude-code", label: "Claude Code" },
@@ -93,8 +158,14 @@ const McpSettings = () => {
             {rootFolderPath || "No workspace opened yet"}
           </span>
         </div>
-        <span className="text-[11px] px-2 py-0.5 rounded bg-accent-dim text-accent font-medium">
-          Ready for MCP
+        <span
+          className={`text-[11px] px-2 py-0.5 rounded font-medium shrink-0 ${
+            rootFolderPath
+              ? "bg-accent-dim text-accent"
+              : "bg-bg-sidebar text-text-muted border border-border"
+          }`}
+        >
+          {rootFolderPath ? "Ready for MCP" : "No workspace"}
         </span>
       </div>
 
@@ -206,39 +277,15 @@ const McpSettings = () => {
           Available AI Capabilities Across All Clients
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-          <div className="p-3 rounded-lg bg-bg-base border border-border">
-            <span className="text-xs font-semibold text-text-primary block mb-0.5">
-              🔍 Fuzzy Search & Filter
-            </span>
-            <p className="text-[11px] text-text-muted">
-              AI can search your vault by title, tags, content, or specific folder.
-            </p>
-          </div>
-          <div className="p-3 rounded-lg bg-bg-base border border-border">
-            <span className="text-xs font-semibold text-text-primary block mb-0.5">
-              🔗 Backlinks & WikiLinks
-            </span>
-            <p className="text-[11px] text-text-muted">
-              AI can inspect graph connections, find backlinks, and suggest new{" "}
-              <code className="text-accent">[[links]]</code>.
-            </p>
-          </div>
-          <div className="p-3 rounded-lg bg-bg-base border border-border">
-            <span className="text-xs font-semibold text-text-primary block mb-0.5">
-              ✍️ Read, Create & Append
-            </span>
-            <p className="text-[11px] text-text-muted">
-              AI can draft new notes, append meeting notes, or update frontmatter.
-            </p>
-          </div>
-          <div className="p-3 rounded-lg bg-bg-base border border-border">
-            <span className="text-xs font-semibold text-text-primary block mb-0.5">
-              📅 Daily Notes Workflow
-            </span>
-            <p className="text-[11px] text-text-muted">
-              AI can log action items or review your daily notes for standup reports.
-            </p>
-          </div>
+          {CAPABILITIES.map(({ id, Icon, title, body }) => (
+            <div key={id} className="p-3 rounded-lg bg-bg-base border border-border">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-text-primary mb-0.5">
+                <Icon className="w-3.5 h-3.5 shrink-0 text-accent" />
+                {title}
+              </span>
+              <p className="text-[11px] text-text-muted">{body}</p>
+            </div>
+          ))}
         </div>
       </div>
     </div>
