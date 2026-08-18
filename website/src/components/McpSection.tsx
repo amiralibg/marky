@@ -98,8 +98,9 @@ export default function McpSection() {
             Your notes, in your AI assistant.
           </h2>
           <p className="mt-6 max-w-[30rem] font-display text-[18px] leading-[1.5] text-ink-soft">
-            Marky ships an MCP server, so Claude, Cursor, Zed, and ChatGPT can read and write the
-            same vault you edit. It runs locally over stdio — your notes never leave the machine.
+            Marky ships an MCP server, so Claude, Cursor, Zed and ChatGPT can read and write the
+            same vault you are editing. It talks over stdio on your own machine, so nothing gets
+            uploaded anywhere.
           </p>
 
           <ul className="mt-8 flex flex-col gap-2.5">
@@ -117,7 +118,7 @@ export default function McpSection() {
           </ul>
 
           <p className="mt-8 font-mono text-[12px] leading-5 text-ink-faint">
-            Read-only mode available with <code>--read-only</code>.
+            Add <code>--read-only</code> if you would rather the assistant could only read.
           </p>
         </div>
 

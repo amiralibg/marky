@@ -132,11 +132,13 @@ export default function Features({ spotlight }: Props) {
         ref={headingRef}
         className="reveal flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
       >
-        <h2 className="display max-w-[16ch] text-[clamp(36px,8vw,72px)]">A vault, not a feed.</h2>
+        <h2 className="display max-w-[16ch] text-[clamp(36px,8vw,72px)]">
+          Built on files you already own.
+        </h2>
         <div className="max-w-[28rem]">
           <p className="font-display text-[18px] leading-[1.5] text-ink-soft">
-            Files on disk. Wiki links between them. Search when the titles slip. Everything stays on
-            your machine.
+            Nothing in here is a database row. You open a folder, you write Markdown, and Marky does
+            the linking, searching and scheduling on top of it.
           </p>
           {draggable && (
             <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-faint">
