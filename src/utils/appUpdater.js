@@ -6,6 +6,16 @@ const isTauriRuntime = () => Boolean(window.__TAURI_INTERNALS__);
 
 const getErrorMessage = (error) => {
   const message = error?.message || String(error || "Unknown updater error");
+  // Transport failures arrive as raw reqwest strings such as
+  // `error sending request for url (https://github.com/.../latest.json)`.
+  // Checked before the config case because that pattern matches "endpoint".
+  if (
+    /error sending request|failed to fetch|dns error|timed out|timeout|connection|unreachable|offline|network/i.test(
+      message
+    )
+  ) {
+    return "Couldn't reach GitHub to check for updates. Check your connection and try again.";
+  }
   if (/pubkey|signature|endpoint|updater/i.test(message)) {
     return "Auto-update is not fully configured for this build yet.";
   }
