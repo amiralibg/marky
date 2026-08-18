@@ -21,6 +21,16 @@
   --color-dusk: #1a1916;
   --color-sky: #d7e4f2;
 
+  /* Sticky-note stock. Decorative only — per the accent rule these never
+     become buttons, links, or borders. Every one carries --color-ink above
+     7:1, so note text stays readable without a per-note override. */
+  --color-note-butter: #f4dfa0;
+  --color-note-mint: #cfe0bd;
+  --color-note-sky: #cfe0f2;
+  --color-note-blush: #f2d3cd;
+  --color-note-lilac: #ded7f5;
+  --color-note-cream: #fdf3d9;
+
   --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
   --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
@@ -96,6 +106,10 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
+  /* A dragged sticky note can travel past the right edge, and narrow viewports
+     have no room to spare. `clip` rather than `hidden` so position: sticky on
+     the header keeps working. */
+  overflow-x: clip;
   background-color: var(--color-canvas);
   background-image:
     linear-gradient(color-mix(in srgb, var(--color-ink) 4%, transparent) 1px, transparent 1px),
@@ -165,6 +179,120 @@ a:focus-visible {
   text-transform: uppercase;
   /* 12px uppercase needs the full 4.5:1; 55% ink only reached 3.7:1. */
   color: color-mix(in srgb, var(--color-ink) 70%, transparent);
+}
+
+/* ---- Sticky notes -------------------------------------------------------
+   The one place this design breaks the shadowless rule: a note has to read as
+   paper resting on a board, and a hairline cannot do that. Kept to two soft
+   layers, and it is the only shadow on the page apart from the app mockup. */
+
+.note {
+  position: relative;
+  border-radius: var(--radius-sm);
+  transform: rotate(var(--note-tilt, 0deg)) translate3d(var(--note-dx, 0px), var(--note-dy, 0px), 0);
+  box-shadow:
+    0 1px 1px rgb(28 27 24 / 0.06),
+    0 6px 14px -8px rgb(28 27 24 / 0.28);
+  opacity: 0;
+  translate: 0 18px;
+}
+
+/* The turned-up bottom corner. Purely decorative, drawn with a gradient
+   rather than an extra element. */
+.note::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 26px;
+  height: 26px;
+  border-bottom-right-radius: var(--radius-sm);
+  background: linear-gradient(
+    135deg,
+    transparent 0 50%,
+    color-mix(in srgb, var(--color-ink) 7%, transparent) 50% 100%
+  );
+  transition:
+    width 320ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    height 320ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.note[data-revealed] {
+  opacity: 1;
+  translate: none;
+  transition:
+    opacity 520ms ease,
+    translate 620ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    transform 320ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    box-shadow 320ms cubic-bezier(0.2, 0.9, 0.25, 1);
+  transition-delay: var(--note-delay, 0ms);
+}
+
+/* Hover straightens the note and lifts it off the board. */
+@media (hover: hover) and (pointer: fine) {
+  .note:hover,
+  .note:focus-within {
+    transform: rotate(0deg) translate3d(var(--note-dx, 0px), calc(var(--note-dy, 0px) - 6px), 0)
+      scale(1.015);
+    box-shadow:
+      0 2px 2px rgb(28 27 24 / 0.05),
+      0 18px 34px -12px rgb(28 27 24 / 0.34);
+    z-index: 5;
+  }
+
+  .note:hover::after,
+  .note:focus-within::after {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+.note[data-dragging="true"] {
+  /* No position transition while the pointer owns it, or it lags the cursor. */
+  transition: box-shadow 200ms ease;
+  transform: rotate(0deg) translate3d(var(--note-dx, 0px), var(--note-dy, 0px), 0) scale(1.03);
+  box-shadow:
+    0 3px 3px rgb(28 27 24 / 0.06),
+    0 26px 46px -14px rgb(28 27 24 / 0.4);
+  z-index: 20;
+}
+
+.note-grip {
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.note[data-dragging="true"] .note-grip {
+  cursor: grabbing;
+}
+
+/* Generic section reveal, used by headings and panels. */
+.reveal {
+  opacity: 0;
+  translate: 0 14px;
+}
+
+.reveal[data-revealed] {
+  opacity: 1;
+  translate: none;
+  transition:
+    opacity 560ms ease,
+    translate 640ms cubic-bezier(0.2, 0.9, 0.25, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note,
+  .reveal {
+    opacity: 1;
+    translate: none;
+  }
+
+  .note,
+  .note:hover,
+  .note:focus-within {
+    transform: none;
+  }
 }
 
 .marky-app {

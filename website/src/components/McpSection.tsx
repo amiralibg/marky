@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { useReveal } from "../lib/motion";
 
 type ClientId = "claude-code" | "claude-desktop" | "cursor" | "zed" | "chatgpt";
 
@@ -71,6 +72,8 @@ const CAPABILITIES = [
 ];
 
 export default function McpSection() {
+  const copyRef = useReveal<HTMLDivElement>();
+  const panelRef = useReveal<HTMLDivElement>();
   const [active, setActive] = useState<ClientId>("claude-code");
   const [copied, setCopied] = useState(false);
 
@@ -89,7 +92,7 @@ export default function McpSection() {
   return (
     <section id="mcp" className="mx-auto max-w-[1440px] px-6 py-20 md:px-10 md:py-28">
       <div className="grid gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-12">
-        <div>
+        <div ref={copyRef} className="reveal">
           <p className="kicker">Model Context Protocol</p>
           <h2 className="display mt-4 text-[clamp(36px,8vw,64px)]">
             Your notes, in your AI assistant.
@@ -118,7 +121,11 @@ export default function McpSection() {
           </p>
         </div>
 
-        <div className="rounded-md border border-line bg-surface p-5 md:p-8">
+        <div
+          ref={panelRef}
+          className="reveal rounded-md border border-line bg-surface p-5 md:p-8"
+          style={{ "--reveal-delay": "120ms" } as React.CSSProperties}
+        >
           <div className="flex flex-wrap gap-2" role="group" aria-label="MCP client">
             {CLIENTS.map((item) => {
               const selected = item.id === active;

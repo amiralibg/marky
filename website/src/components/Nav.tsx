@@ -61,17 +61,17 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme }: Props) {
               <Moon size={16} strokeWidth={2} />
             )}
           </button>
+          {/* Keyboard-only affordance: hidden below sm, where there is no ⌘K to
+              press and the extra control pushed the header past the viewport. */}
           <button
             type="button"
             onClick={onOpenPalette}
-            className="inline-flex h-9 items-center gap-2 rounded-sm border border-line bg-surface px-2.5 text-[12px] text-ink/55 transition-colors duration-200 hover:text-ink"
+            className="hidden h-9 items-center gap-2 rounded-sm border border-line bg-surface px-2.5 text-[12px] text-ink/70 transition-colors duration-200 hover:text-ink sm:inline-flex"
             aria-label="Open command palette"
           >
             <Command size={13} strokeWidth={2} />
-            <span className="hidden sm:inline">Search</span>
-            <kbd className="hidden rounded-sm bg-ink/[0.06] px-1.5 py-0.5 font-mono text-[11px] sm:inline">
-              ⌘K
-            </kbd>
+            <span>Search</span>
+            <kbd className="rounded-sm bg-ink/[0.06] px-1.5 py-0.5 font-mono text-[11px]">⌘K</kbd>
           </button>
           <a
             href="#download"
