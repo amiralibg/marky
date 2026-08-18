@@ -23,31 +23,31 @@ const SHOTS: Shot[] = [
   {
     id: "reading",
     label: "Reading",
-    caption: "Reading view renders Mermaid diagrams and KaTeX maths inline.",
+    caption: "Reading view draws Mermaid diagrams and KaTeX maths where you wrote them.",
     alt: "A note in reading view with a rendered Mermaid flow diagram and a KaTeX equation",
   },
   {
     id: "source",
     label: "Source",
-    caption: "The same note in source view — it is only ever Markdown on disk.",
+    caption: "The same note in source view. What you see here is what sits in the file.",
     alt: "The same note in source view showing the raw Mermaid fence and dollar-delimited maths",
   },
   {
     id: "code",
     label: "Code",
-    caption: "Syntax highlighting and footnotes, without a plugin to install.",
+    caption: "Syntax highlighting and numbered footnotes, both on out of the box.",
     alt: "A note showing a highlighted Rust code block and a numbered footnote",
   },
   {
     id: "daily",
     label: "Daily notes",
-    caption: "Daily notes with tasks and wiki links, created on a schedule.",
+    caption: "A daily note with its tasks and wiki links, created for you on a schedule.",
     alt: "A daily note dated 2026-08-17 with completed and open task checkboxes and a wiki link",
   },
   {
     id: "themes",
     label: "Themes",
-    caption: "Ten themes and nine accent colours, applied across the app instantly.",
+    caption: "Ten themes and nine accent colours. Picking one repaints the app straight away.",
     alt: "Marky's appearance settings showing a grid of theme previews and a row of accent colour swatches",
   },
 ];
@@ -66,14 +66,14 @@ export default function Gallery() {
         className="reveal flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
       >
         <div>
-          <p className="kicker">The real thing</p>
+          <p className="kicker">Screenshots</p>
           <h2 className="display mt-4 max-w-[14ch] text-[clamp(36px,8vw,64px)]">
-            No mockups here.
+            Straight from the app.
           </h2>
         </div>
         <p className="max-w-[26rem] font-display text-[18px] leading-[1.5] text-ink-soft">
-          Screenshots straight from the app, on a real vault. Dark theme shown — there are nine
-          more.
+          Every shot below is Marky running on a vault someone actually writes in. They are in a
+          dark theme here; nine others ship with the app.
         </p>
       </div>
 

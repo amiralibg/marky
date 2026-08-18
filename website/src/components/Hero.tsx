@@ -32,8 +32,9 @@ export default function Hero({ release, platform, loading, error }: Props) {
           .
         </h1>
         <p className="mt-8 max-w-[34rem] font-display text-[18px] leading-[1.45] text-ink-soft sm:text-[20px]">
-          A desktop Markdown editor for a vault on disk. Local folders, wiki links, and a quiet
-          writing room — no account, no cloud. Native installers stay under 10 MB.
+          Point Marky at a folder and start writing. Your notes stay plain Markdown on your own
+          disk, wiki links work between them, and there is no account to make or server to sync
+          with.
         </p>
 
         <div className="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -64,9 +65,9 @@ export default function Hero({ release, platform, loading, error }: Props) {
         <p className="mt-4 font-mono text-[12px] leading-5 text-ink-faint">
           {error && (
             <span>
-              Couldn’t read GitHub just now —{" "}
+              Couldn’t reach GitHub just now.{" "}
               <a href={FALLBACK_RELEASE_URL} className="underline">
-                open releases
+                Open the releases page
               </a>
               .
             </span>

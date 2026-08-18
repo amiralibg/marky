@@ -8,7 +8,8 @@ export default function Footer() {
         <div>
           <p className="font-display text-[28px] tracking-[-0.03em]">Marky</p>
           <p className="mt-2 max-w-[28rem] text-[14px] leading-6 text-ink-soft">
-            Offline-first Markdown notes. Native installers under 10 MB. MIT licensed.
+            Markdown notes that live in a folder on your own disk. MIT licensed, and every installer
+            comes in under 10 MB.
           </p>
           <BuiltBy className="mt-5" />
         </div>

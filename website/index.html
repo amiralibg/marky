@@ -10,44 +10,119 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f3efe6" />
-    <title>Marky — Offline-first Markdown notes</title>
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <title>Marky — Offline-first Markdown notes for macOS, Windows and Linux</title>
     <meta
       name="description"
-      content="Marky is an offline-first Markdown notes app with local folders, wiki links, graph navigation, and a polished desktop editor. Download for macOS, Windows, and Linux."
+      content="A desktop Markdown editor that keeps your notes as plain files in a folder you choose. Wiki links, backlinks, graph view and MCP support. Free and open source."
     />
+    <meta name="author" content="Amirali Beigi" />
     <link rel="canonical" href="https://marky.amiralibg.xyz/" />
+    <!-- Default is index,follow anyway; this is here for the preview limits,
+         without which Google shows a thumbnail rather than the large card. -->
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+
+    <!-- Open Graph. The card is website/og/card.html, rendered by
+         scripts/build-og.sh; regenerate it whenever this copy changes. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Marky" />
+    <!-- The copy is British throughout ("colours", "maths"), so declare that
+         rather than en_US. -->
+    <meta property="og:locale" content="en_GB" />
+    <meta property="og:url" content="https://marky.amiralibg.xyz/" />
     <meta property="og:title" content="Marky — Offline-first Markdown notes" />
     <meta
       property="og:description"
-      content="Local folders. Wiki links. Graph navigation. Connect Claude, Cursor, or ChatGPT over MCP. Download for macOS, Windows, and Linux — ARM64 and AMD64."
+      content="A desktop Markdown editor for a folder of plain files on your own disk. Wiki links, backlinks, graph view, and an MCP server for Claude, Cursor and ChatGPT."
     />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://marky.amiralibg.xyz/" />
-    <meta property="og:site_name" content="Marky" />
-    <!-- TODO: design a 1200x630 social card and swap these to it, then change
-         twitter:card to summary_large_image. Until then this points at the
-         square app icon, which only renders correctly in the small card. -->
-    <meta property="og:image" content="https://marky.amiralibg.xyz/icon.png" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content="https://marky.amiralibg.xyz/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Marky — notes that link. A desktop Markdown editor for macOS, Windows and Linux."
+    />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@_amiralibgi" />
+    <meta name="twitter:creator" content="@_amiralibgi" />
     <meta name="twitter:title" content="Marky — Offline-first Markdown notes" />
     <meta
       name="twitter:description"
-      content="A desktop Markdown editor for a vault on disk. No account, no cloud. Installers under 10 MB."
+      content="A desktop Markdown editor for a folder of plain files on your own disk. No account, nothing to sync, installers under 10 MB."
     />
-    <meta name="twitter:image" content="https://marky.amiralibg.xyz/icon.png" />
+    <meta name="twitter:image" content="https://marky.amiralibg.xyz/og.png" />
+    <meta
+      name="twitter:image:alt"
+      content="Marky — notes that link. A desktop Markdown editor for macOS, Windows and Linux."
+    />
+
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Marky",
-        "applicationCategory": "ProductivityApplication",
-        "operatingSystem": "macOS, Windows, Linux",
-        "url": "https://marky.amiralibg.xyz/",
-        "description": "Offline-first Markdown notes app with local folders, wiki links, graph navigation, and MCP support for AI assistants.",
-        "license": "https://github.com/amiralibg/marky/blob/main/LICENSE",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://marky.amiralibg.xyz/#website",
+            "url": "https://marky.amiralibg.xyz/",
+            "name": "Marky",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://marky.amiralibg.xyz/#author" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://marky.amiralibg.xyz/#author",
+            "name": "Amirali Beigi",
+            "url": "https://github.com/amiralibg",
+            "sameAs": ["https://github.com/amiralibg", "https://x.com/_amiralibgi"]
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://marky.amiralibg.xyz/#app",
+            "name": "Marky",
+            "url": "https://marky.amiralibg.xyz/",
+            "applicationCategory": "ProductivityApplication",
+            "applicationSubCategory": "Note-taking",
+            "operatingSystem": "macOS, Windows, Linux",
+            "processorRequirements": "ARM64, AMD64",
+            "description": "Offline-first Markdown notes app with local folders, wiki links, backlinks, graph navigation, and an MCP server for AI assistants.",
+            "image": "https://marky.amiralibg.xyz/og.png",
+            "screenshot": [
+              "https://marky.amiralibg.xyz/screenshots/graph.webp",
+              "https://marky.amiralibg.xyz/screenshots/reading.webp",
+              "https://marky.amiralibg.xyz/screenshots/themes.webp"
+            ],
+            "downloadUrl": "https://github.com/amiralibg/marky/releases/latest",
+            "softwareHelp": "https://github.com/amiralibg/marky#readme",
+            "author": { "@id": "https://marky.amiralibg.xyz/#author" },
+            "license": "https://github.com/amiralibg/marky/blob/main/LICENSE",
+            "isAccessibleForFree": true,
+            "featureList": [
+              "Notes stored as plain Markdown files in a local folder",
+              "Wiki links with autocomplete and contextual backlinks",
+              "Graph view of the whole vault",
+              "Fuzzy search across note names and contents",
+              "Mermaid diagrams, KaTeX maths, footnotes and syntax highlighting",
+              "Ten themes, nine accent colours and remappable shortcuts",
+              "Scheduled daily, weekly and monthly notes from templates",
+              "MCP server for Claude, Cursor, Zed and ChatGPT"
+            ],
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+          }
+        ]
       }
     </script>
+
+    <!-- The download buttons resolve against the GitHub releases API as soon as
+         the app mounts; opening the connection now takes the DNS and TLS cost
+         off that request's critical path. -->
+    <link rel="preconnect" href="https://api.github.com" crossorigin />
+
     <!-- Fonts are self-hosted from /public/fonts; see src/fonts.css. The two
          families used above the fold are preloaded so they start downloading
          alongside the CSS rather than after it parses. -->
@@ -90,6 +165,55 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- The page itself is client-rendered, so a crawler that does not execute
+         JavaScript would otherwise find an empty #root. This mirrors the real
+         copy of the page so those crawlers, and anyone browsing with scripts
+         off, still get the headline, the feature list, and a download link.
+         Keep it in step with src/components/* when the copy changes. -->
+    <noscript>
+      <div style="max-width: 46rem; margin: 0 auto; padding: 3rem 1.5rem; line-height: 1.6">
+        <h1>Marky — notes that link</h1>
+        <p>
+          A desktop Markdown editor for a folder of plain files on your own disk. Point Marky at a
+          folder and start writing: your notes stay plain Markdown, wiki links work between them,
+          and there is no account to make or server to sync with.
+        </p>
+        <h2>What it does</h2>
+        <ul>
+          <li>Any local directory becomes a vault of ordinary <code>.md</code> files.</li>
+          <li>Wiki links with autocomplete, and backlinks shown with surrounding context.</li>
+          <li>One editing pane with a live view and a reading view, plus Vim keys and RTL.</li>
+          <li>
+            Fuzzy search over note names and contents, and a command palette for everything else.
+          </li>
+          <li>
+            Mermaid diagrams, KaTeX maths, footnotes and syntax highlighting, with no plugins.
+          </li>
+          <li>Ten themes, nine accent colours and remappable keyboard shortcuts.</li>
+          <li>Daily, weekly and monthly notes created from templates on a schedule.</li>
+          <li>A graph view of the whole vault, exportable as an image.</li>
+          <li>
+            An MCP server so Claude, Cursor, Zed and ChatGPT can read and write the same vault.
+          </li>
+        </ul>
+        <!-- FAQ:NOSCRIPT -->
+
+        <h2>Download</h2>
+        <p>
+          Native packages for macOS, Windows and Linux, on both ARM64 and AMD64, all under 10 MB.
+          <a href="https://github.com/amiralibg/marky/releases/latest">
+            Get the latest release from GitHub
+          </a>
+          .
+        </p>
+        <p>
+          Marky is free and MIT licensed. Source at
+          <a href="https://github.com/amiralibg/marky">github.com/amiralibg/marky</a>.
+        </p>
+      </div>
+    </noscript>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

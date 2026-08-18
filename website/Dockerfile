@@ -11,6 +11,7 @@ FROM nginx:1.27-alpine
 RUN apk add --no-cache wget
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY security-headers.conf /etc/nginx/security-headers.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80

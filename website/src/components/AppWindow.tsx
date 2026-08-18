@@ -22,12 +22,12 @@ const STARTER: Note[] = [
     title: "Daily",
     source: `# Daily
 
-See [[Graph]] and the new [[Inbox]] from yesterday.
+Picked up where [[Inbox]] left off yesterday, then went down a [[Graph]] rabbit hole.
 
 - [x] Write in the live editor
-- [ ] Follow backlinks
+- [ ] Follow the backlinks and see where they go
 
-The vault is just a folder on disk.`,
+Reminder to self: this is a folder, not an app.`,
     tags: ["daily"],
   },
   {
@@ -36,9 +36,9 @@ The vault is just a folder on disk.`,
     title: "Graph",
     source: `# Graph
 
-Every [[Daily]] note is a node. Wiki links become edges.
+Every [[Daily]] note shows up as a node, and each wiki link becomes an edge between two of them.
 
-Open the graph from the command palette when the vault grows past a handful of pages.
+Worth opening from the command palette once the vault is past a hundred pages or so. Before that it is mostly a pretty picture.
 
 Back to [[Inbox]].`,
     tags: ["design", "graph"],
@@ -49,12 +49,12 @@ Back to [[Inbox]].`,
     title: "Inbox",
     source: `# Inbox
 
-Capture first. File later.
+Everything lands here first and gets filed on a Friday, if at all.
 
 - Sketch for [[Graph]]
-- Link from [[Daily]]
+- Link back from [[Daily]]
 
-Nothing leaves this machine.`,
+None of it goes anywhere near a server.`,
     tags: ["inbox"],
   },
   {
@@ -64,7 +64,7 @@ Nothing leaves this machine.`,
     folder: "Projects",
     source: `# Ideas
 
-Parked in [[Projects]].
+Parked in [[Projects]] until there is time.
 
 - A quieter command palette
 - Export the [[Graph]] as SVG`,

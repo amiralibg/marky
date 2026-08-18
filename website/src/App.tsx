@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import CommandPalette from "./components/CommandPalette";
 import Download from "./components/Download";
+import Faq from "./components/Faq";
 import Features from "./components/Features";
 import Footer from "./components/Footer";
 import Gallery from "./components/Gallery";
@@ -96,6 +97,7 @@ export default function App() {
         <GraphSection active={spotlight} onSelect={selectFeature} />
         <McpSection />
         <Download release={release} platform={platform} />
+        <Faq />
       </main>
       <Footer />
       <CommandPalette

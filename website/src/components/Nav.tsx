@@ -22,6 +22,7 @@ const LINKS: NavLink[] = [
   { href: "#graph", label: "Graph", wide: true },
   { href: "#mcp", label: "MCP" },
   { href: "#download", label: "Download" },
+  { href: "#faq", label: "FAQ", wide: true },
   { href: GITHUB_REPO_URL, label: "GitHub", external: true, wide: true },
 ];
 
