@@ -143,6 +143,17 @@ Inside Marky:
 
 Read-only tools are annotated with `readOnlyHint`, so clients can auto-approve them separately from writes. `update_note` is annotated `destructiveHint` because it replaces the whole file.
 
+Every tool also declares an `outputSchema` and returns `structuredContent`, so a client can consume results as typed JSON instead of re-parsing prose. The human-readable `content` block is still sent alongside. Because MCP requires structured output to be a JSON object, `search_notes` and `get_tags` wrap their results:
+
+```jsonc
+// search_notes
+{ "query": "roadmap", "returned": 3, "results": [ /* ... */ ] }
+// get_tags
+{ "tags": [ { "tag": "#project", "count": 4, "notes": ["Projects/Roadmap.md"] } ] }
+```
+
+Failed calls return `isError` with a message and no `structuredContent`.
+
 | Tool Name                     | Parameters                                   | Description                                                                                         |
 | :---------------------------- | :------------------------------------------- | :-------------------------------------------------------------------------------------------------- |
 | `search_notes`                | `query`, `tag?`, `folder?`, `limit?`         | Fuzzy search across note titles, tags, and body content. Returns 20 by default, 50 max.             |

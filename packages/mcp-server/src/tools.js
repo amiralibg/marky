@@ -1,13 +1,17 @@
 import { z } from "zod";
+import * as out from "./schemas.js";
 
-const json = (value) => ({
-  content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
+/**
+ * A successful result. `structuredContent` is what a client parses;
+ * `content` is what it shows. Read tools serialise the same object into text
+ * so the two never disagree; write tools pass a human sentence instead.
+ */
+const ok = (structured, text) => ({
+  content: [{ type: "text", text: text ?? JSON.stringify(structured, null, 2) }],
+  structuredContent: structured,
 });
 
-const text = (value) => ({
-  content: [{ type: "text", text: value }],
-});
-
+/** Error results carry no structure — the SDK exempts them from validation. */
 const failure = (label, err) => ({
   isError: true,
   content: [{ type: "text", text: `${label}: ${err.message}` }],
@@ -39,11 +43,13 @@ export function registerTools(server, vault) {
           .default(20)
           .describe("Maximum number of results to return (default: 20, max: 50)"),
       },
+      outputSchema: out.searchNotesOutput,
       annotations: READ_ONLY,
     },
     async ({ query, tag, folder, limit }) => {
       try {
-        return json(vault.searchNotes(query, { tag, folder, limit }));
+        const results = vault.searchNotes(query, { tag, folder, limit });
+        return ok({ query, returned: results.length, results });
       } catch (err) {
         return failure("Error searching notes", err);
       }
@@ -65,11 +71,12 @@ export function registerTools(server, vault) {
             "The relative path (e.g. 'Projects/Roadmap.md') or note title (e.g. 'Roadmap')"
           ),
       },
+      outputSchema: out.readNoteOutput,
       annotations: READ_ONLY,
     },
     async ({ path_or_title }) => {
       try {
-        return json(vault.readNote(path_or_title));
+        return ok(vault.readNote(path_or_title));
       } catch (err) {
         return failure("Error reading note", err);
       }
@@ -99,12 +106,17 @@ export function registerTools(server, vault) {
           .optional()
           .describe("List of tags to assign in frontmatter (e.g. ['architecture', 'rfc'])"),
       },
+      outputSchema: out.createNoteOutput,
       annotations: ADDITIVE,
     },
     async ({ title, folder, content, tags }) => {
       try {
         const result = vault.createNote({ title, folder, content, tags });
-        return text(`Note created successfully at "${result.relativePath}"`);
+        // fullPath is deliberately not surfaced; it is an absolute machine path.
+        return ok(
+          { success: true, title: result.title, relativePath: result.relativePath },
+          `Note created successfully at "${result.relativePath}"`
+        );
       } catch (err) {
         return failure("Error creating note", err);
       }
@@ -129,6 +141,7 @@ export function registerTools(server, vault) {
             "The `hash` from a previous read_note. If given and the note has changed since, the write is refused."
           ),
       },
+      outputSchema: out.updateNoteOutput,
       annotations: {
         readOnlyHint: false,
         // Replaces the whole file; a wrong call loses the previous contents.
@@ -144,7 +157,8 @@ export function registerTools(server, vault) {
           content,
           expectedHash: expected_hash,
         });
-        return text(
+        return ok(
+          result,
           `Note "${result.relativePath}" updated successfully at ${result.modified} (hash ${result.hash})`
         );
       } catch (err) {
@@ -163,12 +177,13 @@ export function registerTools(server, vault) {
         path_or_title: z.string().describe("The relative path or note title of the note"),
         content: z.string().describe("The markdown content to append"),
       },
+      outputSchema: out.appendToNoteOutput,
       annotations: ADDITIVE,
     },
     async ({ path_or_title, content }) => {
       try {
         const result = vault.appendToNote({ relativePath: path_or_title, content });
-        return text(`Successfully appended content to "${result.relativePath}"`);
+        return ok(result, `Successfully appended content to "${result.relativePath}"`);
       } catch (err) {
         return failure("Error appending to note", err);
       }
@@ -202,11 +217,12 @@ export function registerTools(server, vault) {
           .default(0)
           .describe("Number of notes to skip, for paging through a large vault"),
       },
+      outputSchema: out.listNotesOutput,
       annotations: READ_ONLY,
     },
     async ({ folder, tag, limit, offset }) => {
       try {
-        return json(vault.listNotes({ folder, tag, limit, offset }));
+        return ok(vault.listNotes({ folder, tag, limit, offset }));
       } catch (err) {
         return failure("Error listing notes", err);
       }
@@ -220,11 +236,12 @@ export function registerTools(server, vault) {
       title: "Get vault structure",
       description: "Get the complete folder and file tree hierarchy of the Marky workspace.",
       inputSchema: {},
+      outputSchema: out.vaultStructureOutput,
       annotations: READ_ONLY,
     },
     async () => {
       try {
-        return json(vault.getVaultStructure());
+        return ok({ root: vault.getVaultStructure() });
       } catch (err) {
         return failure("Error getting vault structure", err);
       }
@@ -240,11 +257,12 @@ export function registerTools(server, vault) {
       inputSchema: {
         title: z.string().describe("The note title to inspect backlinks for"),
       },
+      outputSchema: out.backlinksOutput,
       annotations: READ_ONLY,
     },
     async ({ title }) => {
       try {
-        return json(vault.getBacklinks(title));
+        return ok(vault.getBacklinks(title));
       } catch (err) {
         return failure("Error getting backlinks", err);
       }
@@ -258,11 +276,12 @@ export function registerTools(server, vault) {
       title: "Get tags",
       description: "List all hashtags and frontmatter tags used across the vault with note counts.",
       inputSchema: {},
+      outputSchema: out.tagsOutput,
       annotations: READ_ONLY,
     },
     async () => {
       try {
-        return json(vault.getTags());
+        return ok({ tags: vault.getTags() });
       } catch (err) {
         return failure("Error getting tags", err);
       }
@@ -286,12 +305,14 @@ export function registerTools(server, vault) {
           .describe("Date in YYYY-MM-DD format (defaults to today, in local time)"),
         content: z.string().optional().describe("Content or log entry to add to the daily note"),
       },
+      outputSchema: out.dailyNoteOutput,
       annotations: ADDITIVE,
     },
     async ({ date, content }) => {
       try {
         const result = vault.createOrAppendDailyNote(date, content);
-        return text(
+        return ok(
+          result,
           result.created
             ? `Created new daily note at "${result.relativePath}"`
             : result.updated

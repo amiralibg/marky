@@ -100,6 +100,8 @@ In `settings.json`:
 
 Read-only tools carry MCP `readOnlyHint` annotations so clients can auto-approve them independently of writes; `update_note` is marked `destructiveHint` because it rewrites the whole file.
 
+Every tool declares an `outputSchema` and returns `structuredContent` alongside the usual text block, so results can be consumed as typed JSON. MCP requires structured output to be a JSON object, so `search_notes` returns `{ query, returned, results }` and `get_tags` returns `{ tags }` rather than bare arrays.
+
 ## 🔒 Safety
 
 Run with `--read-only` (or `MARKY_READ_ONLY=1`) to expose only the read tools:
