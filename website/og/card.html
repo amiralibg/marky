@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      /* Fonts are the site's own self-hosted files, loaded from ../public/fonts
+         so the card is drawn in exactly the type the page uses. */
+      @font-face {
+        font-family: "Newsreader";
+        font-weight: 400 700;
+        src: url("../public/fonts/newsreader-variable.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Hanken Grotesk";
+        font-weight: 400 700;
+        src: url("../public/fonts/hanken-grotesk-variable.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        src: url("../public/fonts/ibm-plex-mono-400.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 500;
+        src: url("../public/fonts/ibm-plex-mono-500.woff2") format("woff2");
+      }
+
+      /* Mirrors the light palette in src/index.css. */
+      :root {
+        --canvas: #f3efe6;
+        --ink: #1c1b18;
+        --ink-soft: #5c594f;
+        --marigold: #e4b56a;
+        --accent: #6d5ce0;
+        --note-butter: #f4dfa0;
+        --note-sky: #cfe0f2;
+        --note-mint: #cfe0bd;
+        --note-ink: #1c1b18;
+      }
+
+      [data-variant="dark"] {
+        --canvas: #1e1e1c;
+        --ink: #e7e6e2;
+        --ink-soft: #a3a29d;
+        --marigold: #c9a056;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        font-family: "Hanken Grotesk", sans-serif;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+        /* Same ruled paper and corner glow as the page body. */
+        background-color: var(--canvas);
+        background-image:
+          linear-gradient(color-mix(in srgb, var(--ink) 4%, transparent) 1px, transparent 1px),
+          radial-gradient(900px 520px at 88% -12%, rgb(109 92 224 / 0.16), transparent 58%);
+        background-size:
+          100% 32px,
+          auto;
+      }
+
+      .card {
+        position: relative;
+        display: flex;
+        width: 100%;
+        height: 100%;
+        padding: 64px 72px;
+      }
+
+      .left {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        width: 720px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .brand img {
+        width: 46px;
+        height: 46px;
+        border-radius: 10px;
+      }
+
+      .brand span {
+        font-size: 30px;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+      }
+
+      h1 {
+        font-family: "Newsreader", serif;
+        font-weight: 500;
+        font-size: 92px;
+        line-height: 0.94;
+        letter-spacing: -0.045em;
+        /* The trailing full stop belongs to the headline, not to a line of its
+           own; the box is sized so the whole thing fits on one line. */
+        white-space: nowrap;
+      }
+
+      /* The marigold highlight behind "link", as on the page. */
+      .pill {
+        display: inline-block;
+        padding: 2px 22px 6px;
+        border-radius: 9999px;
+        background: var(--marigold);
+        color: #1c1b18;
+      }
+
+      .sub {
+        margin-top: 24px;
+        max-width: 34ch;
+        font-family: "Newsreader", serif;
+        font-size: 27px;
+        line-height: 1.36;
+        color: var(--ink-soft);
+      }
+
+      .meta {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 16px;
+        font-weight: 500;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        color: color-mix(in srgb, var(--ink) 62%, transparent);
+      }
+
+      /* A fanned stack of the sticky notes the features section is built from.
+         Absolutely placed so the headline can run under them without reflowing. */
+      .notes {
+        position: absolute;
+        top: 96px;
+        right: 34px;
+        width: 392px;
+        height: 470px;
+      }
+
+      .note {
+        position: absolute;
+        width: 288px;
+        padding: 22px 24px 30px;
+        border-radius: 10px;
+        color: var(--note-ink);
+        box-shadow:
+          0 1px 1px rgb(28 27 24 / 0.07),
+          0 16px 30px -14px rgb(28 27 24 / 0.42);
+      }
+
+      .note .k {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgb(28 27 24 / 0.6);
+      }
+
+      .note .t {
+        margin-top: 9px;
+        font-family: "Newsreader", serif;
+        font-size: 27px;
+        line-height: 1.12;
+        letter-spacing: -0.03em;
+      }
+
+      /* The turned-up bottom corner, drawn with a gradient as in index.css. */
+      .note::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        width: 26px;
+        height: 26px;
+        border-bottom-right-radius: 10px;
+        background: linear-gradient(135deg, transparent 0 50%, rgb(28 27 24 / 0.07) 50% 100%);
+      }
+
+      .n1 {
+        top: 0;
+        right: 44px;
+        background: var(--note-sky);
+        transform: rotate(-3deg);
+      }
+
+      .n2 {
+        top: 158px;
+        right: 6px;
+        background: var(--note-butter);
+        transform: rotate(2.4deg);
+      }
+
+      .n3 {
+        top: 316px;
+        right: 58px;
+        background: var(--note-mint);
+        transform: rotate(-1.6deg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="left">
+        <div class="brand">
+          <img src="../public/icon.png" alt="" />
+          <span>Marky</span>
+        </div>
+
+        <div>
+          <h1>Notes that <span class="pill">link</span>.</h1>
+
+          <p class="sub">A desktop Markdown editor for a folder of plain files on your own disk.</p>
+        </div>
+
+        <p class="meta">macOS · Windows · Linux · Free &amp; open source</p>
+      </div>
+
+      <div class="notes">
+        <div class="note n1">
+          <p class="k">01</p>
+          <p class="t">Open a folder,<br />get a vault.</p>
+        </div>
+        <div class="note n2">
+          <p class="k">02</p>
+          <p class="t">Link notes with<br />[[brackets]].</p>
+        </div>
+        <div class="note n3">
+          <p class="k">03</p>
+          <p class="t">Works with Claude<br />over MCP.</p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

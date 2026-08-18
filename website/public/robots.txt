@@ -1,4 +1,7 @@
 User-agent: *
 Allow: /
 
+# Single page, nothing behind a query string worth crawling twice.
+Disallow: /*?
+
 Sitemap: https://marky.amiralibg.xyz/sitemap.xml
