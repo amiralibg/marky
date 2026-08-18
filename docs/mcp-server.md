@@ -171,7 +171,7 @@ Failed calls return `isError` with a message and no `structuredContent`.
 
 Daily notes are written to the **vault root** as `YYYY-MM-DD.md` — the same location and filename the Marky app uses — so the app and your AI client share one note per day rather than creating two.
 
-Servers before v1.1.0 wrote to `Daily/YYYY-MM-DD.md`. Those notes are still found, appended to, and included in `daily_review`, so existing vaults keep working without migration.
+Servers before v2.0.0 wrote to `Daily/YYYY-MM-DD.md`. Those notes are still found, appended to, and included in `daily_review`, so existing vaults keep working without migration.
 
 ### Read-only mode
 

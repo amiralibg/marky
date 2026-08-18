@@ -1,6 +1,6 @@
 {
   "name": "@marky-app/mcp-server",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "Model Context Protocol (MCP) Server for Marky markdown vaults",
   "type": "module",
   "main": "src/index.js",
@@ -11,6 +11,7 @@
     "bin",
     "src",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
