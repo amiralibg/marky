@@ -36,7 +36,9 @@ export default function useModalAccessibility(isOpen, dialogRef, initialFocusRef
 
     requestAnimationFrame(() => {
       if (focusTarget instanceof HTMLElement) {
-        focusTarget.focus();
+        // preventScroll: focusing a fixed overlay otherwise makes the browser
+        // scroll the layout behind it to "reveal" the newly focused element.
+        focusTarget.focus({ preventScroll: true });
       }
     });
 
@@ -70,7 +72,7 @@ export default function useModalAccessibility(isOpen, dialogRef, initialFocusRef
       document.removeEventListener("keydown", handleKeyDown);
 
       if (previouslyFocusedRef.current instanceof HTMLElement) {
-        previouslyFocusedRef.current.focus();
+        previouslyFocusedRef.current.focus({ preventScroll: true });
       }
     };
   }, [dialogRef, initialFocusRef, isOpen]);

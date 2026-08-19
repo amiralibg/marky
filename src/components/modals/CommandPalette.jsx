@@ -1,8 +1,10 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import Fuse from "fuse.js";
 import useNotesStore from "../../store/notesStore";
 import useModalAccessibility from "../../hooks/useModalAccessibility";
 import { notePreview } from "../../utils/notePreview";
+import { scrollItemIntoView } from "../../utils/scrollItemIntoView";
 import {
   NoteIcon,
   NotePlusIcon,
@@ -301,7 +303,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   // Focus input when modal opens
   useEffect(() => {
     if (isOpen && inputRef.current) {
-      inputRef.current.focus();
+      inputRef.current.focus({ preventScroll: true });
       setQuery("");
       setResults([]);
       setSelectedIndex(0);
@@ -339,14 +341,13 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, results, selectedIndex, onClose]);
 
-  // Scroll selected result into view
+  // Keep the selected row visible. Scrolling the list itself rather than
+  // calling scrollIntoView: that walks every scrollable ancestor and drags the
+  // app shell behind the palette along with it.
   useEffect(() => {
-    if (resultsContainerRef.current && results.length > 0) {
-      const selectedElement = resultsContainerRef.current.children[selectedIndex];
-      if (selectedElement) {
-        selectedElement.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      }
-    }
+    if (results.length === 0) return;
+    const container = resultsContainerRef.current;
+    scrollItemIntoView(container, container?.children[selectedIndex]);
   }, [selectedIndex, results.length]);
 
   const handleSelect = (result) => {
@@ -369,7 +370,9 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
 
   if (!isOpen) return null;
 
-  return (
+  // Rendered into <body> so the overlay never inherits a transformed or
+  // scrollable ancestor from the app layout.
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
@@ -379,10 +382,10 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] p-4 pointer-events-none">
+      <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[15vh] pb-4 pointer-events-none">
         <div
           ref={dialogRef}
-          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-2xl pointer-events-auto animate-slideUp overflow-hidden"
+          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-2xl max-h-full flex flex-col pointer-events-auto animate-slideUp overflow-hidden"
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -390,7 +393,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
           tabIndex={-1}
         >
           {/* Search Input */}
-          <div className="border-b border-glass-border p-4">
+          <div className="shrink-0 border-b border-glass-border p-4">
             <h2 id="command-palette-title" className="sr-only">
               Command palette
             </h2>
@@ -463,7 +466,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
             id={resultsListboxId}
             role="listbox"
             aria-label="Command palette results"
-            className="max-h-[60vh] overflow-y-auto custom-scrollbar"
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar"
           >
             {results.length === 0 && query.trim() !== "" && (
               <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
@@ -560,7 +563,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
 
           {/* Footer with keyboard hints */}
           {results.length > 0 && (
-            <div className="border-t border-glass-border px-4 py-2 bg-overlay-subtle/50">
+            <div className="shrink-0 border-t border-glass-border px-4 py-2 bg-overlay-subtle/50">
               <div className="flex items-center justify-between text-[10px] text-text-muted">
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
@@ -613,7 +616,8 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
           animation: slideUp 0.3s ease-out;
         }
       `}</style>
-    </>
+    </>,
+    document.body
   );
 };
 
