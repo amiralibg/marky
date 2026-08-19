@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FEATURES, type FeatureId } from "./featureData";
 import { FALLBACK_RELEASE_URL, GITHUB_REPO_URL } from "../lib/releases";
 import type { Theme } from "../lib/theme";
+import { scrollItemIntoView } from "../lib/scrollItemIntoView";
 
 type Item = {
   id: string;
@@ -91,14 +93,29 @@ export default function CommandPalette({
     restoreRef.current = document.activeElement as HTMLElement | null;
     setQuery("");
     setIndex(0);
-    const t = window.setTimeout(() => inputRef.current?.focus(), 20);
+    // preventScroll: html has scroll-behavior: smooth, so focusing an input
+    // inside a fixed overlay otherwise glides the page behind it.
+    const t = window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 20);
     // The page behind a modal should not be reachable by screen readers or Tab.
     const root = document.getElementById("root");
     root?.setAttribute("inert", "");
+    // Freeze the page underneath. body is the element whose overflow the UA
+    // propagates to the viewport here, so overflow-y on it is the page lock;
+    // overflow-x stays on the stylesheet's `clip`, which the sticky header
+    // needs. Pad for the scrollbar the lock removes so the layout does not jump
+    // sideways as the palette opens.
+    const { body } = document;
+    const previousOverflowY = body.style.overflowY;
+    const previousPadding = body.style.paddingRight;
+    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
+    body.style.overflowY = "hidden";
+    if (scrollbar > 0) body.style.paddingRight = `${scrollbar}px`;
     return () => {
       window.clearTimeout(t);
       root?.removeAttribute("inert");
-      restoreRef.current?.focus?.();
+      body.style.overflowY = previousOverflowY;
+      body.style.paddingRight = previousPadding;
+      restoreRef.current?.focus?.({ preventScroll: true });
     };
   }, [open]);
 
@@ -106,10 +123,12 @@ export default function CommandPalette({
     setIndex(0);
   }, [query]);
 
-  // Keep the highlighted row visible when arrowing past the fold.
+  // Keep the highlighted row visible when arrowing past the fold, scrolling the
+  // list itself rather than every scrollable ancestor up to the document.
   useEffect(() => {
     if (!open) return;
-    listRef.current?.querySelector(`[data-index="${index}"]`)?.scrollIntoView({ block: "nearest" });
+    const list = listRef.current;
+    scrollItemIntoView(list, list?.querySelector(`[data-index="${index}"]`) ?? null);
   }, [index, open]);
 
   if (!open) return null;
@@ -121,8 +140,11 @@ export default function CommandPalette({
 
   const activeId = items[index] ? `command-option-${items[index].id}` : undefined;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[15vh]">
+  // Rendered into <body> rather than in place: the effect above marks #root
+  // inert while the palette is open, and the palette lives inside #root, so
+  // in place it would make *itself* inert — unfocusable and unclickable.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pb-6 pt-[15vh]">
       {/* Not a <button>: a full-screen button lands in the tab order and is
           announced ahead of the dialog. Escape and the close handler cover
           keyboard users. */}
@@ -132,7 +154,7 @@ export default function CommandPalette({
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="relative w-full max-w-[560px] overflow-hidden rounded-md border border-line bg-surface"
+        className="relative flex max-h-full w-full max-w-[560px] flex-col overflow-hidden rounded-md border border-line bg-surface"
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             onClose();
@@ -151,7 +173,7 @@ export default function CommandPalette({
           // inside the dialog rather than letting it escape to the page.
           if (event.key === "Tab") {
             event.preventDefault();
-            inputRef.current?.focus();
+            inputRef.current?.focus({ preventScroll: true });
           }
         }}
       >
@@ -160,7 +182,7 @@ export default function CommandPalette({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Jump to a feature, download, GitHub…"
-          className="w-full border-b border-line bg-transparent px-5 py-4 text-[16px] outline-none placeholder:text-ink-faint"
+          className="w-full shrink-0 border-b border-line bg-transparent px-5 py-4 text-[16px] outline-none placeholder:text-ink-faint"
           role="combobox"
           aria-expanded="true"
           aria-controls="command-listbox"
@@ -172,7 +194,7 @@ export default function CommandPalette({
           id="command-listbox"
           role="listbox"
           aria-label="Commands"
-          className="max-h-[320px] overflow-auto p-2"
+          className="max-h-[320px] flex-1 overflow-auto overscroll-contain p-2"
         >
           {items.length === 0 && (
             <li className="px-3 py-4 text-[14px] text-ink-faint">Nothing matches.</li>
@@ -196,6 +218,7 @@ export default function CommandPalette({
           ))}
         </ul>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

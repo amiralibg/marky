@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Fuse from "fuse.js";
 import useNotesStore from "../../store/notesStore";
 import useModalAccessibility from "../../hooks/useModalAccessibility";
+import { scrollItemIntoView } from "../../utils/scrollItemIntoView";
 
 const RECENT_SEARCHES_KEY = "marky-recent-searches";
 const MAX_RECENT_SEARCHES = 8;
@@ -323,7 +324,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
 
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
+      searchInputRef.current.focus({ preventScroll: true });
       setSearchQuery("");
       setSearchResults([]);
       setSelectedIndex(0);
@@ -362,14 +363,11 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, searchResults, selectedIndex, onClose]);
 
-  // Scroll selected result into view
+  // Keep the selected row visible without scrolling anything outside the list.
   useEffect(() => {
-    if (resultsContainerRef.current && searchResults.length > 0) {
-      const selectedElement = resultsContainerRef.current.children[selectedIndex];
-      if (selectedElement) {
-        selectedElement.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      }
-    }
+    if (searchResults.length === 0) return;
+    const container = resultsContainerRef.current;
+    scrollItemIntoView(container, container?.children[selectedIndex]);
   }, [selectedIndex, searchResults.length]);
 
   const updateSearchOption = (key) => {
@@ -657,7 +655,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
             id={resultsListboxId}
             role="listbox"
             aria-label="Search results"
-            className="max-h-[60vh] overflow-y-auto custom-scrollbar"
+            className="max-h-[60vh] overflow-y-auto overscroll-contain custom-scrollbar"
           >
             {searchResults.length === 0 && searchQuery.trim() !== "" && (
               <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
