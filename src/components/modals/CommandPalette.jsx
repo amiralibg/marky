@@ -24,6 +24,7 @@ import {
   FocusIcon,
   ArchiveIcon,
   TemplateIcon,
+  TextSizeIcon,
   WindowIcon,
   LinkIcon,
   BookmarkIcon,
@@ -131,6 +132,31 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         icon: EyeIcon,
         action: "viewPreview",
         keywords: ["render", "show"],
+      },
+
+      {
+        id: "increase-font-size",
+        name: "Increase Font Size",
+        category: "View",
+        icon: TextSizeIcon,
+        action: "increaseFontSize",
+        keywords: ["zoom", "bigger", "larger", "text size"],
+      },
+      {
+        id: "decrease-font-size",
+        name: "Decrease Font Size",
+        category: "View",
+        icon: TextSizeIcon,
+        action: "decreaseFontSize",
+        keywords: ["zoom", "smaller", "text size"],
+      },
+      {
+        id: "reset-font-size",
+        name: "Reset Font Size",
+        category: "View",
+        icon: TextSizeIcon,
+        action: "resetFontSize",
+        keywords: ["zoom", "default", "100%", "text size"],
       },
 
       // Tools

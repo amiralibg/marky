@@ -1,6 +1,8 @@
 import { useRef, useEffect, useMemo, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import useNotesStore, { SETTINGS_TAB_ID } from "../../store/notesStore";
+import useSettingsStore, { formatKeymap } from "../../store/settingsStore";
+import { SidebarIcon } from "../icons";
 import { detectPlatform } from "../../utils/platform";
 
 const TitleBar = ({
@@ -12,6 +14,8 @@ const TitleBar = ({
   onCloseTab,
 }) => {
   const { openNoteIds, currentNoteId, selectNote, closeNote, items } = useNotesStore();
+  const getKeymap = useSettingsStore((state) => state.getKeymap);
+  const sidebarShortcut = formatKeymap(getKeymap("toggleSidebar")).join("");
   const scrollRef = useRef(null);
   const [platform, setPlatform] = useState(detectPlatform);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -130,17 +134,12 @@ const TitleBar = ({
           <button
             onClick={onToggleSidebar}
             className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all ml-2"
-            title="Show Sidebar"
+            title={`Show sidebar (${sidebarShortcut})`}
+            aria-label="Show sidebar"
+            aria-expanded={false}
             data-no-drag
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
+            <SidebarIcon className="w-4 h-4" />
           </button>
         )}
 
@@ -177,6 +176,19 @@ const TitleBar = ({
                     d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
                   />
                 </svg>
+              </button>
+              {/* The sidebar could always be collapsed with the shortcut, but
+                  nothing on screen said so — this is that affordance, sitting
+                  at the sidebar's own edge so it reads as belonging to it. */}
+              <button
+                onClick={onToggleSidebar}
+                className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
+                title={`Hide sidebar (${sidebarShortcut})`}
+                aria-label="Hide sidebar"
+                aria-expanded={true}
+                data-no-drag
+              >
+                <SidebarIcon className="w-3.5 h-3.5" />
               </button>
             </div>
           </>

@@ -91,6 +91,10 @@ jobs:
             args: ""
 
     runs-on: ${{ matrix.platform }}
+    # A build takes ~20 minutes. Without this the job inherits the six-hour
+    # default, which is how a hung apt-get once sat there for two hours before
+    # anyone noticed.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -98,8 +102,18 @@ jobs:
 
       - name: Install Linux system dependencies
         if: startsWith(matrix.platform, 'ubuntu-22.04')
+        # The Acquire options are the point of this step's shape: with no
+        # timeout apt blocks indefinitely on an unreachable mirror rather than
+        # falling back to the next one, and azure.archive.ubuntu.com does go
+        # dark on these runners. Fail in minutes and let the job be re-run.
+        timeout-minutes: 10
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
+          sudo apt-get update \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=15 \
+            -o Acquire::https::Timeout=15
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev \
