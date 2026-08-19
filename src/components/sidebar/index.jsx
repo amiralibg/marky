@@ -9,6 +9,7 @@ import {
 } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { editorAcceptsDrop, toLogicalPosition } from "../../utils/externalDrop";
 import useNotesStore from "../../store/notesStore";
 import useSettingsStore, { THEMES } from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
@@ -890,21 +891,32 @@ const Sidebar = forwardRef(
           unlisten = await webview.onDragDropEvent(async (event) => {
             const { type } = event.payload;
 
-            // Tauri v2 returns PhysicalPosition — convert to logical (CSS) pixels
-            // so coordinates match getBoundingClientRect() on HiDPI/Retina displays
-            const toLogical = (position) => {
-              if (!position) return null;
-              const scale = window.devicePixelRatio || 1;
-              return { x: position.x / scale, y: position.y / scale };
-            };
+            // Shared with the editor (utils/externalDrop.js) — the conversion to
+            // CSS pixels is platform-dependent in a way that is easy to get
+            // wrong, and folder targeting here needs the same answer the drop
+            // caret uses.
+            const toLogical = toLogicalPosition;
 
             if (type === "enter") {
-              // Files entered the window — start showing drop feedback
+              // Files entered the window — start showing drop feedback, unless
+              // they entered over the editor, which handles its own.
+              const { position, paths } = event.payload;
+              if (editorAcceptsDrop(toLogical(position), paths)) return;
               setIsExternalDragging(true);
             } else if (type === "over") {
               // User is hovering files over the window
-              const { position } = event.payload;
+              const { position, paths } = event.payload;
               const logicalPos = toLogical(position);
+
+              // Images held over the editor are the editor's to take — it draws
+              // its own drop caret. Highlighting the sidebar as well would
+              // point at the wrong destination.
+              if (editorAcceptsDrop(logicalPos, paths)) {
+                setIsExternalDragging(false);
+                dropTargetRef.current = null;
+                setDropTargetFolder(null);
+                return;
+              }
 
               setIsExternalDragging(true);
 
@@ -943,6 +955,15 @@ const Sidebar = forwardRef(
 
               // Clear dragging state
               setIsExternalDragging(false);
+
+              // Dropped into the note being edited — the editor copies the
+              // images in and links them itself.
+              if (editorAcceptsDrop(logicalPos, paths)) {
+                dropTargetRef.current = null;
+                setDropTargetFolder(null);
+                dropHandledRef.current = false;
+                return;
+              }
 
               if (!paths || paths.length === 0) {
                 dropTargetRef.current = null;

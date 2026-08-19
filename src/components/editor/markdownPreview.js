@@ -8,6 +8,12 @@ import { slugify } from "../../utils/slugify";
 import { parseFrontmatter } from "../../utils/frontmatter";
 import { insertBlankLineSpacers } from "../../utils/blankLineSpacers";
 import { detectBaseDirection } from "../../utils/bidi";
+import {
+  isImagePath,
+  parseEmbedSize,
+  resolveMediaSrc,
+  stripEmbedSize,
+} from "../../utils/attachments";
 
 const escapeHtml = (value = "") =>
   value.replace(/[&<>"']/g, (char) => {
@@ -69,6 +75,75 @@ const wikiLinkExtension = {
   },
 };
 
+const unescapeHtml = (value = "") =>
+  value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+
+const baseNameOf = (value = "") => value.replace(/\\/g, "/").split("/").pop() || value;
+
+// A URL scheme that would execute rather than load. `marked`'s own image
+// renderer screens these out; ours replaces it, so it has to do the same.
+const isUnsafeUrl = (value) => /^\s*(javascript|vbscript|data:text\/html)/i.test(value || "");
+
+const buildImageTag = (target, alt = "", title = "") => {
+  if (isUnsafeUrl(target)) return escapeHtml(alt);
+
+  const src = resolveMediaSrc(target);
+  const size = parseEmbedSize(target);
+  const attrs = [
+    `src="${escapeHtml(src)}"`,
+    // `alt` arrives already escaped from marked's tokenizer for markdown
+    // images; embeds pass their own raw text, so both paths escape here and
+    // the tokenizer's escaping is undone first to avoid doubling it.
+    `alt="${escapeHtml(unescapeHtml(alt))}"`,
+    'class="md-image"',
+    `data-md-src="${escapeHtml(target)}"`,
+    // A broken image otherwise collapses to nothing, which reads as "the app
+    // dropped my picture". Marked instead, so the note shows what it looked for.
+    "onerror=\"this.classList.add('md-image-missing')\"",
+    "onload=\"this.classList.remove('md-image-missing')\"",
+  ];
+  if (title) attrs.push(`title="${escapeHtml(unescapeHtml(title))}"`);
+  if (size?.width) attrs.push(`width="${size.width}"`);
+  if (size?.height) attrs.push(`height="${size.height}"`);
+  return `<img ${attrs.join(" ")}>`;
+};
+
+/**
+ * Obsidian's embed syntax, `![[target]]`.
+ *
+ * Registered ahead of the wiki-link extension so the `!` is consumed as part of
+ * the embed; left to itself the link extension matches the `[[…]]` and the note
+ * renders a stray `!` in front of a link where an image belongs.
+ */
+const wikiEmbedExtension = {
+  name: "wikiembed",
+  level: "inline",
+  start(src) {
+    return src.indexOf("![[");
+  },
+  tokenizer(src) {
+    const match = /^!\[\[([^\]]+)\]\]/.exec(src);
+    if (!match) return undefined;
+    const target = match[1].trim();
+    if (!target) return undefined;
+    return { type: "wikiembed", raw: match[0], target, tokens: [] };
+  },
+  renderer(token) {
+    const path = stripEmbedSize(token.target);
+    if (isImagePath(path)) {
+      return buildImageTag(token.target, baseNameOf(path));
+    }
+    // A non-image embed (a PDF, another note) is not something the preview can
+    // inline, so it degrades to the link the target names.
+    return `<a class="wikilink" data-wikilink-target="${escapeHtml(path)}" href="#">${escapeHtml(path)}</a>`;
+  },
+};
+
 let extensionsRegistered = false;
 
 if (!extensionsRegistered) {
@@ -77,7 +152,7 @@ if (!extensionsRegistered) {
   marked.use(markedKatex({ throwOnError: false }));
 
   marked.use({
-    extensions: [wikiLinkExtension],
+    extensions: [wikiEmbedExtension, wikiLinkExtension],
     walkTokens(token) {
       if (token.type === "wikilink") {
         const state = useNotesStore.getState();
@@ -86,6 +161,18 @@ if (!extensionsRegistered) {
       }
     },
     renderer: {
+      // Every image target in a vault is a file path — relative to the note or
+      // to the vault root — and a webview served from `tauri://localhost` can
+      // load none of them. Resolve to a real path and hand it to the asset
+      // protocol; remote and data URLs pass straight through.
+      image(href, title, text) {
+        const isToken = href && typeof href === "object";
+        return buildImageTag(
+          isToken ? href.href : href,
+          isToken ? href.text : text,
+          (isToken ? href.title : title) || ""
+        );
+      },
       heading(token) {
         const text = typeof token === "object" ? token.text : token;
         const depth = typeof token === "object" ? token.depth : arguments[1];

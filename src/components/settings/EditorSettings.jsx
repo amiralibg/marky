@@ -18,6 +18,8 @@ const EditorSettings = () => {
     setEditorWidth,
     ignorePatterns,
     setIgnorePatterns,
+    attachmentFolder,
+    setAttachmentFolder,
     sidebarDensity,
     setSidebarDensity,
     showSidebarMetadata,
@@ -216,6 +218,29 @@ const EditorSettings = () => {
               })}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Where pasted images go */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <h3 id="attachment-folder-title" className="text-sm font-semibold text-text-primary mb-1">
+            Attachment Folder
+          </h3>
+          <p id="attachment-folder-description" className="text-xs text-text-muted leading-relaxed">
+            Where images you paste or drop into a note are saved, relative to the workspace root.
+            Leave it empty to keep them beside your notes at the top level.
+          </p>
+          <input
+            type="text"
+            value={attachmentFolder}
+            onChange={(event) => setAttachmentFolder(event.target.value)}
+            spellCheck={false}
+            placeholder="attachments"
+            aria-labelledby="attachment-folder-title"
+            aria-describedby="attachment-folder-description"
+            className="mt-3 w-full rounded-xl border border-overlay-subtle bg-overlay-subtle/40 px-3 py-2 font-mono text-xs leading-relaxed text-text-primary placeholder:text-text-muted focus:border-accent/50"
+          />
         </div>
       </div>
 
