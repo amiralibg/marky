@@ -287,6 +287,27 @@ export const SidebarIcon = (props) => (
   </Icon>
 );
 
+// Drawn to match the set rather than lifted from it: reicon has no text-size
+// mark. A large and a small "T", which is how every editor draws this.
+export const TextSizeIcon = (props) => (
+  <Icon {...props}>
+    <path
+      d="M3.5 7V5.5H12.5V7M8 5.5V18.5"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M14.5 12.5V11.5H20.5V12.5M17.5 11.5V18.5"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Icon>
+);
+
 export const EditIcon = (props) => (
   <Icon {...props}>
     <path

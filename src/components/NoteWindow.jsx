@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import CodeMirrorEditor from "./editor/CodeMirrorEditor";
 import EditorScrollFade from "./editor/EditorScrollFade";
-import useSettingsStore, { applyTheme, applyAccentColor } from "../store/settingsStore";
+import useSettingsStore, {
+  applyTheme,
+  applyAccentColor,
+  applyFontScale,
+} from "../store/settingsStore";
 import { readMarkdownFile, writeMarkdownFileOnDisk } from "../utils/fileSystem";
 import {
   addNoteHistorySnapshot,
@@ -50,6 +54,7 @@ const NoteWindow = ({ filePath }) => {
   // or it would race the main window over the same persisted key.
   const themeId = useSettingsStore((state) => state.themeId);
   const accentColorId = useSettingsStore((state) => state.accentColorId);
+  const fontScale = useSettingsStore((state) => state.fontScale);
   const vimMode = useSettingsStore((state) => state.vimMode);
   const vimVisualLineMotion = useSettingsStore((state) => state.vimVisualLineMotion);
   const showLineNumbers = useSettingsStore((state) => state.showLineNumbers);
@@ -132,6 +137,11 @@ const NoteWindow = ({ filePath }) => {
   useEffect(() => {
     applyAccentColor(accentColorId);
   }, [accentColorId]);
+
+  // A note opened in its own window reads the same text size as the main one.
+  useEffect(() => {
+    applyFontScale(fontScale);
+  }, [fontScale]);
 
   const isDirty = content !== savedContent;
 

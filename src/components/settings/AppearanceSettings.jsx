@@ -1,5 +1,13 @@
 import { useState } from "react";
-import useSettingsStore, { ACCENT_COLORS, THEMES } from "../../store/settingsStore";
+import useSettingsStore, {
+  ACCENT_COLORS,
+  FONT_SCALE_DEFAULT,
+  FONT_SCALE_MAX,
+  FONT_SCALE_MIN,
+  FONT_SCALE_STEP,
+  THEMES,
+  formatKeymap,
+} from "../../store/settingsStore";
 
 const THEME_FILTERS = [
   { id: "all", label: "All" },
@@ -8,7 +16,8 @@ const THEME_FILTERS = [
 ];
 
 const AppearanceSettings = () => {
-  const { themeId, setTheme, accentColorId, setAccentColor } = useSettingsStore();
+  const { themeId, setTheme, accentColorId, setAccentColor, fontScale, setFontScale, getKeymap } =
+    useSettingsStore();
   // Default the filter to the current theme's mode so the list opens focused
   // and compact; "All" reveals every theme.
   const currentType = THEMES.find((t) => t.id === themeId)?.type || "dark";
@@ -108,6 +117,66 @@ const AppearanceSettings = () => {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Text size */}
+      <div>
+        <h3 className="text-[13px] font-semibold text-text-primary mb-0.5">Text size</h3>
+        <p className="text-[13px] text-text-muted mb-4">
+          Scales the whole app — sidebar, editor and preview together.{" "}
+          <span className="whitespace-nowrap">
+            {formatKeymap(getKeymap("increaseFontSize")).join("")} and{" "}
+            {formatKeymap(getKeymap("decreaseFontSize")).join("")}
+          </span>{" "}
+          do the same from anywhere.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1 rounded-lg bg-overlay-subtle p-1">
+            <button
+              onClick={() => setFontScale(fontScale - FONT_SCALE_STEP)}
+              disabled={fontScale <= FONT_SCALE_MIN}
+              aria-label="Decrease text size"
+              className="rounded-md px-2.5 py-1 text-[15px] leading-none text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
+            >
+              −
+            </button>
+            <span
+              className="min-w-[3.5rem] text-center text-[13px] font-semibold tabular-nums text-text-primary"
+              aria-live="polite"
+            >
+              {fontScale}%
+            </span>
+            <button
+              onClick={() => setFontScale(fontScale + FONT_SCALE_STEP)}
+              disabled={fontScale >= FONT_SCALE_MAX}
+              aria-label="Increase text size"
+              className="rounded-md px-2.5 py-1 text-[15px] leading-none text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
+            >
+              +
+            </button>
+          </div>
+
+          <input
+            type="range"
+            min={FONT_SCALE_MIN}
+            max={FONT_SCALE_MAX}
+            step={FONT_SCALE_STEP}
+            value={fontScale}
+            onChange={(event) => setFontScale(Number(event.target.value))}
+            aria-label="Text size"
+            className="h-1 flex-1 min-w-[9rem] max-w-[18rem] cursor-pointer appearance-none rounded-full bg-overlay-light accent-accent"
+          />
+
+          {fontScale !== FONT_SCALE_DEFAULT && (
+            <button
+              onClick={() => setFontScale(FONT_SCALE_DEFAULT)}
+              className="text-[12px] text-text-muted underline-offset-2 transition-colors hover:text-text-primary hover:underline"
+            >
+              Reset to {FONT_SCALE_DEFAULT}%
+            </button>
+          )}
         </div>
       </div>
 

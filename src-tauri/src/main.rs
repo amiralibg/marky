@@ -1166,6 +1166,32 @@ fn main() {
             let open_graph =
                 MenuItem::with_id(app, "menu://open-graph", "Graph View", true, None::<&str>)?;
             let sep_v3 = PredefinedMenuItem::separator(app)?;
+            // Text size. "Equal" rather than "Plus": muda's accelerator parser
+            // accepts EQUAL/"=" and rejects PLUS, and a rejected accelerator
+            // fails menu construction at startup. It is also the key the
+            // in-app keymap binds, so the two cannot drift apart.
+            let font_larger = MenuItem::with_id(
+                app,
+                "menu://font-larger",
+                "Larger Text",
+                true,
+                Some("CmdOrCtrl+Equal"),
+            )?;
+            let font_smaller = MenuItem::with_id(
+                app,
+                "menu://font-smaller",
+                "Smaller Text",
+                true,
+                Some("CmdOrCtrl+-"),
+            )?;
+            let font_reset = MenuItem::with_id(
+                app,
+                "menu://font-reset",
+                "Actual Size",
+                true,
+                Some("CmdOrCtrl+0"),
+            )?;
+            let sep_v4 = PredefinedMenuItem::separator(app)?;
             // (Enter Full Screen stays as the last item from the default menu)
 
             // Window extras — appended after default Minimize/Maximize/Close
@@ -1224,6 +1250,10 @@ fn main() {
                                 &focus_mode,
                                 &open_graph,
                                 &sep_v3,
+                                &font_larger,
+                                &font_smaller,
+                                &font_reset,
+                                &sep_v4,
                             ])?;
                         }
                         "Window" => {
@@ -1295,6 +1325,15 @@ fn main() {
                 }
                 "menu://focus-mode" => {
                     let _ = app.emit("menu://focus-mode", ());
+                }
+                "menu://font-larger" => {
+                    let _ = app.emit("menu://font-larger", ());
+                }
+                "menu://font-smaller" => {
+                    let _ = app.emit("menu://font-smaller", ());
+                }
+                "menu://font-reset" => {
+                    let _ = app.emit("menu://font-reset", ());
                 }
                 "menu://open-graph" => {
                     let _ = app.emit("menu://open-graph", ());

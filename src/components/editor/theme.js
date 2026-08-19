@@ -84,7 +84,10 @@ export const markyTheme = EditorView.theme(
       backgroundColor: "var(--color-bg-editor)",
       color: "var(--color-text-primary)",
       height: "100%",
-      fontSize: "13.5px",
+      // CodeMirror measures in px so character metrics stay on whole pixels;
+      // --marky-font-scale is how it follows the app-wide text size, which the
+      // rest of the UI gets for free from the root font size.
+      fontSize: "calc(13.5px * var(--marky-font-scale, 1))",
       fontFamily: "var(--font-family-mono)",
     },
     // CodeMirror's base theme rings the focused editor with `1px dotted

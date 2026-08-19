@@ -265,6 +265,30 @@ function App() {
     }, 100);
   }, []);
 
+  // ⌘+ / ⌘- / ⌘0 and the palette's font commands all land here, so the
+  // notification wording — and the "already at the limit" case — stays in one
+  // place. The store clamps, so a step at either end returns the scale it was
+  // already on.
+  const stepFontScale = useCallback(
+    (direction) => {
+      const settings = useSettingsStore.getState();
+      const before = settings.fontScale;
+      const next =
+        direction === 0 ? settings.resetFontScale() : settings.adjustFontScale(direction);
+
+      if (next === before) {
+        addNotification(
+          direction > 0 ? "Already at the largest text size" : "Already at the smallest text size",
+          "info"
+        );
+        return;
+      }
+
+      addNotification(`Text size ${next}%`, "success");
+    },
+    [addNotification]
+  );
+
   const handleCommandExecute = useCallback(
     (command) => {
       const { action, payload } = command;
@@ -324,6 +348,15 @@ function App() {
           break;
         case "viewPreview":
           editorRef.current?.setViewMode?.("preview");
+          break;
+        case "increaseFontSize":
+          stepFontScale(1);
+          break;
+        case "decreaseFontSize":
+          stepFontScale(-1);
+          break;
+        case "resetFontSize":
+          stepFontScale(0);
           break;
         case "openGraph":
           setShowGraphModal(true);
@@ -432,6 +465,7 @@ function App() {
       selectNote,
       setShowSidebar,
       setShowWorkspaceModal,
+      stepFontScale,
       toggleFocusMode,
     ]
   );
@@ -466,6 +500,29 @@ function App() {
       if (matchesKeymap(e, keymaps.search)) {
         e.preventDefault();
         setShowSearchModal(true);
+        return;
+      }
+
+      // App text size. Allowed while typing: a zoom that stops working inside
+      // the editor is a zoom that does not work. "+" and "_" are the shifted
+      // faces of "=" and "-" and matchesKeymap compares shift exactly, so they
+      // are accepted as aliases of whatever those actions are bound to.
+      const isZoomChord = (e.metaKey || e.ctrlKey) && !e.altKey;
+      if (matchesKeymap(e, keymaps.increaseFontSize) || (isZoomChord && e.key === "+")) {
+        e.preventDefault();
+        stepFontScale(1);
+        return;
+      }
+
+      if (matchesKeymap(e, keymaps.decreaseFontSize) || (isZoomChord && e.key === "_")) {
+        e.preventDefault();
+        stepFontScale(-1);
+        return;
+      }
+
+      if (matchesKeymap(e, keymaps.resetFontSize)) {
+        e.preventDefault();
+        stepFontScale(0);
         return;
       }
 
@@ -564,7 +621,15 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [keymaps, isRecordingKeymap, currentNoteId, handleCloseTab, focusMode, toggleFocusMode]);
+  }, [
+    keymaps,
+    isRecordingKeymap,
+    currentNoteId,
+    handleCloseTab,
+    focusMode,
+    stepFontScale,
+    toggleFocusMode,
+  ]);
 
   // Native macOS menu-bar event listeners
   useEffect(() => {
@@ -594,6 +659,9 @@ function App() {
       await attach("menu://view-split", () => editorRef.current?.setViewMode?.("split"));
       await attach("menu://view-preview", () => editorRef.current?.setViewMode?.("preview"));
       await attach("menu://focus-mode", () => toggleFocusMode());
+      await attach("menu://font-larger", () => stepFontScale(1));
+      await attach("menu://font-smaller", () => stepFontScale(-1));
+      await attach("menu://font-reset", () => stepFontScale(0));
       await attach("menu://open-graph", () => setShowGraphModal(true));
       await attach("menu://open-settings", () => selectNote(SETTINGS_TAB_ID));
       await attach("menu://show-shortcuts", () => setShowKeymapsModal(true));
@@ -640,6 +708,7 @@ function App() {
     setShowCommandPalette,
     setShowGraphModal,
     setShowKeymapsModal,
+    stepFontScale,
   ]);
 
   // Open a file the OS handed us ("Open with Marky" / double-click / drag onto icon).

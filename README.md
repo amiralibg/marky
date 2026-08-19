@@ -45,7 +45,7 @@ Current version: [`v1.5.0`](https://github.com/amiralibg/marky/releases/tag/v1.5
 - Command palette for quick actions and note switching
 - Templates and scheduled note creation (daily/weekly/monthly)
 - Markdown extensions: Mermaid, KaTeX math, footnotes, code highlighting
-- Themes, accent colors, customizable keyboard shortcuts, Vim mode
+- Themes, accent colors, app-wide text size, customizable keyboard shortcuts, Vim mode
 - AI integration via Model Context Protocol (MCP) Server for Claude Desktop, Cursor, etc.
 - Workspace ZIP backup export
 - File watcher sync for external changes (other editors, git pulls, etc.)
@@ -223,6 +223,7 @@ pnpm tauri:build
 - `Cmd/Ctrl+B`: Toggle sidebar
 - `Cmd/Ctrl+W`: Close tab
 - `Cmd/Ctrl+1/2/3`: Editor / Split / Preview views
+- `Cmd/Ctrl+Plus` / `Cmd/Ctrl+Minus`: Larger / smaller app text (`Cmd/Ctrl+0` resets)
 
 Shortcuts are customizable in Settings.
 

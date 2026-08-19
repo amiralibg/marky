@@ -300,6 +300,9 @@ export const DEFAULT_KEYMAPS = {
   viewSplit: { key: "2", modifiers: ["mod"], description: "Split view" },
   viewPreview: { key: "3", modifiers: ["mod"], description: "Preview only view" },
   toggleFocusMode: { key: "F", modifiers: ["mod", "alt"], description: "Toggle Focus Mode" },
+  increaseFontSize: { key: "=", modifiers: ["mod"], description: "Increase font size" },
+  decreaseFontSize: { key: "-", modifiers: ["mod"], description: "Decrease font size" },
+  resetFontSize: { key: "0", modifiers: ["mod"], description: "Reset font size" },
   bold: { key: "B", modifiers: ["mod", "shift"], description: "Bold text" },
   italic: { key: "i", modifiers: ["mod"], description: "Italic text" },
   link: { key: "K", modifiers: ["mod", "shift"], description: "Insert link" },
@@ -352,7 +355,15 @@ export const KEYMAP_CATEGORIES = [
     name: "View",
     iconPath:
       "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z",
-    actions: ["viewEditor", "viewSplit", "viewPreview", "toggleFocusMode"],
+    actions: [
+      "viewEditor",
+      "viewSplit",
+      "viewPreview",
+      "toggleFocusMode",
+      "increaseFontSize",
+      "decreaseFontSize",
+      "resetFontSize",
+    ],
   },
   {
     name: "Editing",
@@ -426,12 +437,44 @@ export const formatKeymap = (keymap) => {
 
   // Format the key nicely
   let keyDisplay = keymap.key;
-  if (keymap.key === "/") keyDisplay = "/";
+  // The zoom-in shortcut is bound to "=" because that is the unshifted key an
+  // event reports, but every keyboard prints "+" on it.
+  if (keymap.key === "=") keyDisplay = "+";
+  else if (keymap.key === "/") keyDisplay = "/";
   else if (keymap.key === "?") keyDisplay = "?";
   else if (keymap.key.length === 1) keyDisplay = keymap.key.toUpperCase();
 
   parts.push(keyDisplay);
   return parts;
+};
+
+/**
+ * App-wide text scale, as a percentage of the browser's 16px default.
+ *
+ * Applied by moving the root font size, so everything measured in rem — which
+ * is all of Tailwind's type and spacing — grows and shrinks together rather
+ * than only the prose. Borders and the handful of px measurements stay put, so
+ * the chrome keeps its crispness at every step.
+ */
+export const FONT_SCALE_MIN = 80;
+export const FONT_SCALE_MAX = 150;
+export const FONT_SCALE_STEP = 10;
+export const FONT_SCALE_DEFAULT = 100;
+const ROOT_FONT_SIZE = 16;
+
+export const clampFontScale = (scale) => {
+  const value = Math.round(Number(scale) / FONT_SCALE_STEP) * FONT_SCALE_STEP;
+  if (!Number.isFinite(value)) return FONT_SCALE_DEFAULT;
+  return Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, value));
+};
+
+export const applyFontScale = (scale) => {
+  const value = clampFontScale(scale);
+  const root = document.documentElement;
+  root.style.fontSize = `${(ROOT_FONT_SIZE * value) / 100}px`;
+  // CodeMirror sizes itself in px so its metrics stay on whole pixels; this is
+  // the multiplier its theme reads to follow the rest of the app.
+  root.style.setProperty("--marky-font-scale", `${value / 100}`);
 };
 
 /**
@@ -471,6 +514,7 @@ const normalizeWorkspacePath = (value) => (value ? value.replace(/\\/g, "/") : "
 const createDefaultProfileSettings = () => ({
   themeId: "vault",
   accentColorId: "purple",
+  fontScale: FONT_SCALE_DEFAULT,
   editorWidth: "default",
   ignorePatterns: "",
   attachmentFolder: DEFAULT_ATTACHMENT_FOLDER,
@@ -488,6 +532,7 @@ const createDefaultProfileSettings = () => ({
 const buildProfileSettingsSnapshot = (state) => ({
   themeId: state.themeId,
   accentColorId: state.accentColorId,
+  fontScale: state.fontScale,
   editorWidth: state.editorWidth,
   ignorePatterns: state.ignorePatterns,
   attachmentFolder: state.attachmentFolder,
@@ -513,11 +558,17 @@ const mergeProfileSettings = (profile = {}) => {
   if (!THEMES.some((t) => t.id === merged.themeId)) merged.themeId = "vault";
   if (!ACCENT_COLORS.some((c) => c.id === merged.accentColorId)) merged.accentColorId = "purple";
   if (!EDITOR_WIDTHS.some((w) => w.id === merged.editorWidth)) merged.editorWidth = "default";
+  merged.fontScale = clampFontScale(merged.fontScale ?? FONT_SCALE_DEFAULT);
   return merged;
 };
 
 // Helper to check if a keyboard event matches a keymap
 export const matchesKeymap = (event, keymap) => {
+  // Settings persisted by an older build have no entry for an action added
+  // since, and the merge that fills those in happens on mount — a keypress
+  // before then should miss, not throw.
+  if (!keymap?.modifiers) return false;
+
   const isMod = event.metaKey || event.ctrlKey;
   const isShift = event.shiftKey;
   const isAlt = event.altKey;
@@ -541,6 +592,9 @@ const useSettingsStore = create(
 
       // Accent color
       accentColorId: "purple",
+
+      // App-wide text scale, as a percentage — see FONT_SCALE_* / applyFontScale
+      fontScale: FONT_SCALE_DEFAULT,
 
       // Editor settings
       vimMode: false,
@@ -610,6 +664,20 @@ const useSettingsStore = create(
         get().syncProfileState({ accentColorId: colorId });
         applyAccentColor(colorId);
       },
+
+      // These three return the scale they landed on, so a caller can tell a
+      // step that moved from one that hit the end of the range.
+      setFontScale: (scale) => {
+        const value = clampFontScale(scale);
+        get().syncProfileState({ fontScale: value });
+        applyFontScale(value);
+        return value;
+      },
+
+      adjustFontScale: (direction) =>
+        get().setFontScale(get().fontScale + direction * FONT_SCALE_STEP),
+
+      resetFontScale: () => get().setFontScale(FONT_SCALE_DEFAULT),
 
       toggleColorScheme: () => {
         const current = migrateThemeId(get().themeId);
@@ -737,6 +805,7 @@ const useSettingsStore = create(
         if (shouldApplySharedSettings) {
           applyTheme(sharedSettings.themeId);
           applyAccentColor(sharedSettings.accentColorId);
+          applyFontScale(sharedSettings.fontScale);
         }
       },
 
@@ -755,6 +824,7 @@ const useSettingsStore = create(
 
         applyTheme(snapshot.themeId);
         applyAccentColor(snapshot.accentColorId);
+        applyFontScale(snapshot.fontScale);
       },
 
       clearActiveWorkspaceSettings: () => {
@@ -765,6 +835,7 @@ const useSettingsStore = create(
         });
         applyTheme(sharedSettings.themeId);
         applyAccentColor(sharedSettings.accentColorId);
+        applyFontScale(sharedSettings.fontScale);
       },
 
       getSettingsExportPayload: () => {
@@ -817,6 +888,7 @@ const useSettingsStore = create(
 
         applyTheme(activeSnapshot.themeId);
         applyAccentColor(activeSnapshot.accentColorId);
+        applyFontScale(activeSnapshot.fontScale);
       },
 
       // Initialize settings (call on app start)
@@ -846,6 +918,7 @@ const useSettingsStore = create(
 
         applyTheme(snapshot.themeId);
         applyAccentColor(snapshot.accentColorId);
+        applyFontScale(snapshot.fontScale);
       },
 
       // Get keymap by action ID
@@ -858,6 +931,7 @@ const useSettingsStore = create(
       partialize: (state) => ({
         themeId: state.themeId,
         accentColorId: state.accentColorId,
+        fontScale: state.fontScale,
         vimMode: state.vimMode,
         vimVisualLineMotion: state.vimVisualLineMotion,
         autosaveEnabled: state.autosaveEnabled,
