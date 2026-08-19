@@ -16,7 +16,7 @@ import { resolveTemplateById } from "../data/templates";
 import { addMinutes, calculateNextRun } from "../utils/schedule";
 import { buildDailyNoteContent, formatDailyNoteTitle } from "../utils/dailyNotes";
 import { getNoteProperties } from "../utils/frontmatter";
-import useSettingsStore, { parseIgnorePatterns } from "./settingsStore";
+import useSettingsStore, { parseIgnorePatterns, normalizeSaveMode } from "./settingsStore";
 // History and drafts live on disk (see utils/sideStore.js). They used to sit in
 // `localStorage`, where they shared a ~5 MB quota and failed silently.
 import {
@@ -299,6 +299,144 @@ const cancelAllPendingNoteWrites = () => {
   pendingWriteTimers.clear();
 };
 
+// ── Auto-save scheduling ──────────────────────────────────────────
+// This lives in the store rather than in the editor component on purpose. When
+// it was a `useEffect`, its cleanup ran on every note switch and cancelled the
+// pending write — so switching tabs within the delay window left the note dirty
+// and the file on disk stale. The store outlives any mounted editor, so a note
+// you have navigated away from still reaches disk.
+
+const getSaveMode = () => normalizeSaveMode(useSettingsStore.getState().saveMode);
+
+const getAutosaveDelay = () => {
+  const delay = useSettingsStore.getState().autosaveDelay;
+  return Number.isFinite(delay) && delay > 0 ? delay : 2000;
+};
+
+/** Writes that have been started but not yet settled, keyed by normalized path. */
+const inFlightSaves = new Map();
+
+/**
+ * The editor keeps the text you are typing in local component state and pushes
+ * it into the store on a short debounce, so a keystroke does not re-render the
+ * tree. That means the store can briefly be a few characters behind the screen
+ * — and a save fired from outside the editor (leaving the window, quitting)
+ * would write those stale bytes. The mounted editor registers a flusher here,
+ * and every save path drains it first.
+ */
+let pendingEditFlusher = null;
+
+export const registerPendingEditFlusher = (flush) => {
+  pendingEditFlusher = flush;
+  return () => {
+    if (pendingEditFlusher === flush) pendingEditFlusher = null;
+  };
+};
+
+const drainPendingEditorEdits = () => {
+  try {
+    pendingEditFlusher?.();
+  } catch (error) {
+    console.error("Failed to flush pending editor edits:", error);
+  }
+};
+
+/** Scratch buffers currently being turned into files, so it happens once. */
+const materializingScratchIds = new Set();
+
+/**
+ * Give a scratch buffer a real file so auto-save has somewhere to write.
+ *
+ * A note that exists only in memory is the one place saving would still be the
+ * user's problem, so the first thing typed into one turns it into an ordinary
+ * Markdown file in the vault — the same thing New Note does, just deferred
+ * until there is something worth keeping. With no vault open there is nowhere
+ * to put it, and the buffer stays in memory until it is saved by hand.
+ */
+const materializeScratchNote = (noteId) => {
+  if (materializingScratchIds.has(noteId)) return;
+  if (getSaveMode() !== "auto") return;
+
+  const state = useNotesStore.getState();
+  if (!state.rootFolderPath || !state.rootFolderId) return;
+
+  const note = state.items.find((item) => item.id === noteId && item.type === "note");
+  if (!note || note.filePath) return;
+  // An empty buffer is not yet a note; naming a file after nothing is worse
+  // than waiting for the first keystroke.
+  if (!(note.content || "").trim()) return;
+
+  materializingScratchIds.add(noteId);
+
+  (async () => {
+    try {
+      const current = useNotesStore.getState();
+      const rootPath = current.rootFolderPath;
+      if (!rootPath) return;
+
+      const siblings = current.items.filter(
+        (entry) => entry.parentId === current.rootFolderId && entry.type === "note"
+      );
+      const reserved = createNameReservationSet(siblings.map((entry) => entry.name));
+      // The note's own name is whatever the buffer was called ("Untitled"),
+      // which is exactly what Obsidian uses until you rename it.
+      const desiredBase = sanitizeNoteTitle(note.name) || "Untitled";
+
+      let candidate = reserveUniqueName(desiredBase, reserved);
+      let attempt = 0;
+      while (attempt < 100) {
+        try {
+          const newPath = await createMarkdownFileOnDisk(
+            rootPath,
+            `${candidate}.md`,
+            note.content || ""
+          );
+          useNotesStore.getState().updateNotePath(noteId, newPath);
+          // Keystrokes that landed while the file was being created are still
+          // only in memory, and the file was written from the older snapshot.
+          scheduleAutoSave(buildId("note", newPath), newPath);
+          return;
+        } catch (error) {
+          if (error?.message && /exists/i.test(error.message)) {
+            candidate = reserveUniqueName(desiredBase, reserved);
+            attempt += 1;
+            continue;
+          }
+          throw error;
+        }
+      }
+    } catch (error) {
+      // Not fatal: the buffer keeps its text and stays saveable by hand.
+      console.error("Failed to turn scratch note into a file:", error);
+    } finally {
+      materializingScratchIds.delete(noteId);
+    }
+  })();
+};
+
+/**
+ * Schedule `noteId` to be written after the configured idle delay. Repeated
+ * calls (i.e. every keystroke) push the write out; the note is written once,
+ * once typing stops.
+ */
+const scheduleAutoSave = (noteId, filePath) => {
+  if (!filePath || getSaveMode() !== "auto") return;
+  const key = normalizePath(filePath);
+  cancelPendingNoteWrite(filePath);
+
+  const timer = setTimeout(() => {
+    pendingWriteTimers.delete(key);
+    // Failures surface through the store's `saveError`; there is no user
+    // gesture here to attach a rejection to.
+    useNotesStore
+      .getState()
+      .saveNoteToDisk(noteId)
+      .catch(() => {});
+  }, getAutosaveDelay());
+
+  pendingWriteTimers.set(key, timer);
+};
+
 const cancelAllPendingMetadataUpdates = () => {
   pendingMetadataTimers.forEach((timer) => {
     clearTimeout(timer);
@@ -447,9 +585,10 @@ const useNotesStore = create(
       items: [],
       currentNoteId: null,
       openNoteIds: [], // Currently open tabs
-      dirtyNoteIds: [], // Notes with unsaved changes (not persisted)
-      noteConflicts: {}, // { [noteId]: { diskContent, detectedAt, filePath } } for external-change conflicts
+      dirtyNoteIds: [], // Notes not yet written to disk (not persisted)
       recoveredDrafts: {}, // { [noteId]: { filePath, recoveredAt, savedAt } }
+      saveError: null, // { noteId, message } — last write that failed
+      lastSavedAt: null, // ISO timestamp of the most recent successful write
       sidebarWidth: 280, // Saved sidebar width
       editorSplitRatio: 50, // Saved split ratio percentage
       expandedFolders: [],
@@ -585,7 +724,6 @@ const useNotesStore = create(
             previousItems.filter((item) => item.type === "note").map((item) => [item.id, item])
           );
           const dirtyNoteIdsSet = new Set(state.dirtyNoteIds);
-          const nextConflicts = {};
           const nextRecoveredDrafts = {};
           const recoveredDirtyIds = new Set(state.dirtyNoteIds);
 
@@ -611,23 +749,16 @@ const useNotesStore = create(
                 });
               }
 
+              // A note with edits not yet on disk keeps the editor's text. The
+              // pending write is what disk is about to say anyway, usually
+              // within a couple of seconds — reloading here would yank text out
+              // from under whoever is typing.
               if (item.type === "note" && dirtyNoteIdsSet.has(item.id)) {
                 const previousNote = previousNotesById.get(item.id);
                 if (previousNote) {
-                  const diskContent = item.content || "";
-                  const localContent = previousNote.content || "";
-
-                  if (diskContent !== localContent) {
-                    nextConflicts[item.id] = {
-                      diskContent,
-                      detectedAt: new Date().toISOString(),
-                      filePath: item.filePath,
-                    };
-                  }
-
                   return ensureNoteMetadata({
                     ...item,
-                    content: localContent,
+                    content: previousNote.content || "",
                     updatedAt: previousNote.updatedAt,
                   });
                 }
@@ -695,7 +826,6 @@ const useNotesStore = create(
             expandedFolders: Array.from(expandedSet),
             currentNoteId,
             openNoteIds,
-            noteConflicts: nextConflicts,
             dirtyNoteIds: Array.from(recoveredDirtyIds),
             recoveredDrafts: nextRecoveredDrafts,
           });
@@ -937,6 +1067,11 @@ const useNotesStore = create(
           const nextNote = nextItems.find((item) => item.id === noteId && item.type === "note");
           if (nextNote?.filePath) {
             setDraftCacheEntry(nextNote.filePath, content, nextNote.updatedAt);
+            // Queued from inside `set` so the scheduler always sees the content
+            // it is about to write already in the store.
+            scheduleAutoSave(noteId, nextNote.filePath);
+          } else if (nextNote) {
+            materializeScratchNote(noteId);
           }
 
           return {
@@ -947,8 +1082,6 @@ const useNotesStore = create(
 
         // Debounce expensive metadata extraction (tags, links)
         scheduleMetadataUpdate(noteId, content);
-
-        // Note: Auto-save removed - use saveCurrentNoteToDisk() for manual save
       },
 
       updateNoteMetadata: (noteId, content) => {
@@ -965,43 +1098,103 @@ const useNotesStore = create(
         }));
       },
 
-      saveCurrentNoteToDisk: async () => {
+      /**
+       * Write one note to disk, whether or not it is the one on screen.
+       *
+       * Deduplicated per path: a save that arrives while another is in flight
+       * for the same file joins it rather than racing it, which matters once
+       * the idle timer, a tab switch and a window close can all fire at once.
+       */
+      saveNoteToDisk: async (noteId, { forceSnapshot = false } = {}) => {
         const state = get();
-        const note = state.items.find(
-          (item) => item.id === state.currentNoteId && item.type === "note"
-        );
+        const note = state.items.find((item) => item.id === noteId && item.type === "note");
 
         if (!note?.filePath) {
           throw new Error("Cannot save: note has no file path");
         }
 
-        // Cancel any pending write and save immediately
+        // Any scheduled write is now redundant — this one carries the same text.
         cancelPendingNoteWrite(note.filePath);
 
+        const key = normalizePath(note.filePath);
+        const existing = inFlightSaves.get(key);
+        if (existing) return existing;
+
+        const pending = (async () => {
+          try {
+            await writeMarkdownFileOnDisk(note.filePath, note.content);
+
+            // Record history snapshot before clearing dirty state. Throttled
+            // inside, except at the boundaries that are worth a snapshot on
+            // their own: leaving the note, closing it, an explicit save.
+            addNoteHistorySnapshot(note.filePath, note.content, { force: forceSnapshot });
+
+            // Clear dirty state for this note
+            set((current) => ({
+              dirtyNoteIds: current.dirtyNoteIds.filter((id) => id !== note.id),
+              recoveredDrafts: Object.fromEntries(
+                Object.entries(current.recoveredDrafts).filter(([id]) => id !== String(note.id))
+              ),
+              saveError: null,
+              lastSavedAt: new Date().toISOString(),
+            }));
+            removeDraftCacheEntry(note.filePath);
+
+            return true;
+          } catch (error) {
+            console.error("Failed to save note to disk:", error);
+            // The note stays dirty and its draft stays cached, so nothing is
+            // lost — but a silent failure in auto mode would be invisible, so
+            // the error is parked where the UI can surface it.
+            set({ saveError: { noteId, message: error?.message || String(error) } });
+            throw error;
+          } finally {
+            inFlightSaves.delete(key);
+          }
+        })();
+
+        inFlightSaves.set(key, pending);
+        return pending;
+      },
+
+      saveCurrentNoteToDisk: async () =>
+        get().saveNoteToDisk(get().currentNoteId, { forceSnapshot: true }),
+
+      /**
+       * Write `noteId` now if it has unsaved changes, skipping the idle delay.
+       * Used on the ways out of a note — switching tabs, closing one, leaving
+       * the window, quitting — so the file on disk is never behind the editor.
+       */
+      flushNoteSave: async (noteId) => {
+        drainPendingEditorEdits();
+        const state = get();
+        if (!noteId || !state.dirtyNoteIds.includes(noteId)) return false;
+        const note = state.items.find((item) => item.id === noteId && item.type === "note");
+        if (!note?.filePath) return false;
         try {
-          await writeMarkdownFileOnDisk(note.filePath, note.content);
-
-          // Record history snapshot before clearing dirty state
-          addNoteHistorySnapshot(note.filePath, note.content);
-
-          // Clear dirty state for this note
-          set((current) => ({
-            dirtyNoteIds: current.dirtyNoteIds.filter((id) => id !== note.id),
-            noteConflicts: Object.fromEntries(
-              Object.entries(current.noteConflicts).filter(([id]) => id !== String(note.id))
-            ),
-            recoveredDrafts: Object.fromEntries(
-              Object.entries(current.recoveredDrafts).filter(([id]) => id !== String(note.id))
-            ),
-          }));
-          removeDraftCacheEntry(note.filePath);
-
+          await state.saveNoteToDisk(noteId, { forceSnapshot: true });
           return true;
-        } catch (error) {
-          console.error("Failed to save note to disk:", error);
-          throw error;
+        } catch {
+          return false;
         }
       },
+
+      /** Write every note with unsaved changes. Used on window close and quit. */
+      flushAllPendingSaves: async () => {
+        drainPendingEditorEdits();
+        const state = get();
+        const dirty = state.dirtyNoteIds.filter((noteId) => {
+          const note = state.items.find((item) => item.id === noteId && item.type === "note");
+          return Boolean(note?.filePath);
+        });
+        if (dirty.length === 0) return 0;
+        const results = await Promise.allSettled(
+          dirty.map((noteId) => state.saveNoteToDisk(noteId))
+        );
+        return results.filter((result) => result.status === "fulfilled").length;
+      },
+
+      clearSaveError: () => set({ saveError: null }),
 
       updateNotePath: (noteId, filePath) => {
         const normalized = normalizePath(filePath);
@@ -1029,12 +1222,6 @@ const useNotesStore = create(
 
           const currentNoteId =
             state.currentNoteId === noteId ? replacementId : state.currentNoteId;
-          const noteConflicts = Object.fromEntries(
-            Object.entries(state.noteConflicts).map(([id, conflict]) => {
-              if (id !== String(noteId)) return [id, conflict];
-              return [String(replacementId), { ...conflict, filePath }];
-            })
-          );
           const recoveredDrafts = Object.fromEntries(
             Object.entries(state.recoveredDrafts).map(([id, draft]) => {
               if (id !== String(noteId)) return [id, draft];
@@ -1046,7 +1233,14 @@ const useNotesStore = create(
           // so keep the open tab pointing at the new id.
           const openNoteIds = state.openNoteIds.map((id) => (id === noteId ? replacementId : id));
 
-          return { items, currentNoteId, openNoteIds, noteConflicts, recoveredDrafts };
+          // The same goes for pending changes: a dirty entry left under the old
+          // id is one nothing will ever look up again, and the note would sit
+          // unwritten until the next keystroke happened to re-mark it.
+          const dirtyNoteIds = Array.from(
+            new Set(state.dirtyNoteIds.map((id) => (id === noteId ? replacementId : id)))
+          );
+
+          return { items, currentNoteId, openNoteIds, recoveredDrafts, dirtyNoteIds };
         });
       },
 
@@ -1377,6 +1571,14 @@ const useNotesStore = create(
 
       selectNote: (noteId) => {
         const state = get();
+
+        // Leaving a note is a save point. Without this, switching tabs inside
+        // the idle window left the edit in memory only and the file on disk
+        // behind — invisible until git or another editor read the stale copy.
+        if (state.currentNoteId && state.currentNoteId !== noteId) {
+          void state.flushNoteSave(state.currentNoteId);
+        }
+
         if (!noteId) {
           set({ currentNoteId: null });
           return;
@@ -1421,6 +1623,10 @@ const useNotesStore = create(
       },
 
       closeNote: (noteId) => {
+        // A closing tab is the last chance to write it: a loose note is dropped
+        // from the store entirely below.
+        void get().flushNoteSave(noteId);
+
         set((state) => {
           const openNoteIds = state.openNoteIds.filter((id) => id !== noteId);
           let currentNoteId = state.currentNoteId;
@@ -1470,48 +1676,10 @@ const useNotesStore = create(
         }
         set((current) => ({
           dirtyNoteIds: current.dirtyNoteIds.filter((id) => id !== noteId),
-          noteConflicts: Object.fromEntries(
-            Object.entries(current.noteConflicts).filter(([id]) => id !== String(noteId))
-          ),
           recoveredDrafts: Object.fromEntries(
             Object.entries(current.recoveredDrafts).filter(([id]) => id !== String(noteId))
           ),
         }));
-      },
-
-      getNoteConflict: (noteId) => {
-        return get().noteConflicts[noteId] || null;
-      },
-
-      resolveNoteConflict: (noteId, resolution = "keepLocal") => {
-        const conflict = get().noteConflicts[noteId];
-        if (!conflict) return false;
-
-        if (resolution === "useDisk") {
-          set((current) => ({
-            items: current.items.map((item) =>
-              item.id === noteId && item.type === "note"
-                ? ensureNoteMetadata({
-                    ...item,
-                    content: conflict.diskContent,
-                    updatedAt: new Date().toISOString(),
-                  })
-                : item
-            ),
-            dirtyNoteIds: current.dirtyNoteIds.filter((id) => id !== noteId),
-            noteConflicts: Object.fromEntries(
-              Object.entries(current.noteConflicts).filter(([id]) => id !== String(noteId))
-            ),
-          }));
-          return true;
-        }
-
-        set((current) => ({
-          noteConflicts: Object.fromEntries(
-            Object.entries(current.noteConflicts).filter(([id]) => id !== String(noteId))
-          ),
-        }));
-        return true;
       },
 
       getRecoveredDraft: (noteId) => {
@@ -2119,7 +2287,6 @@ const useNotesStore = create(
           pinnedNotes: [],
           openNoteIds: [],
           dirtyNoteIds: [],
-          noteConflicts: {},
           recoveredDrafts: {},
           sidebarWidth: 280,
           editorSplitRatio: 50,

@@ -83,11 +83,11 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       },
       {
         id: "save",
-        name: "Save Note",
+        name: "Save now",
         category: "File Operations",
         icon: SaveIcon,
         action: "save",
-        keywords: ["write"],
+        keywords: ["write", "flush", "save note"],
       },
 
       // Navigation

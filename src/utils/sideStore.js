@@ -17,6 +17,19 @@ import { invoke } from "@tauri-apps/api/core";
 
 const NOTE_HISTORY_MAX_SNAPSHOTS = 50;
 
+/**
+ * Minimum gap between two snapshots of the same note.
+ *
+ * History exists to answer "what did this look like earlier today". Auto-save
+ * writes every couple of seconds, and a snapshot per write would fill all 50
+ * slots with two minutes of typing — technically a history, useless as one.
+ * Callers that represent a real boundary (closing a note, restoring one) can
+ * pass `{ force: true }` to snapshot regardless.
+ */
+const NOTE_HISTORY_MIN_INTERVAL_MS = 3 * 60 * 1000;
+
+const lastSnapshotAt = new Map();
+
 const normalizePath = (value) => (value ? value.replace(/\\/g, "/") : "");
 
 // Outside the desktop shell — a plain browser preview, or a unit test — there
@@ -140,8 +153,17 @@ export const getNoteHistorySnapshots = async (filePath) => {
   }
 };
 
-export const addNoteHistorySnapshot = (filePath, content) => {
+export const addNoteHistorySnapshot = (filePath, content, { force = false } = {}) => {
   if (!filePath || content == null) return;
+
+  const key = normalizePath(filePath);
+  const now = Date.now();
+  const previous = lastSnapshotAt.get(key);
+  if (!force && previous !== undefined && now - previous < NOTE_HISTORY_MIN_INTERVAL_MS) {
+    return;
+  }
+  lastSnapshotAt.set(key, now);
+
   call("append_note_history", {
     filePath: normalizePath(filePath),
     content,
@@ -152,6 +174,7 @@ export const addNoteHistorySnapshot = (filePath, content) => {
 
 export const removeNoteHistory = (filePath) => {
   if (!filePath) return;
+  lastSnapshotAt.delete(normalizePath(filePath));
   call("remove_note_history", { filePath: normalizePath(filePath) }).catch((error) =>
     reportError("remove note history", error)
   );
@@ -159,11 +182,15 @@ export const removeNoteHistory = (filePath) => {
 
 /** Drop every note's history — used by the full-reset action. */
 export const clearNoteHistory = () => {
+  lastSnapshotAt.clear();
   call("clear_all_history").catch((error) => reportError("clear note history", error));
 };
 
 export const moveNoteHistory = (oldPath, newPath) => {
   if (!oldPath || !newPath) return;
+  const previous = lastSnapshotAt.get(normalizePath(oldPath));
+  lastSnapshotAt.delete(normalizePath(oldPath));
+  if (previous !== undefined) lastSnapshotAt.set(normalizePath(newPath), previous);
   call("move_note_history", {
     oldPath: normalizePath(oldPath),
     newPath: normalizePath(newPath),

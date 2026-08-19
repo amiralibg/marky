@@ -11,7 +11,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { editorAcceptsDrop, toLogicalPosition } from "../../utils/externalDrop";
 import useNotesStore from "../../store/notesStore";
-import useSettingsStore, { THEMES } from "../../store/settingsStore";
+import useSettingsStore, { THEMES, normalizeSaveMode } from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
 import { checkForAppUpdate, installAppUpdate, restartApp } from "../../utils/appUpdater";
 
@@ -127,6 +127,7 @@ const Sidebar = forwardRef(
     } = useNotesStore();
     const sidebarDensity = useSettingsStore((state) => state.sidebarDensity);
     const themeId = useSettingsStore((state) => state.themeId);
+    const isAutoSave = useSettingsStore((state) => normalizeSaveMode(state.saveMode) === "auto");
     const toggleColorScheme = useSettingsStore((state) => state.toggleColorScheme);
     const { addNotification, setShowWorkspaceModal, appUpdate } = useUIStore();
     const [contextMenu, setContextMenu] = useState(null);
@@ -161,7 +162,10 @@ const Sidebar = forwardRef(
     const displayWorkspacePath = rootFolderPath
       ? rootFolderPath.replace(/^\/(Users|home)\/[^/]+/, "~")
       : "";
-    const dirtyCount = dirtyNoteIds?.length || 0;
+    // Under auto-save a note is "dirty" only for the second or two between a
+    // keystroke and the write, so counting it would show a number that flickers
+    // while you type and means nothing to the reader.
+    const dirtyCount = isAutoSave ? 0 : dirtyNoteIds?.length || 0;
     const isDarkTheme = useMemo(
       () => THEMES.find((t) => t.id === themeId)?.type === "dark",
       [themeId]
@@ -1308,7 +1312,7 @@ const Sidebar = forwardRef(
             <div className="px-2 pb-1 flex flex-col gap-px">
               {looseOpenFiles.map((file) => {
                 const isActive = file.id === currentNoteId;
-                const isDirty = dirtyNoteIds.includes(file.id);
+                const isDirty = !isAutoSave && dirtyNoteIds.includes(file.id);
                 const locationHint = file.filePath
                   ? file.filePath
                       .replace(/^\/(Users|home)\/[^/]+/, "~")

@@ -15,7 +15,7 @@ import SelectionToolbar from "./SelectionToolbar";
 import OutlineRail from "./OutlineRail";
 import EditorScrollFade from "./EditorScrollFade";
 import EditorActionsMenu from "./EditorActionsMenu";
-import useNotesStore, { SETTINGS_TAB_ID } from "../../store/notesStore";
+import useNotesStore, { SETTINGS_TAB_ID, registerPendingEditFlusher } from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
 import useSettingsStore, { editorWidthValue } from "../../store/settingsStore";
 import { renderMarkdownPreview } from "./markdownPreview";
@@ -30,7 +30,6 @@ import "./MarkdownPreview.css";
 const ExportModal = lazy(() => import("../modals/ExportModal"));
 const SettingsPage = lazy(() => import("../settings/SettingsPage"));
 const NoteHistoryModal = lazy(() => import("../modals/NoteHistoryModal"));
-const ConflictCompareModal = lazy(() => import("../modals/ConflictCompareModal"));
 const WorkspaceDashboard = lazy(() => import("../dashboard/WorkspaceDashboard"));
 const NotePropertiesPanel = lazy(() => import("./NotePropertiesPanel"));
 
@@ -65,8 +64,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
     saveCurrentNoteToDisk,
     updateNotePath,
     isNoteDirty,
-    getNoteConflict,
-    resolveNoteConflict,
+    saveError,
+    clearSaveError,
     getRecoveredDraft,
     discardRecoveredDraft,
     getNotes,
@@ -76,8 +75,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const { addNotification, setShowWorkspaceModal } = useUIStore();
   const {
     vimMode,
-    autosaveEnabled,
-    autosaveDelay,
+    saveMode,
     typewriterMode: typewriterModeEnabled,
     showLineNumbers,
     editorWidth,
@@ -96,7 +94,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const [selection, setSelection] = useState({ empty: true }); // for the bubble toolbar
   const [showExportModal, setShowExportModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [showConflictCompare, setShowConflictCompare] = useState(false);
   const [showCreateNoteModal, setShowCreateNoteModal] = useState(false);
   const [pendingNoteName, setPendingNoteName] = useState("");
   // 1-based document line the outline rail highlights against — the line at the
@@ -105,7 +102,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const [showProperties, setShowProperties] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedIndicator, setShowSavedIndicator] = useState(false);
-  const [autosaveStatus, setAutosaveStatus] = useState("idle"); // 'idle' | 'pending' | 'saving' | 'saved'
 
   // Search state
   const [searchMatches, setSearchMatches] = useState([]);
@@ -114,8 +110,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   const updateTimerRef = useRef(null);
   const savedIndicatorTimerRef = useRef(null);
-  const autosaveTimerRef = useRef(null);
-  const autosaveClearTimerRef = useRef(null);
   const previewTimerRef = useRef(null); // Timer for debounced preview updates
   const editorRef = useRef(null);
   const editorPaneRef = useRef(null); // Outer scroll container for the editor pane
@@ -200,7 +194,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   // Get dirty state from store (persists across tab switches)
   const hasUnsavedChanges = isNoteDirty(currentNoteId);
-  const noteConflict = currentNoteId ? getNoteConflict(currentNoteId) : null;
+  const isAutoSave = saveMode === "auto";
   const recoveredDraft = currentNoteId ? getRecoveredDraft(currentNoteId) : null;
 
   // Function to find all matches in the text
@@ -413,6 +407,12 @@ const MarkdownEditor = forwardRef((props, ref) => {
     [currentNoteId, markdown, updateNote]
   );
 
+  // The store writes notes on its own schedule and from places this component
+  // cannot see (leaving the window, closing a tab, quitting). Any of those can
+  // land between a keystroke and the debounce that pushes it into the store, so
+  // the store is handed a way to drain that gap before it writes.
+  useEffect(() => registerPendingEditFlusher(flushPendingNoteUpdate), [flushPendingNoteUpdate]);
+
   // Manual save function
   const handleSave = useCallback(async () => {
     if (!currentNoteId || isSaving) return;
@@ -438,11 +438,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
       } finally {
         setIsSaving(false);
       }
-      return;
-    }
-
-    if (noteConflict) {
-      addNotification("Resolve the external file conflict before saving", "info");
       return;
     }
 
@@ -477,95 +472,34 @@ const MarkdownEditor = forwardRef((props, ref) => {
     saveCurrentNoteToDisk,
     updateNotePath,
     addNotification,
-    noteConflict,
   ]);
 
-  // Autosave effect: schedule a disk write after typing stops when autosave is enabled
+  // The write itself is scheduled by the store (see `scheduleAutoSave`), which
+  // outlives this component — switching notes must not cancel a pending save.
+  // All that is left here is the acknowledgement: a quiet "Saved" as the note
+  // goes clean, so auto-save is observable without being noisy.
+  const wasDirtyRef = useRef(false);
   useEffect(() => {
-    if (!autosaveEnabled) {
-      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-      setAutosaveStatus("idle");
+    if (!isAutoSave) {
+      wasDirtyRef.current = hasUnsavedChanges;
       return;
     }
-    const note = getCurrentNote();
-    if (!note?.filePath || !hasUnsavedChanges || noteConflict) {
-      return;
-    }
-    setAutosaveStatus("pending");
-    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-    autosaveTimerRef.current = setTimeout(async () => {
-      setAutosaveStatus("saving");
-      try {
-        await saveCurrentNoteToDisk();
-        setAutosaveStatus("saved");
-        if (autosaveClearTimerRef.current) clearTimeout(autosaveClearTimerRef.current);
-        autosaveClearTimerRef.current = setTimeout(() => setAutosaveStatus("idle"), 2000);
-      } catch {
-        setAutosaveStatus("idle");
-      }
-    }, autosaveDelay);
-    return () => {
-      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-    };
-  }, [
-    markdown,
-    autosaveEnabled,
-    autosaveDelay,
-    currentNoteId,
-    hasUnsavedChanges,
-    noteConflict,
-    getCurrentNote,
-    saveCurrentNoteToDisk,
-  ]);
-
-  const handleUseDiskVersion = useCallback(() => {
-    if (!currentNoteId) return;
-    const resolved = resolveNoteConflict(currentNoteId, "useDisk");
-    if (resolved) {
-      setShowConflictCompare(false);
-      addNotification("Loaded the version from disk", "info");
-    }
-  }, [currentNoteId, resolveNoteConflict, addNotification]);
-
-  const handleOverwriteDiskVersion = useCallback(async () => {
-    if (!currentNoteId) return;
-    const resolved = resolveNoteConflict(currentNoteId, "keepLocal");
-    if (!resolved) return;
-    setShowConflictCompare(false);
-
-    const currentNote = getCurrentNote();
-    if (!currentNote?.filePath || isSaving) {
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      flushPendingNoteUpdate(currentNoteId, markdown);
-      await saveCurrentNoteToDisk();
+    if (wasDirtyRef.current && !hasUnsavedChanges) {
       setShowSavedIndicator(true);
-      if (savedIndicatorTimerRef.current) {
-        clearTimeout(savedIndicatorTimerRef.current);
-      }
-      savedIndicatorTimerRef.current = setTimeout(() => {
-        setShowSavedIndicator(false);
-      }, 2000);
-      addNotification("Draft saved and disk version overwritten", "success");
-    } catch (error) {
-      console.error("Overwrite save failed:", error);
-      addNotification(`Failed to overwrite disk version: ${error.message}`, "error");
-    } finally {
-      setIsSaving(false);
+      if (savedIndicatorTimerRef.current) clearTimeout(savedIndicatorTimerRef.current);
+      savedIndicatorTimerRef.current = setTimeout(() => setShowSavedIndicator(false), 1500);
     }
-  }, [
-    currentNoteId,
-    resolveNoteConflict,
-    getCurrentNote,
-    flushPendingNoteUpdate,
-    isSaving,
-    markdown,
-    saveCurrentNoteToDisk,
-    addNotification,
-  ]);
+    wasDirtyRef.current = hasUnsavedChanges;
+  }, [hasUnsavedChanges, isAutoSave]);
+
+  // A failed write leaves the note dirty and its draft cached, so nothing is
+  // lost — but in auto mode there is no Save button to go red, so the store
+  // parks the error here and it is surfaced once.
+  useEffect(() => {
+    if (!saveError) return;
+    addNotification(`Could not save to disk: ${saveError.message}`, "error");
+    clearSaveError();
+  }, [saveError, addNotification, clearSaveError]);
 
   const handleDiscardRecoveredDraft = useCallback(() => {
     if (!currentNoteId) return;
@@ -649,12 +583,6 @@ const MarkdownEditor = forwardRef((props, ref) => {
         updateTimerRef.current = null;
       }
 
-      if (noteConflict) {
-        setShowProperties(false);
-        addNotification("Properties updated. Resolve the conflict before saving.", "info");
-        return;
-      }
-
       const note = getCurrentNote();
       if (!note?.filePath) {
         setShowProperties(false);
@@ -681,14 +609,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
         setIsSaving(false);
       }
     },
-    [
-      currentNoteId,
-      updateNote,
-      noteConflict,
-      getCurrentNote,
-      saveCurrentNoteToDisk,
-      addNotification,
-    ]
+    [currentNoteId, updateNote, getCurrentNote, saveCurrentNoteToDisk, addNotification]
   );
 
   const insertMarkdown = (before, after = "", placeholder = "") => {
@@ -1086,14 +1007,14 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const actionMenuItems = [
     {
       id: "save",
-      label: isSaving ? "Saving…" : "Save",
+      label: isSaving ? "Saving…" : isAutoSave ? "Save now" : "Save",
       shortcut: `${mod}S`,
       disabled: isSaving || !currentNote.filePath,
-      title: noteConflict
-        ? "Resolve the external conflict first"
-        : currentNote.filePath
-          ? "Save this note"
-          : "This note has no file path yet",
+      title: currentNote.filePath
+        ? isAutoSave
+          ? "This note saves itself — this writes it immediately"
+          : "Save this note"
+        : "This note has no file path yet",
       iconPath:
         "M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4",
       onSelect: handleSave,
@@ -1144,21 +1065,34 @@ const MarkdownEditor = forwardRef((props, ref) => {
             <span className="text-[13px] text-text-primary font-medium truncate">
               {currentNote.name}
             </span>
-            {/* One dot carries the whole save story: amber = in flight or
-                unsaved, nothing at all = saved and quiet. */}
-            {(!currentNote.filePath || hasUnsavedChanges || autosaveStatus === "saving") && (
-              <span
-                className={`ms-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 ${
-                  autosaveStatus === "saving" ? "animate-pulse" : ""
-                }`}
-                title={
-                  !currentNote.filePath
-                    ? "Not saved to disk yet"
-                    : autosaveStatus === "saving"
-                      ? "Saving…"
-                      : "Unsaved changes"
-                }
-              />
+            {/* In auto mode saving is not the user's problem, so the only
+                thing worth saying is the moment it lands — and only for a note
+                that has no file yet is there anything to warn about. In manual
+                mode the amber dot is still the whole save story. */}
+            {isAutoSave ? (
+              <>
+                {!currentNote.filePath && (
+                  <span
+                    className="ms-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"
+                    title="Not saved to disk yet"
+                  />
+                )}
+                {currentNote.filePath && showSavedIndicator && (
+                  <span
+                    className="ms-1.5 shrink-0 text-[11px] text-text-muted animate-in fade-in duration-200"
+                    role="status"
+                  >
+                    Saved
+                  </span>
+                )}
+              </>
+            ) : (
+              (!currentNote.filePath || hasUnsavedChanges) && (
+                <span
+                  className="ms-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"
+                  title={!currentNote.filePath ? "Not saved to disk yet" : "Unsaved changes"}
+                />
+              )
             )}
           </div>
 
@@ -1169,54 +1103,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
         </div>
       )}
 
-      {noteConflict && (
-        <div
-          className="flex items-center gap-3 border-b border-border bg-overlay-subtle px-4 py-2 shrink-0"
-          role="alert"
-          aria-live="assertive"
-        >
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-500">
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
-            </svg>
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[13px] text-text-primary">
-            <span className="font-medium">Changed on disk</span>
-            <span className="ml-2 text-text-muted">while you had unsaved edits.</span>
-          </span>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => setShowConflictCompare(true)}
-              className="rounded-md px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary"
-            >
-              Compare
-            </button>
-            <button
-              onClick={handleUseDiskVersion}
-              className="rounded-md px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary"
-            >
-              Load disk
-            </button>
-            <button
-              onClick={handleOverwriteDiskVersion}
-              className="rounded-md bg-amber-500 px-2.5 py-1 text-[12px] font-medium text-black transition-opacity hover:opacity-90"
-            >
-              Overwrite
-            </button>
-          </div>
-        </div>
-      )}
-
-      {recoveredDraft && !noteConflict && (
+      {recoveredDraft && (
         <div
           className="flex items-center gap-3 border-b border-border bg-accent-dim px-4 py-2 shrink-0"
           role="status"
@@ -1504,20 +1391,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
               setMarkdown(content);
               setDebouncedMarkdown(content);
               setShowHistoryModal(false);
-              addNotification("Restored snapshot into editor — save to persist", "success");
+              addNotification("Restored snapshot into editor", "success");
             }}
-          />
-        )}
-        {currentNote && noteConflict && (
-          <ConflictCompareModal
-            isOpen={showConflictCompare}
-            noteName={currentNote.name}
-            localContent={markdown}
-            diskContent={noteConflict.diskContent}
-            detectedAt={noteConflict.detectedAt}
-            onClose={() => setShowConflictCompare(false)}
-            onUseDisk={handleUseDiskVersion}
-            onKeepLocal={handleOverwriteDiskVersion}
           />
         )}
       </Suspense>
