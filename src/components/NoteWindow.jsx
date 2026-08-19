@@ -9,6 +9,9 @@ import {
   setDraftCacheEntry,
   removeDraftCacheEntry,
 } from "../utils/sideStore";
+import { setAttachmentContext } from "../utils/attachments";
+import { copyDroppedImages, saveImageAttachment } from "../utils/attachmentSaver";
+import { useExternalImageDrop } from "../hooks/useExternalImageDrop";
 
 const fileNameOf = (path) => (path || "").replace(/\\/g, "/").split("/").pop() || "Note";
 
@@ -51,6 +54,76 @@ const NoteWindow = ({ filePath }) => {
   const vimVisualLineMotion = useSettingsStore((state) => state.vimVisualLineMotion);
   const showLineNumbers = useSettingsStore((state) => state.showLineNumbers);
   const keymaps = useSettingsStore((state) => state.keymaps);
+  const attachmentFolder = useSettingsStore((state) => state.attachmentFolder);
+
+  // This window knows nothing of the workspace — it edits one file — so images
+  // resolve against, and are written beside, the note itself.
+  setAttachmentContext({ notePath: filePath, vaultRoot: null });
+
+  const handleSaveImage = useCallback(
+    async (file) => {
+      const { markdown } = await saveImageAttachment({
+        file,
+        notePath: filePath,
+        vaultRoot: null,
+        attachmentFolder,
+      });
+      return markdown;
+    },
+    [filePath, attachmentFolder]
+  );
+
+  // Surfaced in the status bar rather than the error screen: a failed paste is
+  // not a reason to take the editor away from someone mid-edit.
+  const [imageError, setImageError] = useState(null);
+
+  const handleImageError = useCallback((failure) => {
+    setImageError(failure?.message || "Could not add that image.");
+  }, []);
+
+  useEffect(() => {
+    if (!imageError) return undefined;
+    const timer = setTimeout(() => setImageError(null), 5000);
+    return () => clearTimeout(timer);
+  }, [imageError]);
+
+  const editorRef = useRef(null);
+
+  const handleDropImages = useCallback(
+    async (paths, pos) => {
+      const view = editorRef.current?.getView();
+      if (!view || paths.length === 0) return;
+
+      try {
+        const { markdown: links } = await copyDroppedImages({
+          paths,
+          notePath: filePath,
+          vaultRoot: null,
+          attachmentFolder,
+        });
+        if (links.length === 0) return;
+
+        const at = Math.max(0, Math.min(pos ?? view.state.doc.length, view.state.doc.length));
+        const line = view.state.doc.lineAt(at);
+        const insert = `${at > line.from ? "\n" : ""}${links.join("\n")}${at < line.to ? "\n" : ""}`;
+
+        view.dispatch({
+          changes: { from: at, insert },
+          selection: { anchor: at + insert.length },
+          scrollIntoView: true,
+        });
+        view.focus();
+      } catch (dropError) {
+        handleImageError(dropError);
+      }
+    },
+    [filePath, attachmentFolder, handleImageError]
+  );
+
+  useExternalImageDrop({
+    getView: () => editorRef.current?.getView() ?? null,
+    onDropImages: handleDropImages,
+  });
 
   useEffect(() => {
     applyTheme(themeId);
@@ -160,6 +233,7 @@ const NoteWindow = ({ filePath }) => {
       <div className="min-h-0 flex-1">
         <EditorScrollFade className="mx-auto w-full max-w-[46rem]">
           <CodeMirrorEditor
+            ref={editorRef}
             value={content}
             onChange={handleChange}
             placeholder="Write markdown…"
@@ -171,6 +245,8 @@ const NoteWindow = ({ filePath }) => {
             enableLivePreview
             formattingKeymaps={keymaps}
             editorSearchKeymap={keymaps?.editorSearch}
+            saveImage={handleSaveImage}
+            onImageError={handleImageError}
             ariaLabel={`Editor for ${fileNameOf(filePath)}`}
           />
         </EditorScrollFade>
@@ -180,7 +256,9 @@ const NoteWindow = ({ filePath }) => {
         <span className="truncate" title={filePath}>
           {fileNameOf(filePath)}
         </span>
-        <span>{status === "saving" ? "Saving…" : isDirty ? "Unsaved — ⌘S" : "Saved"}</span>
+        <span>
+          {imageError || (status === "saving" ? "Saving…" : isDirty ? "Unsaved — ⌘S" : "Saved")}
+        </span>
       </div>
     </div>
   );

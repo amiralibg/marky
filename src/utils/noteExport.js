@@ -2,6 +2,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { marked } from "marked";
+import { withRawMediaSrc } from "./attachments";
 
 const PAGE_SIZE = { width: 595.28, height: 841.89 };
 const PAGE_MARGIN = 50;
@@ -106,7 +107,9 @@ const wrapText = (font, text, size, width) => {
 };
 
 export const buildStandaloneHtml = (noteName, markdownContent, markedParser = marked) => {
-  const htmlContent = markedParser(markdownContent || "");
+  // Rendered with the author's own image paths, not the app's `asset://` URLs —
+  // those resolve to nothing once the file is outside Marky's webview.
+  const htmlContent = withRawMediaSrc(() => markedParser(markdownContent || ""));
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

@@ -32,6 +32,9 @@ import { livePreview } from "./livePreview";
 import { typewriterMode } from "./typewriterMode";
 import { buildMarkyKeymaps } from "./keymaps";
 import { createWikiLinkAutocomplete } from "./wikiLinkAutocomplete";
+import { imagePaste } from "./imagePaste";
+import { dropIndicator } from "./dropIndicator";
+import { wikiEmbedSyntax } from "./wikiEmbedSyntax";
 import { isRTLLine, findIsolateRuns } from "../../utils/bidi";
 
 const rtlLineDeco = Decoration.line({ attributes: { dir: "rtl", class: "cm-rtl-line" } });
@@ -119,6 +122,8 @@ export function createExtensions(options = {}) {
     formattingKeymaps = {},
     getNotes = () => [],
     getTags = () => [],
+    saveImage = null,
+    onImageError = null,
   } = options;
 
   const filteredSearchKeymap = searchKeymap.filter((binding) => binding.key !== "Mod-f");
@@ -132,6 +137,9 @@ export function createExtensions(options = {}) {
     markdown({
       base: markdownLanguage,
       codeLanguages: [], // Can add language support for code blocks later
+      // `![[image.png]]` — Obsidian's embed syntax, which the base grammar
+      // parses as loose text. Live preview needs a node to render against.
+      extensions: [wikiEmbedSyntax],
     }),
 
     // BiDi support - auto-detect RTL/LTR per line, isolate mixed-script runs
@@ -247,6 +255,16 @@ export function createExtensions(options = {}) {
 
   if (enableAutocomplete) {
     extensions.push(autocompletion());
+  }
+
+  // Pasting or dropping an image writes it into the vault and links it.
+  // Registered before the keymaps because it is a DOM handler, not a binding.
+  if (saveImage) {
+    extensions.push(imagePaste({ saveImage, onError: onImageError }));
+    // The caret that shows where a file dragged in from the OS will land. Its
+    // position comes from Tauri's drag stream, not the DOM — see
+    // hooks/useExternalImageDrop.js.
+    extensions.push(dropIndicator());
   }
 
   // Wiki link autocomplete for [[note]] syntax

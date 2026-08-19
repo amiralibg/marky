@@ -1,6 +1,7 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, readTextFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
+import { joinPath, sanitizeAttachmentName, withNameSuffix } from "./attachments";
 
 const formatPathLabel = (value) => {
   if (!value || typeof value !== "string") return "item";
@@ -22,10 +23,13 @@ const buildFriendlyFsError = (error, action, targetPath) => {
 
   let message = rawMessage || `Failed to ${action}.`;
 
-  if (
-    /permission denied|access is denied|operation not permitted|forbidden|os error 13/.test(
-      normalized
-    )
+  if (/forbidden path|not allowed on the scope/.test(normalized)) {
+    // Tauri's own path scope, not the operating system's. Worth its own message:
+    // as an OS-style "you don't have permission" it looked like a Finder problem
+    // and hid a missing `allow` in the capability file for far too long.
+    message = `Marky isn’t allowed to reach “${label}”. This is a bug — please report it.`;
+  } else if (
+    /permission denied|access is denied|operation not permitted|os error 13/.test(normalized)
   ) {
     message = `You don’t have permission to ${action} “${label}”.`;
   } else if (/does not exist|not found|no such file|cannot find/.test(normalized)) {
@@ -213,6 +217,28 @@ export async function readWorkspaceFiles(folderPath, ignorePatterns = [], known 
 }
 
 /**
+ * List the media files in a workspace (images, PDFs, audio, video).
+ *
+ * Notes reference these by paths that only mean something on disk — and, in a
+ * vault imported from Obsidian, often by bare file name. Resolving those needs
+ * to know what is actually there, which is what this index provides.
+ *
+ * @param {string} folderPath - Absolute path to the workspace root
+ * @param {string[]} [ignorePatterns] - Extra gitignore-style globs to skip
+ * @returns {Promise<Array<{name: string, path: string}>>}
+ */
+export async function scanWorkspaceAttachments(folderPath, ignorePatterns = []) {
+  try {
+    return await invoke("scan_workspace_attachments", { folderPath, ignorePatterns });
+  } catch (error) {
+    // A missing attachment index costs broken images, not a broken workspace —
+    // never let it fail the folder load.
+    console.error("Error scanning attachments:", error);
+    return [];
+  }
+}
+
+/**
  * Read a markdown file from disk
  * @param {string} filePath - Absolute path to the file
  * @returns {Promise<string>} File content
@@ -379,6 +405,52 @@ export async function copyEntriesToFolder(sourcePaths, destFolderPath) {
   } catch (error) {
     console.error("Error copying entries:", error);
     wrapFsError(error, "copy these items", destFolderPath);
+  }
+}
+
+/**
+ * Create a folder (and any missing parents) if it isn't already there.
+ * @param {string} folderPath
+ */
+export async function ensureFolderExists(folderPath) {
+  try {
+    await mkdir(folderPath, { recursive: true });
+  } catch (error) {
+    console.error("Error creating folder:", error);
+    wrapFsError(error, "create this folder", folderPath);
+  }
+}
+
+/**
+ * Write a pasted or dropped file into the workspace.
+ *
+ * The folder is created on demand — a fresh vault has no attachments folder
+ * until the first image lands in it — and the name is made unique rather than
+ * overwriting, because two screenshots taken in the same second would otherwise
+ * silently replace one another.
+ *
+ * @param {string} folderPath - Directory to write into
+ * @param {string} fileName - Desired file name
+ * @param {Uint8Array} bytes - File contents
+ * @returns {Promise<string>} The absolute path actually written
+ */
+export async function writeAttachmentFile(folderPath, fileName, bytes) {
+  const targetFolder = folderPath.replace(/[\\/]+$/, "");
+  try {
+    await mkdir(targetFolder, { recursive: true });
+
+    const safeName = sanitizeAttachmentName(fileName);
+    let finalPath = joinPath(targetFolder, safeName);
+    for (let counter = 1; counter <= 100; counter += 1) {
+      if (!(await exists(finalPath))) break;
+      finalPath = joinPath(targetFolder, withNameSuffix(safeName, counter));
+    }
+
+    await writeFile(finalPath, bytes);
+    return finalPath;
+  } catch (error) {
+    console.error("Error writing attachment:", error);
+    wrapFsError(error, "save this image", fileName);
   }
 }
 

@@ -48,37 +48,19 @@
     "dialog:allow-save",
     "fs:default",
     {
-      "identifier": "fs:allow-read-text-file",
+      "_comment": "One scope for every fs command. Attaching `allow` to a single `fs:allow-*` scopes only that command, so a permission listed bare gets an empty scope and rejects every path — which is how `fs:allow-exists` made the first image paste fail.",
+      "identifier": "fs:scope",
       "allow": [
         {
           "path": "**"
         }
       ]
     },
-    {
-      "identifier": "fs:allow-write-text-file",
-      "allow": [
-        {
-          "path": "**"
-        }
-      ]
-    },
-    {
-      "identifier": "fs:allow-read-file",
-      "allow": [
-        {
-          "path": "**"
-        }
-      ]
-    },
-    {
-      "identifier": "fs:allow-write-file",
-      "allow": [
-        {
-          "path": "**"
-        }
-      ]
-    },
-    "fs:allow-exists"
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-exists",
+    "fs:allow-mkdir"
   ]
 }

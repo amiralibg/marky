@@ -699,6 +699,73 @@ fn scan_folder_for_markdown(
     Ok(markdown_files)
 }
 
+/// The media files a vault's notes can embed.
+///
+/// Kept separate from the note scan because it answers a different question:
+/// notes are loaded to be edited, these are indexed only so an image reference
+/// can be turned into a path. Media-only by design — walking a vault's every
+/// file to resolve `![[diagram.png]]` would cost more than it buys.
+const MEDIA_EXTENSIONS: [&str; 19] = [
+    "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif", "apng", "pdf", "mp4", "webm",
+    "mov", "mp3", "wav", "ogg", "m4a", "flac",
+];
+
+fn is_media_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| {
+            let lowered = ext.to_ascii_lowercase();
+            MEDIA_EXTENSIONS.contains(&lowered.as_str())
+        })
+}
+
+#[derive(Debug, Serialize)]
+struct AttachmentFile {
+    name: String,
+    path: String,
+}
+
+/// Index the media files in a workspace so image references can be resolved.
+///
+/// An imported Obsidian vault writes its images as `![[shot.png]]` — a bare
+/// name with no path — and as paths relative to either the note or the vault
+/// root. Only the first of those can be resolved without knowing what is
+/// actually on disk, which is what this list provides.
+#[tauri::command]
+fn scan_workspace_attachments(
+    folder_path: String,
+    ignore_patterns: Option<Vec<String>>,
+) -> Result<Vec<AttachmentFile>, String> {
+    let path = PathBuf::from(&folder_path);
+
+    if !path.is_dir() {
+        return Err("Path is not a directory".to_string());
+    }
+
+    let mut attachments = Vec::new();
+    let walker = build_walker(&path, ignore_patterns)?.build();
+
+    for entry in walker {
+        let Ok(entry) = entry else { continue };
+        if entry.depth() == 0 {
+            continue;
+        }
+        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let entry_path = entry.path();
+        if !is_media_extension(entry_path) {
+            continue;
+        }
+        attachments.push(AttachmentFile {
+            name: entry.file_name().to_string_lossy().to_string(),
+            path: entry_path.to_string_lossy().to_string(),
+        });
+    }
+
+    Ok(attachments)
+}
+
 /// A file the caller already holds content for, with the stats it was read at.
 #[derive(Debug, Deserialize)]
 struct KnownFile {
@@ -1243,6 +1310,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             scan_folder_for_markdown,
+            scan_workspace_attachments,
             read_workspace_files,
             create_folder,
             create_markdown_file,

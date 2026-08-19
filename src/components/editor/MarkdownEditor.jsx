@@ -22,6 +22,9 @@ import { renderMarkdownPreview } from "./markdownPreview";
 import { parseHeadings } from "../../utils/headings";
 import { saveMarkdownFile } from "../../utils/fileSystem";
 import { isolateBidiRuns } from "../../utils/bidi";
+import { setAttachmentContext } from "../../utils/attachments";
+import { copyDroppedImages, saveImageAttachment } from "../../utils/attachmentSaver";
+import { useExternalImageDrop } from "../../hooks/useExternalImageDrop";
 import "./MarkdownPreview.css";
 
 const ExportModal = lazy(() => import("../modals/ExportModal"));
@@ -80,6 +83,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     editorWidth,
     vimVisualLineMotion,
     keymaps,
+    attachmentFolder,
   } = useSettingsStore();
   // One measure for every view mode. Published as a CSS variable so the
   // rendered preview sheet (MarkdownPreview.css) reads the same value the
@@ -119,6 +123,80 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const highlightTimeoutRef = useRef(null);
   const localEditPendingRef = useRef(false);
   const localEditNoteIdRef = useRef(null);
+
+  // Which note the renderers resolve image paths against. Set during render
+  // rather than in an effect: both preview paths (the read-mode sheet and the
+  // Live-mode widgets) render from this same pass, and an effect would leave
+  // the first render of a newly opened note resolving against the previous one.
+  const currentNoteFilePath = getCurrentNote()?.filePath || null;
+  setAttachmentContext({ notePath: currentNoteFilePath, vaultRoot: rootFolderPath });
+
+  // Pasting or dropping an image: write it into the vault, hand back the
+  // markdown that links to it. Note-relative, so the vault stays portable.
+  const handleSaveImage = useCallback(
+    async (file) => {
+      const { markdown: imageMarkdown } = await saveImageAttachment({
+        file,
+        notePath: currentNoteFilePath,
+        vaultRoot: rootFolderPath,
+        attachmentFolder,
+      });
+      return imageMarkdown;
+    },
+    [currentNoteFilePath, rootFolderPath, attachmentFolder]
+  );
+
+  const handleImageError = useCallback(
+    (error) => {
+      addNotification(error?.message || "Could not add that image.", "error");
+    },
+    [addNotification]
+  );
+
+  // Files dragged in from Finder / Explorer. They arrive as paths rather than
+  // bytes, so they are copied on the Rust side; the markdown lands at the drop
+  // caret, not at the text cursor, because that is where the user aimed.
+  const handleDropImages = useCallback(
+    async (paths, pos) => {
+      const view = editorRef.current?.getView();
+      if (!view || paths.length === 0) return;
+
+      try {
+        const { markdown: links } = await copyDroppedImages({
+          paths,
+          notePath: currentNoteFilePath,
+          vaultRoot: rootFolderPath,
+          attachmentFolder,
+        });
+        if (links.length === 0) return;
+
+        const at = Math.max(0, Math.min(pos ?? view.state.doc.length, view.state.doc.length));
+        const line = view.state.doc.lineAt(at);
+        // An image belongs on a line of its own, so it is separated from any
+        // text already sharing the drop line — but only on the side that has
+        // text, or the note grows blank lines it never asked for.
+        const before = at > line.from ? "\n" : "";
+        const after = at < line.to ? "\n" : "";
+        const insert = `${before}${links.join("\n")}${after}`;
+
+        view.dispatch({
+          changes: { from: at, insert },
+          selection: { anchor: at + insert.length },
+          scrollIntoView: true,
+        });
+        view.focus();
+      } catch (error) {
+        handleImageError(error);
+      }
+    },
+    [currentNoteFilePath, rootFolderPath, attachmentFolder, handleImageError]
+  );
+
+  useExternalImageDrop({
+    getView: () => editorRef.current?.getView() ?? null,
+    onDropImages: handleDropImages,
+    enabled: viewMode !== "read" && currentNoteId !== SETTINGS_TAB_ID,
+  });
 
   // Get dirty state from store (persists across tab switches)
   const hasUnsavedChanges = isNoteDirty(currentNoteId);
@@ -645,7 +723,9 @@ const MarkdownEditor = forwardRef((props, ref) => {
       console.error("Markdown rendering error:", error);
       return { __html: "<p>Error rendering markdown</p>" };
     }
-  }, [debouncedMarkdown]);
+    // `currentNoteFilePath` is a dependency because it decides what a relative
+    // image path resolves to, even when the markdown itself is unchanged.
+  }, [debouncedMarkdown, currentNoteFilePath, rootFolderPath]);
 
   // Memoize status bar calculations - only recalculate when debouncedMarkdown changes
   const statusBarStats = useMemo(() => {
@@ -1315,6 +1395,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
                   formattingKeymaps={keymaps}
                   getNotes={getNotes}
                   getTags={getAllTags}
+                  saveImage={handleSaveImage}
+                  onImageError={handleImageError}
                   ariaLabel={`Markdown editor${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
                 />
               </EditorScrollFade>

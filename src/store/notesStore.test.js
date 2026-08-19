@@ -8,6 +8,7 @@ vi.mock("../utils/fileSystem", () => ({
   deleteEntryOnDisk: vi.fn(),
   moveEntryOnDisk: vi.fn(),
   readWorkspaceFiles: vi.fn(),
+  scanWorkspaceAttachments: vi.fn(async () => []),
   writeMarkdownFileOnDisk: vi.fn(),
 }));
 

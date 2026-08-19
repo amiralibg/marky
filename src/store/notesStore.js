@@ -8,8 +8,10 @@ import {
   deleteEntryOnDisk,
   moveEntryOnDisk,
   readWorkspaceFiles,
+  scanWorkspaceAttachments,
   writeMarkdownFileOnDisk,
 } from "../utils/fileSystem";
+import { setAttachmentIndex } from "../utils/attachments";
 import { resolveTemplateById } from "../data/templates";
 import { addMinutes, calculateNextRun } from "../utils/schedule";
 import { buildDailyNoteContent, formatDailyNoteTitle } from "../utils/dailyNotes";
@@ -36,6 +38,27 @@ export { getNoteHistorySnapshots } from "../utils/sideStore";
 // no cycle. Read at scan time rather than captured, so editing the patterns and
 // refreshing picks up the change without a reload.
 const getIgnorePatterns = () => parseIgnorePatterns(useSettingsStore.getState().ignorePatterns);
+
+/**
+ * Refresh the index of media files the vault's notes can embed.
+ *
+ * Kicked off without awaiting: the notes are what the UI is waiting on, and an
+ * image that resolves a moment after the tree appears is invisible to the user.
+ * Failures are already swallowed inside the scan — a missing index costs broken
+ * images, never a failed workspace load.
+ */
+const refreshAttachmentIndex = (folderPath) => {
+  if (!folderPath) {
+    setAttachmentIndex([], null);
+    return;
+  }
+  scanWorkspaceAttachments(folderPath, getIgnorePatterns()).then((files) => {
+    // The workspace may have been switched while the walk was running.
+    if (useNotesStore.getState().rootFolderPath === folderPath) {
+      setAttachmentIndex(files, folderPath);
+    }
+  });
+};
 
 // Special ID for the Settings tab
 export const SETTINGS_TAB_ID = "settings::special";
@@ -504,6 +527,11 @@ const useNotesStore = create(
 
       loadFolderFromSystem: (folderData) => get().setRootFolder(folderData),
 
+      // Rebuild the index of embeddable media in the workspace. Called when the
+      // workspace changes — including the restore on launch, which never goes
+      // through `setRootFolder` because the tree is rehydrated from storage.
+      refreshAttachmentIndex: () => refreshAttachmentIndex(get().rootFolderPath),
+
       refreshRootFromDisk: async (options = {}) => {
         const { focusPath, ensureExpandedPath, silent = false } = options;
         const state = get();
@@ -671,6 +699,10 @@ const useNotesStore = create(
             dirtyNoteIds: Array.from(recoveredDirtyIds),
             recoveredDrafts: nextRecoveredDrafts,
           });
+
+          // Images added or removed outside Marky show up on the same refresh
+          // the watcher already triggers for notes.
+          refreshAttachmentIndex(rootFolderPath);
 
           return combinedItems;
         } finally {

@@ -539,7 +539,9 @@ function buildDecorations(state) {
       }
 
       // ── Images → rendered inline image ─────────────────────────
-      if (name === "Image") {
+      // `WikiEmbed` is the `![[…]]` form (see wikiEmbedSyntax.js); both render
+      // through the same `marked` pipeline Read mode uses.
+      if (name === "Image" || name === "WikiEmbed") {
         if (!touches(node.from, node.to)) {
           render(
             node.from,

@@ -121,6 +121,10 @@ function App() {
     } else {
       settingsState.clearActiveWorkspaceSettings();
     }
+    // Images a note embeds are resolved against this index. Rebuilt here rather
+    // than inside the folder load, so a workspace restored from storage on
+    // launch — which never runs a load — gets one too.
+    useNotesStore.getState().refreshAttachmentIndex();
   }, [rootFolderPath]);
 
   // Open top-level modals in response to requests from nested views.

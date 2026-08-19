@@ -31,6 +31,8 @@ const CodeMirrorEditor = forwardRef(
       formattingKeymaps = {},
       getNotes = () => [],
       getTags = () => [],
+      saveImage = null,
+      onImageError = null,
       ariaLabel = "Markdown editor",
       autoHeight = false,
     },
@@ -42,6 +44,8 @@ const CodeMirrorEditor = forwardRef(
     const vimModeChangeListenerRef = useRef(null);
     const getNotesRef = useRef(null);
     const getTagsRef = useRef(null);
+    const saveImageRef = useRef(null);
+    const onImageErrorRef = useRef(null);
     const suppressOnChangeRef = useRef(false);
     const vimStatusSyncFrameRef = useRef(null);
     const selectionListenerRef = useRef(null);
@@ -66,6 +70,17 @@ const CodeMirrorEditor = forwardRef(
     useEffect(() => {
       getTagsRef.current = getTags;
     }, [getTags]);
+
+    // Held in refs for the same reason as getNotes/getTags: the callbacks are
+    // rebuilt on every render of the parent, and reading them through a ref
+    // keeps that from tearing down and rebuilding the whole editor.
+    useEffect(() => {
+      saveImageRef.current = saveImage;
+    }, [saveImage]);
+
+    useEffect(() => {
+      onImageErrorRef.current = onImageError;
+    }, [onImageError]);
 
     const emitVimModeStatus = () => {
       if (!enableVimMode || !viewRef.current || !vimModeChangeListenerRef.current) return;
@@ -118,6 +133,13 @@ const CodeMirrorEditor = forwardRef(
         formattingKeymaps,
         getNotes: () => (getNotesRef.current ? getNotesRef.current() : []),
         getTags: () => (getTagsRef.current ? getTagsRef.current() : []),
+        // Always registered: an editor with nowhere to save an image should say
+        // so, which is more use than a paste that silently does nothing.
+        saveImage: (file) =>
+          saveImageRef.current
+            ? saveImageRef.current(file)
+            : Promise.reject(new Error("Images can only be added to a saved note.")),
+        onImageError: (error) => onImageErrorRef.current?.(error),
       });
 
       // Emit selection geometry so the parent can float a selection toolbar.

@@ -608,6 +608,20 @@
   box-shadow: none;
 }
 
+/* An image whose file isn't where the note says it is. Without this the element
+   collapses to nothing and the note simply looks like it lost a picture; the
+   frame keeps the space and lets the alt text explain itself. */
+.markdown-preview img.md-image-missing {
+  min-height: 3rem;
+  min-width: 8rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--md-line);
+  border-radius: var(--md-radius);
+  box-shadow: none;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
 /* ── Footnotes ───────────────────────────────────────────────
    Apparatus, not content: smaller, quieter, behind a rule. */
 .markdown-preview .footnotes {

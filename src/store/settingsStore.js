@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { DEFAULT_ATTACHMENT_FOLDER } from "../utils/attachments";
 
 // Theme definitions — "Vault" redesign (claude.ai/design Marky - Vault).
 // bgEditor = the content "panel"; itemActive = "raised"; bar = skeleton bars
@@ -472,6 +473,7 @@ const createDefaultProfileSettings = () => ({
   accentColorId: "purple",
   editorWidth: "default",
   ignorePatterns: "",
+  attachmentFolder: DEFAULT_ATTACHMENT_FOLDER,
   vimMode: false,
   vimVisualLineMotion: true,
   autosaveEnabled: false,
@@ -488,6 +490,7 @@ const buildProfileSettingsSnapshot = (state) => ({
   accentColorId: state.accentColorId,
   editorWidth: state.editorWidth,
   ignorePatterns: state.ignorePatterns,
+  attachmentFolder: state.attachmentFolder,
   vimMode: state.vimMode,
   vimVisualLineMotion: state.vimVisualLineMotion,
   autosaveEnabled: state.autosaveEnabled,
@@ -550,6 +553,9 @@ const useSettingsStore = create(
       showLineNumbers: false, // Notion-clean default; toggle in Editor settings
       editorWidth: "default", // 'narrow' | 'default' | 'wide' — see EDITOR_WIDTHS
       ignorePatterns: "", // extra scanner excludes, one glob per line
+      // Where a pasted or dropped image is written, relative to the workspace
+      // root. Empty means the root itself, which is what Obsidian defaults to.
+      attachmentFolder: DEFAULT_ATTACHMENT_FOLDER,
       sidebarDensity: "comfortable", // 'compact' | 'comfortable' | 'spacious'
       showSidebarMetadata: true,
       openRecentOnStartup: true,
@@ -642,6 +648,9 @@ const useSettingsStore = create(
       },
       setIgnorePatterns: (patterns) => {
         get().syncProfileState({ ignorePatterns: patterns });
+      },
+      setAttachmentFolder: (folder) => {
+        get().syncProfileState({ attachmentFolder: folder });
       },
       setSidebarDensity: (density) => {
         get().syncProfileState({ sidebarDensity: density });
