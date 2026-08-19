@@ -8,7 +8,7 @@ import TitleBar from "./components/layout/TitleBar";
 import WindowResizeHandles from "./components/layout/WindowResizeHandles";
 import ConfirmDialog from "./components/modals/ConfirmDialog";
 import useNotesStore, { SETTINGS_TAB_ID } from "./store/notesStore";
-import useSettingsStore, { matchesKeymap } from "./store/settingsStore";
+import useSettingsStore, { matchesKeymap, normalizeSaveMode } from "./store/settingsStore";
 import useUIStore from "./store/uiStore";
 import { exportWorkspaceAsZip } from "./utils/backup";
 import { checkForAppUpdate } from "./utils/appUpdater";
@@ -24,6 +24,7 @@ import {
 import { openNoteInNewWindow } from "./utils/noteWindows";
 import { detectPlatform } from "./utils/platform";
 import { useFileWatcher } from "./hooks/useFileWatcher";
+import { useSaveLifecycle } from "./hooks/useSaveLifecycle";
 
 // The platform cannot change while the app runs, so this is read once.
 const isLinux = detectPlatform() === "linux";
@@ -42,6 +43,7 @@ const stripMarkdownExtension = (name = "") => name.replace(/\.(md|markdown|txt)$
 
 function App() {
   useFileWatcher();
+  useSaveLifecycle();
 
   const items = useNotesStore((state) => state.items);
   const {
@@ -244,14 +246,17 @@ function App() {
         return;
       }
 
-      // Check if the note has unsaved changes
-      const hasUnsaved = useNotesStore.getState().isNoteDirty(noteId);
-      if (hasUnsaved) {
+      // In auto mode `closeNote` writes the note on the way out, so there is
+      // nothing to ask about. Manual mode still needs a decision from the user.
+      const state = useNotesStore.getState();
+      const isAutoSave = normalizeSaveMode(useSettingsStore.getState().saveMode) === "auto";
+      if (!isAutoSave && state.isNoteDirty(noteId)) {
         const note = items.find((item) => item.id === noteId);
         setCloseConfirmation({ noteId, noteName: note?.name || "Untitled" });
-      } else {
-        closeNote(noteId);
+        return;
       }
+
+      closeNote(noteId);
     },
     [closeNote, items]
   );

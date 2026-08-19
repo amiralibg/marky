@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react";
 import useNotesStore from "../../store/notesStore";
+import useSettingsStore, { normalizeSaveMode } from "../../store/settingsStore";
 
 const FileIcon = () => (
   <svg
@@ -19,6 +20,9 @@ const FileIcon = () => (
 
 const Tabs = () => {
   const { openNoteIds, currentNoteId, selectNote, closeNote, items, isNoteDirty } = useNotesStore();
+  // Auto-save makes "unsaved" a state that lasts a second or two, so a dot for
+  // it would blink on and off the whole time you type. Manual mode keeps it.
+  const isAutoSave = useSettingsStore((state) => normalizeSaveMode(state.saveMode) === "auto");
   const scrollRef = useRef(null);
 
   const openNotes = openNoteIds.map((id) => items.find((item) => item.id === id)).filter(Boolean);
@@ -40,7 +44,7 @@ const Tabs = () => {
       >
         {openNotes.map((note) => {
           const isActive = note.id === currentNoteId;
-          const isDirty = isNoteDirty?.(note.id);
+          const isDirty = !isAutoSave && isNoteDirty?.(note.id);
           return (
             <div
               key={note.id}

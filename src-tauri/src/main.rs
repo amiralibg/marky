@@ -9,6 +9,7 @@ use notify_debouncer_full::{
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{
@@ -53,6 +54,34 @@ struct WatcherState {
 // Files the OS asked us to open (via "Open with Marky" / double-click) before the
 // frontend was ready to receive them. The UI drains this on startup.
 struct PendingOpen(Arc<Mutex<Vec<String>>>);
+
+/// Quitting is a save point, and the notes only the frontend knows about have
+/// to reach disk before the process goes away.
+///
+/// Closing a window is already handled in JS (`useSaveLifecycle`), but quitting
+/// the application is not a window event: macOS Cmd+Q, the Quit menu item, and
+/// the last window closing all arrive here as `RunEvent::ExitRequested`. So the
+/// exit is held, the frontend is asked to flush, and it calls `confirm_exit`
+/// when it is done — with a timeout on this side so a wedged write cannot leave
+/// the user with an app that refuses to quit.
+#[derive(Default)]
+struct ExitState {
+    /// The frontend has flushed (or we gave up waiting); let the exit through.
+    confirmed: AtomicBool,
+    /// A flush is already in flight, so repeated Cmd+Q does not restart it.
+    in_progress: AtomicBool,
+}
+
+/// How long the frontend gets to write pending notes before the app quits anyway.
+const EXIT_FLUSH_TIMEOUT: Duration = Duration::from_millis(1500);
+
+#[tauri::command]
+fn confirm_exit(app: tauri::AppHandle) {
+    app.state::<ExitState>()
+        .confirmed
+        .store(true, Ordering::SeqCst);
+    app.exit(0);
+}
 
 /// True for the file types Marky can open (keep in sync with tauri.conf.json fileAssociations).
 fn is_supported_file(path: &str) -> bool {
@@ -1049,6 +1078,7 @@ fn main() {
             _watcher: Arc::new(Mutex::new(None)),
         })
         .manage(PendingOpen(Arc::new(Mutex::new(Vec::new()))))
+        .manage(ExitState::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .menu(|app| {
@@ -1372,7 +1402,8 @@ fn main() {
             read_all_drafts,
             write_draft,
             remove_draft,
-            clear_all_drafts
+            clear_all_drafts,
+            confirm_exit
         ])
         .setup(|app| {
             #[cfg(not(target_os = "macos"))]
@@ -1435,6 +1466,40 @@ fn main() {
                     }
                 }
             }
+            // Quit — Cmd+Q, the Quit menu item, or the last window closing.
+            // Held open just long enough for the frontend to write what it has.
+            if let tauri::RunEvent::ExitRequested { api, .. } = &event {
+                let exit_state = app_handle.state::<ExitState>();
+
+                // Nothing left to ask: either the flush already happened, or
+                // every window is gone and there is no one to ask.
+                let already_confirmed = exit_state.confirmed.load(Ordering::SeqCst);
+                let no_windows = app_handle.webview_windows().is_empty();
+
+                if !already_confirmed && !no_windows {
+                    api.prevent_exit();
+
+                    if !exit_state.in_progress.swap(true, Ordering::SeqCst) {
+                        let _ = app_handle.emit("app-exit-requested", ());
+
+                        // The frontend answers with `confirm_exit`. This is the
+                        // backstop for when it cannot — a failed write, a hung
+                        // network volume, a webview that never loaded.
+                        let handle = app_handle.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(EXIT_FLUSH_TIMEOUT);
+                            if !handle.state::<ExitState>().confirmed.load(Ordering::SeqCst) {
+                                handle
+                                    .state::<ExitState>()
+                                    .confirmed
+                                    .store(true, Ordering::SeqCst);
+                                handle.exit(0);
+                            }
+                        });
+                    }
+                }
+            }
+
             let _ = (app_handle, event);
         });
 }

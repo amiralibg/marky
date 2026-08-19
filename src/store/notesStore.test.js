@@ -61,7 +61,6 @@ const seedStore = (store) => {
     currentNoteId: null,
     openNoteIds: [],
     dirtyNoteIds: [],
-    noteConflicts: {},
     recoveredDrafts: {},
     expandedFolders: [rootFolder.id],
     rootFolderPath: "/workspace",
@@ -303,5 +302,166 @@ describe("persisted shape", () => {
 
     expect(persisted.items.find((i) => i.id === "note::scratch").content).toBe("unsaved");
     expect(persisted.items.find((i) => i.id === loose.id).content).toBe("loose body");
+  });
+});
+
+describe("auto-save", () => {
+  let store;
+  let writeMarkdownFileOnDisk;
+  let useSettingsStore;
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-21T12:00:00.000Z"));
+    window.localStorage.clear();
+    ({ writeMarkdownFileOnDisk } = await import("../utils/fileSystem"));
+    writeMarkdownFileOnDisk.mockReset().mockResolvedValue(undefined);
+    useSettingsStore = (await import("./settingsStore")).default;
+    useSettingsStore.setState({ saveMode: "auto", autosaveDelay: 2000 });
+    store = await loadStore();
+    store.getState().resetStore();
+    seedStore(store);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("writes a note to disk once typing stops", async () => {
+    store.getState().updateNote(homeNote.id, "# Home edited");
+
+    expect(writeMarkdownFileOnDisk).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(writeMarkdownFileOnDisk).toHaveBeenCalledWith("/workspace/Home.md", "# Home edited");
+    expect(store.getState().dirtyNoteIds).not.toContain(homeNote.id);
+  });
+
+  it("coalesces a burst of edits into a single write", async () => {
+    store.getState().updateNote(homeNote.id, "a");
+    await vi.advanceTimersByTimeAsync(500);
+    store.getState().updateNote(homeNote.id, "ab");
+    await vi.advanceTimersByTimeAsync(500);
+    store.getState().updateNote(homeNote.id, "abc");
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(writeMarkdownFileOnDisk).toHaveBeenCalledTimes(1);
+    expect(writeMarkdownFileOnDisk).toHaveBeenCalledWith("/workspace/Home.md", "abc");
+  });
+
+  // The bug this whole design exists to prevent: the write used to be scheduled
+  // by an effect in the editor, whose cleanup cancelled it on every note switch.
+  it("writes the outgoing note when you switch to another one", async () => {
+    store.getState().selectNote(homeNote.id);
+    store.getState().updateNote(homeNote.id, "# Home edited");
+
+    store.getState().selectNote(projectNote.id);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(writeMarkdownFileOnDisk).toHaveBeenCalledWith("/workspace/Home.md", "# Home edited");
+    expect(store.getState().dirtyNoteIds).not.toContain(homeNote.id);
+  });
+
+  it("writes a note when its tab is closed", async () => {
+    store.getState().selectNote(homeNote.id);
+    store.getState().updateNote(homeNote.id, "# Home edited");
+
+    store.getState().closeNote(homeNote.id);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(writeMarkdownFileOnDisk).toHaveBeenCalledWith("/workspace/Home.md", "# Home edited");
+  });
+
+  it("flushes every dirty note, not just the one on screen", async () => {
+    store.getState().updateNote(homeNote.id, "# Home edited");
+    store.getState().updateNote(projectNote.id, "# Project edited");
+
+    const saved = await store.getState().flushAllPendingSaves();
+
+    expect(saved).toBe(2);
+    expect(writeMarkdownFileOnDisk).toHaveBeenCalledWith("/workspace/Home.md", "# Home edited");
+    expect(writeMarkdownFileOnDisk).toHaveBeenCalledWith(
+      "/workspace/Project.md",
+      "# Project edited"
+    );
+    expect(store.getState().dirtyNoteIds).toEqual([]);
+  });
+
+  it("keeps the note dirty and reports the error when the write fails", async () => {
+    writeMarkdownFileOnDisk.mockRejectedValueOnce(new Error("Permission denied"));
+
+    store.getState().updateNote(homeNote.id, "# Home edited");
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(store.getState().dirtyNoteIds).toContain(homeNote.id);
+    expect(store.getState().saveError).toMatchObject({ message: "Permission denied" });
+  });
+
+  it("does not write anything on its own in manual mode", async () => {
+    useSettingsStore.setState({ saveMode: "manual" });
+
+    store.getState().updateNote(homeNote.id, "# Home edited");
+    await vi.advanceTimersByTimeAsync(10000);
+
+    expect(writeMarkdownFileOnDisk).not.toHaveBeenCalled();
+    expect(store.getState().dirtyNoteIds).toContain(homeNote.id);
+  });
+
+  it("still writes on the way out in manual mode when asked to flush", async () => {
+    useSettingsStore.setState({ saveMode: "manual" });
+    store.getState().updateNote(homeNote.id, "# Home edited");
+
+    await store.getState().flushNoteSave(homeNote.id);
+
+    expect(writeMarkdownFileOnDisk).toHaveBeenCalledWith("/workspace/Home.md", "# Home edited");
+  });
+
+  it("carries pending changes across a path change", async () => {
+    // Saving a scratch buffer swaps its id from a timestamp to a path-based
+    // one. A dirty marker left behind under the old id is one nothing looks up.
+    const scratchId = 1700000000000;
+    store.setState({
+      items: [
+        ...store.getState().items,
+        {
+          id: scratchId,
+          name: "Untitled",
+          parentId: null,
+          type: "note",
+          isLoose: true,
+          content: "scratch text",
+          filePath: null,
+          normalizedPath: null,
+        },
+      ],
+      dirtyNoteIds: [scratchId],
+      openNoteIds: [scratchId],
+      currentNoteId: scratchId,
+    });
+
+    store.getState().updateNotePath(scratchId, "/workspace/Untitled.md");
+
+    const newId = "note::/workspace/Untitled.md";
+    expect(store.getState().dirtyNoteIds).toEqual([newId]);
+    expect(await store.getState().flushNoteSave(newId)).toBe(true);
+    expect(writeMarkdownFileOnDisk).toHaveBeenCalledWith("/workspace/Untitled.md", "scratch text");
+  });
+
+  it("drains the editor's un-pushed keystrokes before writing", async () => {
+    const { registerPendingEditFlusher } = await import("./notesStore");
+    // Stands in for the mounted editor, which holds the newest text in local
+    // state until its own debounce pushes it into the store.
+    const unregister = registerPendingEditFlusher(() => {
+      store.getState().updateNote(homeNote.id, "# typed but not pushed");
+    });
+
+    await store.getState().flushAllPendingSaves();
+    unregister();
+
+    expect(writeMarkdownFileOnDisk).toHaveBeenCalledWith(
+      "/workspace/Home.md",
+      "# typed but not pushed"
+    );
   });
 });

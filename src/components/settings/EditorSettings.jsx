@@ -1,4 +1,4 @@
-import useSettingsStore, { EDITOR_WIDTHS } from "../../store/settingsStore";
+import useSettingsStore, { EDITOR_WIDTHS, normalizeSaveMode } from "../../store/settingsStore";
 
 const EditorSettings = () => {
   const {
@@ -6,9 +6,9 @@ const EditorSettings = () => {
     toggleVimMode,
     vimVisualLineMotion,
     toggleVimVisualLineMotion,
-    autosaveEnabled,
+    saveMode,
     autosaveDelay,
-    setAutosaveEnabled,
+    setSaveMode,
     setAutosaveDelay,
     typewriterMode: typewriterModeEnabled,
     setTypewriterMode,
@@ -25,6 +25,9 @@ const EditorSettings = () => {
     showSidebarMetadata,
     setShowSidebarMetadata,
   } = useSettingsStore();
+
+  const isAutoSave = normalizeSaveMode(saveMode) === "auto";
+  const mod = typeof navigator !== "undefined" && navigator.platform.includes("Mac") ? "⌘" : "Ctrl";
 
   const delayOptions = [
     { label: "1 second", value: 1000 },
@@ -63,17 +66,18 @@ const EditorSettings = () => {
 
   return (
     <div className="space-y-6">
-      {/* Autosave Toggle */}
+      {/* Save mode */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h3 id="autosave-setting-title" className="text-sm font-semibold text-text-primary mb-1">
-            Autosave
+            Save automatically
           </h3>
           <p id="autosave-setting-description" className="text-xs text-text-muted leading-relaxed">
-            Automatically save the current note to disk after you stop typing. A status chip in the
-            title bar shows when a save is pending or complete.
+            Notes are written to disk as you type, and whenever you switch note, close a tab, leave
+            the window or quit. Turn this off to save with {mod}S instead, with a dot marking notes
+            that have changes you have not written yet.
           </p>
-          {autosaveEnabled && (
+          {isAutoSave && (
             <div className="mt-3 flex items-center gap-3">
               <span className="text-xs text-text-secondary">Save after</span>
               <div className="flex gap-1.5 flex-wrap">
@@ -82,7 +86,7 @@ const EditorSettings = () => {
                     key={opt.value}
                     onClick={() => setAutosaveDelay(opt.value)}
                     aria-pressed={autosaveDelay === opt.value}
-                    aria-label={`Set autosave delay to ${opt.label}`}
+                    aria-label={`Save ${opt.label} after you stop typing`}
                     className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
                       autosaveDelay === opt.value
                         ? "border-accent/40 bg-accent/10 text-accent"
@@ -97,19 +101,19 @@ const EditorSettings = () => {
           )}
         </div>
         <button
-          onClick={() => setAutosaveEnabled(!autosaveEnabled)}
+          onClick={() => setSaveMode(isAutoSave ? "manual" : "auto")}
           className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
-            autosaveEnabled
+            isAutoSave
               ? "bg-accent shadow-lg shadow-accent/30"
               : "bg-overlay-light hover:bg-overlay-medium"
           }`}
-          aria-checked={autosaveEnabled}
+          aria-checked={isAutoSave}
           aria-labelledby="autosave-setting-title"
           aria-describedby="autosave-setting-description"
           role="switch"
         >
           <span
-            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${autosaveEnabled ? "translate-x-7" : "translate-x-0"}`}
+            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${isAutoSave ? "translate-x-7" : "translate-x-0"}`}
           />
         </button>
       </div>

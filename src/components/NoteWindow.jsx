@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import CodeMirrorEditor from "./editor/CodeMirrorEditor";
 import EditorScrollFade from "./editor/EditorScrollFade";
 import useSettingsStore, {
   applyTheme,
   applyAccentColor,
   applyFontScale,
+  normalizeSaveMode,
 } from "../store/settingsStore";
 import { readMarkdownFile, writeMarkdownFileOnDisk } from "../utils/fileSystem";
 import {
@@ -60,6 +62,9 @@ const NoteWindow = ({ filePath }) => {
   const showLineNumbers = useSettingsStore((state) => state.showLineNumbers);
   const keymaps = useSettingsStore((state) => state.keymaps);
   const attachmentFolder = useSettingsStore((state) => state.attachmentFolder);
+  const saveMode = useSettingsStore((state) => normalizeSaveMode(state.saveMode));
+  const autosaveDelay = useSettingsStore((state) => state.autosaveDelay);
+  const isAutoSave = saveMode === "auto";
 
   // This window knows nothing of the workspace — it edits one file — so images
   // resolve against, and are written beside, the note itself.
@@ -170,9 +175,9 @@ const NoteWindow = ({ filePath }) => {
   useEffect(() => {
     const name = fileNameOf(filePath);
     currentWindow()
-      ?.setTitle(isDirty ? `• ${name}` : name)
+      ?.setTitle(isDirty && !isAutoSave ? `• ${name}` : name)
       ?.catch(() => {});
-  }, [filePath, isDirty]);
+  }, [filePath, isDirty, isAutoSave]);
 
   const handleChange = useCallback(
     (next) => {
@@ -199,6 +204,78 @@ const NoteWindow = ({ filePath }) => {
       setStatus("error");
     }
   }, [filePath]);
+
+  // The same auto-save the main window has. Kept local rather than routed
+  // through the notes store, because this window deliberately never touches it
+  // (see the note above the component).
+  const saveRef = useRef(save);
+  useEffect(() => {
+    saveRef.current = save;
+  }, [save]);
+
+  useEffect(() => {
+    if (!isAutoSave || !isDirty) return undefined;
+    const delay = Number.isFinite(autosaveDelay) && autosaveDelay > 0 ? autosaveDelay : 2000;
+    const timer = setTimeout(() => {
+      void saveRef.current();
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [isAutoSave, isDirty, content, autosaveDelay]);
+
+  // Losing focus or closing the window are save points too — otherwise the file
+  // on disk sits behind whatever is on screen for as long as the window is open.
+  useEffect(() => {
+    if (!isAutoSave) return undefined;
+
+    const onBlur = () => {
+      if (contentRef.current !== savedContent) void saveRef.current();
+    };
+    window.addEventListener("blur", onBlur);
+
+    const appWindow = currentWindow();
+    let unlisten = null;
+    let closing = false;
+
+    // `onCloseRequested` is absent outside the Tauri runtime.
+    appWindow
+      ?.onCloseRequested?.(async (event) => {
+        if (closing) return;
+        closing = true;
+        event.preventDefault();
+        try {
+          await Promise.race([
+            saveRef.current(),
+            new Promise((resolve) => setTimeout(resolve, 2000)),
+          ]);
+        } catch (closeError) {
+          console.error("Failed to save before closing:", closeError);
+        }
+        await appWindow.destroy();
+      })
+      ?.then((off) => {
+        unlisten = off;
+      })
+      ?.catch(() => {});
+
+    // Quitting is an application event, not a window one, so it arrives here
+    // rather than through `onCloseRequested`. This window only writes its own
+    // file and leaves `confirm_exit` to the main window — Rust's timeout covers
+    // the case where this is the only window left.
+    let unlistenExit = null;
+    listen("app-exit-requested", async () => {
+      if (contentRef.current !== savedContent) await saveRef.current();
+    })
+      .then((off) => {
+        unlistenExit = off;
+      })
+      .catch(() => {});
+
+    return () => {
+      window.removeEventListener("blur", onBlur);
+      unlisten?.();
+      unlistenExit?.();
+    };
+  }, [isAutoSave, savedContent]);
 
   // Cmd/Ctrl+S saves; Cmd/Ctrl+W closes. Bound on the window rather than in the
   // editor keymap so they work even when focus is outside the text area.
@@ -267,7 +344,14 @@ const NoteWindow = ({ filePath }) => {
           {fileNameOf(filePath)}
         </span>
         <span>
-          {imageError || (status === "saving" ? "Saving…" : isDirty ? "Unsaved — ⌘S" : "Saved")}
+          {imageError ||
+            (status === "saving"
+              ? "Saving…"
+              : isDirty
+                ? isAutoSave
+                  ? "Saving…"
+                  : "Unsaved — ⌘S"
+                : "Saved")}
         </span>
       </div>
     </div>

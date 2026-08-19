@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { watchFolder, stopWatching } from "../utils/fileSystem";
+import { isSelfWriteEcho } from "../utils/selfWrite";
 import useNotesStore from "../store/notesStore";
 import useUIStore from "../store/uiStore";
 
@@ -37,7 +38,10 @@ export function useFileWatcher() {
 
     debounceTimerRef.current = setTimeout(async () => {
       try {
-        await refreshRootFromDisk();
+        // `silent` keeps the tree mounted instead of replacing the whole sidebar
+        // with a "Scanning folder..." spinner. An external change is an in-place
+        // update, not a reload — the spinner belongs to opening a workspace.
+        await refreshRootFromDisk({ silent: true });
       } catch (error) {
         console.error("Failed to refresh workspace:", error);
         addNotification("Failed to sync workspace: " + error.message, "error");
@@ -62,6 +66,14 @@ export function useFileWatcher() {
         // Listen for file change events from Rust backend
         unlistenFileChangeRef.current = await listen("file-change", (event) => {
           if (!mounted) return;
+
+          // Our own saves come back as file-change events. Rescanning the vault
+          // for them is pure waste, and under auto-save it would run every few
+          // seconds while you type.
+          if (isSelfWriteEcho(event.payload?.path)) {
+            logWatcherDebug("Ignoring echo of our own write:", event.payload);
+            return;
+          }
 
           logWatcherDebug("File change detected:", event.payload);
 

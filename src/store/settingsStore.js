@@ -511,6 +511,24 @@ export const parseIgnorePatterns = (raw) =>
 
 const normalizeWorkspacePath = (value) => (value ? value.replace(/\\/g, "/") : "");
 
+/**
+ * How a note reaches disk.
+ *
+ * `auto` is the default and the one Marky is designed around: edits are written
+ * shortly after you stop typing, and on every way out of a note (switching
+ * tabs, closing one, leaving the window, quitting). Saving is not something you
+ * think about, and there is no such thing as an unsaved note.
+ *
+ * `manual` keeps the older Cmd+S workflow for anyone who wants an explicit
+ * commit point — the dirty markers and the save-before-close prompt come back
+ * with it.
+ */
+export const SAVE_MODES = ["auto", "manual"];
+export const SAVE_MODE_DEFAULT = "auto";
+
+export const normalizeSaveMode = (value) =>
+  SAVE_MODES.includes(value) ? value : SAVE_MODE_DEFAULT;
+
 const createDefaultProfileSettings = () => ({
   themeId: "vault",
   accentColorId: "purple",
@@ -520,7 +538,7 @@ const createDefaultProfileSettings = () => ({
   attachmentFolder: DEFAULT_ATTACHMENT_FOLDER,
   vimMode: false,
   vimVisualLineMotion: true,
-  autosaveEnabled: false,
+  saveMode: SAVE_MODE_DEFAULT,
   autosaveDelay: 2000,
   typewriterMode: false,
   showLineNumbers: false,
@@ -538,7 +556,7 @@ const buildProfileSettingsSnapshot = (state) => ({
   attachmentFolder: state.attachmentFolder,
   vimMode: state.vimMode,
   vimVisualLineMotion: state.vimVisualLineMotion,
-  autosaveEnabled: state.autosaveEnabled,
+  saveMode: state.saveMode,
   autosaveDelay: state.autosaveDelay,
   typewriterMode: state.typewriterMode,
   showLineNumbers: state.showLineNumbers,
@@ -559,6 +577,12 @@ const mergeProfileSettings = (profile = {}) => {
   if (!ACCENT_COLORS.some((c) => c.id === merged.accentColorId)) merged.accentColorId = "purple";
   if (!EDITOR_WIDTHS.some((w) => w.id === merged.editorWidth)) merged.editorWidth = "default";
   merged.fontScale = clampFontScale(merged.fontScale ?? FONT_SCALE_DEFAULT);
+  // Profiles written before save modes existed carry an `autosaveEnabled`
+  // boolean and no `saveMode`. They all land on `auto`: the old flag defaulted
+  // to off and was buried in Editor settings, so a `false` there says "never
+  // found the toggle" far more often than it says "wants to press Cmd+S".
+  merged.saveMode = normalizeSaveMode(merged.saveMode);
+  delete merged.autosaveEnabled;
   return merged;
 };
 
@@ -601,7 +625,9 @@ const useSettingsStore = create(
       // Make vim's j/k/0/$ follow wrapped display lines instead of logical
       // lines — see components/editor/vimSetup.js.
       vimVisualLineMotion: true,
-      autosaveEnabled: false,
+      // 'auto' saves as you type and on every way out of a note; 'manual' keeps
+      // the old Cmd+S workflow. See SAVE_MODES.
+      saveMode: SAVE_MODE_DEFAULT,
       autosaveDelay: 2000, // ms after last keystroke to auto-save
       typewriterMode: false,
       showLineNumbers: false, // Notion-clean default; toggle in Editor settings
@@ -699,8 +725,8 @@ const useSettingsStore = create(
         }));
       },
 
-      setAutosaveEnabled: (enabled) => {
-        get().syncProfileState({ autosaveEnabled: enabled });
+      setSaveMode: (mode) => {
+        get().syncProfileState({ saveMode: normalizeSaveMode(mode) });
       },
       setAutosaveDelay: (delay) => {
         get().syncProfileState({ autosaveDelay: delay });
@@ -934,7 +960,7 @@ const useSettingsStore = create(
         fontScale: state.fontScale,
         vimMode: state.vimMode,
         vimVisualLineMotion: state.vimVisualLineMotion,
-        autosaveEnabled: state.autosaveEnabled,
+        saveMode: state.saveMode,
         autosaveDelay: state.autosaveDelay,
         typewriterMode: state.typewriterMode,
         editorWidth: state.editorWidth,

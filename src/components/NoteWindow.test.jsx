@@ -37,6 +37,9 @@ vi.mock("./editor/EditorScrollFade", () => ({
 }));
 
 const NoteWindow = (await import("./NoteWindow")).default;
+const useSettingsStore = (await import("../store/settingsStore")).default;
+
+const setSaveMode = (mode) => useSettingsStore.setState({ saveMode: mode });
 
 beforeEach(() => {
   readMarkdownFile.mockReset().mockResolvedValue("# Hello");
@@ -46,6 +49,7 @@ beforeEach(() => {
   removeDraftCacheEntry.mockReset();
   setTitle.mockClear();
   close.mockClear();
+  setSaveMode("auto");
 });
 
 describe("NoteWindow", () => {
@@ -58,7 +62,8 @@ describe("NoteWindow", () => {
     expect(screen.getByText("Saved")).toBeInTheDocument();
   });
 
-  it("marks unsaved edits and records them as a draft", async () => {
+  it("marks unsaved edits and records them as a draft in manual mode", async () => {
+    setSaveMode("manual");
     const user = userEvent.setup();
     render(<NoteWindow filePath="/vault/Hello.md" />);
     const editor = await screen.findByLabelText("Editor for Hello.md");
@@ -70,7 +75,23 @@ describe("NoteWindow", () => {
     expect(setDraftCacheEntry).toHaveBeenCalledWith("/vault/Hello.md", "# Hello!");
   });
 
+  it("writes the file on its own once typing stops", async () => {
+    const user = userEvent.setup();
+    useSettingsStore.setState({ saveMode: "auto", autosaveDelay: 20 });
+    render(<NoteWindow filePath="/vault/Hello.md" />);
+    const editor = await screen.findByLabelText("Editor for Hello.md");
+
+    await user.type(editor, "!");
+
+    // No Cmd+S: the window saves itself.
+    await waitFor(() =>
+      expect(writeMarkdownFileOnDisk).toHaveBeenCalledWith("/vault/Hello.md", "# Hello!")
+    );
+    await waitFor(() => expect(removeDraftCacheEntry).toHaveBeenCalledWith("/vault/Hello.md"));
+  });
+
   it("saves on Cmd+S and clears the draft", async () => {
+    setSaveMode("manual");
     const user = userEvent.setup();
     render(<NoteWindow filePath="/vault/Hello.md" />);
     const editor = await screen.findByLabelText("Editor for Hello.md");
@@ -85,7 +106,8 @@ describe("NoteWindow", () => {
     await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
   });
 
-  it("marks the title bar when there are unsaved changes", async () => {
+  it("marks the title bar when there are unsaved changes in manual mode", async () => {
+    setSaveMode("manual");
     const user = userEvent.setup();
     render(<NoteWindow filePath="/vault/Hello.md" />);
     const editor = await screen.findByLabelText("Editor for Hello.md");
@@ -93,6 +115,17 @@ describe("NoteWindow", () => {
     await waitFor(() => expect(setTitle).toHaveBeenCalledWith("Hello.md"));
     await user.type(editor, "!");
     await waitFor(() => expect(setTitle).toHaveBeenCalledWith("• Hello.md"));
+  });
+
+  it("leaves the title alone while auto-saving", async () => {
+    const user = userEvent.setup();
+    render(<NoteWindow filePath="/vault/Hello.md" />);
+    const editor = await screen.findByLabelText("Editor for Hello.md");
+
+    await waitFor(() => expect(setTitle).toHaveBeenCalledWith("Hello.md"));
+    await user.type(editor, "!");
+    // A bullet that appears and vanishes every couple of seconds is noise.
+    expect(setTitle).not.toHaveBeenCalledWith("• Hello.md");
   });
 
   it("shows a readable message when the file cannot be opened", async () => {
@@ -104,6 +137,7 @@ describe("NoteWindow", () => {
   });
 
   it("surfaces a failed save instead of silently claiming success", async () => {
+    setSaveMode("manual");
     const user = userEvent.setup();
     writeMarkdownFileOnDisk.mockRejectedValue(new Error("Permission denied"));
 

@@ -2,6 +2,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { exists, mkdir, readTextFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { joinPath, sanitizeAttachmentName, withNameSuffix } from "./attachments";
+import { markSelfWrite } from "./selfWrite";
 
 const formatPathLabel = (value) => {
   if (!value || typeof value !== "string") return "item";
@@ -354,8 +355,13 @@ export async function moveEntryOnDisk(sourcePath, destFolderPath) {
  * @returns {Promise<void>}
  */
 export async function writeMarkdownFileOnDisk(filePath, content) {
+  // Stamped before the write, not after: the watcher can deliver the event
+  // while `writeTextFile` is still settling.
+  markSelfWrite(filePath);
   try {
     await writeTextFile(filePath, content ?? "");
+    // Re-stamped so the window is measured from when the bytes actually landed.
+    markSelfWrite(filePath);
   } catch (error) {
     console.error("Error writing markdown file:", error);
     wrapFsError(error, "save this note", filePath);

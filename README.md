@@ -38,6 +38,7 @@ Current version: [`v1.6.0`](https://github.com/amiralibg/marky/releases/tag/v1.6
 ## Highlights
 
 - Local-first workspace (notes are normal files in your folder)
+- Saves itself as you type — nothing to remember, nothing left unsaved
 - CodeMirror 6 editor with split/preview modes
 - Wiki links (`[[Note]]`) with backlink tracking
 - Interactive graph view for note connections
@@ -79,7 +80,7 @@ The same note in source view and reading view — Mermaid diagrams and KaTeX mat
 
 - CodeMirror 6 markdown editor
 - Editor-only / split / preview-only layouts
-- Unsaved changes indicator + manual save shortcut
+- Saves as you type — no save step, and no unsaved notes (manual save is still available)
 - In-editor search and replace
 - Wiki-link autocomplete and broken-link note creation flow
 - Table of contents panel for headings
