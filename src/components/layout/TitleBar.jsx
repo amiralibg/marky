@@ -129,24 +129,18 @@ const TitleBar = ({
           paddingLeft: isMac ? "80px" : "12px",
         }}
       >
-        {/* Toggle sidebar button when hidden */}
-        {!showSidebar && (
-          <button
-            onClick={onToggleSidebar}
-            className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all ml-2"
-            title={`Show sidebar (${sidebarShortcut})`}
-            aria-label="Show sidebar"
-            aria-expanded={false}
-            data-no-drag
-          >
-            <SidebarIcon className="w-4 h-4" />
-          </button>
+        {showSidebar && (
+          <div className="font-semibold text-text-primary tracking-tight text-sm">Marky</div>
         )}
 
-        {showSidebar && (
-          <>
-            <div className="font-semibold text-text-primary tracking-tight text-sm">Marky</div>
-            <div className="flex items-center gap-0.5 ml-auto mr-2">
+        {/* The toggle is deliberately rendered in one place for both states
+            instead of once per branch: its icon morphs between open and closed
+            with a CSS transition, and a button that unmounts when the sidebar
+            hides would take the transition with it and snap instead. Keeping it
+            at the same child index lets React reuse the same DOM node. */}
+        <div className={`flex items-center gap-0.5 ${showSidebar ? "ml-auto mr-2" : "ml-2"}`}>
+          {showSidebar && (
+            <>
               <button
                 onClick={onNewNote}
                 className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
@@ -177,22 +171,22 @@ const TitleBar = ({
                   />
                 </svg>
               </button>
-              {/* The sidebar could always be collapsed with the shortcut, but
-                  nothing on screen said so — this is that affordance, sitting
-                  at the sidebar's own edge so it reads as belonging to it. */}
-              <button
-                onClick={onToggleSidebar}
-                className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
-                title={`Hide sidebar (${sidebarShortcut})`}
-                aria-label="Hide sidebar"
-                aria-expanded={true}
-                data-no-drag
-              >
-                <SidebarIcon className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </>
-        )}
+            </>
+          )}
+          {/* The sidebar could always be collapsed with the shortcut, but
+              nothing on screen said so — this is that affordance, sitting
+              at the sidebar's own edge so it reads as belonging to it. */}
+          <button
+            onClick={onToggleSidebar}
+            className="p-1.5 hover:bg-overlay-light active:scale-95 rounded-md text-text-secondary hover:text-text-primary transition-all"
+            title={`${showSidebar ? "Hide" : "Show"} sidebar (${sidebarShortcut})`}
+            aria-label={showSidebar ? "Hide sidebar" : "Show sidebar"}
+            aria-expanded={showSidebar}
+            data-no-drag
+          >
+            <SidebarIcon open={showSidebar} className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Right section - Tabs area */}
