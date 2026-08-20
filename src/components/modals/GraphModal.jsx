@@ -1,8 +1,9 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import useNotesStore from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
-import { buildGraphSvg, saveGraphPng, saveGraphSvg } from "../../utils/graphExport";
+import { buildGraphSvg, saveGraphPng, saveGraphSvg, nodeRadius } from "../../utils/graphExport";
 import useModalAccessibility from "../../hooks/useModalAccessibility";
+import { createSimulation, graphBounds } from "./graphSimulation";
 
 const escapeTitle = (value = "") => value.replace(/\s+/g, " ").trim();
 const linkTargetKey = (value = "") =>
@@ -10,6 +11,14 @@ const linkTargetKey = (value = "") =>
     .replace(/\.(md|markdown|txt)$/i, "")
     .trim()
     .toLowerCase();
+
+const MIN_ZOOM = 0.15;
+const MAX_ZOOM = 5;
+const LABEL_ZOOM_FLOOR = 0.45; // below this, labels are noise rather than information
+const CLICK_SLOP = 4; // px of pointer travel still counted as a click, not a drag
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
 const extractWikiLinks = (content) => {
   if (!content) return [];
@@ -36,160 +45,6 @@ const extractWikiLinks = (content) => {
   return links;
 };
 
-// Simple force-directed layout simulation
-const forceLayout = (notes, width, height, iterations = 200) => {
-  const count = notes.length;
-  if (count === 0) return { nodes: [], edges: [] };
-
-  // Initialize positions in a circle (better starting point for force layout)
-  const cx = width / 2;
-  const cy = height / 2;
-  const initRadius = Math.min(width, height) * 0.3;
-
-  const nodes = notes.map((note, i) => {
-    const angle = (2 * Math.PI * i) / count;
-    return {
-      ...note,
-      x: cx + initRadius * Math.cos(angle) + (Math.random() - 0.5) * 20,
-      y: cy + initRadius * Math.sin(angle) + (Math.random() - 0.5) * 20,
-      vx: 0,
-      vy: 0,
-    };
-  });
-
-  // Build edges
-  const nodesByKey = new Map(nodes.map((node) => [node.linkKey, node]));
-  const edges = [];
-  const connectedPairs = new Set();
-
-  nodes.forEach((node) => {
-    node.links.forEach((link) => {
-      const target = nodesByKey.get(link.key);
-      if (target && target.id !== node.id) {
-        const pairKey = [node.id, target.id].sort().join("-");
-        if (!connectedPairs.has(pairKey)) {
-          connectedPairs.add(pairKey);
-          edges.push({ source: node, target });
-        }
-      }
-    });
-  });
-
-  // Build adjacency for connected checks
-  const connected = new Set();
-  edges.forEach((e) => {
-    connected.add(`${e.source.id}-${e.target.id}`);
-    connected.add(`${e.target.id}-${e.source.id}`);
-  });
-
-  // Force simulation parameters
-  const repulsion = 3000;
-  const attraction = 0.005;
-  const idealLength = 120;
-  const centerGravity = 0.01;
-  const damping = 0.9;
-  const minDist = 30;
-
-  for (let iter = 0; iter < iterations; iter++) {
-    const alpha = 1 - iter / iterations; // cooling
-
-    // Repulsion between all pairs
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const a = nodes[i];
-        const b = nodes[j];
-        let dx = b.x - a.x;
-        let dy = b.y - a.y;
-        let dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 1) {
-          dx = Math.random() - 0.5;
-          dy = Math.random() - 0.5;
-          dist = 1;
-        }
-
-        const force = (repulsion * alpha) / (dist * dist);
-        const fx = (dx / dist) * force;
-        const fy = (dy / dist) * force;
-
-        a.vx -= fx;
-        a.vy -= fy;
-        b.vx += fx;
-        b.vy += fy;
-      }
-    }
-
-    // Attraction along edges (spring force)
-    edges.forEach(({ source, target }) => {
-      let dx = target.x - source.x;
-      let dy = target.y - source.y;
-      let dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 1) dist = 1;
-
-      const displacement = dist - idealLength;
-      const force = attraction * displacement * alpha;
-      const fx = (dx / dist) * force;
-      const fy = (dy / dist) * force;
-
-      source.vx += fx;
-      source.vy += fy;
-      target.vx -= fx;
-      target.vy -= fy;
-    });
-
-    // Center gravity
-    nodes.forEach((node) => {
-      node.vx += (cx - node.x) * centerGravity * alpha;
-      node.vy += (cy - node.y) * centerGravity * alpha;
-    });
-
-    // Apply velocities with damping
-    nodes.forEach((node) => {
-      node.vx *= damping;
-      node.vy *= damping;
-      node.x += node.vx;
-      node.y += node.vy;
-
-      // Keep within bounds with padding
-      const pad = 60;
-      node.x = Math.max(pad, Math.min(width - pad, node.x));
-      node.y = Math.max(pad, Math.min(height - pad, node.y));
-    });
-
-    // Minimum distance enforcement
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const a = nodes[i];
-        const b = nodes[j];
-        let dx = b.x - a.x;
-        let dy = b.y - a.y;
-        let dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < minDist) {
-          if (dist < 1) {
-            dx = Math.random() - 0.5;
-            dy = Math.random() - 0.5;
-            dist = 1;
-          }
-          const overlap = (minDist - dist) / 2;
-          const ox = (dx / dist) * overlap;
-          const oy = (dy / dist) * overlap;
-          a.x -= ox;
-          a.y -= oy;
-          b.x += ox;
-          b.y += oy;
-        }
-      }
-    }
-  }
-
-  // Clean up temp properties
-  nodes.forEach((n) => {
-    delete n.vx;
-    delete n.vy;
-  });
-
-  return { nodes, edges };
-};
-
 const GraphModal = ({ isOpen, onClose }) => {
   const items = useNotesStore((state) => state.items);
   const selectNote = useNotesStore((state) => state.selectNote);
@@ -199,6 +54,7 @@ const GraphModal = ({ isOpen, onClose }) => {
   const [hoveredNode, setHoveredNode] = useState(null);
   const [filter, setFilter] = useState("all"); // 'all', 'connected', 'orphaned'
   const [exportingFormat, setExportingFormat] = useState(null);
+  const [layoutSeed, setLayoutSeed] = useState(0);
 
   const notes = useMemo(() => {
     return items
@@ -242,11 +98,9 @@ const GraphModal = ({ isOpen, onClose }) => {
     }));
   }, [notes]);
 
-  // Filter notes
   const filteredNotes = useMemo(() => {
     if (filter === "all") return withBacklinks;
 
-    // Determine which notes have any connections
     const connectedKeys = new Set();
     withBacklinks.forEach((note) => {
       if (note.links.length > 0 || note.backlinkCount > 0) {
@@ -264,13 +118,31 @@ const GraphModal = ({ isOpen, onClose }) => {
     return withBacklinks;
   }, [withBacklinks, filter]);
 
-  const viewSize = 600;
-  const { nodes, edges } = useMemo(
-    () => forceLayout(filteredNotes, viewSize, viewSize),
-    [filteredNotes]
-  );
+  // ── Canvas state ────────────────────────────────────────────────
+  const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
+  const [graph, setGraph] = useState({ nodes: [], edges: [] });
+  const [, setFrame] = useState(0); // bumped per simulation tick to repaint
+  const [isPanning, setIsPanning] = useState(false);
+  const [draggingNodeId, setDraggingNodeId] = useState(null);
 
-  // Stats
+  const containerRef = useRef(null);
+  const dialogRef = useRef(null);
+  const sizeRef = useRef({ width: 0, height: 0 });
+  const [measured, setMeasured] = useState(false);
+
+  const simRef = useRef(null);
+  const alphaRef = useRef(0);
+  const rafRef = useRef(null);
+  const tweenRef = useRef(null);
+  const didFitRef = useRef(false);
+  const dragRef = useRef(null);
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
+
+  useModalAccessibility(isOpen, dialogRef);
+
+  const { nodes, edges } = graph;
+
   const stats = useMemo(
     () => ({
       totalNotes: withBacklinks.length,
@@ -280,14 +152,11 @@ const GraphModal = ({ isOpen, onClose }) => {
     [withBacklinks, edges]
   );
 
-  // Connected edges for hover highlighting
   const hoveredEdges = useMemo(() => {
     if (!hoveredNode) return new Set();
     const s = new Set();
     edges.forEach((e, i) => {
-      if (e.source.id === hoveredNode || e.target.id === hoveredNode) {
-        s.add(i);
-      }
+      if (e.source.id === hoveredNode || e.target.id === hoveredNode) s.add(i);
     });
     return s;
   }, [hoveredNode, edges]);
@@ -302,115 +171,343 @@ const GraphModal = ({ isOpen, onClose }) => {
     return s;
   }, [hoveredNode, edges]);
 
-  // Zoom and Pan State
-  const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStart = useRef({ x: 0, y: 0 });
-  const svgRef = useRef(null);
-  const dialogRef = useRef(null);
-  useModalAccessibility(isOpen, dialogRef);
+  // ── Transform helpers ───────────────────────────────────────────
 
-  const handleWheel = useCallback((e) => {
-    e.preventDefault();
-    const zoomSpeed = 0.001;
-    const minZoom = 0.3;
-    const maxZoom = 4;
-
-    setTransform((prev) => {
-      const newK = Math.max(minZoom, Math.min(maxZoom, prev.k - e.deltaY * zoomSpeed));
-      return { ...prev, k: newK };
-    });
+  /**
+   * Marks the viewport as the user's. The settle-fit checks this, so a layout
+   * that comes to rest mid-gesture cannot steal the view back.
+   */
+  const claimViewport = useCallback(() => {
+    didFitRef.current = true;
   }, []);
 
-  const startDragging = useCallback(
-    (e) => {
-      if (e.button !== 0) return;
-      setIsDragging(true);
-      dragStart.current = { x: e.clientX - transform.x, y: e.clientY - transform.y };
-    },
-    [transform.x, transform.y]
-  );
-
-  const handleDrag = useCallback(
-    (e) => {
-      if (!isDragging) return;
-      setTransform((prev) => ({
-        ...prev,
-        x: e.clientX - dragStart.current.x,
-        y: e.clientY - dragStart.current.y,
-      }));
-    },
-    [isDragging]
-  );
-
-  const stopDragging = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  const handleZoom = (delta) => {
-    setTransform((prev) => {
-      const newK = Math.max(0.3, Math.min(4, prev.k + delta));
-      return { ...prev, k: newK };
-    });
-  };
-
-  const handleReset = () => {
-    setTransform({ x: 0, y: 0, k: 1 });
-  };
-
-  // Fit graph to view
-  const handleFit = useCallback(() => {
-    if (nodes.length === 0) return;
-    const padding = 80;
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity;
-    nodes.forEach((n) => {
-      minX = Math.min(minX, n.x);
-      minY = Math.min(minY, n.y);
-      maxX = Math.max(maxX, n.x);
-      maxY = Math.max(maxY, n.y);
-    });
-    const graphW = maxX - minX + padding * 2;
-    const graphH = maxY - minY + padding * 2;
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const scale = Math.min(rect.width / graphW, rect.height / graphH, 2);
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    setTransform({
-      x: rect.width / 2 - cx * scale,
-      y: rect.height / 2 - cy * scale,
-      k: scale,
-    });
-  }, [nodes]);
-
-  useEffect(() => {
-    const svg = svgRef.current;
-    if (svg) {
-      svg.addEventListener("wheel", handleWheel, { passive: false });
+  const cancelTween = useCallback(() => {
+    if (tweenRef.current) {
+      cancelAnimationFrame(tweenRef.current);
+      tweenRef.current = null;
     }
-    return () => {
-      if (svg) {
-        svg.removeEventListener("wheel", handleWheel);
+  }, []);
+
+  /** Ease the viewport to a target transform. Any direct input cancels it. */
+  const animateTransform = useCallback(
+    (target, duration = 320) => {
+      cancelTween();
+      const from = transformRef.current;
+      const start = performance.now();
+
+      const tick = (now) => {
+        const t = clamp((now - start) / duration, 0, 1);
+        const e = easeOutCubic(t);
+        setTransform({
+          x: from.x + (target.x - from.x) * e,
+          y: from.y + (target.y - from.y) * e,
+          k: from.k + (target.k - from.k) * e,
+        });
+        tweenRef.current = t < 1 ? requestAnimationFrame(tick) : null;
+      };
+
+      tweenRef.current = requestAnimationFrame(tick);
+    },
+    [cancelTween]
+  );
+
+  /**
+   * Scale about a point in container space, so whatever is under the cursor
+   * stays under the cursor. Zooming about the origin — which is what this did
+   * before — throws the graph off screen the moment you are not centred.
+   */
+  const zoomAtPoint = useCallback((px, py, factor) => {
+    setTransform((prev) => {
+      const k = clamp(prev.k * factor, MIN_ZOOM, MAX_ZOOM);
+      if (k === prev.k) return prev;
+      return {
+        k,
+        x: px - ((px - prev.x) / prev.k) * k,
+        y: py - ((py - prev.y) / prev.k) * k,
+      };
+    });
+  }, []);
+
+  const fitToView = useCallback(
+    (animate = true) => {
+      const sim = simRef.current;
+      const { width, height } = sizeRef.current;
+      if (!sim || sim.nodes.length === 0 || width === 0) return;
+
+      const padding = 72;
+      const { minX, minY, maxX, maxY } = graphBounds(sim.nodes, (n) => nodeRadius(n.backlinkCount));
+      const graphW = Math.max(1, maxX - minX);
+      const graphH = Math.max(1, maxY - minY);
+      const k = clamp(
+        Math.min((width - padding * 2) / graphW, (height - padding * 2) / graphH),
+        MIN_ZOOM,
+        1.6
+      );
+      const target = {
+        k,
+        x: width / 2 - ((minX + maxX) / 2) * k,
+        y: height / 2 - ((minY + maxY) / 2) * k,
+      };
+
+      if (animate) animateTransform(target);
+      else {
+        cancelTween();
+        setTransform(target);
+      }
+    },
+    [animateTransform, cancelTween]
+  );
+
+  // ── Simulation loop ─────────────────────────────────────────────
+
+  const runLoop = useCallback(() => {
+    if (rafRef.current) return;
+
+    const tick = () => {
+      const sim = simRef.current;
+      if (!sim) {
+        rafRef.current = null;
+        return;
+      }
+
+      sim.step(alphaRef.current);
+      if (!dragRef.current?.node) alphaRef.current *= 0.968;
+      setFrame((f) => f + 1);
+
+      const busy = alphaRef.current > 0.004 || Boolean(dragRef.current?.node);
+      if (busy) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      rafRef.current = null;
+      // One tidy-up fit when the first layout comes to rest. Skipped once the
+      // user has touched the canvas: a settle that arrives a second after you
+      // started panning must not yank the view back out from under you. Later
+      // settles — after a drag — leave the viewport alone for the same reason.
+      if (!didFitRef.current) {
+        didFitRef.current = true;
+        fitToView(true);
       }
     };
-  }, [handleWheel]);
 
-  // Reset on open
+    rafRef.current = requestAnimationFrame(tick);
+  }, [fitToView]);
+
+  /** Wake the simulation back up, e.g. because a node was thrown. */
+  const reheat = useCallback(
+    (alpha = 0.4) => {
+      alphaRef.current = Math.max(alphaRef.current, alpha);
+      runLoop();
+    },
+    [runLoop]
+  );
+
+  // Measure the canvas. The layout is seeded from the real panel size, so a
+  // wide window gets a wide graph instead of a square blob with dead margins.
   useEffect(() => {
-    if (isOpen) {
-      setTransform({ x: 0, y: 0, k: 1 });
+    const el = containerRef.current;
+    if (!isOpen || !el) return undefined;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width === 0 || height === 0) return;
+      sizeRef.current = { width, height };
+      setMeasured(true);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isOpen]);
+
+  // Build (or rebuild) the layout.
+  useEffect(() => {
+    if (!isOpen || !measured) return undefined;
+
+    const { width, height } = sizeRef.current;
+    const sim = createSimulation(filteredNotes, width, height);
+    simRef.current = sim;
+    setGraph({ nodes: sim.nodes, edges: sim.edges });
+    alphaRef.current = 1;
+    didFitRef.current = false;
+    fitToView(false);
+    runLoop();
+
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [isOpen, measured, filteredNotes, layoutSeed, fitToView, runLoop]);
+
+  useEffect(() => () => cancelTween(), [cancelTween]);
+
+  useEffect(() => {
+    if (!isOpen) {
       setHoveredNode(null);
       setFilter("all");
+      setMeasured(false);
+      simRef.current = null;
+      setGraph({ nodes: [], edges: [] });
     }
   }, [isOpen]);
 
+  // ── Pointer input ───────────────────────────────────────────────
+
+  const pointerToGraph = useCallback((event) => {
+    const rect = containerRef.current.getBoundingClientRect();
+    const t = transformRef.current;
+    return {
+      x: (event.clientX - rect.left - t.x) / t.k,
+      y: (event.clientY - rect.top - t.y) / t.k,
+    };
+  }, []);
+
+  /**
+   * Wheel semantics match every other graph view people arrive here from:
+   * scroll zooms about the cursor, a trackpad pinch (which the platform sends
+   * as ctrl+wheel) zooms harder, and shift scrolls sideways. Zoom is
+   * exponential so one notch moves the same proportion at every scale — the
+   * old linear step crawled when zoomed in and lurched when zoomed out.
+   */
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!isOpen || !el) return undefined;
+
+    const onWheel = (event) => {
+      event.preventDefault();
+      cancelTween();
+      claimViewport();
+
+      if (event.shiftKey && !event.ctrlKey && !event.metaKey) {
+        const dx = event.deltaX || event.deltaY;
+        setTransform((prev) => ({ ...prev, x: prev.x - dx }));
+        return;
+      }
+
+      const rect = el.getBoundingClientRect();
+      const intensity = event.ctrlKey ? 0.012 : 0.002;
+      zoomAtPoint(
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+        Math.exp(-event.deltaY * intensity)
+      );
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [isOpen, zoomAtPoint, cancelTween, claimViewport]);
+
+  const handlePointerDownCanvas = useCallback(
+    (event) => {
+      if (event.button !== 0 && event.button !== 1) return;
+      cancelTween();
+      claimViewport();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      dragRef.current = {
+        node: null,
+        pointerId: event.pointerId,
+        lastX: event.clientX,
+        lastY: event.clientY,
+      };
+      setIsPanning(true);
+    },
+    [cancelTween, claimViewport]
+  );
+
+  const handlePointerDownNode = useCallback(
+    (event, node) => {
+      if (event.button !== 0) return;
+      event.stopPropagation();
+      cancelTween();
+      claimViewport();
+      event.currentTarget.setPointerCapture(event.pointerId);
+
+      const point = pointerToGraph(event);
+      node.fx = node.x;
+      node.fy = node.y;
+      dragRef.current = {
+        node,
+        pointerId: event.pointerId,
+        offsetX: node.x - point.x,
+        offsetY: node.y - point.y,
+        travel: 0,
+        lastX: event.clientX,
+        lastY: event.clientY,
+      };
+      setDraggingNodeId(node.id);
+      reheat(0.5);
+    },
+    [cancelTween, claimViewport, pointerToGraph, reheat]
+  );
+
+  const handlePointerMove = useCallback(
+    (event) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+
+      const dx = event.clientX - drag.lastX;
+      const dy = event.clientY - drag.lastY;
+      drag.lastX = event.clientX;
+      drag.lastY = event.clientY;
+
+      if (drag.node) {
+        drag.travel += Math.abs(dx) + Math.abs(dy);
+        const point = pointerToGraph(event);
+        drag.node.fx = point.x + drag.offsetX;
+        drag.node.fy = point.y + drag.offsetY;
+        return;
+      }
+
+      setTransform((prev) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+    },
+    [pointerToGraph]
+  );
+
+  const handlePointerUp = useCallback(
+    (event) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      dragRef.current = null;
+
+      if (drag.node) {
+        // Release it back into the simulation and let the graph answer.
+        drag.node.fx = null;
+        drag.node.fy = null;
+        setDraggingNodeId(null);
+        reheat(0.3);
+
+        // A press that never travelled is a click, and a click opens the note.
+        if (drag.travel < CLICK_SLOP) {
+          selectNote(drag.node.id);
+          onClose();
+        }
+        return;
+      }
+
+      setIsPanning(false);
+    },
+    [onClose, reheat, selectNote]
+  );
+
+  const handleZoomButton = useCallback(
+    (factor) => {
+      const { width, height } = sizeRef.current;
+      cancelTween();
+      zoomAtPoint(width / 2, height / 2, factor);
+    },
+    [cancelTween, zoomAtPoint]
+  );
+
+  const handleRedraw = useCallback(() => {
+    setLayoutSeed((seed) => seed + 1);
+  }, []);
+
+  // ── Painting ────────────────────────────────────────────────────
+
   const getNodeColor = (node) => {
     const isActive = node.id === currentNoteId;
-    const isHovered = hoveredNode === node.id;
+    const isHovered = hoveredNode === node.id || draggingNodeId === node.id;
     const isNeighbor = hoveredNode && hoveredNeighbors.has(node.id);
     const isDimmed = hoveredNode && !hoveredNeighbors.has(node.id);
 
@@ -443,7 +540,7 @@ const GraphModal = ({ isOpen, onClose }) => {
         strokeWidth: 1,
       };
 
-    // Size-based coloring: more backlinks = a stronger accent wash. Leaf notes
+    // Size-based colouring: more backlinks, a stronger accent wash. Leaf notes
     // read as neutral panel nodes with a muted ring (matches Vault design).
     const intensity = Math.min(1, node.backlinkCount * 0.2);
     return {
@@ -497,6 +594,13 @@ const GraphModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
+  // Strokes and type are divided by the scale so they keep a constant size on
+  // screen. Without it, hairlines vanish when you zoom out and labels grow to
+  // headline size when you zoom in.
+  const invK = 1 / transform.k;
+  const showLabels = transform.k >= LABEL_ZOOM_FLOOR;
+  const dotTile = Math.max(16, 28 * transform.k);
+
   return (
     <>
       <div
@@ -507,7 +611,7 @@ const GraphModal = ({ isOpen, onClose }) => {
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
           ref={dialogRef}
-          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col pointer-events-auto animate-slideUp overflow-hidden"
+          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col pointer-events-auto animate-slideUp overflow-hidden"
           onClick={(event) => event.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -550,9 +654,9 @@ const GraphModal = ({ isOpen, onClose }) => {
               {/* Zoom controls */}
               <div className="flex items-center bg-overlay-subtle rounded-lg p-1 border border-overlay-light">
                 <button
-                  onClick={() => handleZoom(0.2)}
+                  onClick={() => handleZoomButton(1.25)}
                   className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
-                  title="Zoom In"
+                  title="Zoom in"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -564,9 +668,9 @@ const GraphModal = ({ isOpen, onClose }) => {
                   </svg>
                 </button>
                 <button
-                  onClick={() => handleZoom(-0.2)}
+                  onClick={() => handleZoomButton(0.8)}
                   className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
-                  title="Zoom Out"
+                  title="Zoom out"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -579,17 +683,18 @@ const GraphModal = ({ isOpen, onClose }) => {
                 </button>
                 <div className="w-px h-4 bg-overlay-light mx-1" />
                 <button
-                  onClick={handleFit}
+                  onClick={() => fitToView(true)}
                   className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
-                  title="Fit to view"
+                  title="Fit the whole graph in view"
                 >
                   Fit
                 </button>
                 <button
-                  onClick={handleReset}
+                  onClick={handleRedraw}
                   className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
+                  title="Lay the graph out again from scratch"
                 >
-                  Reset
+                  Redraw
                 </button>
               </div>
 
@@ -647,8 +752,8 @@ const GraphModal = ({ isOpen, onClose }) => {
           </div>
 
           {/* Graph Area */}
-          <div className="flex-1 relative bg-bg-editor/40 overflow-hidden">
-            {nodes.length === 0 ? (
+          <div ref={containerRef} className="flex-1 relative bg-bg-editor/40 overflow-hidden">
+            {measured && nodes.length === 0 ? (
               <div className="h-full flex items-center justify-center text-text-muted">
                 <div className="text-center">
                   <svg
@@ -675,16 +780,33 @@ const GraphModal = ({ isOpen, onClose }) => {
               </div>
             ) : (
               <svg
-                ref={svgRef}
-                className={`w-full h-full select-none ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
-                onMouseDown={startDragging}
-                onMouseMove={handleDrag}
-                onMouseUp={stopDragging}
-                onMouseLeave={() => {
-                  stopDragging();
-                  setHoveredNode(null);
-                }}
+                data-graph-canvas=""
+                className={`w-full h-full select-none touch-none ${
+                  isPanning ? "cursor-grabbing" : "cursor-grab"
+                }`}
+                onPointerDown={handlePointerDownCanvas}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                onDoubleClick={() => fitToView(true)}
               >
+                <defs>
+                  {/* A dot grid pinned to the transform. It costs one rect and
+                      it is the difference between panning that reads as motion
+                      and panning that reads as nothing happening. */}
+                  <pattern
+                    id="graph-dot-grid"
+                    x={transform.x}
+                    y={transform.y}
+                    width={dotTile}
+                    height={dotTile}
+                    patternUnits="userSpaceOnUse"
+                  >
+                    <circle cx={1} cy={1} r={1} fill="var(--color-text-muted)" opacity={0.16} />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#graph-dot-grid)" />
+
                 <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
                   {/* Edges */}
                   {edges.map((edge, index) => {
@@ -698,9 +820,8 @@ const GraphModal = ({ isOpen, onClose }) => {
                         x2={edge.target.x}
                         y2={edge.target.y}
                         stroke={isHighlighted ? "var(--color-accent)" : "var(--color-border)"}
-                        strokeWidth={isHighlighted ? 2 : 1}
-                        opacity={isDimmed ? 0.08 : isHighlighted ? 0.8 : 0.4}
-                        className="transition-all duration-150"
+                        strokeWidth={(isHighlighted ? 2 : 1) * invK}
+                        opacity={isDimmed ? 0.08 : isHighlighted ? 0.85 : 0.4}
                       />
                     );
                   })}
@@ -708,75 +829,63 @@ const GraphModal = ({ isOpen, onClose }) => {
                   {/* Nodes */}
                   {nodes.map((node) => {
                     const isActive = node.id === currentNoteId;
-                    const radius = Math.max(6, 8 + Math.min(node.backlinkCount, 6) * 2);
+                    const radius = nodeRadius(node.backlinkCount);
                     const label =
-                      node.name.length > 20 ? `${node.name.slice(0, 20)}...` : node.name;
+                      node.name.length > 22 ? `${node.name.slice(0, 22)}...` : node.name;
                     const colors = getNodeColor(node);
+                    const isFocused = hoveredNode === node.id || draggingNodeId === node.id;
+                    const isFaded = hoveredNode && !hoveredNeighbors.has(node.id);
 
                     return (
                       <g
                         key={node.id}
-                        className="group"
-                        onMouseEnter={() => setHoveredNode(node.id)}
-                        onMouseLeave={() => setHoveredNode(null)}
-                        style={{ cursor: "pointer" }}
+                        onPointerEnter={() => setHoveredNode(node.id)}
+                        onPointerLeave={() => setHoveredNode(null)}
+                        onPointerDown={(event) => handlePointerDownNode(event, node)}
+                        style={{ cursor: draggingNodeId === node.id ? "grabbing" : "pointer" }}
                       >
-                        {/* Glow effect for hovered/active */}
-                        {(hoveredNode === node.id || isActive) && (
+                        {(isFocused || isActive) && (
                           <circle
                             cx={node.x}
                             cy={node.y}
-                            r={radius + 6}
+                            r={radius + 7 * invK}
                             fill="none"
                             stroke="var(--color-accent)"
-                            strokeWidth={1}
-                            opacity={0.3}
+                            strokeWidth={invK}
+                            opacity={0.35}
                           />
                         )}
+                        {/* An invisible collar, so small leaf nodes are still
+                            easy to grab at low zoom. */}
+                        <circle cx={node.x} cy={node.y} r={radius + 6 * invK} fill="transparent" />
                         <circle
                           cx={node.x}
                           cy={node.y}
                           r={radius}
                           fill={colors.fill}
                           stroke={colors.stroke}
-                          strokeWidth={colors.strokeWidth}
+                          strokeWidth={colors.strokeWidth * invK}
                           opacity={colors.opacity}
-                          className="transition-all duration-150"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            selectNote(node.id);
-                            onClose();
-                          }}
                         />
-                        {/* Label */}
-                        <text
-                          x={node.x}
-                          y={node.y + radius + 14}
-                          textAnchor="middle"
-                          className="text-[10px] font-medium pointer-events-none transition-opacity duration-150"
-                          fill={
-                            isActive
-                              ? "var(--color-accent)"
-                              : hoveredNode === node.id
-                                ? "var(--color-text-primary)"
-                                : hoveredNode && !hoveredNeighbors.has(node.id)
-                                  ? "var(--color-text-muted)"
-                                  : "var(--color-text-secondary)"
-                          }
-                          opacity={hoveredNode && !hoveredNeighbors.has(node.id) ? 0.2 : 1}
-                        >
-                          {escapeTitle(label)}
-                        </text>
-                        {/* Backlink count badge */}
-                        {node.backlinkCount > 0 && (
+                        {(showLabels || isFocused) && (
                           <text
-                            x={node.x + radius + 4}
-                            y={node.y - radius + 2}
-                            className="text-[8px] font-bold pointer-events-none"
-                            fill="var(--color-text-muted)"
-                            opacity={hoveredNode && !hoveredNeighbors.has(node.id) ? 0.15 : 0.6}
+                            x={node.x}
+                            y={node.y + radius + 13 * invK}
+                            textAnchor="middle"
+                            fontSize={11 * invK}
+                            className="font-medium pointer-events-none"
+                            fill={
+                              isActive
+                                ? "var(--color-accent)"
+                                : isFocused
+                                  ? "var(--color-text-primary)"
+                                  : isFaded
+                                    ? "var(--color-text-muted)"
+                                    : "var(--color-text-secondary)"
+                            }
+                            opacity={isFaded && !isFocused ? 0.2 : 1}
                           >
-                            {node.backlinkCount}
+                            {escapeTitle(label)}
                           </text>
                         )}
                       </g>
@@ -819,7 +928,9 @@ const GraphModal = ({ isOpen, onClose }) => {
               <span>&middot;</span>
               <span>Scroll to zoom</span>
               <span>&middot;</span>
-              <span>Click nodes to navigate</span>
+              <span>Drag a node to move it</span>
+              <span>&middot;</span>
+              <span>Double-click to fit</span>
             </div>
           </div>
         </div>

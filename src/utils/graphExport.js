@@ -3,6 +3,17 @@ import { writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
 const EXPORT_PADDING = 100;
 
+/**
+ * Node radius as a function of incoming links.
+ *
+ * Square-root scaling, so the difference between one backlink and four is
+ * visible without a hub of twenty swallowing its neighbours — area grows
+ * linearly with the count, which is how people read circle size.
+ *
+ * Shared with GraphModal so an exported SVG matches what was on screen.
+ */
+export const nodeRadius = (backlinkCount = 0) => 7 + Math.sqrt(Math.max(0, backlinkCount)) * 3.2;
+
 const escapeXml = (value = "") =>
   value
     .replace(/&/g, "&amp;")
@@ -57,7 +68,7 @@ const getBounds = (nodes) => {
   let maxY = -Infinity;
 
   nodes.forEach((node) => {
-    const radius = Math.max(6, 8 + Math.min(node.backlinkCount, 6) * 2);
+    const radius = nodeRadius(node.backlinkCount);
     minX = Math.min(minX, node.x - radius);
     minY = Math.min(minY, node.y - radius);
     maxX = Math.max(maxX, node.x + radius + 50);
@@ -89,7 +100,7 @@ export const buildGraphSvg = ({ nodes, edges, currentNoteId, title = "Marky Grap
   const svgNodes = nodes
     .map((node) => {
       const isActive = node.id === currentNoteId;
-      const radius = Math.max(6, 8 + Math.min(node.backlinkCount, 6) * 2);
+      const radius = nodeRadius(node.backlinkCount);
       const fill = isActive
         ? accent
         : mixHexColors(nodeBaseFill, accent, Math.min(0.55, node.backlinkCount * 0.08));

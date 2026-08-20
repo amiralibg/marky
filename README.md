@@ -91,8 +91,8 @@ The same note in source view and reading view — Mermaid diagrams and KaTeX mat
 
 - Global search modal (Fuse.js fuzzy search)
 - Command palette (`Cmd/Ctrl+K`)
-- Backlinks panel with context previews
-- Interactive graph modal (force-directed)
+- Backlink counts in the notes tree, and backlink-weighted node sizes in the graph
+- Interactive graph modal: force-directed layout, drag a node to reshape it, cursor-anchored zoom
 - Sidebar search, sorting, and tag filtering
 
 ### Templates, scheduling, export
