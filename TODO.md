@@ -234,6 +234,7 @@ Why next:
 - [x] Creating a folder or note scrolls the sidebar to the new row and marks it, instead of leaving no sign anything happened.
 - [x] File-menu items (New Folder, New Window, Open File/Folder, Save, Close) work from the native menu — their listeners sat behind a `window.__TAURI__` guard that is only true with `withGlobalTauri` enabled, which it is not.
 - [x] Window-scoped events (menu actions, file-change) are broadcast with the target window in the payload and filtered in the frontend, rather than relying on Tauri's addressed emit, which does not match a listener registered the ordinary way.
+- [x] A release whose updater manifest is missing a platform now fails the release run. Each build job merges its own entry into one shared `latest.json`, so a job that dies after uploading its binaries leaves the release complete and the manifest short — and the app tells those users they are up to date (v1.8.0, macOS arm64).
 - [x] Launching offline no longer shows an "Update issue" card — the background check stays silent and retries when the connection returns.
 - [x] Quitting waits for every open window to flush, not just the first to answer.
 - [x] Runtime-created windows (note and vault windows) are covered by the Tauri capabilities, which were scoped to `main` only.
