@@ -1,26 +1,21 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { detectPlatform } from "./platform";
+import { hashPath } from "./windowVault";
 
 /**
  * Open a note in its own window.
  *
  * The window loads the same bundle with `?note=<path>`, which `main.jsx` routes
- * to a single-file editor instead of the full app — see `NoteWindow` for why a
- * second full instance would fight the first over shared `localStorage`.
+ * to a single-file editor instead of the full app: this window is a view onto
+ * one file in the vault its opener already has open, so it deliberately has no
+ * sidebar and no store of its own. A window that owns a whole second vault is
+ * `openVaultInNewWindow` instead.
  *
  * Window labels must be unique and may only contain `[a-zA-Z0-9-/:_]`, so the
  * path is hashed rather than embedded. Reopening the same note focuses the
  * window that already has it instead of stacking duplicates.
  */
-const labelFor = (filePath) => {
-  const normalized = (filePath || "").replace(/\\/g, "/");
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < normalized.length; i += 1) {
-    hash ^= normalized.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return `note-${hash.toString(16)}`;
-};
+const labelFor = (filePath) => `note-${hashPath(filePath)}`;
 
 const fileNameOf = (path) => (path || "").replace(/\\/g, "/").split("/").pop() || "Note";
 

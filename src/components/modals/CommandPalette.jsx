@@ -82,6 +82,22 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         keywords: ["import", "load"],
       },
       {
+        id: "new-window",
+        name: "New Window",
+        category: "File Operations",
+        icon: WindowIcon,
+        action: "newWindow",
+        keywords: ["empty window", "another window", "second window"],
+      },
+      {
+        id: "open-folder-new-window",
+        name: "Open Folder in New Window",
+        category: "File Operations",
+        icon: WindowIcon,
+        action: "openFolderInNewWindow",
+        keywords: ["vault", "second window", "side by side", "another vault"],
+      },
+      {
         id: "save",
         name: "Save now",
         category: "File Operations",

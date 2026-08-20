@@ -1,9 +1,9 @@
 # Marky TODO (Audit-Based Roadmap)
 
-Last reviewed: 2026-05-11
+Last reviewed: 2026-08-20
 This file is a forward-looking roadmap based on the current codebase state (not a historical changelog).
 It separates already-shipped features from the next recommended work.
-Latest validation: `pnpm lint` and `pnpm build` pass.
+Latest validation: `pnpm lint`, `pnpm test`, `pnpm build`, and `cargo check` pass.
 
 ## Current Feature Audit (Confirmed in Code)
 
@@ -18,6 +18,10 @@ Latest validation: `pnpm lint` and `pnpm build` pass.
 - [x] File watcher sync for external changes (debounced refresh)
 - [x] Notifications/toasts for actions and errors
 - [x] Onboarding + workspace-required modal flows
+- [x] Open a note in its own window (focused single-file editor)
+- [x] Open a vault in its own window (a full app window per vault)
+- [x] New empty window (File ▸ New Window, command palette, workspace switcher)
+- [x] Multi-select in the sidebar tree (Ctrl/Cmd-click, Shift-click) for delete and move
 
 ### Editor and preview
 
@@ -115,6 +119,9 @@ Why first:
 - [x] Saved workspace views
   - Value: lets users quickly reopen filtered contexts like "Writing", "Projects", "Todos", "Untagged", or "Recently edited".
   - Depends on: existing search filters, tag filters, and sidebar sorting.
+- [ ] Sidebar polish pass to match VS Code / Obsidian explorer conventions
+  - Value: the tree is the app's main navigation surface, and the gaps in it are felt on every action.
+  - Depends on: remaining gaps are inline rename on create (VS Code opens the name field), a selection-aware Cut/Copy/Paste, and Select All within a folder.
 - [ ] Favorite folders and richer sidebar organization
   - Value: improves navigation in large workspaces without changing the local-first file model.
   - Depends on: workspace-specific settings profiles and sidebar tree metadata.
@@ -166,6 +173,15 @@ Why next:
 - [x] Multi-workspace switcher (recent workspaces list)
 - [x] Workspace-specific settings profiles
 - [x] Open recent workspace on startup (optional)
+- [x] One window per vault (open two vaults side by side)
+  - Value: a second vault gets its own sidebar, tabs, search, and watcher instead of replacing the first.
+  - Depends on: per-window notes-store key (`?vault=`), per-window file watchers, focus-routed menu events, and cross-window settings sync.
+- [ ] Reopen vault windows on launch
+  - Value: a two-vault setup survives a restart instead of coming back as the main window alone.
+  - Depends on: persisting the set of open vault windows outside the per-window store, and recreating them in the Tauri setup hook (only `main` is created from config today).
+- [ ] Per-window vault binding when the switcher changes vaults
+  - Value: a vault window that has been switched to another folder keeps a storage key naming the folder it no longer shows.
+  - Depends on: either re-keying the persisted store on switch, or routing "open this vault" to the window that already owns it.
 - [x] Performance pass for very large vaults (incremental indexing / memoized selectors)
 - [x] Virtualized sidebar tree for large note collections
 - [x] Add Vite/Rollup manual chunks for large dependencies and routes
@@ -213,6 +229,14 @@ Why next:
 - [x] Conflict banner offers compare/diff before resolving
 - [x] Dev-only watcher logs do not appear in production builds
 - [x] The editor should preserve line breaks and spacing in the preview.
+- [x] Clicking the window's close button did nothing — the close handler destroys the window, but `core:window:allow-destroy` was missing from the capabilities.
+- [x] "New schedule" on the start page opened nothing, because the schedule modal renders null without a template; it now opens the template picker in recurring mode first.
+- [x] Creating a folder or note scrolls the sidebar to the new row and marks it, instead of leaving no sign anything happened.
+- [x] File-menu items (New Folder, New Window, Open File/Folder, Save, Close) work from the native menu — their listeners sat behind a `window.__TAURI__` guard that is only true with `withGlobalTauri` enabled, which it is not.
+- [x] Window-scoped events (menu actions, file-change) are broadcast with the target window in the payload and filtered in the frontend, rather than relying on Tauri's addressed emit, which does not match a listener registered the ordinary way.
+- [x] Launching offline no longer shows an "Update issue" card — the background check stays silent and retries when the connection returns.
+- [x] Quitting waits for every open window to flush, not just the first to answer.
+- [x] Runtime-created windows (note and vault windows) are covered by the Tauri capabilities, which were scoped to `main` only.
 
 ## Nice-to-Have / Future Exploration
 

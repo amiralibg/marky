@@ -81,6 +81,24 @@ export const checkForAppUpdate = async ({ silent = false } = {}) => {
     return update;
   } catch (error) {
     const message = getErrorMessage(error);
+
+    // A background check runs seconds after launch, often before the network is
+    // up, so its failure is expected and says nothing the user asked to know.
+    // Surfacing it painted an "Update issue" card into the sidebar on every
+    // offline start. Silent means silent: the failure is logged and the status
+    // goes back to idle, and the card only appears for a check you asked for.
+    if (silent) {
+      console.warn("Background update check failed:", message);
+      setAppUpdate({
+        status: "idle",
+        update: null,
+        message: "",
+        progress: null,
+        error: null,
+      });
+      return null;
+    }
+
     setAppUpdate({
       status: "error",
       update: null,
@@ -89,9 +107,7 @@ export const checkForAppUpdate = async ({ silent = false } = {}) => {
       error: message,
     });
 
-    if (!silent) {
-      addNotification(message, "error", 5000);
-    }
+    addNotification(message, "error", 5000);
 
     return null;
   }

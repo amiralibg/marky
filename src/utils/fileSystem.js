@@ -465,5 +465,7 @@ export async function writeAttachmentFile(folderPath, fileName, bytes) {
  * @returns {boolean}
  */
 export function isTauriApp() {
-  return typeof window !== "undefined" && window.__TAURI__ !== undefined;
+  // Not `window.__TAURI__`: that global only exists with `withGlobalTauri`
+  // enabled, so the check was answering "no" inside the app itself.
+  return typeof window !== "undefined" && window.__TAURI_INTERNALS__ !== undefined;
 }

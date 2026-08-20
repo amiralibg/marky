@@ -17,6 +17,7 @@ import { addMinutes, calculateNextRun } from "../utils/schedule";
 import { buildDailyNoteContent, formatDailyNoteTitle } from "../utils/dailyNotes";
 import { getNoteProperties } from "../utils/frontmatter";
 import useSettingsStore, { parseIgnorePatterns, normalizeSaveMode } from "./settingsStore";
+import { folderNameOf, notesStorageKey, windowVaultPath } from "../utils/windowVault";
 // History and drafts live on disk (see utils/sideStore.js). They used to sit in
 // `localStorage`, where they shared a ~5 MB quota and failed silently.
 import {
@@ -605,6 +606,14 @@ const useNotesStore = create(
       scheduledNotes: [], // Array of scheduled note configurations
       recentWorkspaces: [], // Array of { path, name, lastOpenedAt }
 
+      // A one-shot "show me this row" request. Creating a folder deep in a big
+      // vault used to leave you looking at the same screen with no sign
+      // anything had happened; the sidebar watches this and scrolls the new row
+      // into view. The nonce makes two creations in a row two separate events.
+      revealRequest: null,
+      revealItem: (id) => set({ revealRequest: id ? { id, nonce: Date.now() } : null }),
+      clearReveal: () => set({ revealRequest: null }),
+
       setRootFolder: async (folderData) => {
         set({ isLoading: true, loadingProgress: null });
         await ensureDraftsHydrated();
@@ -870,7 +879,11 @@ const useNotesStore = create(
               ensureExpandedPath: parentPath,
               focusPath: newPath,
             });
-            return buildId("folder", newPath);
+            const folderId = buildId("folder", newPath);
+            // A new folder opens nothing, so without this there is no feedback
+            // that it exists — least of all when it lands off-screen.
+            get().revealItem(folderId);
+            return folderId;
           } catch (error) {
             lastError = error;
             if (error?.message && /exists/i.test(error.message)) {
@@ -940,6 +953,8 @@ const useNotesStore = create(
           ensureExpandedPath: parentPath,
           focusPath: newPath,
         });
+
+        get().revealItem(buildId("note", newPath));
 
         try {
           const content = await readMarkdownFile(newPath);
@@ -2308,7 +2323,10 @@ const useNotesStore = create(
       },
     }),
     {
-      name: "marky-storage",
+      // Every window shares one `localStorage`, so a window opened on its own
+      // vault persists under its own key. The main window keeps the original
+      // name, which is what existing installs restore from.
+      name: notesStorageKey(),
       partialize: (state) => ({
         // Vault-backed notes persist as metadata only. Their content is re-read
         // from disk by `refreshRootFromDisk` on the very next launch, so keeping
@@ -2342,6 +2360,21 @@ const useNotesStore = create(
         // when we drop the vault below.
         const looseItems = (state.items || []).filter((item) => !item.filePath || item.isLoose);
         const looseIds = new Set(looseItems.map((item) => item.id));
+
+        // A window opened for a specific vault always shows that vault, whatever
+        // was persisted and whatever "reopen last workspace" says — the user
+        // named the folder when they opened the window.
+        if (windowVaultPath) {
+          if (state.rootFolderPath === windowVaultPath) {
+            state.refreshRootFromDisk?.();
+          } else {
+            state.loadFolderFromSystem?.({
+              folderPath: windowVaultPath,
+              folderName: folderNameOf(windowVaultPath),
+            });
+          }
+          return;
+        }
 
         if (!state.rootFolderPath) return; // no vault: keep whatever was persisted (loose files)
 

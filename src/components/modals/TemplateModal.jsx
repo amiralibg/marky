@@ -11,7 +11,15 @@ import { exportTemplatesAsJson, importTemplatesFromJson } from "../../utils/back
 import useModalAccessibility from "../../hooks/useModalAccessibility";
 import { TemplateGlyph } from "../icons";
 
-const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }) => {
+const TemplateModal = ({
+  isOpen,
+  onClose,
+  onSelectTemplate,
+  onScheduleTemplate,
+  // Opened from "New schedule" rather than "New from template": the picker is
+  // the first step of building a schedule, so it starts in recurring mode.
+  scheduleByDefault = false,
+}) => {
   const { customTemplates, addCustomTemplate, deleteCustomTemplate } = useNotesStore();
   const { addNotification } = useUIStore();
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -20,7 +28,7 @@ const TemplateModal = ({ isOpen, onClose, onSelectTemplate, onScheduleTemplate }
   const [isImportingTemplates, setIsImportingTemplates] = useState(false);
   const dialogRef = useRef(null);
   const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState(null);
-  const [scheduleOn, setScheduleOn] = useState(false);
+  const [scheduleOn, setScheduleOn] = useState(scheduleByDefault);
   const [scheduleFreq, setScheduleFreq] = useState("daily");
   const [newTemplate, setNewTemplate] = useState({
     name: "",

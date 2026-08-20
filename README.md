@@ -33,7 +33,7 @@ Your notes are ordinary Markdown files in an ordinary folder. No account, no clo
 
 Download the latest desktop build from the [Marky releases page](https://github.com/amiralibg/marky/releases/latest). Installers are attached to each GitHub release after the app is built.
 
-Current version: [`v1.7.2`](https://github.com/amiralibg/marky/releases/tag/v1.7.2).
+Current version: [`v1.8.0`](https://github.com/amiralibg/marky/releases/tag/v1.8.0).
 
 ## Highlights
 

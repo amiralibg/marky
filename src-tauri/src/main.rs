@@ -7,9 +7,10 @@ use notify_debouncer_full::{
     DebounceEventResult,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{
@@ -36,19 +37,28 @@ struct MarkdownFile {
 struct FileChangeEvent {
     event_type: String,
     path: String,
+    /// The window that asked for this watch; other windows ignore the event.
+    window: String,
 }
 
+/// An event that concerns one window, broadcast to all of them.
+#[derive(Debug, Serialize, Clone)]
+struct WindowScoped {
+    /// `None` when no window is focused, which every window then acts on.
+    window: Option<String>,
+}
+
+type FolderDebouncer =
+    notify_debouncer_full::Debouncer<notify::RecommendedWatcher, notify_debouncer_full::FileIdMap>;
+
+/// One watcher per window, keyed by window label.
+///
+/// A single slot was enough while there was only ever one vault open. Now that
+/// a vault can be opened in its own window, two windows watch two different
+/// folders at once, and a shared slot meant the second window's watcher evicted
+/// the first — leaving the original window blind to changes on disk.
 struct WatcherState {
-    _watcher: Arc<
-        Mutex<
-            Option<
-                notify_debouncer_full::Debouncer<
-                    notify::RecommendedWatcher,
-                    notify_debouncer_full::FileIdMap,
-                >,
-            >,
-        >,
-    >,
+    watchers: Arc<Mutex<HashMap<String, FolderDebouncer>>>,
 }
 
 // Files the OS asked us to open (via "Open with Marky" / double-click) before the
@@ -70,6 +80,10 @@ struct ExitState {
     confirmed: AtomicBool,
     /// A flush is already in flight, so repeated Cmd+Q does not restart it.
     in_progress: AtomicBool,
+    /// Windows still to report in. Quitting with two vaults open asks both to
+    /// flush, and the first to answer must not take the app down while the
+    /// second is still writing — so the exit waits for the count to reach zero.
+    pending: AtomicUsize,
 }
 
 /// How long the frontend gets to write pending notes before the app quits anyway.
@@ -77,9 +91,22 @@ const EXIT_FLUSH_TIMEOUT: Duration = Duration::from_millis(1500);
 
 #[tauri::command]
 fn confirm_exit(app: tauri::AppHandle) {
-    app.state::<ExitState>()
-        .confirmed
-        .store(true, Ordering::SeqCst);
+    let exit_state = app.state::<ExitState>();
+
+    // `fetch_sub` on an already-zero counter would wrap, so the last window out
+    // is the one that hits zero and nothing after it can re-trigger the exit.
+    let remaining = exit_state
+        .pending
+        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |count| {
+            Some(count.saturating_sub(1))
+        })
+        .unwrap_or(0);
+
+    if remaining > 1 {
+        return;
+    }
+
+    exit_state.confirmed.store(true, Ordering::SeqCst);
     app.exit(0);
 }
 
@@ -922,7 +949,7 @@ fn read_workspace_files(
 #[tauri::command]
 fn watch_folder(
     folder_path: String,
-    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     watcher_state: State<WatcherState>,
 ) -> Result<(), String> {
     let path = PathBuf::from(&folder_path);
@@ -931,7 +958,9 @@ fn watch_folder(
         return Err("Invalid folder path".to_string());
     }
 
-    let app_clone = app.clone();
+    let label = window.label().to_string();
+    let owner = label.clone();
+    let app = window.app_handle().clone();
 
     let mut debouncer = new_debouncer(
         Duration::from_millis(500),
@@ -961,9 +990,15 @@ fn watch_folder(
                                 let change_event = FileChangeEvent {
                                     event_type: event_type.to_string(),
                                     path: path.to_string_lossy().to_string(),
+                                    window: owner.clone(),
                                 };
 
-                                let _ = app_clone.emit("file-change", change_event);
+                                // Named for the window that asked for this
+                                // watch, so a change in one vault does not make
+                                // every other open vault rescan itself. Sent as
+                                // a broadcast for the same reason menu actions
+                                // are — see `emit_to_focused`.
+                                let _ = app.emit("file-change", change_event);
                             }
                         }
                     }
@@ -981,22 +1016,25 @@ fn watch_folder(
         .watch(&path, RecursiveMode::Recursive)
         .map_err(|e| format!("Failed to watch folder: {}", e))?;
 
-    let mut watcher_guard = watcher_state
-        ._watcher
+    let mut watchers = watcher_state
+        .watchers
         .lock()
         .map_err(|e| format!("Failed to lock watcher state: {}", e))?;
-    *watcher_guard = Some(debouncer);
+    watchers.insert(label, debouncer);
 
     Ok(())
 }
 
 #[tauri::command]
-fn stop_watching(watcher_state: State<WatcherState>) -> Result<(), String> {
-    let mut watcher_guard = watcher_state
-        ._watcher
+fn stop_watching(
+    window: tauri::WebviewWindow,
+    watcher_state: State<WatcherState>,
+) -> Result<(), String> {
+    let mut watchers = watcher_state
+        .watchers
         .lock()
         .map_err(|e| format!("Failed to lock watcher state: {}", e))?;
-    *watcher_guard = None;
+    watchers.remove(window.label());
     Ok(())
 }
 
@@ -1062,6 +1100,31 @@ fn remove_native_menu<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
     }
 }
 
+/// Send a menu action to the window the user is actually looking at.
+///
+/// Menu events went out app-wide, which was harmless while one full app window
+/// was the only thing that listened. With a vault open per window, a broadcast
+/// "New note" would create one in every vault at once, so the action follows
+/// focus. Nothing focused (every window minimised) falls back to a broadcast,
+/// which is the old behaviour and still right for a single window.
+fn emit_to_focused(app: &tauri::AppHandle, event: &str) {
+    // `Manager::get_focused_window` is behind Tauri's `unstable` feature, so
+    // the focused window is found by asking each one.
+    let focused = app
+        .webview_windows()
+        .into_iter()
+        .find(|(_, window)| window.is_focused().unwrap_or(false))
+        .map(|(label, _)| label);
+
+    // Broadcast, with the intended window named in the payload, rather than
+    // `emit_to`. An addressed emit only reaches listeners that registered under
+    // that same label, and the ordinary `listen(event, handler)` registers for
+    // the `Any` target, which Tauri does not count as a match — so an addressed
+    // menu action can silently arrive nowhere. Delivery is the framework's job;
+    // deciding whose event it is stays in the frontend, where it is testable.
+    let _ = app.emit(event, WindowScoped { window: focused });
+}
+
 /// Windows opened after startup (a note in its own window) inherit the app menu
 /// too, and the frontend cannot reach `remove_menu` — the JS API doesn't expose
 /// it. Each window asks for this once as it boots.
@@ -1075,7 +1138,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(WatcherState {
-            _watcher: Arc::new(Mutex::new(None)),
+            watchers: Arc::new(Mutex::new(HashMap::new())),
         })
         .manage(PendingOpen(Arc::new(Mutex::new(Vec::new()))))
         .manage(ExitState::default())
@@ -1101,6 +1164,15 @@ fn main() {
                 "New Folder",
                 true,
                 Some("CmdOrCtrl+Shift+N"),
+            )?;
+            // Cmd/Ctrl+N and +Shift+N are already New Note and New Folder, so the
+            // window shortcut takes the next free slot rather than displacing one.
+            let new_window = MenuItem::with_id(
+                app,
+                "menu://new-window",
+                "New Window",
+                true,
+                Some("CmdOrCtrl+Alt+N"),
             )?;
             let sep_f1 = PredefinedMenuItem::separator(app)?;
             let open_file = MenuItem::with_id(
@@ -1250,6 +1322,7 @@ fn main() {
                             sub.prepend_items(&[
                                 &new_note,
                                 &new_folder,
+                                &new_window,
                                 &sep_f1,
                                 &open_file,
                                 &open_folder,
@@ -1312,67 +1385,70 @@ fn main() {
 
             match event_id {
                 "menu://new-note" => {
-                    let _ = app.emit("menu://new-note", ());
+                    emit_to_focused(app, "menu://new-note");
                 }
                 "menu://new-folder" => {
-                    let _ = app.emit("menu://new-folder", ());
+                    emit_to_focused(app, "menu://new-folder");
+                }
+                "menu://new-window" => {
+                    emit_to_focused(app, "menu://new-window");
                 }
                 "menu://open-file" => {
-                    let _ = app.emit("menu://open-file", ());
+                    emit_to_focused(app, "menu://open-file");
                 }
                 "menu://open-folder" => {
-                    let _ = app.emit("menu://open-folder", ());
+                    emit_to_focused(app, "menu://open-folder");
                 }
                 "menu://save-note" => {
-                    let _ = app.emit("menu://save-note", ());
+                    emit_to_focused(app, "menu://save-note");
                 }
                 "menu://close-note" => {
-                    let _ = app.emit("menu://close-note", ());
+                    emit_to_focused(app, "menu://close-note");
                 }
                 "menu://export-note" => {
-                    let _ = app.emit("menu://export-note", ());
+                    emit_to_focused(app, "menu://export-note");
                 }
                 "menu://backup-workspace" => {
-                    let _ = app.emit("menu://backup-workspace", ());
+                    emit_to_focused(app, "menu://backup-workspace");
                 }
                 "menu://search" => {
-                    let _ = app.emit("menu://search", ());
+                    emit_to_focused(app, "menu://search");
                 }
                 "menu://command-palette" => {
-                    let _ = app.emit("menu://command-palette", ());
+                    emit_to_focused(app, "menu://command-palette");
                 }
                 "menu://toggle-sidebar" => {
-                    let _ = app.emit("menu://toggle-sidebar", ());
+                    emit_to_focused(app, "menu://toggle-sidebar");
                 }
                 "menu://view-editor" => {
-                    let _ = app.emit("menu://view-editor", ());
+                    emit_to_focused(app, "menu://view-editor");
                 }
                 "menu://view-split" => {
-                    let _ = app.emit("menu://view-split", ());
+                    emit_to_focused(app, "menu://view-split");
                 }
                 "menu://view-preview" => {
-                    let _ = app.emit("menu://view-preview", ());
+                    emit_to_focused(app, "menu://view-preview");
                 }
                 "menu://focus-mode" => {
-                    let _ = app.emit("menu://focus-mode", ());
+                    emit_to_focused(app, "menu://focus-mode");
                 }
                 "menu://font-larger" => {
-                    let _ = app.emit("menu://font-larger", ());
+                    emit_to_focused(app, "menu://font-larger");
                 }
                 "menu://font-smaller" => {
-                    let _ = app.emit("menu://font-smaller", ());
+                    emit_to_focused(app, "menu://font-smaller");
                 }
                 "menu://font-reset" => {
-                    let _ = app.emit("menu://font-reset", ());
+                    emit_to_focused(app, "menu://font-reset");
                 }
                 "menu://open-graph" => {
-                    let _ = app.emit("menu://open-graph", ());
+                    emit_to_focused(app, "menu://open-graph");
                 }
                 "menu://open-settings" => {
-                    let _ = app.emit("menu://open-settings", ());
+                    emit_to_focused(app, "menu://open-settings");
                 }
                 "menu://show-shortcuts" => {
-                    let _ = app.emit("menu://show-shortcuts", ());
+                    emit_to_focused(app, "menu://show-shortcuts");
                 }
                 _ => {}
             }
@@ -1405,6 +1481,15 @@ fn main() {
             clear_all_drafts,
             confirm_exit
         ])
+        .on_window_event(|window, event| {
+            // A closed window's watcher would otherwise sit in the map holding
+            // an OS watch on a folder nobody is looking at any more.
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Ok(mut watchers) = window.state::<WatcherState>().watchers.lock() {
+                    watchers.remove(window.label());
+                }
+            }
+        })
         .setup(|app| {
             #[cfg(not(target_os = "macos"))]
             {
@@ -1480,6 +1565,9 @@ fn main() {
                     api.prevent_exit();
 
                     if !exit_state.in_progress.swap(true, Ordering::SeqCst) {
+                        exit_state
+                            .pending
+                            .store(app_handle.webview_windows().len(), Ordering::SeqCst);
                         let _ = app_handle.emit("app-exit-requested", ());
 
                         // The frontend answers with `confirm_exit`. This is the
