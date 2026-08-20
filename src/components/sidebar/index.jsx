@@ -7,13 +7,13 @@ import {
   useImperativeHandle,
   useMemo,
 } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { editorAcceptsDrop, toLogicalPosition } from "../../utils/externalDrop";
 import useNotesStore from "../../store/notesStore";
 import useSettingsStore, { THEMES, normalizeSaveMode } from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
 import { checkForAppUpdate, installAppUpdate, restartApp } from "../../utils/appUpdater";
+import { openEmptyWindow, openVaultInNewWindow } from "../../utils/vaultWindows";
 
 import {
   openMarkdownFile,
@@ -26,7 +26,11 @@ import {
 import TreeItem from "./TreeItem";
 import ContextMenu from "./ContextMenu";
 import ConfirmDialog from "../modals/ConfirmDialog";
+import { scrollItemIntoView } from "../../utils/scrollItemIntoView";
+import { listenForWindow } from "../../utils/windowEvents";
+import { pruneSelection, resolveSelectionTargets, selectRangeIds } from "./treeSelection";
 import { UpdateIcon } from "../icons/AppUpdateIcon";
+import { WindowIcon } from "../icons";
 
 const VIRTUAL_TREE_THRESHOLD = 250;
 const TREE_ROW_HEIGHTS = {
@@ -124,6 +128,8 @@ const Sidebar = forwardRef(
       openNoteIds,
       closeNote,
       currentNoteId,
+      revealRequest,
+      clearReveal,
     } = useNotesStore();
     const sidebarDensity = useSettingsStore((state) => state.sidebarDensity);
     const themeId = useSettingsStore((state) => state.themeId);
@@ -143,7 +149,18 @@ const Sidebar = forwardRef(
     const [dropTargetFolder, setDropTargetFolder] = useState(null);
     const [isExternalDragging, setIsExternalDragging] = useState(false);
     const [isRootDropActive, setIsRootDropActive] = useState(false);
-    const [pendingDeleteItem, setPendingDeleteItem] = useState(null);
+    // A delete confirmation always works on a list, so the one-row case and the
+    // multi-select case share a single dialog and a single code path.
+    const [pendingDeleteItems, setPendingDeleteItems] = useState([]);
+
+    // Multi-select in the tree: Ctrl/Cmd-click adds a row, Shift-click takes the
+    // run from the anchor to the row clicked — the gestures Finder, VS Code and
+    // Obsidian all use. Delete and drag then act on the whole set.
+    const [selectedIds, setSelectedIds] = useState(() => new Set());
+    const selectionAnchorRef = useRef(null);
+    // Held in a ref because the reveal effect runs above the definition of the
+    // virtualized-scroll helper it occasionally needs.
+    const focusTreeIndexRef = useRef(null);
     const [treeScrollTop, setTreeScrollTop] = useState(0);
     const [treeViewportHeight, setTreeViewportHeight] = useState(0);
     const dropHandledRef = useRef(false);
@@ -289,6 +306,76 @@ const Sidebar = forwardRef(
       return rows;
     }, [expandedFolders, rootItems, sortBy, treeChildrenByParent]);
 
+    const clearTreeSelection = useCallback(() => {
+      setSelectedIds((current) => (current.size ? new Set() : current));
+      selectionAnchorRef.current = null;
+    }, []);
+
+    const toggleTreeSelection = useCallback((item) => {
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        if (next.has(item.id)) next.delete(item.id);
+        else next.add(item.id);
+        return next;
+      });
+      selectionAnchorRef.current = item.id;
+    }, []);
+
+    const selectTreeRange = useCallback(
+      (item) => {
+        // The anchor is the last row clicked without Shift.
+        const order = flattenedTreeRows.map((row) => row.item.id);
+        const range = selectRangeIds(order, selectionAnchorRef.current, item.id);
+        if (range.length === 1) selectionAnchorRef.current = item.id;
+        setSelectedIds(new Set(range));
+      },
+      [flattenedTreeRows]
+    );
+
+    /**
+     * What a click on a row means. Returns true when the click was a selection
+     * gesture and the row should not also open or expand.
+     */
+    const handleRowActivate = useCallback(
+      (item, modifiers = {}) => {
+        if (modifiers.clear) {
+          clearTreeSelection();
+          return true;
+        }
+        if (modifiers.meta) {
+          toggleTreeSelection(item);
+          return true;
+        }
+        if (modifiers.shift) {
+          selectTreeRange(item);
+          return true;
+        }
+        clearTreeSelection();
+        selectionAnchorRef.current = item.id;
+        return false;
+      },
+      [clearTreeSelection, selectTreeRange, toggleTreeSelection]
+    );
+
+    // Rows that were deleted or moved out from under the selection would
+    // otherwise keep it non-empty forever, with nothing on screen to show it.
+    useEffect(() => {
+      setSelectedIds((current) => pruneSelection(current, items));
+    }, [items]);
+
+    /**
+     * The items a selection-aware action should act on.
+     *
+     * A row inside the selection acts on the whole selection; a row outside it
+     * acts on itself alone, which is what right-clicking elsewhere means
+     * everywhere else. Descendants of a selected folder are dropped: the folder
+     * takes them with it, and deleting them twice would fail the second time.
+     */
+    const resolveActionTargets = useCallback(
+      (item) => resolveSelectionTargets(items, selectedIds, item),
+      [items, selectedIds]
+    );
+
     const useVirtualizedTree = flattenedTreeRows.length > VIRTUAL_TREE_THRESHOLD;
     const virtualTreeRowHeight = TREE_ROW_HEIGHTS[sidebarDensity] || TREE_ROW_HEIGHTS.comfortable;
     const virtualStartIndex = useVirtualizedTree
@@ -308,6 +395,9 @@ const Sidebar = forwardRef(
     const handleContextMenu = (e, item) => {
       e.preventDefault();
       e.stopPropagation();
+      // Right-clicking outside the selection drops it, so the menu never offers
+      // to act on rows the click did not touch.
+      if (selectedIds.size > 0 && !selectedIds.has(item.id)) clearTreeSelection();
       setContextMenu({
         x: e.clientX,
         y: e.clientY,
@@ -346,8 +436,19 @@ const Sidebar = forwardRef(
       setDraggedItem(null);
       setIsRootDropActive(false);
 
+      // Dragging a row that is part of a selection carries the whole selection.
+      const moving = resolveActionTargets(draggedItem).filter(
+        (entry) => entry.id !== targetFolder.id
+      );
+
       try {
-        await moveItem(draggedItem.id, targetFolder.id);
+        for (const entry of moving) {
+          await moveItem(entry.id, targetFolder.id);
+        }
+        if (moving.length > 1) {
+          addNotification(`Moved ${moving.length} items`, "success", 2200);
+          clearTreeSelection();
+        }
       } catch (error) {
         console.error("Failed to move item:", error);
         addNotification("Failed to move item: " + error.message, "error");
@@ -372,6 +473,31 @@ const Sidebar = forwardRef(
 
       const targetParentId = reference.parentId ?? null;
       const sameParent = (dragged.parentId ?? null) === targetParentId;
+
+      // A multi-row drag has no single insertion point to honour, so dropping
+      // one between rows moves the whole selection into that row's parent
+      // rather than reordering one item and stranding the rest.
+      const moving = resolveActionTargets(dragged);
+      if (moving.length > 1) {
+        try {
+          for (const entry of moving) {
+            if (entry.id === reference.id) continue;
+            if (targetParentId === null) await moveItemToRoot(entry.id);
+            else await moveItem(entry.id, targetParentId);
+          }
+          addNotification(`Moved ${moving.length} items`, "success", 2200);
+          clearTreeSelection();
+        } catch (error) {
+          console.error("Failed to move items:", error);
+          addNotification("Failed to move items: " + error.message, "error");
+        } finally {
+          restoreTreeScroll(scrollTop);
+          setTimeout(() => {
+            dropHandledRef.current = false;
+          }, 100);
+        }
+        return;
+      }
 
       try {
         if (sameParent) {
@@ -477,6 +603,42 @@ const Sidebar = forwardRef(
       }
     }, [addNotification, loadFolderFromSystem]);
 
+    // Opening a vault in its own window rather than switching this one: both
+    // windows keep their own tabs, sidebar and watcher (see `vaultWindows.js`).
+    const handleOpenInNewWindow = useCallback(
+      async (folderPath, folderName) => {
+        try {
+          await openVaultInNewWindow(folderPath, folderName);
+        } catch (error) {
+          console.error("Failed to open vault window:", error);
+          addNotification("Couldn't open that vault in a new window", "error");
+        }
+      },
+      [addNotification]
+    );
+
+    const handleNewWindow = useCallback(async () => {
+      try {
+        await openEmptyWindow();
+      } catch (error) {
+        console.error("Failed to open a new window:", error);
+        addNotification("Couldn't open a new window", "error");
+      }
+    }, [addNotification]);
+
+    const handleOpenFolderInNewWindow = useCallback(async () => {
+      try {
+        // `openFolder` only picks the folder; the new window reads it itself.
+        const folderData = await openFolder();
+        if (folderData) {
+          await handleOpenInNewWindow(folderData.folderPath, folderData.folderName);
+        }
+      } catch (error) {
+        console.error("Failed to open folder in new window:", error);
+        addNotification("Failed to open folder: " + error.message, "error");
+      }
+    }, [addNotification, handleOpenInNewWindow]);
+
     // Expose methods to parent via ref
     useImperativeHandle(
       ref,
@@ -484,8 +646,16 @@ const Sidebar = forwardRef(
         handleNewNote,
         handleNewFolder,
         handleOpenFolder,
+        handleOpenFolderInNewWindow,
+        handleNewWindow,
       }),
-      [handleNewNote, handleNewFolder, handleOpenFolder]
+      [
+        handleNewNote,
+        handleNewFolder,
+        handleOpenFolder,
+        handleOpenFolderInNewWindow,
+        handleNewWindow,
+      ]
     );
 
     const handleSave = useCallback(async () => {
@@ -600,8 +770,20 @@ const Sidebar = forwardRef(
     );
 
     const getDeleteMessage = useCallback(
-      (item) => {
-        if (!item) return;
+      (targets) => {
+        const list = Array.isArray(targets) ? targets : [];
+        if (list.length === 0) return "";
+
+        if (list.length > 1) {
+          const noteCount = list.filter((entry) => entry.type === "note").length;
+          const folderCount = list.length - noteCount;
+          const parts = [];
+          if (noteCount > 0) parts.push(`${noteCount} note${noteCount !== 1 ? "s" : ""}`);
+          if (folderCount > 0) parts.push(`${folderCount} folder${folderCount !== 1 ? "s" : ""}`);
+          return `Are you sure you want to delete ${parts.join(" and ")}? Anything inside the folders goes too. This action cannot be undone.`;
+        }
+
+        const item = list[0];
 
         const collectDescendants = (id) => {
           const children = items.filter((entry) => entry.parentId === id);
@@ -637,45 +819,72 @@ const Sidebar = forwardRef(
       [items]
     );
 
-    const requestDeleteItem = useCallback((item) => {
-      if (!item) return;
-      setPendingDeleteItem(item);
-    }, []);
-
-    const handleDeleteItem = useCallback(
-      async (item) => {
-        if (!item) return;
-
-        try {
-          const { undoLastDelete } = useNotesStore.getState();
-          const hasFilePath = Boolean(item.filePath);
-          await useNotesStore.getState().deleteItem(item.id);
-
-          addNotification(
-            `${item.type === "note" ? "Note" : "Folder"} deleted`,
-            "success",
-            hasFilePath ? 5000 : 3000,
-            hasFilePath
-              ? {
-                  label: "Undo",
-                  callback: async () => {
-                    const restored = await undoLastDelete();
-                    addNotification(
-                      restored ? "Delete undone" : "Failed to undo delete",
-                      restored ? "success" : "error"
-                    );
-                  },
-                }
-              : null
-          );
-        } catch (error) {
-          console.error("Delete failed:", error);
-          addNotification("Delete failed: " + error.message, "error");
-        } finally {
-          setPendingDeleteItem(null);
-        }
+    const requestDeleteItem = useCallback(
+      (item) => {
+        const targets = resolveActionTargets(item);
+        if (targets.length === 0) return;
+        setPendingDeleteItems(targets);
       },
-      [addNotification]
+      [resolveActionTargets]
+    );
+
+    const handleDeleteItems = useCallback(
+      async (targets) => {
+        const list = Array.isArray(targets) ? targets : [];
+        if (list.length === 0) return;
+
+        const { undoLastDelete, deleteItem } = useNotesStore.getState();
+        const failures = [];
+        let deleted = 0;
+
+        for (const item of list) {
+          try {
+            await deleteItem(item.id);
+            deleted += 1;
+          } catch (error) {
+            console.error("Delete failed:", error);
+            failures.push(item.name);
+          }
+        }
+
+        clearTreeSelection();
+        setPendingDeleteItems([]);
+
+        if (failures.length > 0) {
+          addNotification(
+            `Could not delete ${failures.length === 1 ? failures[0] : `${failures.length} items`}`,
+            "error"
+          );
+        }
+
+        if (deleted === 0) return;
+
+        // Undo restores the last delete only, so it is offered for a single
+        // item rather than implying it can bring a whole batch back.
+        const single = deleted === 1 && list.length === 1 ? list[0] : null;
+        const canUndo = Boolean(single?.filePath);
+
+        addNotification(
+          single
+            ? `${single.type === "note" ? "Note" : "Folder"} deleted`
+            : `${deleted} item${deleted !== 1 ? "s" : ""} deleted`,
+          "success",
+          canUndo ? 5000 : 3000,
+          canUndo
+            ? {
+                label: "Undo",
+                callback: async () => {
+                  const restored = await undoLastDelete();
+                  addNotification(
+                    restored ? "Delete undone" : "Failed to undo delete",
+                    restored ? "success" : "error"
+                  );
+                },
+              }
+            : null
+        );
+      },
+      [addNotification, clearTreeSelection]
     );
 
     const handleDropToRoot = async (event) => {
@@ -698,8 +907,16 @@ const Sidebar = forwardRef(
         return;
       }
 
+      const moving = resolveActionTargets(draggedItem);
+
       try {
-        await moveItemToRoot(draggedItem.id);
+        for (const entry of moving) {
+          await moveItemToRoot(entry.id);
+        }
+        if (moving.length > 1) {
+          addNotification(`Moved ${moving.length} items`, "success", 2200);
+          clearTreeSelection();
+        }
       } catch (error) {
         console.error("Failed to move item:", error);
         addNotification("Failed to move item: " + error.message, "error");
@@ -776,6 +993,48 @@ const Sidebar = forwardRef(
       setTreeScrollTop(viewport.scrollTop);
     }, [flattenedTreeRows.length, useVirtualizedTree]);
 
+    // Scroll a newly created folder or note into view and mark it, so creating
+    // one in a large or scrolled vault visibly does something. Matches what
+    // VS Code and Obsidian do when they add a row to the explorer.
+    useEffect(() => {
+      if (!revealRequest?.id) return;
+
+      // A request for a row that never appears — created in a folder the user
+      // collapsed a moment later — would otherwise sit there and steal focus on
+      // some unrelated tree change much later.
+      if (Date.now() - revealRequest.nonce > 5000) {
+        clearReveal();
+        return;
+      }
+
+      const index = flattenedTreeRows.findIndex((row) => row.item.id === revealRequest.id);
+      if (index === -1) {
+        // The row is not on screen yet (its parent may still be expanding); the
+        // next tree render will bring this effect back with the row in place.
+        return;
+      }
+
+      setSelectedIds(new Set([revealRequest.id]));
+      selectionAnchorRef.current = revealRequest.id;
+
+      const viewport = sidebarRef.current;
+      if (viewport) {
+        requestAnimationFrame(() => {
+          const row = viewport.querySelector(`[data-item-id="${CSS.escape(revealRequest.id)}"]`);
+          if (row) {
+            scrollItemIntoView(viewport, row);
+            row.focus({ preventScroll: true });
+          } else if (useVirtualizedTree) {
+            // Virtualized rows outside the rendered window have no element to
+            // scroll to, so go by index and let the row focus itself once drawn.
+            focusTreeIndexRef.current?.(index);
+          }
+        });
+      }
+
+      clearReveal();
+    }, [revealRequest, flattenedTreeRows, useVirtualizedTree, clearReveal]);
+
     const focusTreeIndex = useCallback(
       (index) => {
         const viewport = sidebarRef.current;
@@ -804,8 +1063,14 @@ const Sidebar = forwardRef(
       [flattenedTreeRows.length, virtualTreeRowHeight]
     );
 
+    focusTreeIndexRef.current = focusTreeIndex;
+
     useEffect(() => {
-      if (typeof window === "undefined" || !window.__TAURI__) {
+      // `window.__TAURI__` only exists when `withGlobalTauri` is enabled, which
+      // it is not — so this whole block used to return early and the File menu's
+      // items were never wired to anything. `__TAURI_INTERNALS__` is the object
+      // the API modules themselves go through, and it is always there.
+      if (typeof window === "undefined" || !window.__TAURI_INTERNALS__) {
         return undefined;
       }
 
@@ -815,7 +1080,8 @@ const Sidebar = forwardRef(
       const registerListeners = async () => {
         const attach = async (eventName, handler) => {
           try {
-            const unlisten = await listen(eventName, async () => {
+            // Addressed to the focused window, so this listener names itself.
+            const unlisten = await listenForWindow(eventName, async () => {
               try {
                 await handler();
               } catch (error) {
@@ -835,6 +1101,7 @@ const Sidebar = forwardRef(
 
         await attach("menu://new-note", handleNewNote);
         await attach("menu://new-folder", handleNewFolder);
+        await attach("menu://new-window", handleNewWindow);
         await attach("menu://open-file", handleOpenFile);
         await attach("menu://open-folder", handleOpenFolder);
         await attach("menu://save-note", handleSave);
@@ -857,6 +1124,7 @@ const Sidebar = forwardRef(
     }, [
       handleNewNote,
       handleNewFolder,
+      handleNewWindow,
       handleOpenFile,
       handleOpenFolder,
       handleSave,
@@ -1130,27 +1398,48 @@ const Sidebar = forwardRef(
                     {recentWorkspaces
                       .filter((ws) => ws.path !== rootFolderPath)
                       .map((ws) => (
-                        <button
+                        <div
                           key={ws.path}
-                          onClick={async () => {
-                            setShowWorkspaceSwitcher(false);
-                            try {
-                              // No `files`: the store reads the folder itself,
-                              // so the ignore patterns apply here too.
-                              await loadFolderFromSystem({
-                                folderPath: ws.path,
-                                folderName: ws.name,
-                              });
-                            } catch (err) {
-                              addNotification("Could not open workspace: " + err.message, "error");
-                            }
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+                          className="group flex items-stretch text-text-secondary hover:bg-overlay-light"
                         >
-                          <span className="truncate" title={ws.path || ws.name}>
-                            {ws.name}
-                          </span>
-                        </button>
+                          <button
+                            onClick={async () => {
+                              setShowWorkspaceSwitcher(false);
+                              try {
+                                // No `files`: the store reads the folder itself,
+                                // so the ignore patterns apply here too.
+                                await loadFolderFromSystem({
+                                  folderPath: ws.path,
+                                  folderName: ws.name,
+                                });
+                              } catch (err) {
+                                addNotification(
+                                  "Could not open workspace: " + err.message,
+                                  "error"
+                                );
+                              }
+                            }}
+                            className="flex-1 min-w-0 flex items-center gap-2 pl-3 pr-1 py-2 text-left text-xs hover:text-text-primary transition-colors"
+                          >
+                            <span className="truncate" title={ws.path || ws.name}>
+                              {ws.name}
+                            </span>
+                          </button>
+                          {/* Kept out of the switch button so one click swaps
+                              this window's vault and the other opens a second
+                              window — the two are easy to confuse otherwise. */}
+                          <button
+                            onClick={() => {
+                              setShowWorkspaceSwitcher(false);
+                              handleOpenInNewWindow(ws.path, ws.name);
+                            }}
+                            className="shrink-0 px-2.5 flex items-center text-text-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-accent transition-opacity"
+                            title="Open in a new window"
+                            aria-label={`Open ${ws.name} in a new window`}
+                          >
+                            <WindowIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       ))}
                     <div className="mx-3 my-1 border-t border-border" />
                   </>
@@ -1177,6 +1466,26 @@ const Sidebar = forwardRef(
                     />
                   </svg>
                   Open another folder…
+                </button>
+                <button
+                  onClick={() => {
+                    setShowWorkspaceSwitcher(false);
+                    handleNewWindow();
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+                >
+                  <WindowIcon className="w-3.5 h-3.5 shrink-0" />
+                  New empty window
+                </button>
+                <button
+                  onClick={() => {
+                    setShowWorkspaceSwitcher(false);
+                    handleOpenFolderInNewWindow();
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+                >
+                  <WindowIcon className="w-3.5 h-3.5 shrink-0" />
+                  Open a folder in a new window…
                 </button>
               </div>
             </>
@@ -1420,6 +1729,13 @@ const Sidebar = forwardRef(
               ? (event) => setTreeScrollTop(event.currentTarget.scrollTop)
               : undefined
           }
+          onMouseDown={(event) => {
+            // Clicking the empty space under the tree drops the selection, the
+            // same as clicking a single row does.
+            if (!(event.target instanceof Element)) return;
+            if (event.target.closest("[data-treeitem-row='true']")) return;
+            clearTreeSelection();
+          }}
           onMouseMove={draggedItem ? handleTreeMouseMove : undefined}
           onMouseLeave={draggedItem ? handleTreeMouseLeave : undefined}
           onMouseUp={draggedItem ? handleDropToRoot : undefined}
@@ -1571,6 +1887,8 @@ const Sidebar = forwardRef(
                       reorderTarget={reorderTarget}
                       setReorderTarget={setReorderTarget}
                       onReorder={handleReorder}
+                      selectedIds={selectedIds}
+                      onRowActivate={handleRowActivate}
                       filteredItems={null}
                     />
                   </div>
@@ -1599,6 +1917,8 @@ const Sidebar = forwardRef(
                 reorderTarget={reorderTarget}
                 setReorderTarget={setReorderTarget}
                 onReorder={handleReorder}
+                selectedIds={selectedIds}
+                onRowActivate={handleRowActivate}
                 filteredItems={isTreeFiltered ? filteredItems : null}
               />
             ))
@@ -1824,6 +2144,10 @@ const Sidebar = forwardRef(
             x={contextMenu.x}
             y={contextMenu.y}
             item={contextMenu.item}
+            selectionCount={
+              selectedIds.has(contextMenu.item.id) && selectedIds.size > 1 ? selectedIds.size : 0
+            }
+            onDeleteSelection={() => requestDeleteItem(contextMenu.item)}
             onClose={() => setContextMenu(null)}
             onRename={handleRename}
             onShowTemplate={(parentId) => {
@@ -1832,14 +2156,18 @@ const Sidebar = forwardRef(
           />
         )}
         <ConfirmDialog
-          isOpen={Boolean(pendingDeleteItem)}
-          title={`Delete ${pendingDeleteItem?.type === "folder" ? "Folder" : "Note"}`}
-          message={getDeleteMessage(pendingDeleteItem) || ""}
+          isOpen={pendingDeleteItems.length > 0}
+          title={
+            pendingDeleteItems.length > 1
+              ? `Delete ${pendingDeleteItems.length} Items`
+              : `Delete ${pendingDeleteItems[0]?.type === "folder" ? "Folder" : "Note"}`
+          }
+          message={getDeleteMessage(pendingDeleteItems)}
           confirmLabel="Delete"
           cancelLabel="Cancel"
           variant="danger"
-          onConfirm={() => handleDeleteItem(pendingDeleteItem)}
-          onCancel={() => setPendingDeleteItem(null)}
+          onConfirm={() => handleDeleteItems(pendingDeleteItems)}
+          onCancel={() => setPendingDeleteItems([])}
         />
       </aside>
     );

@@ -24,6 +24,8 @@ const TreeItem = ({
   reorderTarget,
   setReorderTarget,
   onReorder,
+  selectedIds,
+  onRowActivate,
   renderChildren = true,
   treeIndex = null,
   virtualTree = null,
@@ -58,6 +60,9 @@ const TreeItem = ({
     : allChildren;
 
   const isSelected = item.type === "note" && currentNoteId === item.id;
+  // Part of a Ctrl/Cmd- or Shift-click selection. Notes and folders alike, since
+  // a selection is something you delete or drag, not something you open.
+  const isMultiSelected = Boolean(selectedIds?.has(item.id));
   const isBeingDragged = draggedItem?.id === item.id;
 
   // Get cached tags from store
@@ -145,6 +150,10 @@ const TreeItem = ({
     if (isRenaming) return;
     if (e.button !== 0) return;
 
+    // Captured here because the click is decided on mouseup, by which time the
+    // original event — and its modifier keys — is gone.
+    const modifiers = { meta: e.metaKey || e.ctrlKey, shift: e.shiftKey };
+
     isDraggingRef.current = false;
     dragStartTimeRef.current = Date.now();
 
@@ -174,7 +183,7 @@ const TreeItem = ({
           isDraggingRef.current = false;
         }, 100);
       } else if (dragDuration < 300) {
-        handleClick();
+        handleClick(modifiers);
       }
     };
 
@@ -182,8 +191,12 @@ const TreeItem = ({
     document.addEventListener("mouseup", handleMouseUp);
   };
 
-  const handleClick = async () => {
+  const handleClick = async (modifiers = {}) => {
     if (isDraggingRef.current) return;
+
+    // Ctrl/Cmd- and Shift-click build a selection instead of opening anything —
+    // opening a note on a Shift-click would fight the range you are selecting.
+    if (onRowActivate?.(item, modifiers)) return;
 
     if (isFolder) {
       toggleFolder(item.id);
@@ -287,6 +300,13 @@ const TreeItem = ({
   const handleRowKeyDown = (e) => {
     if (isRenaming) return;
 
+    // Escape drops a multi-row selection, the way it does in every file browser.
+    if (e.key === "Escape" && isMultiSelected) {
+      e.preventDefault();
+      onRowActivate?.(item, { clear: true });
+      return;
+    }
+
     if (e.key === "F2") {
       e.preventDefault();
       beginRename();
@@ -352,7 +372,7 @@ const TreeItem = ({
       case "Enter":
       case " ":
         e.preventDefault();
-        handleClick();
+        handleClick({ meta: e.metaKey || e.ctrlKey, shift: e.shiftKey });
         break;
       default:
         break;
@@ -447,6 +467,7 @@ const TreeItem = ({
       metadataParts.push(`tags ${noteTags.join(", ")}`);
     }
   }
+  if (isMultiSelected) metadataParts.push("in selection");
   const treeItemLabel = `${isFolder ? "Folder" : "Note"} ${item.name}${
     metadataParts.length ? `, ${metadataParts.join(", ")}` : ""
   }`;
@@ -481,6 +502,7 @@ const TreeItem = ({
           flex items-center select-none relative
           ${rowDensityClass} transition-colors duration-150
           ${isSelected ? "bg-item-active text-text-primary font-medium" : "text-text-secondary"}
+          ${isMultiSelected ? "bg-accent-dim text-text-primary ring-1 ring-inset ring-accent/30" : ""}
           ${!isBeingDragged && !isRenaming ? "hover:bg-item-hover hover:text-text-primary cursor-pointer" : ""}
           ${showDropHighlight ? "bg-accent-dim text-text-primary ring-1 ring-accent/40 ring-inset" : ""}
           ${isBeingDragged ? "cursor-grabbing" : "cursor-grab"}
@@ -506,7 +528,7 @@ const TreeItem = ({
         aria-expanded={isFolder ? isExpanded : undefined}
         aria-label={treeItemLabel}
         aria-level={level + 1}
-        aria-selected={!isFolder ? isSelected : undefined}
+        aria-selected={isMultiSelected || (!isFolder ? isSelected : undefined)}
         onMouseDown={handleMouseDown}
         onKeyDown={handleRowKeyDown}
         onFocus={handleRowFocus}
@@ -689,6 +711,8 @@ const TreeItem = ({
                 reorderTarget={reorderTarget}
                 setReorderTarget={setReorderTarget}
                 onReorder={onReorder}
+                selectedIds={selectedIds}
+                onRowActivate={onRowActivate}
                 renderChildren={renderChildren}
               />
             ))}

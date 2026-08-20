@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { listenForWindow } from "../utils/windowEvents";
 import { watchFolder, stopWatching } from "../utils/fileSystem";
 import { isSelfWriteEcho } from "../utils/selfWrite";
 import useNotesStore from "../store/notesStore";
@@ -64,7 +65,9 @@ export function useFileWatcher() {
         logWatcherDebug("File watcher started:", rootFolderPath);
 
         // Listen for file change events from Rust backend
-        unlistenFileChangeRef.current = await listen("file-change", (event) => {
+        // The watcher reports only to the window that started it, so this
+        // listener has to name that window — a bare `listen` would never hear it.
+        unlistenFileChangeRef.current = await listenForWindow("file-change", (event) => {
           if (!mounted) return;
 
           // Our own saves come back as file-change events. Rescanning the vault

@@ -12,6 +12,9 @@ import useSettingsStore, { matchesKeymap, normalizeSaveMode } from "./store/sett
 import useUIStore from "./store/uiStore";
 import { exportWorkspaceAsZip } from "./utils/backup";
 import { checkForAppUpdate } from "./utils/appUpdater";
+import { windowVaultPath } from "./utils/windowVault";
+import { listenForWindow } from "./utils/windowEvents";
+import { startSettingsSync } from "./utils/settingsSync";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -106,14 +109,28 @@ function App() {
     };
   }, [addNotification]);
 
+  // Settings are shared by every window; this keeps the copies in step.
+  useEffect(() => startSettingsSync(), []);
+
   useEffect(() => {
     if (!import.meta.env.PROD) return;
+    // One check per app, not per window: the main window owns it.
+    if (windowVaultPath) return undefined;
 
     const timeoutId = window.setTimeout(() => {
       checkForAppUpdate({ silent: true });
     }, 3000);
 
-    return () => window.clearTimeout(timeoutId);
+    // The launch check often lands before the network is up — on a laptop
+    // opening Marky before Wi-Fi reconnects, it always does. Rather than
+    // reporting that as a problem, wait for the connection and look again.
+    const onOnline = () => checkForAppUpdate({ silent: true });
+    window.addEventListener("online", onOnline);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener("online", onOnline);
+    };
   }, []);
 
   useEffect(() => {
@@ -139,8 +156,20 @@ function App() {
 
   useEffect(() => {
     if (!scheduleRequest) return;
-    setScheduleTemplate(scheduleRequest.template ?? null);
-    setShowScheduleModal(true);
+
+    // A schedule is a template plus a rhythm, so with no template named — the
+    // dashboard's "New schedule" — the template picker is the first step.
+    // Sending it straight to the schedule modal opened nothing at all, since
+    // that modal renders null without a template.
+    if (scheduleRequest.template) {
+      setScheduleTemplate(scheduleRequest.template);
+      setShowScheduleModal(true);
+    } else {
+      setTemplateParentId(null);
+      setTemplateScheduleMode(true);
+      setShowTemplateModal(true);
+    }
+
     clearScheduleRequest();
   }, [scheduleRequest, clearScheduleRequest]);
 
@@ -191,6 +220,7 @@ function App() {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [scheduleTemplate, setScheduleTemplate] = useState(null);
+  const [templateScheduleMode, setTemplateScheduleMode] = useState(false);
   const [templateParentId, setTemplateParentId] = useState(null);
   const [renamingItem, setRenamingItem] = useState(null);
 
@@ -221,6 +251,7 @@ function App() {
   );
 
   const handleScheduleTemplate = useCallback((template) => {
+    setTemplateScheduleMode(false);
     setScheduleTemplate(template);
     setShowScheduleModal(true);
   }, []);
@@ -334,6 +365,12 @@ function App() {
           break;
         case "openFolder":
           sidebarRef.current?.handleOpenFolder?.();
+          break;
+        case "openFolderInNewWindow":
+          sidebarRef.current?.handleOpenFolderInNewWindow?.();
+          break;
+        case "newWindow":
+          sidebarRef.current?.handleNewWindow?.();
           break;
         case "save":
           // Trigger save in editor
@@ -643,7 +680,9 @@ function App() {
 
     const attach = async (eventName, handler) => {
       try {
-        const unlisten = await listen(eventName, () => {
+        // Menu actions are addressed to the focused window, so the listener has
+        // to name this one — see `listenForWindow`.
+        const unlisten = await listenForWindow(eventName, () => {
           if (isMounted) handler();
         });
         if (isMounted) {
@@ -735,6 +774,11 @@ function App() {
   );
 
   useEffect(() => {
+    // "Open with Marky" is an application-level event, so it goes to one
+    // window: the main one. Without this guard every open vault window would
+    // drain the queue and open the same file as a loose tab of its own.
+    if (windowVaultPath) return undefined;
+
     let isMounted = true;
     const unlisteners = [];
 
@@ -901,7 +945,11 @@ function App() {
         {showTemplateModal && (
           <TemplateModal
             isOpen={showTemplateModal}
-            onClose={() => setShowTemplateModal(false)}
+            scheduleByDefault={templateScheduleMode}
+            onClose={() => {
+              setShowTemplateModal(false);
+              setTemplateScheduleMode(false);
+            }}
             onSelectTemplate={handleTemplateSelect}
             onScheduleTemplate={handleScheduleTemplate}
           />

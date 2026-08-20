@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import CodeMirrorEditor from "./editor/CodeMirrorEditor";
 import EditorScrollFade from "./editor/EditorScrollFade";
 import useSettingsStore, {
@@ -34,12 +35,13 @@ const currentWindow = () => {
 /**
  * A window that edits exactly one file.
  *
- * Deliberately *not* a second copy of the app. Every window of the same origin
- * shares one `localStorage`, and `notesStore` persists there — two full app
- * instances would each hold a stale copy of the vault and clobber the other's
- * writes. This window never touches the notes store: it reads its file, edits
- * it, and writes it back, so the only shared state is the settings the editor
- * reads to style itself.
+ * Deliberately *not* a second copy of the app. This window is a view onto one
+ * file in a vault another window already has open, so two notes stores would
+ * each hold a copy of the same vault and clobber the other's writes. (A window
+ * that owns a *different* vault is fine and supported — see `vaultWindows.js`,
+ * where the separate `localStorage` key keeps the two apart.) This window never
+ * touches the notes store: it reads its file, edits it, and writes it back, so
+ * the only shared state is the settings the editor reads to style itself.
  *
  * Coordination with the main window happens through the file itself. Saving
  * here fires the workspace watcher there, which is the same path an edit from
@@ -258,12 +260,20 @@ const NoteWindow = ({ filePath }) => {
       ?.catch(() => {});
 
     // Quitting is an application event, not a window one, so it arrives here
-    // rather than through `onCloseRequested`. This window only writes its own
-    // file and leaves `confirm_exit` to the main window — Rust's timeout covers
-    // the case where this is the only window left.
+    // rather than through `onCloseRequested`. Every window that was asked to
+    // flush has to answer: Rust holds the quit until the last one reports in,
+    // so a silent window would stall the quit until its timeout fires.
     let unlistenExit = null;
     listen("app-exit-requested", async () => {
-      if (contentRef.current !== savedContent) await saveRef.current();
+      try {
+        if (contentRef.current !== savedContent) await saveRef.current();
+      } finally {
+        try {
+          await invoke("confirm_exit");
+        } catch (error) {
+          console.error("Failed to confirm exit:", error);
+        }
+      }
     })
       .then((off) => {
         unlistenExit = off;
