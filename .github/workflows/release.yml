@@ -175,3 +175,66 @@ jobs:
           prerelease: ${{ needs.release-metadata.outputs.prerelease }}
           includeUpdaterJson: true
           args: ${{ matrix.args }}
+
+  verify-updater:
+    name: Verify updater manifest
+    needs: [release-metadata, release]
+    # Runs whatever the builds did: a red build already says *something* broke,
+    # but not that the release shipped binaries the updater cannot see.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Each build job merges its own platform into one shared `latest.json` on
+      # the release. A job that dies after uploading its binaries but before
+      # that merge — v1.8.0's macOS arm64 job hit a GitHub API 404 on its last
+      # upload — leaves the release complete and the manifest a platform short.
+      # Nothing downstream notices: the updater looks up a key that is not
+      # there and tells those users they are up to date.
+      - name: Check every platform is in latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-metadata.outputs.tag_name }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # The keys the updater resolves: `{os}-{arch}`, one per build.
+          EXPECTED="darwin-aarch64 darwin-x86_64 linux-aarch64 linux-x86_64 windows-aarch64 windows-x86_64"
+
+          gh release download "$TAG" --repo "$REPO" --pattern latest.json --dir . --clobber
+          gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name' | sort > assets.txt
+
+          missing=""
+          unsigned=""
+          dangling=""
+
+          for key in $EXPECTED; do
+            entry="$(jq -c --arg k "$key" '.platforms[$k] // empty' latest.json)"
+            if [ -z "$entry" ]; then
+              missing="$missing $key"
+              continue
+            fi
+
+            [ -n "$(printf '%s' "$entry" | jq -r '.signature // ""')" ] || unsigned="$unsigned $key"
+
+            # Compared against the release's asset list rather than downloaded,
+            # so one flaky transfer cannot fail an otherwise sound release.
+            file="$(printf '%s' "$entry" | jq -r '.url // ""' | sed 's#.*/##')"
+            grep -qxF "$file" assets.txt || dangling="$dangling $key($file)"
+          done
+
+          if [ -n "$missing$unsigned$dangling" ]; then
+            echo "::error::latest.json is incomplete — the app will report \"up to date\" on the platforms below."
+            [ -n "$missing" ] && echo "  missing from the manifest:$missing"
+            [ -n "$unsigned" ] && echo "  present but unsigned:$unsigned"
+            [ -n "$dangling" ] && echo "  pointing at an asset that is not on the release:$dangling"
+            echo
+            echo "The binaries are usually already uploaded; re-running the failed"
+            echo "build restores its entry without a new tag:"
+            echo "  gh run rerun $RUN_ID --failed"
+            exit 1
+          fi
+
+          echo "latest.json covers all six platforms, each signed and pointing at an asset on the release."
