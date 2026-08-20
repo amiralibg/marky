@@ -132,6 +132,12 @@ export default defineConfig({
     globals: true,
     setupFiles: "./src/test/setup.js",
     css: true,
+    // pnpm keeps a full copy of every local workspace package under
+    // .pnpm-store, tests included, so the mcp-server suite was being collected
+    // and run twice — once from source and once from a snapshot that only
+    // refreshes on install. The stale copy passes long after the real one
+    // would fail, which is the worst way for a suite to be green.
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.pnpm-store/**", "**/src-tauri/target/**"],
   },
   build: {
     rollupOptions: {

@@ -111,6 +111,23 @@ export const markyTheme = EditorView.theme(
       // can declare, so a plain `.cm-content { padding-inline }` there loses.
       padding: "2rem var(--marky-editor-gutter, 2.25rem) 40vh",
       lineHeight: "1.9",
+      // `.cm-content` is a flex item of `.cm-scroller`, so it starts at
+      // `min-width: auto` — it refuses to shrink below its own min-content
+      // width. Ordinary lines make that harmless, because line wrapping brings
+      // `overflow-wrap: anywhere` and their min-content is one character.
+      //
+      // Live mode's rendered blocks are the exception. `.markdown-preview`
+      // deliberately resets `overflow-wrap`/`word-break` back to `normal` (see
+      // the comment on that rule in MarkdownPreview.css — `anywhere` was
+      // collapsing table columns), so a fenced block's min-content becomes its
+      // longest unbreakable line, clamped by that rule's `max-width:
+      // var(--editor-measure)`. The `pre` inside still scrolls on its own, but
+      // the whole editor was scrolling with it: whenever the editor pane was
+      // narrower than the configured measure, `.cm-content` held itself at the
+      // measure and the difference became horizontal scroll across the note.
+      //
+      // Zero lets it shrink to the scroller. `flex-grow: 2` still fills.
+      minWidth: 0,
     },
     ".cm-rtl-line": {
       textAlign: "right",

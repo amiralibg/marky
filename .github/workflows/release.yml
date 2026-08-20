@@ -106,15 +106,24 @@ jobs:
         # timeout apt blocks indefinitely on an unreachable mirror rather than
         # falling back to the next one, and azure.archive.ubuntu.com does go
         # dark on these runners. Fail in minutes and let the job be re-run.
-        timeout-minutes: 10
+        #
+        # They belong on `install` as much as on `update`, which is what sank
+        # the v1.7.0 Linux x64 build: `update` finished fine, then `install`
+        # stalled partway through libwebkit2gtk-4.1-0 (27 MB) and sat there
+        # until the step timeout, so that release shipped with no x86_64 deb,
+        # rpm or AppImage at all. An unadorned `install` has no timeout to hit.
+        timeout-minutes: 15
         env:
           DEBIAN_FRONTEND: noninteractive
+          # Retries here are per-file, so a mirror that dies mid-download costs
+          # seconds rather than the whole job.
+          APT_OPTS: >-
+            -o Acquire::Retries=3
+            -o Acquire::http::Timeout=30
+            -o Acquire::https::Timeout=30
         run: |
-          sudo apt-get update \
-            -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=15 \
-            -o Acquire::https::Timeout=15
-          sudo apt-get install -y \
+          sudo apt-get update $APT_OPTS
+          sudo apt-get install -y $APT_OPTS \
             libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
@@ -146,6 +155,11 @@ jobs:
 
       - name: Lint frontend
         run: pnpm lint
+
+      # A tag can be pushed straight to a branch that CI never gated, so the
+      # suite runs here too rather than trusting that a pull request caught it.
+      - name: Test frontend
+        run: pnpm test
 
       - name: Build and publish release
         uses: tauri-apps/tauri-action@v0.6.2

@@ -17,6 +17,9 @@ jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
+    # Lint, test and build take about three minutes between them. The six-hour
+    # default just means a wedged step blocks the queue for an afternoon.
+    timeout-minutes: 20
 
     steps:
       - name: Checkout

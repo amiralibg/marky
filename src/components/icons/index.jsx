@@ -261,8 +261,20 @@ export const SearchIcon = (props) => (
   </Icon>
 );
 
-export const SidebarIcon = (props) => (
-  <Icon {...props}>
+/**
+ * The sidebar toggle, from reicon's `sidebar-left2`.
+ *
+ * `open` flips the chevron so it points the way the next click moves the panel:
+ * left to collapse it, right to bring it back.
+ *
+ * An animated version of this was tried and dropped. The button renders at
+ * 14px, where a 24-unit viewBox leaves the chevron about a pixel and a half of
+ * travel — too little to read as motion even when the transition does run, and
+ * inside a `<clipPath>` it often doesn't, since the browser has no rendered box
+ * to transition. Two path strings say the same thing and always land.
+ */
+export const SidebarIcon = ({ open = true, className = "w-4 h-4", ...props }) => (
+  <Icon className={className} {...props}>
     <path
       d="M21.97 15V9C21.97 4 19.97 2 14.97 2H8.96997C3.96997 2 1.96997 4 1.96997 9V15C1.96997 20 3.96997 22 8.96997 22H14.97C19.97 22 21.97 20 21.97 15Z"
       stroke="currentColor"
@@ -277,8 +289,14 @@ export const SidebarIcon = (props) => (
       strokeLinecap="round"
       strokeLinejoin="round"
     />
+    {/* Mirrored about x=13.69, the chevron's own midline, so both directions
+        sit in exactly the same place. */}
     <path
-      d="M14.97 9.43994L12.41 11.9999L14.97 14.5599"
+      d={
+        open
+          ? "M14.97 9.43994L12.41 11.9999L14.97 14.5599"
+          : "M12.41 9.43994L14.97 11.9999L12.41 14.5599"
+      }
       stroke="currentColor"
       strokeWidth="1.5"
       strokeLinecap="round"
