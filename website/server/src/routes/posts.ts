@@ -25,11 +25,13 @@ router.get("/", async (req, res, next) => {
       ...(status !== "all" ? { status } : {}),
       ...(type !== "all" ? { type } : {}),
     };
-    // Closed work sinks below everything that is still actionable.
+    // "Most voted" has to actually lead with votes. It used to sort on `status`
+    // first, which mongo orders lexically — so every "planned" idea outranked a
+    // 50-vote "open" one purely on the letter p.
     const order: [string, 1 | -1][] =
       sort === "new"
         ? [["createdAt", -1]]
-        : [["status", -1], ["voteCount", -1], ["createdAt", -1]];
+        : [["voteCount", -1], ["createdAt", -1]];
 
     const posts = await Post.find(filter)
       .sort(order)
@@ -54,8 +56,16 @@ router.get("/", async (req, res, next) => {
       }
     }
 
+    // Closed work sinks below everything still actionable. Done in memory
+    // rather than in the sort, so it reorders the top 200 by vote without
+    // distorting which 200 those are.
+    const ranked = posts
+      .map((post, index) => ({ post, index, closed: post.status === "closed" ? 1 : 0 }))
+      .sort((a, b) => a.closed - b.closed || a.index - b.index)
+      .map((entry) => entry.post);
+
     res.json({
-      posts: posts.map((post) => ({
+      posts: ranked.map((post) => ({
         id: post._id,
         title: post.title,
         body: post.body,
@@ -95,12 +105,27 @@ router.post("/:id/vote", requireUser, async (req: AuthedRequest, res, next) => {
     if (!(await Post.exists({ _id: postId }))) throw new HttpError(404, "Post not found.");
 
     const removed = await Vote.findOneAndDelete({ post: postId, user: req.user!.id });
-    const delta = removed ? -1 : 1;
-    if (!removed) await Vote.create({ post: postId, user: req.user!.id });
+    let delta = removed ? -1 : 1;
+    if (!removed) {
+      try {
+        await Vote.create({ post: postId, user: req.user!.id });
+      } catch (err) {
+        // Duplicate key: a double-tap raced us and the vote already exists.
+        // The caller's intent is satisfied, so report success without
+        // incrementing a second time.
+        if (!(typeof err === "object" && err !== null && "code" in err && err.code === 11000)) {
+          throw err;
+        }
+        delta = 0;
+      }
+    }
 
+    // Pipeline update rather than $inc so a lost race can never drive the
+    // denormalised count below zero. Schema validators do not run on
+    // findByIdAndUpdate, so min: 0 would not have caught it.
     const post = await Post.findByIdAndUpdate(
       postId,
-      { $inc: { voteCount: delta } },
+      [{ $set: { voteCount: { $max: [0, { $add: ["$voteCount", delta] }] } } }],
       { new: true }
     );
     res.json({ voted: !removed, voteCount: post?.voteCount ?? 0 });

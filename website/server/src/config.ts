@@ -17,6 +17,10 @@ export const config = {
   adminJwtSecret: required("ADMIN_JWT_SECRET"),
   adminEmail: required("ADMIN_EMAIL").toLowerCase(),
   adminPassword: required("ADMIN_PASSWORD"),
+  // Where the dashboard reads download counts from. Optional token only lifts
+  // the API rate limit; the counts are public either way.
+  githubRepo: process.env.GITHUB_REPO ?? "amiralibg/marky",
+  githubToken: process.env.GITHUB_TOKEN ?? "",
 };
 
 export const POST_STATUSES = ["open", "planned", "in-progress", "done", "closed"] as const;

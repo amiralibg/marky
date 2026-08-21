@@ -134,6 +134,24 @@ body {
   background-attachment: fixed;
 }
 
+/* The ruled paper and the purple bloom are marketing devices. Behind a dense
+   table the ruling fights the rows and the bloom tints every number in the top
+   right, so tools opt out: no background image, and a ground shifted a step
+   away from the marketing beige so the two never get mistaken for each other. */
+[data-canvas="plain"] {
+  --color-canvas: #eeece7;
+}
+
+[data-theme="dark"][data-canvas="plain"] {
+  --color-canvas: #191918;
+  --color-surface: #212120;
+}
+
+[data-canvas="plain"] body,
+[data-theme="dark"][data-canvas="plain"] body {
+  background-image: none;
+}
+
 [data-theme="dark"] body {
   background-image:
     linear-gradient(rgb(240 240 235 / 0.04) 1px, transparent 1px),
@@ -661,44 +679,90 @@ a:focus-visible {
   }
 }
 
-/* ---- Auth sheet / modal ---------------------------------------------------
-   Slides up as a bottom sheet on phones; on sm+ the same element is a centred
-   modal, so the entrance becomes a small settle instead of a slide. */
+/* ---- Sheets & modals ------------------------------------------------------
+   The same element is a bottom sheet on phones and a centred modal from sm up.
+   Positioning is done entirely by flexbox on the backdrop — never by a
+   transform — so these keyframes own the transform property outright. Tailwind
+   v4 compiles `-translate-x-1/2` to the *separate* `translate` property, and a
+   transform declared here used to compose with it and shove the dialog a full
+   width off-centre. */
 @keyframes sheet-up {
   from {
+    opacity: 0;
     transform: translateY(100%);
   }
   to {
+    opacity: 1;
     transform: none;
-  }
-}
-
-.sheet-pop {
-  animation: sheet-up 360ms cubic-bezier(0.2, 0.9, 0.25, 1);
-}
-
-@media (min-width: 640px) {
-  .sheet-pop {
-    /* The sm:-translate utilities position the dialog; fold the settle into
-       them rather than fighting over the transform property. */
-    animation: modal-settle 280ms cubic-bezier(0.2, 0.9, 0.25, 1);
-    transform: translate(-50%, -50%);
   }
 }
 
 @keyframes modal-settle {
   from {
     opacity: 0;
-    transform: translate(-50%, calc(-50% + 10px)) scale(0.98);
+    transform: translateY(8px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -50%);
+    transform: none;
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sheet-pop {
+  animation: sheet-up 340ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.sheet-backdrop {
+  animation: backdrop-in 200ms ease-out;
+}
+
+@media (min-width: 640px) {
+  .sheet-pop {
+    animation: modal-settle 240ms cubic-bezier(0.2, 0.9, 0.25, 1);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sheet-pop {
+  .sheet-pop,
+  .sheet-backdrop {
+    animation: none;
+  }
+}
+
+/* ---- Mobile nav panel -----------------------------------------------------
+   Drops out from under the header rather than sliding in from an edge: it is
+   part of the bar, and it should read that way. */
+@keyframes menu-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.menu-drop {
+  animation: menu-drop 200ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.menu-backdrop {
+  animation: backdrop-in 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-drop,
+  .menu-backdrop {
     animation: none;
   }
 }

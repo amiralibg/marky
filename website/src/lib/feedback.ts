@@ -33,11 +33,34 @@ export type AdminFeedbackPost = Omit<FeedbackPost, "author" | "voted"> & {
   authorName: string;
 };
 
+export type OsKey = "macos" | "windows" | "linux";
+
+export type ReleaseDownloads = {
+  tag: string;
+  publishedAt: string | null;
+  total: number;
+  byOs: Record<OsKey, number>;
+};
+
+export type DownloadStats = {
+  total: number;
+  byOs: Record<OsKey, number>;
+  latest: { tag: string; count: number; publishedAt: string | null } | null;
+  releases: number;
+  /** Newest first, capped by the server. */
+  perRelease: ReleaseDownloads[];
+  perReleaseAverage: number;
+  daysSinceLatest: number | null;
+  fetchedAt: string;
+};
+
 export type AdminStats = {
   totals: { posts: number; votes: number; users: number };
+  /** Null when the GitHub releases API could not be reached. */
+  downloads: DownloadStats | null;
   byStatus: Partial<Record<PostStatus, number>>;
   byType: Partial<Record<PostType, number>>;
-  daily: Array<{ date: string; posts: number }>;
+  daily: Array<{ date: string; posts: number; votes: number }>;
   top: Array<{ id: string; title: string; voteCount: number; status: PostStatus }>;
 };
 
@@ -128,6 +151,20 @@ export const api = {
       body: JSON.stringify(input),
     });
     session.write(data.token, data.user);
+    return data.user;
+  },
+
+  /**
+   * Re-checks the stored token against the server. Tokens last 30 days and the
+   * account behind one can be gone, so a session restored from localStorage is
+   * a claim, not a fact — without this the board shows you as signed in right
+   * up until your first vote silently fails.
+   */
+  async me() {
+    const stored = session.read();
+    if (!stored) throw new ApiError(401, "Not signed in.");
+    const data = await request<{ user: PublicUser }>("/api/auth/me");
+    session.write(stored.token, data.user);
     return data.user;
   },
 

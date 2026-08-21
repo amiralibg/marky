@@ -42,7 +42,7 @@ export const ROUTES: Route[] = [
     nav: "Feedback",
     title: "Feedback board — shape what Marky becomes",
     description:
-      "Request features, report bugs, and vote on what matters. Every idea lands in front of the person who builds Marky.",
+      "Ask for a feature, report a bug, or vote on what other people have asked for. One person reads all of it and ships what wins.",
     priority: "0.7",
     changefreq: "daily",
   },
