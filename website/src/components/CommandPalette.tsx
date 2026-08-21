@@ -45,6 +45,12 @@ export default function CommandPalette({ open, onClose, onToggleTheme, theme }: 
         run: () => navigate("/changelog"),
       },
       {
+        id: "feedback",
+        label: "Request a feature or report a bug",
+        hint: "Feedback",
+        run: () => navigate("/feedback"),
+      },
+      {
         id: "graph-view",
         label: "See the vault as a graph",
         hint: "Graph",

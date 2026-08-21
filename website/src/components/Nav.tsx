@@ -1,4 +1,6 @@
-import { Command, Moon, Sun } from "lucide-react";
+import { Command, Menu, Moon, Sun, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { GITHUB_REPO_URL } from "../lib/releases";
 import { Link } from "../lib/router";
 import type { Theme } from "../lib/theme";
@@ -43,9 +45,38 @@ const LINKS: NavLink[] = [
 ];
 
 export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Rotating the phone into landscape crosses the sm breakpoint and reveals the
+  // full bar; the panel has to stand down with it or it hangs over the page.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const wide = window.matchMedia("(min-width: 640px)");
+    const close = () => setMenuOpen(false);
+    wide.addEventListener("change", close);
+
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+
+    // Freeze the page under the panel. overflow-Y only — the stylesheet's
+    // `overflow-x: clip` on body is what keeps this header sticky.
+    const { body } = document;
+    const previous = body.style.overflowY;
+    body.style.overflowY = "hidden";
+    return () => {
+      wide.removeEventListener("change", close);
+      document.removeEventListener("keydown", onKey);
+      body.style.overflowY = previous;
+    };
+  }, [menuOpen]);
+
+  const active = (link: NavLink) => link.page && link.href === path;
+
   const linkClass = (link: NavLink) =>
     `rounded-sm px-3 py-2 text-[14px] font-medium transition-colors duration-200 hover:text-ink xl:px-4 ${
-      link.page && link.href === path ? "text-ink" : "text-ink/70"
+      active(link) ? "text-ink" : "text-ink/70"
     } ${link.wide ? "hidden lg:inline" : ""}`;
 
   return (
@@ -72,7 +103,7 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props
               <Link
                 key={link.href}
                 to={link.href}
-                aria-current={link.page && link.href === path ? "page" : undefined}
+                aria-current={active(link) ? "page" : undefined}
                 className={linkClass(link)}
               >
                 {link.label}
@@ -112,8 +143,82 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props
           >
             Download
           </Link>
+          {/* Below sm the primary nav is hidden entirely, so this is the only
+              way to reach anything but the home page. */}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-expanded={menuOpen}
+            aria-controls="mobile-menu"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-line bg-surface text-ink/70 transition-colors duration-200 hover:text-ink sm:hidden"
+          >
+            {menuOpen ? (
+              <X size={17} strokeWidth={2} aria-hidden />
+            ) : (
+              <Menu size={17} strokeWidth={2} aria-hidden />
+            )}
+          </button>
         </div>
       </div>
+
+      {menuOpen && (
+        <>
+          {/* Portalled to <body> on purpose. The header carries backdrop-blur,
+              which makes it a containing block for fixed-position descendants —
+              a `fixed` backdrop rendered inside it resolves against the 64px
+              bar instead of the viewport and collapses to nothing. */}
+          {createPortal(
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-hidden
+              onClick={() => setMenuOpen(false)}
+              className="menu-backdrop fixed inset-x-0 bottom-0 top-16 z-30 cursor-default bg-dusk/40 backdrop-blur-[2px] sm:hidden"
+            />,
+            document.body
+          )}
+          {/* The panel itself stays in the header: `absolute` resolves against
+              it correctly, and Tab order runs button → panel for free. */}
+          <nav
+            id="mobile-menu"
+            aria-label="Primary"
+            className="menu-drop absolute inset-x-0 top-full z-40 max-h-[calc(100vh-4rem)] overflow-y-auto overscroll-contain border-b border-line bg-canvas px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_16px_32px_-16px_rgb(28_27_24/0.35)] sm:hidden"
+          >
+            <ul className="divide-y divide-line">
+              {LINKS.map((link) => (
+                <li key={link.href}>
+                  {link.external ? (
+                    <a
+                      href={link.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex min-h-12 items-center justify-between py-3 text-[16px] font-medium text-ink/80"
+                    >
+                      {link.label}
+                      <span aria-hidden className="font-mono text-[12px] text-ink-faint">
+                        ↗
+                      </span>
+                    </a>
+                  ) : (
+                    <Link
+                      to={link.href}
+                      onClick={() => setMenuOpen(false)}
+                      aria-current={active(link) ? "page" : undefined}
+                      className={`flex min-h-12 items-center py-3 text-[16px] font-medium ${
+                        active(link) ? "text-ink" : "text-ink/80"
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </>
+      )}
     </header>
   );
 }

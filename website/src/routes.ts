@@ -37,10 +37,34 @@ export const ROUTES: Route[] = [
     priority: "0.8",
     changefreq: "weekly",
   },
+  {
+    path: "/feedback",
+    nav: "Feedback",
+    title: "Feedback board — shape what Marky becomes",
+    description:
+      "Ask for a feature, report a bug, or vote on what other people have asked for. One person reads all of it and ships what wins.",
+    priority: "0.7",
+    changefreq: "daily",
+  },
+];
+
+/**
+ * Pages that exist but stay out of the sitemap and the nav — the moderation
+ * panel. findRoute still resolves them so they get proper titles instead of
+ * the not-found fallback.
+ */
+const UNLISTED_ROUTES: Route[] = [
+  {
+    path: "/admin",
+    title: "Feedback admin — Marky",
+    description: "Moderation panel for the Marky feedback board.",
+    priority: "0.0",
+    changefreq: "yearly",
+  },
 ];
 
 export const HOME = ROUTES[0];
 
 export function findRoute(path: string): Route | null {
-  return ROUTES.find((route) => route.path === path) ?? null;
+  return [...ROUTES, ...UNLISTED_ROUTES].find((route) => route.path === path) ?? null;
 }

@@ -1,9 +1,13 @@
 services:
   website:
     build: .
-    ports:
-      - "8080:80"
+    container_name: marky-website
+    # No host port binding: Dokploy's Traefik routes your domain straight to
+    # the container on port 80, and a published 8080 could collide later.
     restart: always
+    depends_on:
+      server:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
       interval: 30s
@@ -15,3 +19,56 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  server:
+    build: ./server
+    container_name: marky-server
+    restart: always
+    environment:
+      PORT: "8000"
+      MONGODB_URI: mongodb://mongo:27017/marky-feedback
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?set ADMIN_EMAIL in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://marky.amiralibg.xyz}
+      # Optional: only lifts GitHub's API rate limit for download stats.
+      GITHUB_REPO: ${GITHUB_REPO:-amiralibg/marky}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mongo:
+    # 4.4, not newer: the VPS CPU has no AVX and Mongo 5.0+ crash-loops on it.
+    image: mongo:4.4
+    container_name: marky-mongo
+    restart: always
+    # Data lives in a named volume so feedback survives redeploys.
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongo", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mongo-data:
