@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import CommandPalette from "./components/CommandPalette";
 import Footer from "./components/Footer";
 import Nav from "./components/Nav";
+import { AuthProvider } from "./lib/auth";
 import { useDocumentMeta } from "./lib/meta";
 import { useLocation } from "./lib/router";
 import { applyTheme, oppositeTheme, readTheme, type Theme } from "./lib/theme";
@@ -52,7 +53,7 @@ export default function App() {
   }, []);
 
   return (
-    <>
+    <AuthProvider>
       <Nav
         onOpenPalette={() => setPaletteOpen(true)}
         theme={theme}
@@ -67,6 +68,6 @@ export default function App() {
         onToggleTheme={toggleTheme}
         theme={theme}
       />
-    </>
+    </AuthProvider>
   );
 }

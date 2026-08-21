@@ -177,4 +177,8 @@ ${urls}
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), seo()],
+  server: {
+    // The feedback API runs separately in dev; production nginx proxies /api.
+    proxy: { "/api": "http://localhost:8000" },
+  },
 });
