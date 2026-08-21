@@ -1,5 +1,6 @@
 import BuiltBy from "./BuiltBy";
 import { GITHUB_REPO_URL } from "../lib/releases";
+import { Link } from "../lib/router";
 
 export default function Footer() {
   return (
@@ -14,12 +15,18 @@ export default function Footer() {
           <BuiltBy className="mt-5" />
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink/60">
-          <a href="#download" className="hover:text-ink">
+          {/* Written against `/` rather than as bare fragments: the footer is
+              on every page, and a bare `#download` on the changelog does
+              nothing. */}
+          <Link to="/#download" className="hover:text-ink">
             Download
-          </a>
-          <a href="#graph" className="hover:text-ink">
+          </Link>
+          <Link to="/changelog" className="hover:text-ink">
+            Changelog
+          </Link>
+          <Link to="/#graph" className="hover:text-ink">
             Graph
-          </a>
+          </Link>
           <a href={GITHUB_REPO_URL} target="_blank" rel="noreferrer" className="hover:text-ink">
             GitHub
           </a>
