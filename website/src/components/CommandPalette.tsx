@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FEATURES, type FeatureId } from "./featureData";
+import { FEATURES } from "./featureData";
 import { FALLBACK_RELEASE_URL, GITHUB_REPO_URL } from "../lib/releases";
+import { navigate } from "../lib/router";
+import { selectFeature } from "../lib/spotlight";
 import type { Theme } from "../lib/theme";
 import { scrollItemIntoView } from "../lib/scrollItemIntoView";
 
@@ -15,21 +17,11 @@ type Item = {
 type Props = {
   open: boolean;
   onClose: () => void;
-  onSelectFeature: (id: FeatureId) => void;
   onToggleTheme: () => void;
   theme: Theme;
 };
 
-const scrollToId = (id: string) =>
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-
-export default function CommandPalette({
-  open,
-  onClose,
-  onSelectFeature,
-  onToggleTheme,
-  theme,
-}: Props) {
+export default function CommandPalette({ open, onClose, onToggleTheme, theme }: Props) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -44,19 +36,25 @@ export default function CommandPalette({
         id: "download",
         label: "Download Marky",
         hint: "Installers",
-        run: () => scrollToId("download"),
+        run: () => navigate("/#download"),
+      },
+      {
+        id: "changelog",
+        label: "Read the changelog",
+        hint: "Releases",
+        run: () => navigate("/changelog"),
       },
       {
         id: "graph-view",
         label: "See the vault as a graph",
         hint: "Graph",
-        run: () => onSelectFeature("graph"),
+        run: () => selectFeature("graph"),
       },
       {
         id: "mcp",
         label: "Connect Claude, Cursor, or ChatGPT",
         hint: "MCP",
-        run: () => scrollToId("mcp"),
+        run: () => navigate("/#mcp"),
       },
       {
         id: "theme",
@@ -80,13 +78,13 @@ export default function CommandPalette({
         id: feature.id,
         label: feature.title,
         hint: "Feature",
-        run: () => onSelectFeature(feature.id),
+        run: () => selectFeature(feature.id),
       })),
     ];
     const q = query.trim().toLowerCase();
     if (!q) return base;
     return base.filter((item) => `${item.label} ${item.hint}`.toLowerCase().includes(q));
-  }, [onSelectFeature, onToggleTheme, query, theme]);
+  }, [onToggleTheme, query, theme]);
 
   useEffect(() => {
     if (!open) return;

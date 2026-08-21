@@ -11,6 +11,7 @@ import {
   type PackageFormat,
   type ReleaseInfo,
 } from "../lib/releases";
+import { Link } from "../lib/router";
 
 const PLATFORMS: Os[] = ["macos", "windows", "linux"];
 const ARCHES: Arch[] = ["arm64", "amd64"];
@@ -96,9 +97,14 @@ export default function Download({ release, platform }: Props) {
             <p className="mt-6 font-mono text-[12px] text-ink-faint">
               Current {release.tag}
               {" · "}
-              <a href={release.url} className="underline underline-offset-4 hover:text-ink">
+              {/* The site's own changelog rather than the GitHub page: it opens
+                  on this release and every earlier one is directly above it. */}
+              <Link
+                to={`/changelog#${release.tag}`}
+                className="underline underline-offset-4 hover:text-ink"
+              >
                 release notes
-              </a>
+              </Link>
             </p>
           )}
         </div>

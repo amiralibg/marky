@@ -1,57 +1,35 @@
 import { useEffect, useState } from "react";
 import CommandPalette from "./components/CommandPalette";
-import Download from "./components/Download";
-import Faq from "./components/Faq";
-import Features from "./components/Features";
 import Footer from "./components/Footer";
-import Gallery from "./components/Gallery";
-import GraphSection from "./components/GraphSection";
-import Hero from "./components/Hero";
-import McpSection from "./components/McpSection";
 import Nav from "./components/Nav";
-import type { FeatureId } from "./components/featureData";
-import { detectPlatform, refineArch, type DetectedPlatform } from "./lib/platform";
-import { fetchLatestRelease, type ReleaseInfo } from "./lib/releases";
+import { useDocumentMeta } from "./lib/meta";
+import { useLocation } from "./lib/router";
 import { applyTheme, oppositeTheme, readTheme, type Theme } from "./lib/theme";
+import { NotFound, PAGES } from "./pages";
+import { findRoute } from "./routes";
+
+/** `path: "*"` is the marker useDocumentMeta reads to add noindex. */
+const NOT_FOUND = {
+  path: "*",
+  title: "Page not found — Marky",
+  description: "That page does not exist on the Marky site.",
+  priority: "0.0",
+  changefreq: "yearly",
+};
 
 export default function App() {
   const [theme, setTheme] = useState<Theme>("light");
-  const [platform, setPlatform] = useState<DetectedPlatform>(() =>
-    typeof navigator === "undefined"
-      ? { os: "macos", arch: "arm64", label: "macOS", archLabel: "Apple Silicon" }
-      : detectPlatform()
-  );
-  const [release, setRelease] = useState<ReleaseInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [spotlight, setSpotlight] = useState<FeatureId | null>(null);
+  const { path } = useLocation();
+
+  const Page = PAGES[path] ?? NotFound;
+  const route = findRoute(path) ?? NOT_FOUND;
+  useDocumentMeta(route);
 
   useEffect(() => {
     const next = readTheme();
     setTheme(next);
     applyTheme(next);
-  }, []);
-
-  useEffect(() => {
-    void refineArch(detectPlatform()).then(setPlatform);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchLatestRelease()
-      .then((info) => {
-        if (!cancelled) setRelease(info);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load release");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   const toggleTheme = () => {
@@ -73,37 +51,19 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const selectFeature = (id: FeatureId) => {
-    if (id === "graph") {
-      document.getElementById("graph")?.scrollIntoView({ behavior: "smooth" });
-      return;
-    }
-    setSpotlight(id);
-    document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
-    window.setTimeout(() => {
-      document
-        .getElementById(`feature-${id}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 280);
-  };
-
   return (
     <>
-      <Nav onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={toggleTheme} />
-      <main>
-        <Hero release={release} platform={platform} loading={loading} error={error} />
-        <Features spotlight={spotlight} />
-        <Gallery />
-        <GraphSection active={spotlight} onSelect={selectFeature} />
-        <McpSection />
-        <Download release={release} platform={platform} />
-        <Faq />
-      </main>
+      <Nav
+        onOpenPalette={() => setPaletteOpen(true)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        path={path}
+      />
+      <Page />
       <Footer />
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
-        onSelectFeature={selectFeature}
         onToggleTheme={toggleTheme}
         theme={theme}
       />
