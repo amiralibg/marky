@@ -33,6 +33,14 @@ export type AdminFeedbackPost = Omit<FeedbackPost, "author" | "voted"> & {
   authorName: string;
 };
 
+export type AdminStats = {
+  totals: { posts: number; votes: number; users: number };
+  byStatus: Partial<Record<PostStatus, number>>;
+  byType: Partial<Record<PostType, number>>;
+  daily: Array<{ date: string; posts: number }>;
+  top: Array<{ id: string; title: string; voteCount: number; status: PostStatus }>;
+};
+
 export type PublicUser = { id: string; email: string; displayName: string };
 
 export class ApiError extends Error {
@@ -147,6 +155,10 @@ export const api = {
         headers: adminHeaders(),
       });
       return data.posts;
+    },
+
+    async stats() {
+      return request<AdminStats>("/api/admin/stats", { headers: adminHeaders() });
     },
 
     async setStatus(postId: string, status: PostStatus) {

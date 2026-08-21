@@ -661,6 +661,48 @@ a:focus-visible {
   }
 }
 
+/* ---- Auth sheet / modal ---------------------------------------------------
+   Slides up as a bottom sheet on phones; on sm+ the same element is a centred
+   modal, so the entrance becomes a small settle instead of a slide. */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.sheet-pop {
+  animation: sheet-up 360ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+@media (min-width: 640px) {
+  .sheet-pop {
+    /* The sm:-translate utilities position the dialog; fold the settle into
+       them rather than fighting over the transform property. */
+    animation: modal-settle 280ms cubic-bezier(0.2, 0.9, 0.25, 1);
+    transform: translate(-50%, -50%);
+  }
+}
+
+@keyframes modal-settle {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 10px)) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-pop {
+    animation: none;
+  }
+}
+
 /* Screenshots are pre-rounded in the asset itself; the shadow is applied here
    so it stays consistent with the sticky notes and the app mockup. */
 .shot {

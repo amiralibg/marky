@@ -1,5 +1,6 @@
-import { ArrowUp, Bug, Lightbulb, LogIn, LogOut, Plus } from "lucide-react";
+import { ArrowUp, Bug, Lightbulb, LogOut, Plus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
+import AuthSheet from "../components/AuthSheet";
 import PageIntro from "../components/PageIntro";
 import { useAuth } from "../lib/auth";
 import {
@@ -40,11 +41,21 @@ function Pill({ children, tone = "quiet" }: { children: string; tone?: "quiet" |
 }
 
 function shortDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 /** One row of the board: vote counter on the left, pitch on the right. */
-function PostCard({ post, onToggleVote }: { post: FeedbackPost; onToggleVote: (post: FeedbackPost) => void }) {
+function PostCard({
+  post,
+  onToggleVote,
+}: {
+  post: FeedbackPost;
+  onToggleVote: (post: FeedbackPost) => void;
+}) {
   const ref = useReveal<HTMLElement>({ threshold: 0.04 });
 
   return (
@@ -68,7 +79,9 @@ function PostCard({ post, onToggleVote }: { post: FeedbackPost; onToggleVote: (p
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-[17px] font-semibold tracking-[-0.01em]">{post.title}</h2>
           <Pill>{post.type === "bug" ? "Bug" : "Feature"}</Pill>
-          <Pill tone={post.status === "done" ? "accent" : "quiet"}>{STATUS_LABEL[post.status]}</Pill>
+          <Pill tone={post.status === "done" ? "accent" : "quiet"}>
+            {STATUS_LABEL[post.status]}
+          </Pill>
         </div>
         <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-[1.65] text-ink-soft">
           {post.body}
@@ -78,77 +91,6 @@ function PostCard({ post, onToggleVote }: { post: FeedbackPost; onToggleVote: (p
         </p>
       </div>
     </article>
-  );
-}
-
-function AuthForm({ onDone }: { onDone?: () => void }) {
-  const auth = useAuth();
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setBusy(true);
-    const data = new FormData(event.currentTarget);
-    try {
-      if (mode === "register") {
-        await auth.register({
-          displayName: String(data.get("displayName") ?? ""),
-          email: String(data.get("email") ?? ""),
-          password: String(data.get("password") ?? ""),
-        });
-      } else {
-        await auth.login({
-          email: String(data.get("email") ?? ""),
-          password: String(data.get("password") ?? ""),
-        });
-      }
-      onDone?.();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const inputClass =
-    "w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-[14px] outline-none transition-colors placeholder:text-ink-faint focus:border-accent";
-
-  return (
-    <form onSubmit={submit} className="space-y-3">
-      {mode === "register" && (
-        <input name="displayName" required minLength={2} maxLength={40} placeholder="Display name" className={inputClass} autoComplete="name" />
-      )}
-      <input name="email" type="email" required placeholder="Email" className={inputClass} autoComplete="email" />
-      <input
-        name="password"
-        type="password"
-        required
-        minLength={8}
-        placeholder="Password (8+ characters)"
-        className={inputClass}
-        autoComplete={mode === "register" ? "new-password" : "current-password"}
-      />
-      {error && <p className="text-[13px] text-red-600 dark:text-red-400">{error}</p>}
-      <div className="flex items-center justify-between gap-4 pt-1">
-        <button
-          type="submit"
-          disabled={busy}
-          className="btn-accent inline-flex h-10 items-center rounded-sm px-4 text-[14px] font-medium disabled:opacity-60"
-        >
-          {busy ? "…" : mode === "register" ? "Create account" : "Sign in"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode(mode === "login" ? "register" : "login")}
-          className="text-[13px] text-accent-text hover:underline"
-        >
-          {mode === "login" ? "Need an account?" : "Already have one?"}
-        </button>
-      </div>
-    </form>
   );
 }
 
@@ -183,7 +125,14 @@ function ComposeForm({ onPosted }: { onPosted: () => void }) {
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <input name="title" required minLength={5} maxLength={120} placeholder="A short, specific title" className={inputClass} />
+      <input
+        name="title"
+        required
+        minLength={5}
+        maxLength={120}
+        placeholder="A short, specific title"
+        className={inputClass}
+      />
       <textarea
         name="body"
         required
@@ -232,6 +181,7 @@ export default function Feedback() {
   const [posts, setPosts] = useState<FeedbackPost[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [composing, setComposing] = useState(false);
+  const [authSheet, setAuthSheet] = useState<null | "signin" | "register">(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -250,7 +200,11 @@ export default function Feedback() {
   }, [sort, status]);
 
   async function toggleVote(post: FeedbackPost) {
-    if (!auth.user) return;
+    if (!auth.user) {
+      // A vote from a stranger is the friendliest possible sign-in prompt.
+      setAuthSheet("signin");
+      return;
+    }
     // Optimistic: the counter should move under the cursor, not after a round trip.
     setPosts((current) =>
       current.map((candidate) =>
@@ -301,19 +255,17 @@ export default function Feedback() {
           }
           aside={
             <div className="mt-5 flex flex-wrap gap-2">
-              {signedIn && (
-                <button
-                  type="button"
-                  onClick={() => setComposing((open) => !open)}
-                  aria-expanded={composing}
-                  className={`inline-flex min-h-10 items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
-                    composing ? "bg-ink text-canvas" : "btn-accent"
-                  }`}
-                >
-                  <Plus size={14} strokeWidth={2.2} aria-hidden />
-                  Share an idea
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => (signedIn ? setComposing((open) => !open) : setAuthSheet("signin"))}
+                aria-expanded={signedIn ? composing : undefined}
+                className={`inline-flex min-h-10 items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
+                  signedIn && composing ? "bg-ink text-canvas" : "btn-accent"
+                }`}
+              >
+                <Plus size={14} strokeWidth={2.2} aria-hidden />
+                Share an idea
+              </button>
               {signedIn ? (
                 <button
                   type="button"
@@ -323,45 +275,39 @@ export default function Feedback() {
                   <LogOut size={13} aria-hidden />
                   Sign out
                 </button>
-              ) : null}
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAuthSheet("register")}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-pill border border-line px-3.5 py-1.5 text-[13px] font-medium text-ink-faint transition-colors duration-200 hover:text-ink"
+                >
+                  Create account
+                </button>
+              )}
             </div>
           }
         />
 
-        {(composing || (!signedIn && state !== "loading")) && (
+        {composing && signedIn && (
           <div className="paper-surface mt-12 max-w-2xl p-6 md:p-8">
-            {signedIn ? (
-              <>
-                <h2 className="font-display text-[22px] tracking-[-0.02em]">New feedback</h2>
-                <div className="mt-4">
-                  <ComposeForm
-                    onPosted={() => {
-                      setComposing(false);
-                      setStatus("all");
-                      setSort("new");
-                    }}
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <h2 className="font-display text-[22px] tracking-[-0.02em]">
-                  Sign in to post and vote
-                </h2>
-                <p className="mt-2 text-[15px] text-ink-soft">
-                  An account keeps votes honest and lets you see when your idea ships. Reading and
-                  browsing stay open to everyone.
-                </p>
-                <div className="mt-4">
-                  <AuthForm />
-                </div>
-                <p className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-ink-faint">
-                  <LogIn size={12} aria-hidden /> Sessions last 30 days.
-                </p>
-              </>
-            )}
+            <h2 className="font-display text-[22px] tracking-[-0.02em]">New feedback</h2>
+            <div className="mt-4">
+              <ComposeForm
+                onPosted={() => {
+                  setComposing(false);
+                  setStatus("all");
+                  setSort("new");
+                }}
+              />
+            </div>
           </div>
         )}
+
+        <AuthSheet
+          open={authSheet !== null}
+          intent={authSheet ?? "signin"}
+          onClose={() => setAuthSheet(null)}
+        />
 
         {/* Filter row holds its height while the list loads, so the cards do
             not shove everything below them down when they arrive. */}
@@ -454,7 +400,9 @@ function FilterChip({
       disabled={disabled}
       aria-pressed={active}
       className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
-        active ? "border-transparent bg-ink text-canvas" : "border-line text-ink-soft hover:text-ink"
+        active
+          ? "border-transparent bg-ink text-canvas"
+          : "border-line text-ink-soft hover:text-ink"
       }`}
     >
       {children}

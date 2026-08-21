@@ -6,6 +6,7 @@ import { config, POST_STATUSES } from "../config.js";
 import { HttpError, validate } from "../middleware/error.js";
 import { requireAdmin, signAdminToken } from "../middleware/auth.js";
 import { Post } from "../models/Post.js";
+import { User } from "../models/User.js";
 
 const router = Router();
 
@@ -56,6 +57,61 @@ router.get("/posts", requireAdmin, async (_req, res, next) => {
         authorEmail: post.author?.email ?? "unknown",
         authorName: post.author?.displayName ?? "unknown",
         createdAt: post.createdAt,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Board analytics for the moderation dashboard. Everything is one cheap
+ * aggregation pass per collection — no per-request vote counting, the stored
+ * voteCount already carries it.
+ */
+router.get("/stats", requireAdmin, async (_req, res, next) => {
+  try {
+    const since = new Date(Date.now() - 13 * 24 * 60 * 60 * 1000);
+    since.setUTCHours(0, 0, 0, 0);
+
+    const [statusRows, typeRows, dailyRows, topRows, postCount, userCount] = await Promise.all([
+      Post.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+      Post.aggregate([
+        { $group: { _id: "$type", count: { $sum: 1 }, votes: { $sum: "$voteCount" } } },
+      ]),
+      Post.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        // $dateToString rather than $dateTrunc: mongo:4.4 has no $dateTrunc.
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      ]),
+      Post.find().sort({ voteCount: -1 }).limit(5).select("title voteCount status").lean(),
+      Post.countDocuments(),
+      User.countDocuments(),
+    ]);
+
+    // Zero-fill the window so the chart shows quiet days as gaps, not holes.
+    const counts = new Map(dailyRows.map((row) => [row._id as string, row.count as number]));
+    const daily: Array<{ date: string; posts: number }> = [];
+    for (let offset = 13; offset >= 0; offset--) {
+      const day = new Date(Date.now() - offset * 24 * 60 * 60 * 1000);
+      const key = day.toISOString().slice(0, 10);
+      daily.push({ date: key, posts: counts.get(key) ?? 0 });
+    }
+
+    res.json({
+      totals: {
+        posts: postCount,
+        votes: typeRows.reduce((sum, row) => sum + (row.votes as number), 0),
+        users: userCount,
+      },
+      byStatus: Object.fromEntries(statusRows.map((row) => [row._id, row.count])),
+      byType: Object.fromEntries(typeRows.map((row) => [row._id, row.count])),
+      daily,
+      top: topRows.map((post) => ({
+        id: post._id,
+        title: post.title,
+        voteCount: post.voteCount,
+        status: post.status,
       })),
     });
   } catch (err) {
