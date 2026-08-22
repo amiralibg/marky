@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowUp, RotateCw, Search, Trash2 } from "lucide-react";
+import { ArrowUp, Check, Copy, Download, RotateCw, Search, Trash2 } from "lucide-react";
 import Sheet from "../components/Sheet";
 import { FIELD_CLASS, PasswordField } from "../components/Field";
 import { usePlainCanvas } from "../lib/canvas";
@@ -469,6 +469,35 @@ function Meta({ post }: { post: AdminFeedbackPost }) {
   );
 }
 
+/**
+ * The visible posts as a Markdown digest, shaped for handing to an agent: one
+ * block per post with the metadata it needs up front and the body verbatim.
+ */
+function postsToMarkdown(list: AdminFeedbackPost[]) {
+  const stamp = new Date().toLocaleString("en-GB");
+  const items = list.map((post) =>
+    [
+      `## ${post.title}`,
+      "",
+      `- Type: ${post.type === "bug" ? "Bug" : "Feature"}`,
+      `- Status: ${STATUS_LABEL[post.status]}`,
+      `- Votes: ${post.voteCount}`,
+      `- From: ${post.authorName} <${post.authorEmail}>`,
+      `- Date: ${shortDate(post.createdAt)}`,
+      `- Id: ${post.id}`,
+      "",
+      post.body.trim(),
+    ].join("\n")
+  );
+  return [
+    `# Marky feedback export`,
+    "",
+    `${list.length} ${list.length === 1 ? "post" : "posts"}, generated ${stamp}.`,
+    "",
+    items.join("\n\n---\n\n"),
+  ].join("\n");
+}
+
 export default function Admin() {
   usePlainCanvas();
 
@@ -581,6 +610,39 @@ export default function Admin() {
       );
       flash("Could not delete that post.");
     }
+  }
+
+  // Transient on-button confirmations. The header notice is easy to miss, so
+  // the button itself says what just happened.
+  const [copiedFlash, setCopiedFlash] = useState<"done" | "failed" | null>(null);
+  const [exportedFlash, setExportedFlash] = useState(false);
+
+  async function copyVisible() {
+    try {
+      await navigator.clipboard.writeText(postsToMarkdown(visible));
+      setCopiedFlash("done");
+      flash(`Copied ${visible.length} ${visible.length === 1 ? "post" : "posts"} as Markdown.`);
+    } catch {
+      setCopiedFlash("failed");
+      flash("Could not reach the clipboard.");
+    }
+    window.setTimeout(() => setCopiedFlash(null), 2000);
+  }
+
+  function exportJson() {
+    const blob = new Blob(
+      [JSON.stringify({ exportedAt: new Date().toISOString(), posts: visible }, null, 2)],
+      { type: "application/json" }
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `marky-feedback-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setExportedFlash(true);
+    flash(`Exported ${visible.length} ${visible.length === 1 ? "post" : "posts"}.`);
+    window.setTimeout(() => setExportedFlash(false), 2000);
   }
 
   if (!signedIn) return <AdminLogin onSignedIn={() => setSignedIn(true)} />;
@@ -771,9 +833,47 @@ export default function Admin() {
             <Band
               label="Moderation"
               aside={
-                <span className="font-mono text-[12px] text-ink-faint">
-                  {visible.length} of {posts.length}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[12px] text-ink-faint">
+                    {visible.length} of {posts.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={copyVisible}
+                    disabled={visible.length === 0}
+                    className={`inline-flex min-h-9 items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-50 ${
+                      copiedFlash === "done"
+                        ? "border-transparent bg-ink text-canvas"
+                        : copiedFlash === "failed"
+                          ? "border-transparent bg-red-600/10 text-red-600 dark:text-red-400"
+                          : "border-line text-ink-faint hover:text-ink"
+                    }`}
+                  >
+                    {copiedFlash === "done" ? (
+                      <Check size={13} aria-hidden />
+                    ) : (
+                      <Copy size={13} aria-hidden />
+                    )}
+                    {copiedFlash === "done" ? "Copied" : copiedFlash === "failed" ? "Failed" : "Copy"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportJson}
+                    disabled={visible.length === 0}
+                    className={`inline-flex min-h-9 items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-50 ${
+                      exportedFlash
+                        ? "border-transparent bg-ink text-canvas"
+                        : "border-line text-ink-faint hover:text-ink"
+                    }`}
+                  >
+                    {exportedFlash ? (
+                      <Check size={13} aria-hidden />
+                    ) : (
+                      <Download size={13} aria-hidden />
+                    )}
+                    {exportedFlash ? "Exported" : "Export"}
+                  </button>
+                </div>
               }
             >
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
