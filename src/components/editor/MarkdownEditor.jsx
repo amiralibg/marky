@@ -52,7 +52,7 @@ const getMermaid = () => {
 };
 
 const MarkdownEditor = forwardRef((props, ref) => {
-  const { onOpenKeymapsModal, focusMode = false } = props;
+  const { onOpenKeymapsModal, initialSettingsSection, focusMode = false } = props;
   const {
     currentNoteId,
     updateNote,
@@ -955,7 +955,10 @@ const MarkdownEditor = forwardRef((props, ref) => {
           </div>
         }
       >
-        <SettingsPage onOpenKeymapsModal={onOpenKeymapsModal} />
+        <SettingsPage
+          onOpenKeymapsModal={onOpenKeymapsModal}
+          initialSection={initialSettingsSection}
+        />
       </Suspense>
     );
   }

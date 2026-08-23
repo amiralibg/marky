@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import useNotesStore from "../../store/notesStore";
 import useSettingsStore from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
+import { sortSidebarItems } from "../../utils/sidebarSort";
 
 const TreeItem = ({
   item,
@@ -459,7 +460,10 @@ const TreeItem = ({
     }
   } else {
     if (isSelected) metadataParts.push("selected");
-    if (showSidebarMetadata && isPinned(item.id)) metadataParts.push("pinned");
+    // The pin marker is navigation, not decoration — a pinned note's whole
+    // point is being findable, so it shows whether or not the optional
+    // metadata (tags, backlink counts) is enabled.
+    if (isPinned(item.id)) metadataParts.push("pinned");
     if (backlinksCount > 0) {
       metadataParts.push(`${backlinksCount} backlink${backlinksCount !== 1 ? "s" : ""}`);
     }
@@ -584,7 +588,7 @@ const TreeItem = ({
               <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
               <path d="M14 3v5h5" />
             </svg>
-            {showSidebarMetadata && isPinned(item.id) && (
+            {isPinned(item.id) && (
               <svg
                 className={`${isCompactDensity ? "w-2.5 h-2.5 mr-0.5" : "w-3 h-3 mr-1"} text-accent`}
                 fill="currentColor"
@@ -677,45 +681,43 @@ const TreeItem = ({
       {/* Children */}
       {renderChildren && isFolder && isExpanded && (
         <div role="group">
-          {children
-            .sort((a, b) => {
-              // Manual drag order wins (may interleave files/folders).
-              const ao = a.order;
-              const bo = b.order;
-              if (ao !== undefined && bo !== undefined) return ao - bo;
-              if (ao !== undefined) return -1;
-              if (bo !== undefined) return 1;
-              if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
-              return a.name.localeCompare(b.name);
-            })
-            .map((child) => (
-              <TreeItem
-                key={child.id}
-                item={child}
-                level={level + 1}
-                onContextMenu={onContextMenu}
-                draggedItem={draggedItem}
-                setDraggedItem={setDraggedItem}
-                onItemMove={onItemMove}
-                filteredItems={filteredItems}
-                onSelect={onSelect}
-                onSetDropTarget={onSetDropTarget}
-                onClearDropTarget={onClearDropTarget}
-                dropTargetFolderId={dropTargetFolderId}
-                internalDropTargetId={internalDropTargetId}
-                setInternalDropTargetId={setInternalDropTargetId}
-                isExternalDragging={isExternalDragging}
-                onRequestDelete={onRequestDelete}
-                onMoveItemOut={onMoveItemOut}
-                onMoveItemIn={onMoveItemIn}
-                reorderTarget={reorderTarget}
-                setReorderTarget={setReorderTarget}
-                onReorder={onReorder}
-                selectedIds={selectedIds}
-                onRowActivate={onRowActivate}
-                renderChildren={renderChildren}
-              />
-            ))}
+          {sortSidebarItems(
+            children,
+            "name-asc",
+            false,
+            new Set(
+              children
+                .filter((child) => child.type === "note" && isPinned(child.id))
+                .map((child) => child.id)
+            )
+          ).map((child) => (
+            <TreeItem
+              key={child.id}
+              item={child}
+              level={level + 1}
+              onContextMenu={onContextMenu}
+              draggedItem={draggedItem}
+              setDraggedItem={setDraggedItem}
+              onItemMove={onItemMove}
+              filteredItems={filteredItems}
+              onSelect={onSelect}
+              onSetDropTarget={onSetDropTarget}
+              onClearDropTarget={onClearDropTarget}
+              dropTargetFolderId={dropTargetFolderId}
+              internalDropTargetId={internalDropTargetId}
+              setInternalDropTargetId={setInternalDropTargetId}
+              isExternalDragging={isExternalDragging}
+              onRequestDelete={onRequestDelete}
+              onMoveItemOut={onMoveItemOut}
+              onMoveItemIn={onMoveItemIn}
+              reorderTarget={reorderTarget}
+              setReorderTarget={setReorderTarget}
+              onReorder={onReorder}
+              selectedIds={selectedIds}
+              onRowActivate={onRowActivate}
+              renderChildren={renderChildren}
+            />
+          ))}
         </div>
       )}
     </div>

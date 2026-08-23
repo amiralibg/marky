@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import useSettingsStore, {
   ACCENT_COLORS,
   FONT_SCALE_DEFAULT,
@@ -15,13 +15,77 @@ const THEME_FILTERS = [
   { id: "light", label: "Light" },
 ];
 
+// How long a slider gesture may keep gathering steps before the (expensive)
+// app-wide reflow actually runs. Every committed step re-lays-out the whole
+// UI, so a drag that fires dozens of change events used to stutter the very
+// interface it was resizing.
+const SCALE_COMMIT_DELAY_MS = 250;
+
+const clampScale = (value) =>
+  Math.min(
+    FONT_SCALE_MAX,
+    Math.max(FONT_SCALE_MIN, Math.round(value / FONT_SCALE_STEP) * FONT_SCALE_STEP)
+  );
+
 const AppearanceSettings = () => {
-  const { themeId, setTheme, accentColorId, setAccentColor, fontScale, setFontScale, getKeymap } =
-    useSettingsStore();
+  const {
+    themeId,
+    setTheme,
+    accentColorId,
+    setAccentColor,
+    fontScale,
+    setFontScale,
+    editorFontScale,
+    setEditorFontScale,
+    getKeymap,
+  } = useSettingsStore();
   // Default the filter to the current theme's mode so the list opens focused
   // and compact; "All" reveals every theme.
   const currentType = THEMES.find((t) => t.id === themeId)?.type || "dark";
   const [filter, setFilter] = useState(currentType);
+
+  // Draft scales update the controls instantly; the stores — and with them
+  // the app-wide reflow and the persisted write — are committed once the
+  // gesture settles. An external change (keyboard shortcut, another window's
+  // settings sync) still lands whenever no commit is pending.
+  const [fontScaleDraft, setFontScaleDraft] = useState(fontScale);
+  const [editorScaleDraft, setEditorScaleDraft] = useState(editorFontScale);
+  const fontCommitRef = useRef(null);
+  const editorCommitRef = useRef(null);
+
+  useEffect(() => {
+    if (fontCommitRef.current === null) setFontScaleDraft(fontScale);
+  }, [fontScale]);
+  useEffect(() => {
+    if (editorCommitRef.current === null) setEditorScaleDraft(editorFontScale);
+  }, [editorFontScale]);
+  useEffect(
+    () => () => {
+      clearTimeout(fontCommitRef.current);
+      clearTimeout(editorCommitRef.current);
+    },
+    []
+  );
+
+  const queueFontScale = (value) => {
+    const clamped = clampScale(value);
+    setFontScaleDraft(clamped);
+    clearTimeout(fontCommitRef.current);
+    fontCommitRef.current = setTimeout(() => {
+      fontCommitRef.current = null;
+      setFontScale(clamped);
+    }, SCALE_COMMIT_DELAY_MS);
+  };
+
+  const queueEditorScale = (value) => {
+    const clamped = clampScale(value);
+    setEditorScaleDraft(clamped);
+    clearTimeout(editorCommitRef.current);
+    editorCommitRef.current = setTimeout(() => {
+      editorCommitRef.current = null;
+      setEditorFontScale(clamped);
+    }, SCALE_COMMIT_DELAY_MS);
+  };
 
   const visibleThemes = THEMES.filter((t) => filter === "all" || t.type === filter);
   const darkCount = THEMES.filter((t) => t.type === "dark").length;
@@ -135,8 +199,8 @@ const AppearanceSettings = () => {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1 rounded-lg bg-overlay-subtle p-1">
             <button
-              onClick={() => setFontScale(fontScale - FONT_SCALE_STEP)}
-              disabled={fontScale <= FONT_SCALE_MIN}
+              onClick={() => queueFontScale(fontScaleDraft - FONT_SCALE_STEP)}
+              disabled={fontScaleDraft <= FONT_SCALE_MIN}
               aria-label="Decrease text size"
               className="rounded-md px-2.5 py-1 text-[15px] leading-none text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
             >
@@ -146,11 +210,11 @@ const AppearanceSettings = () => {
               className="min-w-[3.5rem] text-center text-[13px] font-semibold tabular-nums text-text-primary"
               aria-live="polite"
             >
-              {fontScale}%
+              {fontScaleDraft}%
             </span>
             <button
-              onClick={() => setFontScale(fontScale + FONT_SCALE_STEP)}
-              disabled={fontScale >= FONT_SCALE_MAX}
+              onClick={() => queueFontScale(fontScaleDraft + FONT_SCALE_STEP)}
+              disabled={fontScaleDraft >= FONT_SCALE_MAX}
               aria-label="Increase text size"
               className="rounded-md px-2.5 py-1 text-[15px] leading-none text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
             >
@@ -163,15 +227,81 @@ const AppearanceSettings = () => {
             min={FONT_SCALE_MIN}
             max={FONT_SCALE_MAX}
             step={FONT_SCALE_STEP}
-            value={fontScale}
-            onChange={(event) => setFontScale(Number(event.target.value))}
+            value={fontScaleDraft}
+            onChange={(event) => queueFontScale(Number(event.target.value))}
             aria-label="Text size"
             className="h-1 flex-1 min-w-[9rem] max-w-[18rem] cursor-pointer appearance-none rounded-full bg-overlay-light accent-accent"
           />
 
-          {fontScale !== FONT_SCALE_DEFAULT && (
+          {fontScaleDraft !== FONT_SCALE_DEFAULT && (
             <button
-              onClick={() => setFontScale(FONT_SCALE_DEFAULT)}
+              onClick={() => {
+                clearTimeout(fontCommitRef.current);
+                fontCommitRef.current = null;
+                setFontScaleDraft(FONT_SCALE_DEFAULT);
+                setFontScale(FONT_SCALE_DEFAULT);
+              }}
+              className="text-[12px] text-text-muted underline-offset-2 transition-colors hover:text-text-primary hover:underline"
+            >
+              Reset to {FONT_SCALE_DEFAULT}%
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Editor text size */}
+      <div>
+        <h3 className="text-[13px] font-semibold text-text-primary mb-0.5">Editor text size</h3>
+        <p className="text-[13px] text-text-muted mb-4">
+          Scales the note text on its own — the sidebar, menus and the rest of the app follow the
+          setting above.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1 rounded-lg bg-overlay-subtle p-1">
+            <button
+              onClick={() => queueEditorScale(editorScaleDraft - FONT_SCALE_STEP)}
+              disabled={editorScaleDraft <= FONT_SCALE_MIN}
+              aria-label="Decrease editor text size"
+              className="rounded-md px-2.5 py-1 text-[15px] leading-none text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
+            >
+              −
+            </button>
+            <span
+              className="min-w-[3.5rem] text-center text-[13px] font-semibold tabular-nums text-text-primary"
+              aria-live="polite"
+            >
+              {editorScaleDraft}%
+            </span>
+            <button
+              onClick={() => queueEditorScale(editorScaleDraft + FONT_SCALE_STEP)}
+              disabled={editorScaleDraft >= FONT_SCALE_MAX}
+              aria-label="Increase editor text size"
+              className="rounded-md px-2.5 py-1 text-[15px] leading-none text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
+            >
+              +
+            </button>
+          </div>
+
+          <input
+            type="range"
+            min={FONT_SCALE_MIN}
+            max={FONT_SCALE_MAX}
+            step={FONT_SCALE_STEP}
+            value={editorScaleDraft}
+            onChange={(event) => queueEditorScale(Number(event.target.value))}
+            aria-label="Editor text size"
+            className="h-1 flex-1 min-w-[9rem] max-w-[18rem] cursor-pointer appearance-none rounded-full bg-overlay-light accent-accent"
+          />
+
+          {editorScaleDraft !== FONT_SCALE_DEFAULT && (
+            <button
+              onClick={() => {
+                clearTimeout(editorCommitRef.current);
+                editorCommitRef.current = null;
+                setEditorScaleDraft(FONT_SCALE_DEFAULT);
+                setEditorFontScale(FONT_SCALE_DEFAULT);
+              }}
               className="text-[12px] text-text-muted underline-offset-2 transition-colors hover:text-text-primary hover:underline"
             >
               Reset to {FONT_SCALE_DEFAULT}%

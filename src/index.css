@@ -596,3 +596,12 @@
   background: var(--color-accent-dim);
   color: var(--color-text-primary);
 }
+
+/* Selection inside Live-preview rendered blocks (code fences, tables). Those
+   are non-editable widget DOM, where WebKit never paints a ::selection
+   background — widgetSelectionHighlight.js rebuilds the selection as this
+   named highlight, and this is the rule that paints it. */
+::highlight(marky-live-selection) {
+  background: var(--color-accent-dim);
+  color: var(--color-text-primary);
+}

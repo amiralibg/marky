@@ -62,6 +62,16 @@
     "fs:allow-read-file",
     "fs:allow-write-file",
     "fs:allow-exists",
-    "fs:allow-mkdir"
+    "fs:allow-mkdir",
+    {
+      "_comment": "S3 sync talks to user-configured endpoints (AWS, MinIO, Backblaze, Wasabi, Hetzner, …), so the scope is any http(s) URL. Requests are SigV4-signed in JS. The `:*` variants are required because an omitted port only matches the scheme's default (80/443) — MinIO on :9000 etc. would be rejected.",
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://**" },
+        { "url": "https://**:*" },
+        { "url": "http://**" },
+        { "url": "http://**:*" }
+      ]
+    }
   ]
 }

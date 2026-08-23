@@ -28,6 +28,9 @@ notify-debouncer-full = "0.3"
 # happened to be a code repo pulled every README in node_modules into memory.
 ignore = "0.4"
 tauri-plugin-process = "2.3.1"
+# S3 sync signs its requests with SigV4 in JS; plain webview fetch is
+# CORS-blocked by buckets without a policy, so requests go through this.
+tauri-plugin-http = "2"
 
 [profile.release]
 panic = "abort"

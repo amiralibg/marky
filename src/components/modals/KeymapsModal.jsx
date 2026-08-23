@@ -27,6 +27,8 @@ const KeymapsModal = ({ isOpen, onClose }) => {
   const isModified = (actionId) => {
     const current = keymaps[actionId];
     const original = DEFAULT_KEYMAPS[actionId];
+    // A persisted keymap can carry actions this build no longer defines.
+    if (!current || !original) return false;
     return (
       current.key !== original.key ||
       JSON.stringify(current.modifiers) !== JSON.stringify(original.modifiers)

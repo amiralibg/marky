@@ -29,6 +29,7 @@ import ConfirmDialog from "../modals/ConfirmDialog";
 import { scrollItemIntoView } from "../../utils/scrollItemIntoView";
 import { listenForWindow } from "../../utils/windowEvents";
 import { pruneSelection, resolveSelectionTargets, selectRangeIds } from "./treeSelection";
+import { sortSidebarItems } from "../../utils/sidebarSort";
 import { UpdateIcon } from "../icons/AppUpdateIcon";
 import { WindowIcon } from "../icons";
 
@@ -39,39 +40,6 @@ const TREE_ROW_HEIGHTS = {
   spacious: 44,
 };
 const VIRTUAL_TREE_OVERSCAN = 8;
-
-const sortSidebarItems = (entries, sortBy, isRootLevel = false) => {
-  const items = [...entries];
-  return items.sort((a, b) => {
-    // Manual drag order wins outright (and may interleave files/folders). Once a
-    // sibling group has been reordered, reorderItems stamps every sibling with an
-    // `order`, so this branch drives the whole group.
-    const ao = a.order;
-    const bo = b.order;
-    if (ao !== undefined && bo !== undefined) return ao - bo;
-    if (ao !== undefined) return -1;
-    if (bo !== undefined) return 1;
-
-    // No manual order yet: folders first, then by the active sort setting.
-    if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
-
-    if (!isRootLevel) {
-      return a.name.localeCompare(b.name);
-    }
-
-    switch (sortBy) {
-      case "name-desc":
-        return b.name.localeCompare(a.name);
-      case "date-desc":
-        return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
-      case "date-asc":
-        return new Date(a.updatedAt || a.createdAt) - new Date(b.updatedAt || b.createdAt);
-      case "name-asc":
-      default:
-        return a.name.localeCompare(b.name);
-    }
-  });
-};
 
 // Helper to find the folder element at given coordinates
 const findFolderAtPosition = (x, y, sidebarElement) => {
@@ -105,7 +73,7 @@ const findFolderAtPosition = (x, y, sidebarElement) => {
 };
 
 const Sidebar = forwardRef(
-  ({ onSettingsClick, onOpenGraph, onOpenTemplate, onRenameItem }, ref) => {
+  ({ onSettingsClick, onOpenGraph, onOpenTemplate, onOpenScheduled, onRenameItem }, ref) => {
     const {
       items,
       createFolder,
@@ -130,6 +98,8 @@ const Sidebar = forwardRef(
       currentNoteId,
       revealRequest,
       clearReveal,
+      pinnedNotes,
+      scheduledNotes,
     } = useNotesStore();
     const sidebarDensity = useSettingsStore((state) => state.sidebarDensity);
     const themeId = useSettingsStore((state) => state.themeId);
@@ -152,6 +122,7 @@ const Sidebar = forwardRef(
     // A delete confirmation always works on a list, so the one-row case and the
     // multi-select case share a single dialog and a single code path.
     const [pendingDeleteItems, setPendingDeleteItems] = useState([]);
+    const [pinnedOpen, setPinnedOpen] = useState(true);
 
     // Multi-select in the tree: Ctrl/Cmd-click adds a row, Shift-click takes the
     // run from the anchor to the row clicked — the gestures Finder, VS Code and
@@ -279,6 +250,15 @@ const Sidebar = forwardRef(
       });
       return childrenMap;
     }, [treeSourceItems]);
+
+    const pinnedIdSet = useMemo(() => new Set(pinnedNotes), [pinnedNotes]);
+
+    // Pinned notes that still exist, in pin order — the source for the
+    // "Pinned" quick-nav section.
+    const pinnedItems = useMemo(
+      () => items.filter((item) => item.type === "note" && pinnedIdSet.has(item.id)),
+      [items, pinnedIdSet]
+    );
 
     const rootItems = useMemo(() => {
       return sortSidebarItems(treeChildrenByParent.get("__root__") || [], sortBy, true);
@@ -1589,24 +1569,87 @@ const Sidebar = forwardRef(
               </svg>
               Graph
             </button>
-            <button
-              onClick={() => onOpenTemplate(null)}
-              className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-subtle hover:text-text-primary transition-colors"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                viewBox="0 0 24 24"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            {scheduledNotes.length > 0 && (
+              <button
+                onClick={onOpenScheduled}
+                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-subtle hover:text-text-primary transition-colors"
               >
-                <rect x="3" y="5" width="18" height="16" rx="2" />
-                <path d="M3 9h18M8 3v4M16 3v4" />
-              </svg>
-              Scheduled
-            </button>
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  viewBox="0 0 24 24"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="5" width="18" height="16" rx="2" />
+                  <path d="M3 9h18M8 3v4M16 3v4" />
+                </svg>
+                Scheduled
+                <span className="ml-auto text-[11px] tabular-nums text-text-muted">
+                  {scheduledNotes.length}
+                </span>
+              </button>
+            )}
+            {pinnedItems.length > 0 && (
+              <>
+                <button
+                  onClick={() => setPinnedOpen((prev) => !prev)}
+                  aria-expanded={pinnedOpen}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors ${
+                    pinnedOpen
+                      ? "text-text-primary"
+                      : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
+                  }`}
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    viewBox="0 0 24 24"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 17v5M9 3h6l-1 7 3 3H7l3-3-1-7z" />
+                  </svg>
+                  Pinned
+                  <span className="ml-auto text-[11px] tabular-nums text-text-muted">
+                    {pinnedItems.length}
+                  </span>
+                  <svg
+                    className={`w-3 h-3 shrink-0 transition-transform ${pinnedOpen ? "rotate-90" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                </button>
+                {pinnedOpen && (
+                  <div className="flex flex-col gap-px pl-4">
+                    {pinnedItems.map((note) => (
+                      <button
+                        key={note.id}
+                        onClick={() => selectNote(note.id)}
+                        title={note.name}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1 rounded-lg text-[13px] truncate transition-colors ${
+                          note.id === currentNoteId
+                            ? "bg-accent-dim text-accent"
+                            : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
+                        }`}
+                      >
+                        <span className="truncate">{note.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </nav>
         )}
 

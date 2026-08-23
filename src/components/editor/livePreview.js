@@ -4,6 +4,7 @@ import { syntaxTree } from "@codemirror/language";
 import { marked } from "marked";
 import katex from "katex";
 import { detectBaseDirection } from "../../utils/bidi";
+import { widgetSelectionHighlight } from "./widgetSelectionHighlight";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Live Preview
@@ -885,8 +886,16 @@ const livePreviewTheme = EditorView.baseTheme({
   // what makes Vim's screen-coordinate `j`/`k` misfire mid-fence. A heading is
   // a single line that is already taller than its neighbours via `font-size`;
   // padding it keeps every heading line uniform, so stepping stays predictable.
+  // Mirrored from `.markdown-preview h1…h6` in MarkdownPreview.css so a
+  // heading reads identically in Live and Read. Bottom padding carries the
+  // preview sheet's `margin-bottom` (padding, not margin — see the note on
+  // widget measurement above).
   ".cm-lp-h1, .cm-lp-h2, .cm-lp-h3, .cm-lp-h4, .cm-lp-h5, .cm-lp-h6": {
     paddingTop: "0.5rem",
+    paddingBottom: "0.8rem",
+    fontFamily: "var(--font-family-serif)",
+    fontWeight: "600",
+    letterSpacing: "-0.015em",
     // Positioning context for the hanging hash below.
     position: "relative",
   },
@@ -912,12 +921,18 @@ const livePreviewTheme = EditorView.baseTheme({
     transition: "opacity 120ms ease",
   },
   ".cm-lp-h-open .cm-lp-hash": { opacity: "1" },
-  ".cm-lp-h1": { fontSize: "1.9em", fontWeight: "700", lineHeight: "1.3" },
-  ".cm-lp-h2": { fontSize: "1.55em", fontWeight: "700", lineHeight: "1.3" },
-  ".cm-lp-h3": { fontSize: "1.3em", fontWeight: "600", lineHeight: "1.35" },
-  ".cm-lp-h4": { fontSize: "1.15em", fontWeight: "600" },
-  ".cm-lp-h5": { fontSize: "1.05em", fontWeight: "600" },
-  ".cm-lp-h6": { fontSize: "1em", fontWeight: "600", opacity: "0.85" },
+  ".cm-lp-h1": { fontSize: "2em", letterSpacing: "-0.022em", lineHeight: "1.25" },
+  ".cm-lp-h2": { fontSize: "1.55em", letterSpacing: "-0.018em", lineHeight: "1.25" },
+  ".cm-lp-h3": { fontSize: "1.26em", lineHeight: "1.25" },
+  ".cm-lp-h4": { fontSize: "1.1em" },
+  ".cm-lp-h5": { fontSize: "1em" },
+  ".cm-lp-h6": {
+    fontFamily: "var(--font-family-sans)",
+    fontSize: "0.78em",
+    color: "var(--color-text-muted)",
+    textTransform: "uppercase",
+    letterSpacing: "0.07em",
+  },
   // Kept in step with `.markdown-preview code` / `blockquote` in
   // MarkdownPreview.css so a block looks the same in Live and Read.
   ".cm-lp-code": {
@@ -964,33 +979,51 @@ const livePreviewTheme = EditorView.baseTheme({
     margin: "0",
   },
   // A table or fenced block showing its source because the cursor is inside
-  // it. Same surface as the rendered card, so the block doesn't visually
-  // vanish the moment you click into it — you keep seeing its extent.
+  // it. Same frame as the rendered card, so the block doesn't visually vanish
+  // the moment you click into it — you keep seeing its extent.
+  //
+  // The interior is a TRANSLUCENT tint on purpose, in two senses:
+  //
+  // 1. drawSelection paints its selection rectangles in a layer at z-index -1,
+  //    underneath every line's own background — an opaque fill here would hide
+  //    the accent wash whenever you select text inside the block, which is
+  //    exactly what the old fill did.
+  // 2. The tint mixes toward `transparent`, not toward the editor background,
+  //    so at rest it reads as the same raised surface as the rendered card
+  //    while staying ~95% see-through — the wash survives it almost intact.
   ".cm-lp-src": {
-    backgroundColor: "color-mix(in srgb, var(--color-text-primary) 4.5%, var(--color-bg-editor))",
     fontFamily: "var(--font-family-mono)",
+    backgroundColor: "color-mix(in srgb, var(--color-text-primary) 4.5%, transparent)",
+    boxShadow:
+      "inset 1px 0 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)," +
+      "inset -1px 0 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)",
   },
-  // The box's top and bottom insets are drawn with a box-shadow, not padding.
-  // A shadow repeats the element's rounded box offset by 6px and costs nothing
-  // in layout; padding would make these two lines taller than every other line,
-  // and Vim's `j`/`k` (and `gj`/`gk`) resolve vertical motion through screen
-  // coordinates — uneven line heights are exactly what makes those misfire.
+  // The top and bottom insets are drawn with box-shadows, not padding: padding
+  // would make these lines taller than every other line, and Vim's `j`/`k`
+  // (and `gj`/`gk`) resolve vertical motion through screen coordinates —
+  // uneven line heights are exactly what makes those misfire. Unlike the old
+  // offset bands, these shadows hug the box (no 6px displacement), so the
+  // frame reads as one rounded card rather than three floating strips.
   ".cm-lp-src-first": {
     borderTopLeftRadius: "10px",
     borderTopRightRadius: "10px",
     boxShadow:
-      "0 -6px 0 color-mix(in srgb, var(--color-text-primary) 4.5%, var(--color-bg-editor))",
+      "inset 1px 1px 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)," +
+      "inset -1px 0 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)",
+    paddingTop: "8px",
   },
   ".cm-lp-src-last": {
     borderBottomLeftRadius: "10px",
     borderBottomRightRadius: "10px",
-    boxShadow: "0 6px 0 color-mix(in srgb, var(--color-text-primary) 4.5%, var(--color-bg-editor))",
+    boxShadow:
+      "inset 1px 0 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)," +
+      "inset -1px -1px 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)",
   },
-  // A one-line block carries both edges, so it needs both shadows.
+  // A one-line block carries both edges, so it needs the full frame.
   ".cm-lp-src-first.cm-lp-src-last": {
     boxShadow:
-      "0 -6px 0 color-mix(in srgb, var(--color-text-primary) 4.5%, var(--color-bg-editor))," +
-      "0 6px 0 color-mix(in srgb, var(--color-text-primary) 4.5%, var(--color-bg-editor))",
+      "inset 1px 1px 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)," +
+      "inset -1px -1px 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)",
   },
   // Rendered code/table blocks sit inline in the flow; trim the preview CSS's
   // outer block margins so they don't add double spacing between lines. The
@@ -1000,6 +1033,12 @@ const livePreviewTheme = EditorView.baseTheme({
   ".cm-lp-render > *:first-child": { marginTop: "0" },
   ".cm-lp-render > *:last-child": { marginBottom: "0" },
   ".cm-lp-inline-render": { display: "inline-block", verticalAlign: "middle" },
+  // Fallback selection tint for WebViews without the Custom Highlight API
+  // (see widgetSelectionHighlight.js) — a whole-block wash while the native
+  // selection touches the rendered block.
+  ".cm-lp-render.cm-lp-sel, .cm-lp-inline-render.cm-lp-sel": {
+    backgroundColor: "var(--color-accent-selection, rgba(109, 92, 224, 0.3))",
+  },
   ".cm-lp-inline-render img": { maxWidth: "100%", borderRadius: "6px" },
   ".cm-lp-mermaid": {
     display: "flex",
@@ -1017,5 +1056,5 @@ const livePreviewTheme = EditorView.baseTheme({
 });
 
 export function livePreview() {
-  return [livePreviewField, blockStepFilter, livePreviewTheme];
+  return [livePreviewField, blockStepFilter, livePreviewTheme, ...widgetSelectionHighlight()];
 }

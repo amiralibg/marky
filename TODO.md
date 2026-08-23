@@ -1,6 +1,6 @@
 # Marky TODO (Audit-Based Roadmap)
 
-Last reviewed: 2026-08-20
+Last reviewed: 2026-08-23
 This file is a forward-looking roadmap based on the current codebase state (not a historical changelog).
 It separates already-shipped features from the next recommended work.
 Latest validation: `pnpm lint`, `pnpm test`, `pnpm build`, and `cargo check` pass.
@@ -66,6 +66,8 @@ Latest validation: `pnpm lint`, `pnpm test`, `pnpm build`, and `cargo check` pas
 - [x] Keyboard shortcuts customization
 - [x] Keyboard shortcuts modal/help UI
 - [x] Focus mode (distraction-free writing)
+- [x] Settings rework: one section at a time instead of a single long scroll
+- [x] Settings search in the nav (fuzzy match on section names and keywords)
 
 ## Recommended Roadmap (What We Should Build Next)
 
@@ -244,12 +246,28 @@ Why next:
 - [ ] Emacs keybindings mode
 - [ ] Encryption for selected notes (careful design required)
 - [ ] Plugin/extension API (after core app stabilizes)
-- [ ] Optional cloud sync (only after conflict/history model is robust)
+- [x] Optional cloud sync — S3-compatible object storage (user request from feedback board)
+  - Value: private, cheap multi-device sync the user owns; requested on the feedback board.
+  - Shape (shipped v1): manual "Sync now" push/pull against a configurable endpoint/bucket
+    (path-style URLs so MinIO/Backblaze/Wasabi/Hetzner all work), per-file last-write-wins by
+    mtime with a saved per-workspace sync state (so pulled files don't echo back as pushes),
+    no remote deletes, credentials in workspace settings. SigV4 signed in JS and sent via
+    `tauri-plugin-http` fetch (a plain webview fetch is CORS-blocked by buckets without a policy).
+  - Later: background sync, conflict snapshots reusing the note-history model, deletion propagation.
+- [ ] Visual editors for tables and code blocks (Obsidian-like), user request from feedback board
+  - Value: non-technical users edit tables without touching pipe syntax; code blocks get
+    language picker / line-number chrome without dropping to raw Markdown.
+  - Shape: extend the Live-preview widget layer (`RenderedBlockWidget` in livePreview.js).
+    Tables: clicking into the rendered table keeps it rendered and shows cell editing with
+    add/remove row/column affordances; edits are serialized back to pipe-syntax on change.
+    Code blocks keep syntax highlighting and gain a hover toolbar (language select, copy, wrap)
+    while remaining one keystroke away from raw source (existing click-to-reveal).
+  - Depends on: existing live preview widgets, click→source mapping (`tablePositionAt` /
+    `codeLineAt`), and careful cursor/reveal handling under Vim mode.
 - [ ] AI features (summaries, suggestions), only after core local-first workflows feel complete
 
 ## Not Prioritized Right Now
 
-- [ ] Cloud sync
 - [ ] Plugin marketplace
 - [ ] Broad AI assistant features
 
