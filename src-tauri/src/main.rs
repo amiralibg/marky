@@ -1144,6 +1144,7 @@ fn main() {
         .manage(ExitState::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_http::init())
         .menu(|app| {
             let menu = Menu::default(app)?;
 
@@ -1227,7 +1228,11 @@ fn main() {
                 Some("CmdOrCtrl+K"),
             )?;
 
-            // View items — prepended before the default "Enter Full Screen"
+            // View items — prepended before the default "Enter Full Screen".
+            // The old "Editor Only / Split / Preview Only" commands are gone:
+            // the editor's real modes (Source / Live / Read) live in its own
+            // segmented control, and these dispatched mode ids that no longer
+            // exist.
             let toggle_sidebar = MenuItem::with_id(
                 app,
                 "menu://toggle-sidebar",
@@ -1236,27 +1241,6 @@ fn main() {
                 Some("CmdOrCtrl+B"),
             )?;
             let sep_v1 = PredefinedMenuItem::separator(app)?;
-            let view_editor = MenuItem::with_id(
-                app,
-                "menu://view-editor",
-                "Editor Only",
-                true,
-                Some("CmdOrCtrl+1"),
-            )?;
-            let view_split = MenuItem::with_id(
-                app,
-                "menu://view-split",
-                "Split View",
-                true,
-                Some("CmdOrCtrl+2"),
-            )?;
-            let view_preview = MenuItem::with_id(
-                app,
-                "menu://view-preview",
-                "Preview Only",
-                true,
-                Some("CmdOrCtrl+3"),
-            )?;
             let sep_v2 = PredefinedMenuItem::separator(app)?;
             let focus_mode = MenuItem::with_id(
                 app,
@@ -1346,9 +1330,6 @@ fn main() {
                             sub.prepend_items(&[
                                 &toggle_sidebar,
                                 &sep_v1,
-                                &view_editor,
-                                &view_split,
-                                &view_preview,
                                 &sep_v2,
                                 &focus_mode,
                                 &open_graph,
@@ -1419,15 +1400,6 @@ fn main() {
                 }
                 "menu://toggle-sidebar" => {
                     emit_to_focused(app, "menu://toggle-sidebar");
-                }
-                "menu://view-editor" => {
-                    emit_to_focused(app, "menu://view-editor");
-                }
-                "menu://view-split" => {
-                    emit_to_focused(app, "menu://view-split");
-                }
-                "menu://view-preview" => {
-                    emit_to_focused(app, "menu://view-preview");
                 }
                 "menu://focus-mode" => {
                     emit_to_focused(app, "menu://focus-mode");

@@ -52,26 +52,28 @@ export const SYNTAX_PALETTES = {
 };
 
 // Returns a syntaxHighlighting extension built from the given palette.
-// The `accentColor` CSS variable value is used for links/URLs.
-export const buildSyntaxHighlighting = (
-  paletteKey = "dark",
-  accentColor = "var(--color-accent)"
-) => {
-  const palette = SYNTAX_PALETTES[paletteKey] || SYNTAX_PALETTES.dark;
+// Token colors read the `--marky-syntax-*` CSS variables that `applyTheme`
+// keeps in sync with the active theme, so one extension instance serves every
+// theme and light/dark switches restyle the text without rebuilding the editor.
+const syntaxColor = (key) => {
+  const fallback = SYNTAX_PALETTES.dark[key];
+  return `var(--marky-syntax-${key}, ${fallback})`;
+};
+export const buildSyntaxHighlighting = (accentColor = "var(--color-accent)") => {
   return syntaxHighlighting(
     HighlightStyle.define([
       { tag: t.heading, color: "var(--color-text-primary)", fontWeight: "bold" },
-      { tag: t.emphasis, fontStyle: "italic", color: palette.emphasis },
-      { tag: t.strong, fontWeight: "bold", color: palette.strong },
+      { tag: t.emphasis, fontStyle: "italic", color: syntaxColor("emphasis") },
+      { tag: t.strong, fontWeight: "bold", color: syntaxColor("strong") },
       { tag: t.link, color: accentColor, textDecoration: "underline" },
       { tag: t.url, color: accentColor },
-      { tag: t.monospace, color: palette.monospace },
-      { tag: t.quote, color: palette.quote, fontStyle: "italic" },
-      { tag: t.list, color: palette.list },
-      { tag: t.meta, color: palette.meta },
-      { tag: t.keyword, color: palette.keyword },
-      { tag: t.string, color: palette.string },
-      { tag: t.comment, color: palette.comment, fontStyle: "italic" },
+      { tag: t.monospace, color: syntaxColor("monospace") },
+      { tag: t.quote, color: syntaxColor("quote"), fontStyle: "italic" },
+      { tag: t.list, color: syntaxColor("list") },
+      { tag: t.meta, color: syntaxColor("meta") },
+      { tag: t.keyword, color: syntaxColor("keyword") },
+      { tag: t.string, color: syntaxColor("string") },
+      { tag: t.comment, color: syntaxColor("comment"), fontStyle: "italic" },
     ])
   );
 };
@@ -87,7 +89,9 @@ export const markyTheme = EditorView.theme(
       // CodeMirror measures in px so character metrics stay on whole pixels;
       // --marky-font-scale is how it follows the app-wide text size, which the
       // rest of the UI gets for free from the root font size.
-      fontSize: "calc(13.5px * var(--marky-font-scale, 1))",
+      // --marky-editor-font-scale is the editor-only adjustment on top (see
+      // applyEditorFontScale), so notes can be sized independently of the UI.
+      fontSize: "calc(13.5px * var(--marky-editor-font-scale, 1) * var(--marky-font-scale, 1))",
       fontFamily: "var(--font-family-mono)",
     },
     // CodeMirror's base theme rings the focused editor with `1px dotted
@@ -151,11 +155,24 @@ export const markyTheme = EditorView.theme(
       backgroundColor: "color-mix(in srgb, var(--color-accent) 28%, transparent) !important",
       color: "var(--color-text-primary) !important",
     },
-    // Override browser default selection
+    // Override browser default selection. Plain rgba only — see the note on
+    // --color-accent-selection in settingsStore.
     "& ::selection": {
-      backgroundColor: "color-mix(in srgb, var(--color-accent) 28%, transparent) !important",
+      backgroundColor: "var(--color-accent-selection, rgba(109, 92, 224, 0.3)) !important",
       color: "var(--color-text-primary) !important",
     },
+    // Live-preview rendered blocks (tables, code fences) are non-editable
+    // widget DOM. drawSelection() forces every native ::selection inside the
+    // editor to `transparent !important` so its own overlay is the only
+    // highlight on editable lines — but that overlay never covers widget DOM,
+    // so selecting across a rendered table or code block highlighted nothing.
+    // Re-enable the accent wash there specifically; higher specificity than
+    // the base theme's rule, so it wins regardless of style order.
+    ".cm-lp-render ::selection, .cm-lp-render::selection, .cm-lp-inline-render ::selection, .cm-lp-inline-render::selection":
+      {
+        backgroundColor: "var(--color-accent-selection, rgba(109, 92, 224, 0.3)) !important",
+        color: "var(--color-text-primary) !important",
+      },
     ".cm-gutters": {
       backgroundColor: "var(--color-bg-editor)",
       color: "var(--color-text-muted)",
@@ -572,16 +589,26 @@ export const markyTheme = EditorView.theme(
 
 // Markdown syntax highlighting - using only well-defined tags
 // Default syntax highlighting (dark palette) — used as initial value before theme is applied.
-// Use buildSyntaxHighlighting(paletteKey) to get a theme-matched instance.
-export const markySyntaxHighlighting = buildSyntaxHighlighting("dark");
-// Map a Marky theme ID to the corresponding syntax palette key
-export const themeIdToPaletteKey = (themeId) => {
+// Token colors resolve through `--marky-syntax-*` variables, so this single
+// instance follows every theme; see applySyntaxPalette in settingsStore.
+export const markySyntaxHighlighting = buildSyntaxHighlighting();
+// Map a Marky theme to its syntax palette key. Gruvbox keeps its bespoke
+// palettes; every other theme follows its light/dark type — so switching to any
+// light theme (Vault, Catppuccin Latte, Rosé Pine Dawn, …) gets readable dark
+// ink instead of the bright dark-palette tokens.
+export const themeIdToPaletteKey = (themeId, themeType) => {
   if (themeId === "gruvbox-dark") return "gruvbox-dark";
   if (themeId === "gruvbox-light") return "gruvbox-light";
-  // light-type themes (Paper, Snow, etc.) use the light syntax palette
-  const lightThemes = ["paper", "light"];
-  if (lightThemes.includes(themeId)) return "light";
-  return "dark";
+  return themeType === "light" ? "light" : "dark";
+};
+
+// Stamp the active theme's syntax palette onto the document as CSS variables.
+// Called from `applyTheme` alongside the rest of the design tokens.
+export const applySyntaxPalette = (themeId, themeType) => {
+  const palette = SYNTAX_PALETTES[themeIdToPaletteKey(themeId, themeType)] || SYNTAX_PALETTES.dark;
+  for (const [key, value] of Object.entries(palette)) {
+    document.documentElement.style.setProperty(`--marky-syntax-${key}`, value);
+  }
 };
 
 // Default syntax highlighting (dark palette) — used as initial value before theme is applied.

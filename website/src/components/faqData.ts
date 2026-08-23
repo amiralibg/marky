@@ -27,11 +27,11 @@ export const FAQ: FaqItem[] = [
   },
   {
     q: "Can Marky sync between my machines?",
-    a: "There is no sync service built into Marky. Because a vault is only a folder, the usual answer is to put it somewhere that already syncs — git, Dropbox, iCloud Drive or Syncthing all work. Marky watches the folder while it runs, so a note changed by another editor or pulled down by git appears without a restart.",
+    a: "Yes — two ways. Marky has built-in sync with any S3-compatible storage you own (AWS S3, MinIO, Backblaze B2, Wasabi, Hetzner…): configure your bucket in Settings → Cloud sync and press Sync now. Requests are signed on your device with your keys, nothing is ever deleted on either side, and no third party sees your notes. Because a vault is also only a folder, the old answer still works too — git, Dropbox, iCloud Drive or Syncthing all work; Marky watches the folder while it runs, so external changes appear without a restart.",
   },
   {
     q: "Do my notes ever leave my machine?",
-    a: "The notes themselves, no. There is no account, no sync server and no analytics or telemetry of any kind in the app. Two things do reach the network, and both are worth being precise about: Marky asks GitHub whether a newer release exists so it can offer you the update, and the download buttons on this page read the GitHub releases API. Neither one sends anything about your notes.",
+    a: "The notes themselves, no — unless you turn on S3 sync, in which case they go only to the bucket you configured with credentials only you hold. There is no Marky account and no analytics or telemetry of any kind in the app. Two other things reach the network, and both are worth being precise about: Marky asks GitHub whether a newer release exists so it can offer you the update, and the download buttons on this page read the GitHub releases API. Neither one sends anything about your notes.",
   },
   {
     q: "Which platforms does it run on?",

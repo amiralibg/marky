@@ -8,6 +8,7 @@ import useSettingsStore, {
   applyTheme,
   applyAccentColor,
   applyFontScale,
+  applyEditorFontScale,
   normalizeSaveMode,
 } from "../store/settingsStore";
 import { readMarkdownFile, writeMarkdownFileOnDisk } from "../utils/fileSystem";
@@ -59,6 +60,7 @@ const NoteWindow = ({ filePath }) => {
   const themeId = useSettingsStore((state) => state.themeId);
   const accentColorId = useSettingsStore((state) => state.accentColorId);
   const fontScale = useSettingsStore((state) => state.fontScale);
+  const editorFontScale = useSettingsStore((state) => state.editorFontScale);
   const vimMode = useSettingsStore((state) => state.vimMode);
   const vimVisualLineMotion = useSettingsStore((state) => state.vimVisualLineMotion);
   const showLineNumbers = useSettingsStore((state) => state.showLineNumbers);
@@ -149,6 +151,10 @@ const NoteWindow = ({ filePath }) => {
   useEffect(() => {
     applyFontScale(fontScale);
   }, [fontScale]);
+
+  useEffect(() => {
+    applyEditorFontScale(editorFontScale);
+  }, [editorFontScale]);
 
   const isDirty = content !== savedContent;
 

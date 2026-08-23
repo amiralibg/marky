@@ -223,6 +223,9 @@ function App() {
   const [templateScheduleMode, setTemplateScheduleMode] = useState(false);
   const [templateParentId, setTemplateParentId] = useState(null);
   const [renamingItem, setRenamingItem] = useState(null);
+  // Section the settings tab should open on — set when a shortcut elsewhere in
+  // the UI (e.g. the sidebar's "Scheduled" row) deep-links into settings.
+  const [settingsSection, setSettingsSection] = useState(null);
 
   const sidebarRef = useRef(null);
   const editorRef = useRef(null);
@@ -381,15 +384,6 @@ function App() {
           break;
         case "toggleSidebar":
           setShowSidebar((prev) => !prev);
-          break;
-        case "viewEditor":
-          editorRef.current?.setViewMode?.("editor");
-          break;
-        case "viewSplit":
-          editorRef.current?.setViewMode?.("split");
-          break;
-        case "viewPreview":
-          editorRef.current?.setViewMode?.("preview");
           break;
         case "increaseFontSize":
           stepFontScale(1);
@@ -635,24 +629,6 @@ function App() {
       }
 
       // View modes
-      if (matchesKeymap(e, keymaps.viewEditor)) {
-        e.preventDefault();
-        editorRef.current?.setViewMode?.("editor");
-        return;
-      }
-
-      if (matchesKeymap(e, keymaps.viewSplit)) {
-        e.preventDefault();
-        editorRef.current?.setViewMode?.("split");
-        return;
-      }
-
-      if (matchesKeymap(e, keymaps.viewPreview)) {
-        e.preventDefault();
-        editorRef.current?.setViewMode?.("preview");
-        return;
-      }
-
       // Toggle Focus Mode
       if (matchesKeymap(e, keymaps.toggleFocusMode)) {
         e.preventDefault();
@@ -699,9 +675,9 @@ function App() {
       await attach("menu://search", () => setShowSearchModal(true));
       await attach("menu://command-palette", () => setShowCommandPalette(true));
       await attach("menu://toggle-sidebar", () => setShowSidebar((prev) => !prev));
-      await attach("menu://view-editor", () => editorRef.current?.setViewMode?.("editor"));
-      await attach("menu://view-split", () => editorRef.current?.setViewMode?.("split"));
-      await attach("menu://view-preview", () => editorRef.current?.setViewMode?.("preview"));
+      // The old Editor/Split/Preview view commands are gone: the editor's real
+      // modes (Source / Live / Read) live in its own segmented control now, and
+      // these handlers dispatched mode ids that no longer exist.
       await attach("menu://focus-mode", () => toggleFocusMode());
       await attach("menu://font-larger", () => stepFontScale(1));
       await attach("menu://font-smaller", () => stepFontScale(-1));
@@ -899,9 +875,9 @@ function App() {
                     setTemplateParentId(parentId);
                     setShowTemplateModal(true);
                   }}
-                  onOpenSchedule={(template) => {
-                    setScheduleTemplate(template);
-                    setShowScheduleModal(true);
+                  onOpenScheduled={() => {
+                    setSettingsSection("scheduling");
+                    selectNote(SETTINGS_TAB_ID);
                   }}
                   onRenameItem={(item) => setRenamingItem(item)}
                 />
@@ -932,6 +908,7 @@ function App() {
           <MarkdownEditor
             ref={editorRef}
             onOpenKeymapsModal={() => setShowKeymapsModal(true)}
+            initialSettingsSection={settingsSection}
             focusMode={focusMode}
           />
         </div>

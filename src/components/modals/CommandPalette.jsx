@@ -15,8 +15,6 @@ import {
   SearchIcon,
   SidebarIcon,
   EditIcon,
-  SplitIcon,
-  EyeIcon,
   GraphIcon,
   ExportIcon,
   SettingsIcon,
@@ -124,31 +122,8 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         keywords: ["hide", "show"],
       },
 
-      // View Modes
-      {
-        id: "view-editor",
-        name: "Editor Only View",
-        category: "View",
-        icon: EditIcon,
-        action: "viewEditor",
-        keywords: ["edit", "write"],
-      },
-      {
-        id: "view-split",
-        name: "Split View",
-        category: "View",
-        icon: SplitIcon,
-        action: "viewSplit",
-        keywords: ["preview", "both"],
-      },
-      {
-        id: "view-preview",
-        name: "Preview Only View",
-        category: "View",
-        icon: EyeIcon,
-        action: "viewPreview",
-        keywords: ["render", "show"],
-      },
+      // View modes were removed — the editor's Source / Live / Read control is
+      // the single switcher now.
 
       {
         id: "increase-font-size",

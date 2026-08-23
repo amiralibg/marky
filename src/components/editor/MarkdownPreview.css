@@ -105,9 +105,11 @@
   color: var(--color-text-primary);
   /* Fixed, and the same for every level — see the `rem`-not-`em` note up top.
      The blank line above already carries the bulk of the gap; this is the
-     extra beat that sets a heading apart from the paragraph before it. */
+     extra beat that sets a heading apart from the paragraph before it. The
+     larger bottom margin is deliberate: the heading needs its own strip of
+     air between itself and the block it introduces. */
   margin-top: 0.6rem;
-  margin-bottom: 0.25em;
+  margin-bottom: 1rem;
   line-height: 1.25;
   letter-spacing: -0.015em;
   text-wrap: balance;
@@ -714,8 +716,9 @@
 }
 
 /* ── Selection ───────────────────────────────────────────────*/
+/* Plain rgba — WebKit discards color-mix() inside ::selection. */
 .markdown-preview ::selection {
-  background: color-mix(in srgb, var(--color-accent) 26%, transparent);
+  background: var(--color-accent-selection, rgba(109, 92, 224, 0.3));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -904,4 +907,100 @@
 [data-theme="light"] .hljs-deletion {
   color: #82071e;
   background-color: #ffebe9;
+}
+
+/* ── Properties panel (front matter) ─────────────────────────
+   YAML front matter rendered as a properties sheet at the top of the preview —
+   also the header surface for templated notes (journals, meetings). Surfaces
+   and hairlines are derived from the theme (see the header note), so the same
+   styles read correctly in all themes without light/dark forks. */
+.markdown-preview .frontmatter-card {
+  background: var(--md-surface);
+  border: 1px solid var(--md-line-soft);
+  border-radius: calc(var(--md-radius) + 2px);
+  padding: 0.35rem 0 0.45rem;
+  margin-bottom: 2rem;
+}
+
+.markdown-preview .frontmatter-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  margin-bottom: 0.2rem;
+  border-bottom: 1px solid var(--md-line-soft);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.markdown-preview .frontmatter-icon {
+  opacity: 0.8;
+}
+
+.markdown-preview .frontmatter-count {
+  margin-inline-start: auto;
+  min-width: 1.15rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--md-surface-strong);
+  border: 1px solid var(--md-line-soft);
+  font-size: 0.6rem;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.markdown-preview .frontmatter-grid {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.markdown-preview .frontmatter-row {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, max-content) 1fr;
+  gap: 0.9rem;
+  align-items: baseline;
+  padding: 0.32rem 0.9rem;
+}
+
+.markdown-preview .frontmatter-row + .frontmatter-row {
+  border-top: 1px solid var(--md-line-soft);
+}
+
+.markdown-preview .frontmatter-key {
+  font-family: var(--font-family-mono);
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  overflow-wrap: break-word;
+}
+
+.markdown-preview .frontmatter-val {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-primary);
+}
+
+.markdown-preview .frontmatter-value {
+  overflow-wrap: break-word;
+}
+
+.markdown-preview .frontmatter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.markdown-preview .frontmatter-chip {
+  display: inline-block;
+  padding: 0.06rem 0.55rem;
+  border-radius: 999px;
+  background: var(--color-accent-dim, rgba(109, 92, 224, 0.16));
+  color: var(--color-accent);
+  font-size: 0.73rem;
+  line-height: 1.6;
 }

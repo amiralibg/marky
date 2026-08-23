@@ -267,8 +267,52 @@ if (!extensionsRegistered) {
   extensionsRegistered = true;
 }
 
+/**
+ * The note's YAML front matter, rendered as a properties panel instead of
+ * being silently dropped. Lists become chips; everything else is a key/value
+ * row. Empty values are skipped so an unfinished field doesn't show.
+ *
+ * This is also Marky's template-header surface: journal dailies, meeting notes
+ * and any templated note that opens with front matter get this same panel,
+ * which is what makes those templates read like documents rather than config.
+ */
+export const renderFrontmatterCard = (attributes = {}) => {
+  const entries = Object.entries(attributes).filter(([, value]) =>
+    Array.isArray(value) ? value.length > 0 : String(value ?? "").trim() !== ""
+  );
+  if (entries.length === 0) return "";
+
+  const rows = entries
+    .map(([key, value]) => {
+      const valueHtml = Array.isArray(value)
+        ? `<div class="frontmatter-chips">${value
+            .map((item) => `<span class="frontmatter-chip">${escapeHtml(String(item))}</span>`)
+            .join("")}</div>`
+        : `<span class="frontmatter-value" dir="auto">${escapeHtml(String(value))}</span>`;
+      return `<div class="frontmatter-row"><dt class="frontmatter-key">${escapeHtml(
+        key
+      )}</dt><dd class="frontmatter-val">${valueHtml}</dd></div>`;
+    })
+    .join("");
+
+  return (
+    '<section class="frontmatter-card" aria-label="Note properties">' +
+    '<header class="frontmatter-header">' +
+    '<svg class="frontmatter-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M4 6h16M4 12h16M4 18h10"/>' +
+    "</svg>" +
+    "<span>Properties</span>" +
+    `<span class="frontmatter-count">${entries.length}</span>` +
+    "</header>" +
+    `<dl class="frontmatter-grid">${rows}</dl>` +
+    "</section>"
+  );
+};
+
 export const renderMarkdownPreview = (markdown) => {
-  const previewMarkdown = parseFrontmatter(markdown).body;
+  const parsed = parseFrontmatter(markdown);
+  const frontmatterHtml = parsed.hasFrontmatter ? renderFrontmatterCard(parsed.attributes) : "";
+  const previewMarkdown = parsed.body;
   const tokens = marked.lexer(previewMarkdown);
 
   // The footnote extension emits its section as the first token and relies on
@@ -294,5 +338,5 @@ export const renderMarkdownPreview = (markdown) => {
     marked.walkTokens(tokensWithBlankLines, marked.defaults.walkTokens);
   }
 
-  return marked.parser(tokensWithBlankLines);
+  return frontmatterHtml + marked.parser(tokensWithBlankLines);
 };

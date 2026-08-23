@@ -23,7 +23,7 @@
 Marky is an offline-first Markdown notes app built with Tauri, React, and Rust.
 It is designed for local folder-based note-taking with wiki links, graph navigation, a modern editor, and strong customization.
 
-Your notes are ordinary Markdown files in an ordinary folder. No account, no cloud, no database — git them, sync them, or leave them on a USB stick. Native installers stay under 10 MB.
+Your notes are ordinary Markdown files in an ordinary folder. No account, no database — git them, put them in any sync folder, point the built-in S3 sync at your own bucket, or leave them on a USB stick. Native installers stay under 10 MB.
 
 <p align="center">
   <img src="docs/images/grid.png" alt="Four views of Marky: a daily note, the appearance settings with theme previews, a note with highlighted Rust code, and the note graph" width="100%" />
@@ -48,10 +48,19 @@ Current version: [`v1.8.0`](https://github.com/amiralibg/marky/releases/tag/v1.8
 - Markdown extensions: Mermaid, KaTeX math, footnotes, code highlighting
 - Themes, accent colors, app-wide text size, customizable keyboard shortcuts, Vim mode
 - AI integration via Model Context Protocol (MCP) Server for Claude Desktop, Cursor, etc.
+- Cloud sync with any S3-compatible storage (AWS S3, MinIO, Backblaze B2, Wasabi, Hetzner…)
 - Workspace ZIP backup export
 - File watcher sync for external changes (other editors, git pulls, etc.)
 
 ## Features
+
+### Cloud sync (S3-compatible)
+
+- Sync your workspace across devices using **your own** S3-compatible bucket — your data stays yours
+- Works with AWS S3, MinIO, Backblaze B2, Wasabi, Hetzner, and other providers (path-style URLs)
+- Manual "Sync now" push/pull; last-write-wins per file, and nothing is ever deleted on either side
+- Requests are signed locally (SigV4); credentials live in your workspace settings on your device
+- Configure it in Settings -> Cloud sync
 
 ### AI & Model Context Protocol (MCP)
 

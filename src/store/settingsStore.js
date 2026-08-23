@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEFAULT_ATTACHMENT_FOLDER } from "../utils/attachments";
+import { applySyntaxPalette } from "../components/editor/theme";
 
 // Theme definitions — "Vault" redesign (claude.ai/design Marky - Vault).
 // bgEditor = the content "panel"; itemActive = "raised"; bar = skeleton bars
@@ -296,9 +297,6 @@ export const DEFAULT_KEYMAPS = {
   editorSearch: { key: "f", modifiers: ["mod"], description: "Find in editor" },
   toggleSidebar: { key: "b", modifiers: ["mod"], description: "Toggle sidebar" },
   showShortcuts: { key: "/", modifiers: ["mod"], description: "Show keyboard shortcuts" },
-  viewEditor: { key: "1", modifiers: ["mod"], description: "Editor only view" },
-  viewSplit: { key: "2", modifiers: ["mod"], description: "Split view" },
-  viewPreview: { key: "3", modifiers: ["mod"], description: "Preview only view" },
   toggleFocusMode: { key: "F", modifiers: ["mod", "alt"], description: "Toggle Focus Mode" },
   increaseFontSize: { key: "=", modifiers: ["mod"], description: "Increase font size" },
   decreaseFontSize: { key: "-", modifiers: ["mod"], description: "Decrease font size" },
@@ -320,7 +318,13 @@ const areKeymapsEqual = (left, right) =>
   JSON.stringify(left?.modifiers || []) === JSON.stringify(right?.modifiers || []);
 
 const migrateLegacyKeymaps = (keymaps = {}) => {
-  const nextKeymaps = { ...keymaps };
+  // Drop entries for actions that no longer exist (e.g. the removed view-mode
+  // commands). Anything unknown would crash the keymap UI, which compares
+  // every stored action against DEFAULT_KEYMAPS.
+  const nextKeymaps = {};
+  for (const [actionId, keymap] of Object.entries(keymaps || {})) {
+    if (DEFAULT_KEYMAPS[actionId]) nextKeymaps[actionId] = keymap;
+  }
   const usesLegacySidebarDefault = areKeymapsEqual(
     nextKeymaps.toggleSidebar,
     LEGACY_DEFAULT_KEYMAPS.toggleSidebar
@@ -355,15 +359,7 @@ export const KEYMAP_CATEGORIES = [
     name: "View",
     iconPath:
       "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z",
-    actions: [
-      "viewEditor",
-      "viewSplit",
-      "viewPreview",
-      "toggleFocusMode",
-      "increaseFontSize",
-      "decreaseFontSize",
-      "resetFontSize",
-    ],
+    actions: ["toggleFocusMode", "increaseFontSize", "decreaseFontSize", "resetFontSize"],
   },
   {
     name: "Editing",
@@ -403,6 +399,11 @@ export const applyTheme = (themeId) => {
 
     // Set theme type attribute for conditional styling
     document.documentElement.setAttribute("data-theme", theme.type);
+
+    // Editor syntax token colors follow the theme too (see theme.js) — without
+    // this a light theme kept the bright dark-palette tokens and the note text
+    // was hard to read.
+    applySyntaxPalette(theme.id, theme.type);
   }
 };
 
@@ -419,6 +420,14 @@ export const applyAccentColor = (colorId) => {
     document.documentElement.style.setProperty("--color-accent", color.value);
     document.documentElement.style.setProperty("--color-accent-hover", color.hover);
     document.documentElement.style.setProperty("--color-accent-dim", hexToRgba(color.value, 0.16));
+    // Selection washes must be plain rgba: WebKit drops `color-mix()` values
+    // inside `::selection` (the declaration is discarded while sibling
+    // declarations apply), which left selections inside live-preview rendered
+    // blocks with recolored text but no background.
+    document.documentElement.style.setProperty(
+      "--color-accent-selection",
+      hexToRgba(color.value, 0.3)
+    );
   }
 };
 
@@ -478,6 +487,16 @@ export const applyFontScale = (scale) => {
 };
 
 /**
+ * Editor-only text scale, on top of the app-wide one. Multiplies into
+ * `--marky-editor-font-scale` which the CodeMirror theme reads — so the
+ * editor's text can grow or shrink without moving the sidebar or menus.
+ */
+export const applyEditorFontScale = (scale) => {
+  const value = clampFontScale(scale);
+  document.documentElement.style.setProperty("--marky-editor-font-scale", `${value / 100}`);
+};
+
+/**
  * How wide the text column is allowed to get. One measure drives the editor
  * pane *and* the rendered preview, so switching Source → Live → Read never
  * reflows the paragraph you were reading — before this the editor sat at 64rem
@@ -533,6 +552,7 @@ const createDefaultProfileSettings = () => ({
   themeId: "vault",
   accentColorId: "purple",
   fontScale: FONT_SCALE_DEFAULT,
+  editorFontScale: FONT_SCALE_DEFAULT,
   editorWidth: "default",
   ignorePatterns: "",
   attachmentFolder: DEFAULT_ATTACHMENT_FOLDER,
@@ -545,12 +565,21 @@ const createDefaultProfileSettings = () => ({
   sidebarDensity: "comfortable",
   showSidebarMetadata: true,
   keymaps: { ...DEFAULT_KEYMAPS },
+  // S3-compatible sync (see utils/s3Sync.js). Credentials live per workspace
+  // profile so different vaults can sync to different buckets.
+  s3Endpoint: "",
+  s3Region: "us-east-1",
+  s3Bucket: "",
+  s3Prefix: "",
+  s3AccessKeyId: "",
+  s3SecretAccessKey: "",
 });
 
 const buildProfileSettingsSnapshot = (state) => ({
   themeId: state.themeId,
   accentColorId: state.accentColorId,
   fontScale: state.fontScale,
+  editorFontScale: state.editorFontScale,
   editorWidth: state.editorWidth,
   ignorePatterns: state.ignorePatterns,
   attachmentFolder: state.attachmentFolder,
@@ -563,6 +592,12 @@ const buildProfileSettingsSnapshot = (state) => ({
   sidebarDensity: state.sidebarDensity,
   showSidebarMetadata: state.showSidebarMetadata,
   keymaps: { ...DEFAULT_KEYMAPS, ...(state.keymaps || {}) },
+  s3Endpoint: state.s3Endpoint,
+  s3Region: state.s3Region,
+  s3Bucket: state.s3Bucket,
+  s3Prefix: state.s3Prefix,
+  s3AccessKeyId: state.s3AccessKeyId,
+  s3SecretAccessKey: state.s3SecretAccessKey,
 });
 
 const mergeProfileSettings = (profile = {}) => {
@@ -577,6 +612,7 @@ const mergeProfileSettings = (profile = {}) => {
   if (!ACCENT_COLORS.some((c) => c.id === merged.accentColorId)) merged.accentColorId = "purple";
   if (!EDITOR_WIDTHS.some((w) => w.id === merged.editorWidth)) merged.editorWidth = "default";
   merged.fontScale = clampFontScale(merged.fontScale ?? FONT_SCALE_DEFAULT);
+  merged.editorFontScale = clampFontScale(merged.editorFontScale ?? FONT_SCALE_DEFAULT);
   // Profiles written before save modes existed carry an `autosaveEnabled`
   // boolean and no `saveMode`. They all land on `auto`: the old flag defaulted
   // to off and was buried in Editor settings, so a `false` there says "never
@@ -619,6 +655,10 @@ const useSettingsStore = create(
 
       // App-wide text scale, as a percentage — see FONT_SCALE_* / applyFontScale
       fontScale: FONT_SCALE_DEFAULT,
+
+      // Editor-only text scale multiplier, as a percentage — see
+      // applyEditorFontScale. Multiplies on top of fontScale.
+      editorFontScale: FONT_SCALE_DEFAULT,
 
       // Editor settings
       vimMode: false,
@@ -705,6 +745,15 @@ const useSettingsStore = create(
 
       resetFontScale: () => get().setFontScale(FONT_SCALE_DEFAULT),
 
+      setEditorFontScale: (scale) => {
+        const value = clampFontScale(scale);
+        get().syncProfileState({ editorFontScale: value });
+        applyEditorFontScale(value);
+        return value;
+      },
+
+      resetEditorFontScale: () => get().setEditorFontScale(FONT_SCALE_DEFAULT),
+
       toggleColorScheme: () => {
         const current = migrateThemeId(get().themeId);
         const next = THEME_COUNTERPARTS[current] || "vault";
@@ -751,6 +800,9 @@ const useSettingsStore = create(
       },
       setShowSidebarMetadata: (enabled) => {
         get().syncProfileState({ showSidebarMetadata: enabled });
+      },
+      setS3Config: (partial) => {
+        get().syncProfileState(partial);
       },
       setOpenRecentOnStartup: (enabled) => {
         set({ openRecentOnStartup: enabled });
@@ -832,6 +884,7 @@ const useSettingsStore = create(
           applyTheme(sharedSettings.themeId);
           applyAccentColor(sharedSettings.accentColorId);
           applyFontScale(sharedSettings.fontScale);
+          applyEditorFontScale(sharedSettings.editorFontScale);
         }
       },
 
@@ -851,6 +904,7 @@ const useSettingsStore = create(
         applyTheme(snapshot.themeId);
         applyAccentColor(snapshot.accentColorId);
         applyFontScale(snapshot.fontScale);
+        applyEditorFontScale(snapshot.editorFontScale);
       },
 
       clearActiveWorkspaceSettings: () => {
@@ -862,6 +916,7 @@ const useSettingsStore = create(
         applyTheme(sharedSettings.themeId);
         applyAccentColor(sharedSettings.accentColorId);
         applyFontScale(sharedSettings.fontScale);
+        applyEditorFontScale(sharedSettings.editorFontScale);
       },
 
       getSettingsExportPayload: () => {
@@ -915,6 +970,7 @@ const useSettingsStore = create(
         applyTheme(activeSnapshot.themeId);
         applyAccentColor(activeSnapshot.accentColorId);
         applyFontScale(activeSnapshot.fontScale);
+        applyEditorFontScale(activeSnapshot.editorFontScale);
       },
 
       // Initialize settings (call on app start)
@@ -945,6 +1001,7 @@ const useSettingsStore = create(
         applyTheme(snapshot.themeId);
         applyAccentColor(snapshot.accentColorId);
         applyFontScale(snapshot.fontScale);
+        applyEditorFontScale(snapshot.editorFontScale);
       },
 
       // Get keymap by action ID
@@ -958,6 +1015,7 @@ const useSettingsStore = create(
         themeId: state.themeId,
         accentColorId: state.accentColorId,
         fontScale: state.fontScale,
+        editorFontScale: state.editorFontScale,
         vimMode: state.vimMode,
         vimVisualLineMotion: state.vimVisualLineMotion,
         saveMode: state.saveMode,
