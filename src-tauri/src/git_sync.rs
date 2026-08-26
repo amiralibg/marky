@@ -292,6 +292,33 @@ fn url_encode(value: &str) -> String {
     out
 }
 
+/// Escape a value so that `echo(<value>` in a `.cmd` script prints it verbatim.
+///
+/// cmd parses each line twice. Percent expansion runs first, so a literal `%`
+/// has to be doubled or a passphrase containing `%PATH%` quietly turns into the
+/// environment variable. The second pass reads `& | < > ( ) "` as syntax, which
+/// is the part that matters here: an unescaped `&` does not merely corrupt the
+/// answer, it runs the rest of the passphrase as a command. Each of those gets a
+/// caret in front, `^` itself included.
+///
+/// `!` is deliberately left alone — it is only special when delayed expansion is
+/// on, and the script disables that before it echoes anything.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn cmd_echo_escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '%' => out.push_str("%%"),
+            '^' | '&' | '|' | '<' | '>' | '(' | ')' | '"' => {
+                out.push('^');
+                out.push(ch);
+            }
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
 fn is_http(url: &str) -> bool {
     url.starts_with("https://") || url.starts_with("http://")
 }
@@ -379,18 +406,29 @@ fn prepare_auth(
             // answer. OpenSSH ≥ 8.4 honours SSH_ASKPASS_REQUIRE=force without
             // a display; older builds want DISPLAY set as well, so set both.
             if !passphrase.is_empty() {
-                let escaped = passphrase.replace('\'', "'\\''");
                 let script = {
                     #[cfg(windows)]
                     {
                         let path = std::env::temp_dir()
                             .join(format!("marky-askpass-{}.cmd", std::process::id()));
-                        let _ = std::fs::write(&path, format!("@echo {}\r\n", passphrase));
+                        // `echo(` rather than `echo `: it prints a leading space
+                        // faithfully, and a passphrase of exactly `off` echoes
+                        // itself instead of silencing the script.
+                        let _ = std::fs::write(
+                            &path,
+                            format!(
+                                "@echo off\r\nsetlocal DisableDelayedExpansion\r\necho({}\r\n",
+                                cmd_echo_escape(&passphrase)
+                            ),
+                        );
                         path
                     }
                     #[cfg(not(windows))]
                     {
                         use std::os::unix::fs::PermissionsExt;
+                        // Single quotes make everything literal, so only the
+                        // quote itself needs the close-escape-reopen dance.
+                        let escaped = passphrase.replace('\'', "'\\''");
                         let path = std::env::temp_dir()
                             .join(format!("marky-askpass-{}.sh", std::process::id()));
                         let _ = std::fs::write(
@@ -1109,6 +1147,34 @@ mod tests {
     fn url_encode_escapes_url_structure_characters() {
         assert_eq!(url_encode("abc123"), "abc123");
         assert_eq!(url_encode("to:ken/p@ss word"), "to%3Aken%2Fp%40ss%20word");
+    }
+
+    #[test]
+    fn cmd_echo_escape_leaves_an_ordinary_passphrase_alone() {
+        assert_eq!(cmd_echo_escape("hunter2"), "hunter2");
+        // Spaces and `!` are not cmd syntax in a script that has turned
+        // delayed expansion off, so they must survive untouched.
+        assert_eq!(cmd_echo_escape("correct horse!"), "correct horse!");
+    }
+
+    #[test]
+    fn cmd_echo_escape_neutralises_command_separators() {
+        // The bug this guards: `echo(a&whoami` would have run `whoami`.
+        assert_eq!(cmd_echo_escape("a&whoami"), "a^&whoami");
+        assert_eq!(cmd_echo_escape("a|b<c>d"), "a^|b^<c^>d");
+        assert_eq!(cmd_echo_escape("(paren)"), "^(paren^)");
+        assert_eq!(cmd_echo_escape("say\"quote\""), "say^\"quote^\"");
+    }
+
+    #[test]
+    fn cmd_echo_escape_doubles_percent_and_escapes_the_caret_itself() {
+        // A single `%` would eat the following text as a variable name.
+        assert_eq!(cmd_echo_escape("50%"), "50%%");
+        assert_eq!(cmd_echo_escape("%PATH%"), "%%PATH%%");
+        // The caret is the escape character, so it needs escaping first-class,
+        // and escaping must not run twice over what it just inserted.
+        assert_eq!(cmd_echo_escape("a^b"), "a^^b");
+        assert_eq!(cmd_echo_escape("^&"), "^^^&");
     }
 
     // ── Round-trip sync ─────────────────────────────────────────────────
