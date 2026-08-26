@@ -503,6 +503,62 @@ fn identity_args(options: &SyncOptions) -> Vec<String> {
     args
 }
 
+/// The author to fall back on when neither Marky's settings nor the machine
+/// itself supply one.
+fn neutral_identity() -> Vec<String> {
+    vec![
+        "-c".to_string(),
+        "user.name=Marky".to_string(),
+        "-c".to_string(),
+        "user.email=marky@localhost".to_string(),
+    ]
+}
+
+/// Does this stderr mean git could not work out who the author is?
+fn is_missing_identity(err: &str) -> bool {
+    let lowered = err.to_lowercase();
+    // "Please tell me who you are" sits on an earlier stderr line than the one
+    // `describe` keeps, so match its final line's phrasing too.
+    lowered.contains("who you are")
+        || lowered.contains("user.email")
+        || lowered.contains("user.name")
+        || lowered.contains("no email was given")
+        || lowered.contains("no name was given")
+        || lowered.contains("auto-detection is disabled")
+        // An account that exists but has no full name set — a CI runner, a
+        // container, a trimmed-down install — makes git derive an ident that is
+        // empty rather than absent, and it says so in different words.
+        || lowered.contains("empty ident")
+}
+
+/// Run a git command that writes a commit, supplying the configured identity
+/// and retrying once with a neutral one when the machine has none.
+///
+/// `git merge` authors a commit exactly as `git commit` does, so it needs the
+/// same care. Without it a machine that has never had `user.name` set fails the
+/// merge outright, which strands sync the first time a second device edits
+/// anything — the one situation the whole feature exists for.
+fn git_authored(
+    dir: &Path,
+    args: &[&str],
+    options: &SyncOptions,
+    envs: &[(&str, String)],
+) -> Result<String, String> {
+    // Config overrides must come *before* the subcommand:
+    // `git -c user.name=… commit -m …`.
+    let attempt = |overrides: &[String]| -> Result<String, String> {
+        let mut all: Vec<&str> = overrides.iter().map(String::as_str).collect();
+        all.extend_from_slice(args);
+        git(dir, &all, envs)
+    };
+
+    match attempt(&identity_args(options)) {
+        Ok(out) => Ok(out),
+        Err(err) if is_missing_identity(&err) => attempt(&neutral_identity()),
+        Err(err) => Err(err),
+    }
+}
+
 /// Commit staged changes, retrying once with a neutral identity when the
 /// machine has no git identity configured at all.
 fn commit(
@@ -511,41 +567,8 @@ fn commit(
     options: &SyncOptions,
     envs: &[(&str, String)],
 ) -> Result<Option<String>, String> {
-    let identity = identity_args(options);
-    // Config overrides must come *before* the subcommand:
-    // `git -c user.name=… commit -m …`.
-    let neutral = [
-        "-c".to_string(),
-        "user.name=Marky".to_string(),
-        "-c".to_string(),
-        "user.email=marky@localhost".to_string(),
-    ];
-    let attempt = |overrides: &[String]| -> Result<String, String> {
-        let mut all: Vec<String> = overrides.to_vec();
-        all.extend(["commit".to_string(), "-m".to_string(), message.to_string()]);
-        let refs: Vec<&str> = all.iter().map(String::as_str).collect();
-        git(path, &refs, envs)
-    };
-
-    match attempt(&identity) {
-        Ok(_) => Ok(Some(message.to_string())),
-        Err(err) => {
-            let lowered = err.to_lowercase();
-            // "Please tell me who you are" sits on an earlier stderr line than
-            // the one `describe` keeps, so match its final line's phrasing too.
-            if lowered.contains("who you are")
-                || lowered.contains("user.email")
-                || lowered.contains("user.name")
-                || lowered.contains("no email was given")
-                || lowered.contains("no name was given")
-                || lowered.contains("auto-detection is disabled")
-            {
-                attempt(&neutral).map(Some)
-            } else {
-                Err(err)
-            }
-        }
-    }
+    git_authored(path, &["commit", "-m", message], options, envs)
+        .map(|_| Some(message.to_string()))
 }
 
 // ── Commands ────────────────────────────────────────────────────────────────
@@ -951,9 +974,10 @@ fn merge_remote(
     // Real three-way merge. On conflict git writes markers into the working
     // files and stops — we then rebuild each file from the index stages.
     let message = format!("Merge {remote_short} (Marky sync)");
-    if git(
+    if git_authored(
         dir,
         &["merge", "--no-ff", "-m", &message, &remote_short],
+        options,
         &context.envs,
     )
     .is_ok()
@@ -979,9 +1003,10 @@ fn merge_remote(
     .collect();
     if conflicted_paths.is_empty() {
         // Not a conflict — a genuine failure (locked index, etc.). Surface it.
-        return Err(git(
+        return Err(git_authored(
             dir,
             &["merge", "--no-ff", "-m", &message, &remote_short],
+            options,
             &context.envs,
         )
         .unwrap_err());
@@ -1177,6 +1202,26 @@ mod tests {
         assert_eq!(cmd_echo_escape("^&"), "^^^&");
     }
 
+    #[test]
+    fn missing_identity_is_recognised_however_git_phrases_it() {
+        assert!(is_missing_identity(
+            "*** Please tell me who you are.\nfatal: unable to auto-detect email address"
+        ));
+        assert!(is_missing_identity(
+            "fatal: no name was given and auto-detection is disabled"
+        ));
+        // The phrasing on an account that exists with a blank full name. Missing
+        // it meant the neutral-identity fallback never fired on a CI runner or
+        // in a container — exactly where no identity is configured.
+        assert!(is_missing_identity(
+            "fatal: empty ident name (for <runner@build-host>) not allowed"
+        ));
+        // A real failure must still surface rather than be retried.
+        assert!(!is_missing_identity(
+            "fatal: Unable to create '/vault/.git/index.lock': File exists."
+        ));
+    }
+
     // ── Round-trip sync ─────────────────────────────────────────────────
     //
     // These drive the real thing: two vaults pushing and pulling through a
@@ -1281,6 +1326,20 @@ mod tests {
             "different files never conflict"
         );
         assert_eq!(read(&second, "B.md"), "beta");
+
+        // The merge commit must carry the identity Marky was configured with,
+        // not whatever the machine happens to have. A merge authors a commit
+        // just as `git commit` does, and when this was left to git it simply
+        // failed on any machine with no identity set at all.
+        let author = SysCommand::new("git")
+            .args(["log", "-1", "--merges", "--format=%an <%ae>"])
+            .current_dir(&second)
+            .output()
+            .unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&author.stdout).trim(),
+            "Test <test@example.com>"
+        );
 
         // …and the first device sees the second's note on its next sync.
         git_sync(first.clone(), GitAuth::default(), options()).unwrap();
