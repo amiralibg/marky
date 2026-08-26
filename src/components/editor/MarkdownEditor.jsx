@@ -23,6 +23,7 @@ import { parseHeadings } from "../../utils/headings";
 import { saveMarkdownFile } from "../../utils/fileSystem";
 import { isolateBidiRuns } from "../../utils/bidi";
 import { setAttachmentContext } from "../../utils/attachments";
+import { copyText } from "../../utils/clipboard";
 import { copyDroppedImages, saveImageAttachment } from "../../utils/attachmentSaver";
 import { useExternalImageDrop } from "../../hooks/useExternalImageDrop";
 import "./MarkdownPreview.css";
@@ -723,38 +724,44 @@ const MarkdownEditor = forwardRef((props, ref) => {
     };
   }, [debouncedMarkdown, viewMode]); // Use debouncedMarkdown instead of markdown
 
-  // Handle copy button clicks on code blocks - use debouncedMarkdown to avoid running on every keystroke
+  // Copy button on Read-mode code blocks. Live mode wires its own button inside
+  // the widget (see `attachCodeChrome`), so this is scoped to the Read pane
+  // rather than to the first `.markdown-preview` in the document — the live
+  // widgets carry that class too, and this listener was landing on one of them.
   useEffect(() => {
-    const container = document.querySelector(".markdown-preview");
+    if (viewMode !== "read") return;
+    const container = previewPaneRef.current;
     if (!container) return;
 
     const handleCopyClick = async (e) => {
       const btn = e.target.closest(".code-copy-btn");
       if (!btn) return;
 
-      const code = btn.getAttribute("data-code");
+      const code = btn.closest(".code-block-wrapper")?.querySelector("pre")?.textContent ?? "";
       if (!code) return;
 
-      try {
-        await navigator.clipboard.writeText(code);
-        const copyIcon = btn.querySelector(".copy-icon");
-        const checkIcon = btn.querySelector(".check-icon");
-        if (copyIcon && checkIcon) {
-          copyIcon.style.display = "none";
-          checkIcon.style.display = "block";
-          setTimeout(() => {
-            copyIcon.style.display = "block";
-            checkIcon.style.display = "none";
-          }, 2000);
-        }
-      } catch (err) {
-        console.error("Failed to copy:", err);
+      // `navigator.clipboard` is missing or blocked in parts of the WebView;
+      // `copyText` falls back to the OS clipboard through Tauri.
+      if (!(await copyText(code))) {
+        addNotification("Could not reach the clipboard", "error");
+        return;
+      }
+
+      const copyIcon = btn.querySelector(".copy-icon");
+      const checkIcon = btn.querySelector(".check-icon");
+      if (copyIcon && checkIcon) {
+        copyIcon.style.display = "none";
+        checkIcon.style.display = "block";
+        setTimeout(() => {
+          copyIcon.style.display = "block";
+          checkIcon.style.display = "none";
+        }, 2000);
       }
     };
 
     container.addEventListener("click", handleCopyClick);
     return () => container.removeEventListener("click", handleCopyClick);
-  }, [debouncedMarkdown, viewMode]); // Use debouncedMarkdown instead of markdown
+  }, [debouncedMarkdown, viewMode, addNotification]); // Use debouncedMarkdown instead of markdown
 
   // Render mermaid diagrams after preview HTML is in the DOM
   useEffect(() => {

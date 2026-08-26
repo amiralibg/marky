@@ -573,6 +573,25 @@ const createDefaultProfileSettings = () => ({
   s3Prefix: "",
   s3AccessKeyId: "",
   s3SecretAccessKey: "",
+  // Git sync (see utils/gitSync.js). Per workspace profile, same as S3 — one
+  // vault can back up to a repo while another does not sync at all.
+  gitRemoteUrl: "",
+  gitBranch: "main",
+  gitAuthMode: "token",
+  gitUsername: "",
+  gitToken: "",
+  gitSshKeyPath: "",
+  gitSshPassphrase: "",
+  gitAuthorName: "",
+  gitAuthorEmail: "",
+  // Auto-sync (see utils/autoSync.js). One scheduler drives whichever backends
+  // are switched on, so these are shared rather than per-backend. Off by
+  // default — syncing is opt-in on every axis.
+  autoSyncEnabled: false,
+  autoSyncBackends: [],
+  autoSyncIntervalMinutes: 15,
+  autoSyncOnSave: true,
+  autoSyncOnFocus: true,
 });
 
 const buildProfileSettingsSnapshot = (state) => ({
@@ -598,6 +617,20 @@ const buildProfileSettingsSnapshot = (state) => ({
   s3Prefix: state.s3Prefix,
   s3AccessKeyId: state.s3AccessKeyId,
   s3SecretAccessKey: state.s3SecretAccessKey,
+  gitRemoteUrl: state.gitRemoteUrl,
+  gitBranch: state.gitBranch,
+  gitAuthMode: state.gitAuthMode,
+  gitUsername: state.gitUsername,
+  gitToken: state.gitToken,
+  gitSshKeyPath: state.gitSshKeyPath,
+  gitSshPassphrase: state.gitSshPassphrase,
+  gitAuthorName: state.gitAuthorName,
+  gitAuthorEmail: state.gitAuthorEmail,
+  autoSyncEnabled: state.autoSyncEnabled,
+  autoSyncBackends: state.autoSyncBackends,
+  autoSyncIntervalMinutes: state.autoSyncIntervalMinutes,
+  autoSyncOnSave: state.autoSyncOnSave,
+  autoSyncOnFocus: state.autoSyncOnFocus,
 });
 
 const mergeProfileSettings = (profile = {}) => {
@@ -801,6 +834,14 @@ const useSettingsStore = create(
       setShowSidebarMetadata: (enabled) => {
         get().syncProfileState({ showSidebarMetadata: enabled });
       },
+      setGitConfig: (partial) => {
+        get().syncProfileState(partial);
+      },
+
+      setAutoSyncConfig: (partial) => {
+        get().syncProfileState(partial);
+      },
+
       setS3Config: (partial) => {
         get().syncProfileState(partial);
       },

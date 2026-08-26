@@ -224,11 +224,11 @@ const S3SyncSettings = () => {
       )}
 
       {/* Credentials */}
-      <details open={!hasCredentials}>
-        <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-wider text-text-muted hover:text-text-secondary transition-colors">
+      <section className="space-y-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
           Connection details
-        </summary>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pb-1">
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
             <Field
               label="Endpoint URL"
@@ -309,20 +309,20 @@ const S3SyncSettings = () => {
             </div>
           </Field>
         </div>
-      </details>
+      </section>
 
       {/* How it works */}
-      <details>
-        <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-wider text-text-muted hover:text-text-secondary transition-colors">
+      <section className="space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
           How sync works
-        </summary>
-        <ul className="mt-3 space-y-1.5 text-[11px] leading-relaxed text-text-muted list-disc list-inside">
+        </h3>
+        <ul className="space-y-1.5 text-[11px] leading-relaxed text-text-muted list-disc list-inside">
           <li>Manual only — nothing leaves your disk until you press Sync now.</li>
           <li>Last-write-wins per file, based on modification time.</li>
           <li>Deleting a note never deletes it on the other side — files are removed nowhere.</li>
           <li>Credentials live in this workspace's settings profile, on this device only.</li>
         </ul>
-      </details>
+      </section>
     </div>
   );
 };

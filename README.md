@@ -33,7 +33,7 @@ Your notes are ordinary Markdown files in an ordinary folder. No account, no dat
 
 Download the latest desktop build from the [Marky releases page](https://github.com/amiralibg/marky/releases/latest). Installers are attached to each GitHub release after the app is built.
 
-Current version: [`v1.8.5`](https://github.com/amiralibg/marky/releases/tag/v1.8.5).
+Current version: [`v1.8.6`](https://github.com/amiralibg/marky/releases/tag/v1.8.6).
 
 ## Highlights
 
@@ -48,11 +48,30 @@ Current version: [`v1.8.5`](https://github.com/amiralibg/marky/releases/tag/v1.8
 - Markdown extensions: Mermaid, KaTeX math, footnotes, code highlighting
 - Themes, accent colors, app-wide text size, customizable keyboard shortcuts, Vim mode
 - AI integration via Model Context Protocol (MCP) Server for Claude Desktop, Cursor, etc.
+- Git sync — back your vault up to any git remote, with real history you can inspect
 - Cloud sync with any S3-compatible storage (AWS S3, MinIO, Backblaze B2, Wasabi, Hetzner…)
+- Auto-sync in the background: on an interval, after you stop typing, or when Marky regains focus
 - Workspace ZIP backup export
 - File watcher sync for external changes (other editors, git pulls, etc.)
 
 ## Features
+
+### Git sync
+
+- Your vault becomes an ordinary git repository, backed up to **any** remote — GitHub, GitLab, Gitea, or a bare repo you own
+- Every sync is `commit -> fetch -> merge -> push`, so you get a real, inspectable history
+- **Conflicts never produce markers.** A note edited on two devices keeps both versions: yours stays where it is, and the other lands beside it as `Note (conflict 2026-08-25 15-42).md`
+- Works with the `git` already on your machine — no bundled binary, nothing extra to configure
+- HTTPS access tokens, SSH agent, or an SSH key file
+- Configure it in Settings -> Git sync
+
+### Auto-sync
+
+- Syncs on an interval, after a pause in your typing, when Marky regains focus, or when you come back online
+- Only one sync ever runs at a time; requests that arrive during one are folded into a single follow-up
+- Offline is not a failure — it waits, then catches up
+- After a real error it retries on a widening delay and stops after five in a row, rather than hammering a remote that is rejecting it
+- Configure it in Settings -> Auto-sync
 
 ### Cloud sync (S3-compatible)
 

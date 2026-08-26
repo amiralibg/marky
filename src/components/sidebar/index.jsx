@@ -28,7 +28,14 @@ import ContextMenu from "./ContextMenu";
 import ConfirmDialog from "../modals/ConfirmDialog";
 import { scrollItemIntoView } from "../../utils/scrollItemIntoView";
 import { listenForWindow } from "../../utils/windowEvents";
-import { pruneSelection, resolveSelectionTargets, selectRangeIds } from "./treeSelection";
+import {
+  pruneSelection,
+  resolveSelectionTargets,
+  selectRangeIds,
+  resolvePasteDestination,
+  filterPasteTargets,
+  selectFolderContents,
+} from "./treeSelection";
 import { sortSidebarItems } from "../../utils/sidebarSort";
 import { UpdateIcon } from "../icons/AppUpdateIcon";
 import { WindowIcon } from "../icons";
@@ -73,7 +80,17 @@ const findFolderAtPosition = (x, y, sidebarElement) => {
 };
 
 const Sidebar = forwardRef(
-  ({ onSettingsClick, onOpenGraph, onOpenTemplate, onOpenScheduled, onRenameItem }, ref) => {
+  (
+    {
+      onSettingsClick,
+      onOpenGraph,
+      onOpenTemplate,
+      onOpenScheduled,
+      onRenameItem,
+      onOpenCommandPalette,
+    },
+    ref
+  ) => {
     const {
       items,
       createFolder,
@@ -107,6 +124,9 @@ const Sidebar = forwardRef(
     const toggleColorScheme = useSettingsStore((state) => state.toggleColorScheme);
     const { addNotification, setShowWorkspaceModal, appUpdate } = useUIStore();
     const [contextMenu, setContextMenu] = useState(null);
+    // Right-click on the empty space below the tree: paste and create live
+    // here, at the workspace root. A trimmed-down cousin of the row menu.
+    const [emptyMenu, setEmptyMenu] = useState(null);
     const [draggedItem, setDraggedItem] = useState(null);
     const [dragPosition, setDragPosition] = useState(null);
     // Single shared "drop into this folder" target for internal drags (one highlight at a time)
@@ -129,6 +149,12 @@ const Sidebar = forwardRef(
     // Obsidian all use. Delete and drag then act on the whole set.
     const [selectedIds, setSelectedIds] = useState(() => new Set());
     const selectionAnchorRef = useRef(null);
+    // Tree clipboard for Cut/Copy/Paste. Rows only (paths come along on them);
+    // cut rows render dimmed until they are pasted or the clipboard is replaced.
+    const [clipboard, setClipboard] = useState(null);
+    // The one row that should drop into its inline rename field right now —
+    // set by the reveal effect when a create asked to be named immediately.
+    const [inlineRenameId, setInlineRenameId] = useState(null);
     // Held in a ref because the reveal effect runs above the definition of the
     // virtualized-scroll helper it occasionally needs.
     const focusTreeIndexRef = useRef(null);
@@ -355,6 +381,117 @@ const Sidebar = forwardRef(
       (item) => resolveSelectionTargets(items, selectedIds, item),
       [items, selectedIds]
     );
+
+    // ---- Cut / Copy / Paste ------------------------------------------------
+    // Cut stores rows; Paste reuses the store's move actions for cut (so open
+    // tabs and note ids follow the file) and the disk copy command for copy.
+
+    const handleTreeCut = useCallback(
+      (item) => {
+        const targets = resolveActionTargets(item);
+        if (targets.length === 0 || targets.some((entry) => !entry.filePath)) return;
+        setClipboard({ mode: "cut", items: targets });
+      },
+      [resolveActionTargets]
+    );
+
+    const handleTreeCopy = useCallback(
+      (item) => {
+        const targets = resolveActionTargets(item);
+        if (targets.length === 0 || targets.some((entry) => !entry.filePath)) return;
+        setClipboard({ mode: "copy", items: targets });
+      },
+      [resolveActionTargets]
+    );
+
+    const handleTreePaste = useCallback(
+      async (item) => {
+        if (!clipboard?.items?.length) return;
+
+        const destination = resolvePasteDestination(items, item);
+        // A folder cannot be pasted into itself or its own descendants, and a
+        // cut row pasted in place is not a move — both are dropped up front.
+        const targets = filterPasteTargets(clipboard.items, destination, clipboard.mode);
+        if (targets.length === 0) {
+          addNotification("Nothing to paste here", "info", 2000);
+          setClipboard(null);
+          return;
+        }
+
+        try {
+          if (clipboard.mode === "copy") {
+            const destPath = destination?.filePath ?? rootFolderPath;
+            await copyEntriesToFolder(
+              targets.map((entry) => entry.filePath),
+              destPath
+            );
+            await refreshRootFromDisk();
+            addNotification(
+              `Copied ${targets.length} item${targets.length !== 1 ? "s" : ""}`,
+              "success",
+              2200
+            );
+          } else {
+            for (const entry of targets) {
+              if (destination) await moveItem(entry.id, destination.id);
+              else await moveItemToRoot(entry.id);
+            }
+            if (targets.length > 1) {
+              addNotification(`Moved ${targets.length} items`, "success", 2200);
+            }
+            // Cut is a one-shot gesture everywhere: the clipboard empties.
+            setClipboard(null);
+          }
+          clearTreeSelection();
+        } catch (error) {
+          console.error("Failed to paste:", error);
+          addNotification("Failed to paste: " + error.message, "error");
+        }
+      },
+      [
+        clipboard,
+        items,
+        rootFolderPath,
+        copyEntriesToFolder,
+        refreshRootFromDisk,
+        moveItem,
+        moveItemToRoot,
+        addNotification,
+        clearTreeSelection,
+      ]
+    );
+
+    const handleTreeSelectAll = useCallback(
+      (item) => {
+        const ids = selectFolderContents(items, item);
+        if (ids.length === 0) return;
+        setSelectedIds(new Set(ids));
+        selectionAnchorRef.current = ids[0];
+      },
+      [items]
+    );
+
+    // Paste with nothing selected lands at the workspace root. Bound at window
+    // level because after a copy the focus is often on <body> — no row has it,
+    // and the row-level ⌘V would never fire.
+    useEffect(() => {
+      const handleWindowKeyDown = (event) => {
+        if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+        if (event.key.toLowerCase() !== "v") return;
+        if (!clipboard?.items?.length) return;
+        const target = event.target;
+        if (
+          target instanceof HTMLElement &&
+          (target.closest("input, textarea") || target.isContentEditable)
+        ) {
+          return; // text paste stays text paste
+        }
+        event.preventDefault();
+        handleTreePaste(null);
+      };
+      window.addEventListener("keydown", handleWindowKeyDown);
+      return () => window.removeEventListener("keydown", handleWindowKeyDown);
+    }, [clipboard, handleTreePaste]);
 
     const useVirtualizedTree = flattenedTreeRows.length > VIRTUAL_TREE_THRESHOLD;
     const virtualTreeRowHeight = TREE_ROW_HEIGHTS[sidebarDensity] || TREE_ROW_HEIGHTS.comfortable;
@@ -997,6 +1134,10 @@ const Sidebar = forwardRef(
       setSelectedIds(new Set([revealRequest.id]));
       selectionAnchorRef.current = revealRequest.id;
 
+      // Creates ask to be named on arrival; the row opens its inline field as
+      // soon as it exists. Cleared again by the row once renaming begins.
+      if (revealRequest.rename) setInlineRenameId(revealRequest.id);
+
       const viewport = sidebarRef.current;
       if (viewport) {
         requestAnimationFrame(() => {
@@ -1502,7 +1643,7 @@ const Sidebar = forwardRef(
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-text-muted font-mono pointer-events-none"
                 aria-hidden="true"
               >
-                ⌘K
+                Filter
               </span>
             )}
             {searchQuery && (
@@ -1779,6 +1920,15 @@ const Sidebar = forwardRef(
             if (event.target.closest("[data-treeitem-row='true']")) return;
             clearTreeSelection();
           }}
+          onContextMenu={(event) => {
+            // Right-clicking empty space is still a gesture worth answering:
+            // paste-to-root and create live here.
+            if (!(event.target instanceof Element)) return;
+            if (event.target.closest("[data-treeitem-row='true']")) return;
+            event.preventDefault();
+            setContextMenu(null);
+            setEmptyMenu({ x: event.clientX, y: event.clientY });
+          }}
           onMouseMove={draggedItem ? handleTreeMouseMove : undefined}
           onMouseLeave={draggedItem ? handleTreeMouseLeave : undefined}
           onMouseUp={draggedItem ? handleDropToRoot : undefined}
@@ -1933,6 +2083,16 @@ const Sidebar = forwardRef(
                       selectedIds={selectedIds}
                       onRowActivate={handleRowActivate}
                       filteredItems={null}
+                      isCut={
+                        clipboard?.mode === "cut" &&
+                        clipboard.items.some((entry) => entry.id === row.item.id)
+                      }
+                      onCut={handleTreeCut}
+                      onCopy={handleTreeCopy}
+                      onPaste={handleTreePaste}
+                      onSelectAll={handleTreeSelectAll}
+                      requestRename={inlineRenameId === row.item.id}
+                      onRenameHandled={() => setInlineRenameId(null)}
                     />
                   </div>
                 );
@@ -1963,6 +2123,15 @@ const Sidebar = forwardRef(
                 selectedIds={selectedIds}
                 onRowActivate={handleRowActivate}
                 filteredItems={isTreeFiltered ? filteredItems : null}
+                isCut={
+                  clipboard?.mode === "cut" && clipboard.items.some((entry) => entry.id === item.id)
+                }
+                onCut={handleTreeCut}
+                onCopy={handleTreeCopy}
+                onPaste={handleTreePaste}
+                onSelectAll={handleTreeSelectAll}
+                requestRename={inlineRenameId === item.id}
+                onRenameHandled={() => setInlineRenameId(null)}
               />
             ))
           )}
@@ -2096,6 +2265,25 @@ const Sidebar = forwardRef(
             {isDarkTheme ? "Light" : "Dark"} mode
           </button>
           <button
+            onClick={onOpenCommandPalette}
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+            title="Command palette (⌘K)"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              viewBox="0 0 24 24"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 6h16M4 12h10M4 18h7" />
+            </svg>
+            <span className="flex-1 text-left">Commands</span>
+            <span className="text-[10.5px] font-mono text-text-muted">⌘K</span>
+          </button>
+          <button
             onClick={() => onOpenTemplate(null)}
             className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
             title="Templates"
@@ -2191,6 +2379,11 @@ const Sidebar = forwardRef(
               selectedIds.has(contextMenu.item.id) && selectedIds.size > 1 ? selectedIds.size : 0
             }
             onDeleteSelection={() => requestDeleteItem(contextMenu.item)}
+            onCut={handleTreeCut}
+            onCopy={handleTreeCopy}
+            onPaste={handleTreePaste}
+            onSelectAll={handleTreeSelectAll}
+            canPaste={(clipboard?.items?.length ?? 0) > 0}
             onClose={() => setContextMenu(null)}
             onRename={handleRename}
             onShowTemplate={(parentId) => {
@@ -2198,6 +2391,83 @@ const Sidebar = forwardRef(
             }}
           />
         )}
+        {/* Empty-space menu (workspace root): paste, create */}
+        {emptyMenu && (
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setEmptyMenu(null)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setEmptyMenu(null);
+              }}
+            />
+            <div
+              className="fixed z-50 glass-panel rounded-lg shadow-2xl py-1 min-w-[180px] animate-in fade-in zoom-in-95 duration-100"
+              style={{ left: emptyMenu.x, top: emptyMenu.y }}
+            >
+              <button
+                disabled={!clipboard?.items?.length}
+                className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                  clipboard?.items?.length
+                    ? "text-text-primary hover:bg-overlay-light"
+                    : "text-text-muted cursor-default"
+                }`}
+                onClick={() => {
+                  handleTreePaste(null);
+                  setEmptyMenu(null);
+                }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 3h6v3H9zM7 5H5a2 2 0 00-2 2v13a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2h-2"
+                  />
+                </svg>
+                Paste at root
+                <span className="ml-auto text-[11px] font-mono text-text-muted">⌘V</span>
+              </button>
+              <div className="my-1 border-t border-glass-border" />
+              <button
+                className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
+                onClick={() => {
+                  handleNewNote();
+                  setEmptyMenu(null);
+                }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+                New Note
+              </button>
+              <button
+                className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
+                onClick={() => {
+                  handleNewFolder();
+                  setEmptyMenu(null);
+                }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+                  />
+                </svg>
+                New Folder
+              </button>
+            </div>
+          </>
+        )}
+
         <ConfirmDialog
           isOpen={pendingDeleteItems.length > 0}
           title={

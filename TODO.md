@@ -121,9 +121,8 @@ Why first:
 - [x] Saved workspace views
   - Value: lets users quickly reopen filtered contexts like "Writing", "Projects", "Todos", "Untagged", or "Recently edited".
   - Depends on: existing search filters, tag filters, and sidebar sorting.
-- [ ] Sidebar polish pass to match VS Code / Obsidian explorer conventions
-  - Value: the tree is the app's main navigation surface, and the gaps in it are felt on every action.
-  - Depends on: remaining gaps are inline rename on create (VS Code opens the name field), a selection-aware Cut/Copy/Paste, and Select All within a folder.
+- [x] Sidebar polish pass to match VS Code / Obsidian explorer conventions
+  - Shipped: inline rename opens as soon as a note/folder is created, selection-aware Cut/Copy/Paste in the tree (⌘X/⌘C/⌘V + context menu; cut pastes via store move so open tabs follow, copy duplicates on disk), Select All within a folder (⌘A / context menu).
 - [ ] Favorite folders and richer sidebar organization
   - Value: improves navigation in large workspaces without changing the local-first file model.
   - Depends on: workspace-specific settings profiles and sidebar tree metadata.
@@ -148,9 +147,8 @@ Why next:
 - [x] Note properties / frontmatter panel
   - Value: makes YAML metadata, aliases, status, type, and tags editable without raw syntax.
   - Depends on: frontmatter parsing/writing and metadata refresh after edits.
-- [ ] Attachment manager for dropped files/images
-  - Value: helps users insert, find, and clean up local attachments.
-  - Depends on: existing external file drop/copy behavior and workspace scan data.
+- [x] Attachment manager for dropped files/images
+  - Shipped: "Manage Attachments" command (command palette) opens a manager modal listing every indexed vault media file with thumbnails, per-file usage detection (`attachmentUsage.js` reuses the preview's link resolver, so relative/root/bare-name references all count), unused-file amber dot, open-note jump, copy embed/path, and delete with a used-by warning.
 - [x] Sidebar density controls (compact/comfortable/spacious) and optional metadata display
   - Value: improves comfort on small screens and large vaults.
   - Depends on: sidebar settings persistence and tree row rendering cleanup.
@@ -253,17 +251,38 @@ Why next:
     mtime with a saved per-workspace sync state (so pulled files don't echo back as pushes),
     no remote deletes, credentials in workspace settings. SigV4 signed in JS and sent via
     `tauri-plugin-http` fetch (a plain webview fetch is CORS-blocked by buckets without a policy).
-  - Later: background sync, conflict snapshots reusing the note-history model, deletion propagation.
-- [ ] Visual editors for tables and code blocks (Obsidian-like), user request from feedback board
-  - Value: non-technical users edit tables without touching pipe syntax; code blocks get
-    language picker / line-number chrome without dropping to raw Markdown.
-  - Shape: extend the Live-preview widget layer (`RenderedBlockWidget` in livePreview.js).
-    Tables: clicking into the rendered table keeps it rendered and shows cell editing with
-    add/remove row/column affordances; edits are serialized back to pipe-syntax on change.
-    Code blocks keep syntax highlighting and gain a hover toolbar (language select, copy, wrap)
-    while remaining one keystroke away from raw source (existing click-to-reveal).
-  - Depends on: existing live preview widgets, click→source mapping (`tablePositionAt` /
-    `codeLineAt`), and careful cursor/reveal handling under Vim mode.
+  - Later: conflict snapshots reusing the note-history model, deletion propagation.
+- [x] Git sync — the vault as a real repository (user request from feedback board: "Git sync")
+  - Value: versioned backup with inspectable history, on any host the user already has.
+  - Shape (shipped v1): shells out to the system `git` binary (`src-tauri/src/git_sync.rs`),
+    not libgit2 — saves ~3 MB of bundled libgit2/OpenSSL, and users who sync with git already
+    have it installed (the frontend hides the section when `git_available` finds no binary).
+    One sync is commit -> fetch -> merge -> push. HTTPS token, SSH agent, and SSH key auth.
+  - Conflicts never produce markers: the merge is computed in memory (`merge_commits`) and
+    inspected before anything touches the working tree, so a note edited on two devices keeps
+    the local version at its path and lands the remote one beside it as `Note (conflict ...).md`.
+    Covered by round-trip tests that push, pull and collide two vaults through a bare repo.
+  - Guards: refuses to sync a folder that is only nested inside a repository (`isRepoRoot`);
+    refuses to run on an index left conflicted by an outside merge; `Reset to remote` is the
+    explicit destructive escape hatch and confirms first.
+  - Later: per-note history browsing backed by git log, submodule-free attachment LFS story.
+- [x] Auto-sync — one scheduler for every backend (`utils/autoSync.js` + `autoSyncRunner.js`)
+  - The pure scheduler is injectable (timers, clock) so its rules are unit-tested; the runner is
+    the impure half that knows about stores and the window.
+  - Rules: never two syncs at once (overlapping requests coalesce into exactly one follow-up);
+    save bursts debounce into a single sync; failures back off exponentially and park after five
+    in a row; offline waits rather than burning the failure budget; manual sync always runs.
+  - Triggers: interval (5m-3h), after a pause in typing, on window focus, and on regaining
+    connectivity.
+  - Off by default: `autoSyncEnabled` and the per-backend toggles start empty; users opt in.
+- [x] Visual editors for tables and code blocks (Obsidian-like), user request from feedback board
+  - Shipped (live preview, option A — source stays the single truth, no typable preview):
+    Tables render as live editable grids (`InteractiveTableWidget` in livePreview.js + pure
+    `tableEdit.js`): click a cell and type, edits commit to pipe syntax on blur; hover toolbar
+    adds/removes rows/columns around the active cell; `</>` drops to raw markdown; header row
+    and last column can never be deleted away.
+    Code blocks keep the rendered card and gain chrome: language label is a picker that rewrites
+    the fence info string, one-click copy, and a soft-wrap toggle remembered per block.
 - [ ] AI features (summaries, suggestions), only after core local-first workflows feel complete
 
 ## Not Prioritized Right Now

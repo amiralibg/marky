@@ -1,8 +1,19 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { EditorView, Decoration } from "@codemirror/view";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { livePreview, blockStepTarget } from "./livePreview";
+
+// The copy button writes through `utils/clipboard`, which reaches for the Tauri
+// plugin; capture what it is handed instead.
+const copied = [];
+vi.mock("../../utils/clipboard", () => ({
+  copyText: async (text) => {
+    copied.push(text);
+    return true;
+  },
+}));
+
+const { livePreview, blockStepTarget } = await import("./livePreview");
 
 // Build a real EditorView (jsdom) with the markdown language + livePreview,
 // then inspect the decoration set the plugin produces for given content and
@@ -109,6 +120,73 @@ describe("livePreview decorations", () => {
     expect(hasCodeWidget).toBe(true);
   });
 
+  // The reported bug: clicking copy dropped the caret into the contenteditable
+  // code (mousedown's default action), so the block flipped into edit mode and
+  // nothing was copied.
+  it("copies from the code block header without opening the block for editing", () => {
+    const doc = "text\n\n```js\nconst a = 1;\n```\n\nmore";
+    view = makeView(doc, 0);
+    const btn = view.dom.querySelector(".cm-lp-render .code-copy-btn");
+    expect(btn).not.toBeNull();
+
+    const down = new window.MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    btn.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
+    // The rendered widget is still there and the caret never moved.
+    expect(view.state.selection.main.head).toBe(0);
+
+    btn.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(copied).toEqual(["const a = 1;"]);
+  });
+
+  // Reported: clicking into a rendered block to edit it made the whole block
+  // white. The focus handler used to flatten the highlighted spans to plain
+  // text before a single keystroke had happened.
+  it("keeps syntax colour when a code block is edited in place", () => {
+    const doc = "text\n\n```js\nconst a = 1;\n```\n\nmore";
+    view = makeView(doc, 0);
+    const codeEl = view.dom.querySelector(".cm-lp-render pre > code");
+    const painted = codeEl.querySelectorAll("span.hljs-keyword").length;
+    expect(painted).toBeGreaterThan(0);
+
+    codeEl.dispatchEvent(new window.FocusEvent("focus"));
+    expect(codeEl.querySelectorAll("span.hljs-keyword").length).toBe(painted);
+    expect(codeEl.textContent).toBe("const a = 1;");
+  });
+
+  // An unlabelled block is rendered with a detected language; editing it used
+  // to re-highlight with `detectLanguage: false`, which is plain escaped text.
+  it("keeps highlighting an unlabelled block while it is typed into", async () => {
+    vi.useFakeTimers();
+    try {
+      const doc = "text\n\n```\nconst a = 1;\n```\n\nmore";
+      view = makeView(doc, 0);
+      const codeEl = view.dom.querySelector(".cm-lp-render pre > code");
+      codeEl.dispatchEvent(new window.FocusEvent("focus"));
+
+      // Put the caret in the block, then type: the rehighlight is debounced.
+      const range = document.createRange();
+      range.selectNodeContents(codeEl);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      codeEl.textContent = "const a = 12;";
+      codeEl.dispatchEvent(new window.InputEvent("input", { bubbles: true }));
+      vi.advanceTimersByTime(200);
+
+      expect(codeEl.querySelectorAll('span[class^="hljs-"]').length).toBeGreaterThan(0);
+      expect(codeEl.textContent).toBe("const a = 12;");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("frames a fenced code block as source when the cursor is inside it", () => {
     const doc = "text\n\n```js\nconst a = 1;\n```\n\nmore";
     view = makeView(doc, doc.indexOf("const a") + 2);
@@ -131,19 +209,114 @@ describe("livePreview decorations", () => {
     expect(framed.length).toBe(3);
   });
 
-  it("puts the cursor in the clicked cell when a rendered table is clicked", () => {
+  it("renders tables as live editable cells instead of revealing pipes", () => {
     const doc = "intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |\n\nend";
     view = makeView(doc, 0); // cursor away, so the table renders
     const cells = view.dom.querySelectorAll(".cm-lp-render tbody tr:last-child td");
     expect(cells.length).toBe(2);
+    // Cells are directly editable — that is the point of the widget.
+    // (jsdom does not reflect the contenteditable attribute; read the IDL property.)
+    expect(cells[1].contentEditable).toBe("plaintext-only");
 
-    // Second cell of the last body row → the "4" in "| 3 | 4 |".
+    // Clicking a cell edits it in place: the document selection must stay
+    // where it was rather than jumping into the raw pipe syntax.
     cells[1].dispatchEvent(new window.MouseEvent("mousedown", { bubbles: true, button: 0 }));
+    expect(view.state.selection.main.head).toBe(0);
+  });
 
-    const head = view.state.selection.main.head;
-    const line = view.state.doc.lineAt(head);
-    expect(line.text).toBe("| 3 | 4 |");
-    expect(head - line.from).toBe(line.text.indexOf("4"));
+  // A pipe row is one line, so a newline in a cell splits the row and rewrites
+  // the table. Enter has to move instead of typing.
+  //
+  // (jsdom will not focus a contenteditable cell, so these assert the two
+  // things that are observable without a real focus ring: that the key never
+  // reaches the cell as text, and that stepping off the end grows the source.)
+  const tableDoc = "intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |\n\nend";
+  // A committed table is re-serialized, so the delimiter row normalizes to
+  // `---` regardless of how it was written by hand.
+  const grownTable = tableDoc
+    .replace("| - | - |", "| --- | --- |")
+    .replace("| 3 | 4 |", "| 3 | 4 |\n|  |  |");
+  const pressIn = (cell, key, shiftKey = false) => {
+    const event = new window.KeyboardEvent("keydown", {
+      key,
+      shiftKey,
+      bubbles: true,
+      cancelable: true,
+    });
+    cell.dispatchEvent(event);
+    return event;
+  };
+
+  it("swallows Enter in a cell rather than breaking the pipe row", () => {
+    view = makeView(tableDoc, 0); // cursor away, so the table renders
+    const cell = view.dom.querySelector('[data-row="1"][data-col="0"]');
+    expect(pressIn(cell, "Enter").defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe(tableDoc);
+  });
+
+  it("swallows Tab and Shift-Tab so focus never escapes the table", () => {
+    view = makeView(tableDoc, 0);
+    const cell = view.dom.querySelector('[data-row="1"][data-col="0"]');
+    expect(pressIn(cell, "Tab").defaultPrevented).toBe(true);
+    expect(pressIn(cell, "Tab", true).defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe(tableDoc);
+  });
+
+  it("grows the table when you step past the last cell", () => {
+    view = makeView(tableDoc, 0);
+    const last = view.dom.querySelector('[data-row="2"][data-col="1"]');
+    pressIn(last, "Tab");
+    expect(view.state.doc.toString()).toBe(grownTable);
+  });
+
+  it("appends a row when Enter is pressed on the last one", () => {
+    view = makeView(tableDoc, 0);
+    const last = view.dom.querySelector('[data-row="2"][data-col="0"]');
+    pressIn(last, "Enter");
+    expect(view.state.doc.toString()).toBe(grownTable);
+  });
+
+  it("offers column alignment and marks the active one", () => {
+    const doc = "intro\n\n| a | b |\n| - | ---: |\n| 1 | 2 |\n\nend";
+    view = makeView(doc, 0); // cursor away, so the table renders
+    const aligns = [...view.dom.querySelectorAll(".cm-lp-tablebtn[data-align]")];
+    expect(aligns.map((b) => b.dataset.align)).toEqual(["left", "center", "right"]);
+
+    // The default active cell is column 0, which carries no alignment.
+    expect(aligns.every((b) => b.getAttribute("aria-pressed") === "false")).toBe(true);
+
+    view.dom
+      .querySelector('[data-row="1"][data-col="1"]')
+      .dispatchEvent(new window.FocusEvent("focusin", { bubbles: true }));
+    expect(aligns.find((b) => b.dataset.align === "right").getAttribute("aria-pressed")).toBe(
+      "true"
+    );
+  });
+
+  // The toolbar floats over the widget, so the only thing keeping it off the
+  // header row is the gutter reserved above the table. That gutter was silently
+  // lost once already: `.cm-lp-tablewrap` and `.cm-lp-render` both set padding
+  // at equal specificity on the same element, so whichever came last in the
+  // theme won. Assert the relationship rather than the number, so the guard
+  // survives a resize of either piece.
+  it("reserves enough room above the table for the toolbar to clear the header", () => {
+    view = makeView(tableDoc, 0);
+    const px = (el, prop) => parseFloat(window.getComputedStyle(el)[prop]) || 0;
+
+    const wrap = view.dom.querySelector(".cm-lp-tablewrap");
+    const bar = view.dom.querySelector(".cm-lp-tablebar");
+    const button = view.dom.querySelector(".cm-lp-tablebtn");
+
+    // jsdom does no layout, so the bar's height is summed from its own parts.
+    const barHeight =
+      px(bar, "paddingTop") +
+      px(bar, "paddingBottom") +
+      px(bar, "borderTopWidth") +
+      px(bar, "borderBottomWidth") +
+      px(button, "height");
+
+    expect(barHeight).toBeGreaterThan(0); // the styles resolved at all
+    expect(px(wrap, "paddingTop")).toBeGreaterThanOrEqual(barHeight);
   });
 
   it("shows a checkbox widget for a task item", () => {

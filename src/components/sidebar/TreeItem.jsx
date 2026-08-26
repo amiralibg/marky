@@ -30,6 +30,13 @@ const TreeItem = ({
   renderChildren = true,
   treeIndex = null,
   virtualTree = null,
+  isCut = false,
+  onCut,
+  onCopy,
+  onPaste,
+  onSelectAll,
+  requestRename = false,
+  onRenameHandled,
 }) => {
   const {
     currentNoteId,
@@ -234,6 +241,14 @@ const TreeItem = ({
     setIsRenaming(true);
   };
 
+  // A freshly created row arrives with a rename request attached: it opens its
+  // name field immediately, the way the VS Code explorer names what you create.
+  useEffect(() => {
+    if (!requestRename || isRenaming) return;
+    beginRename();
+    onRenameHandled?.();
+  }, [requestRename]);
+
   const handleRenameKeyDown = (e) => {
     if (e.key === "Enter") {
       handleRename();
@@ -312,6 +327,33 @@ const TreeItem = ({
       e.preventDefault();
       beginRename();
       return;
+    }
+
+    // Tree-level edit shortcuts. They only fire when a tree row has focus, so
+    // the same keys keep working as text shortcuts inside the editor.
+    const cmd = e.metaKey || e.ctrlKey;
+    if (cmd && !e.altKey && !e.shiftKey) {
+      const key = e.key.toLowerCase();
+      if (key === "x" && onCut) {
+        e.preventDefault();
+        onCut(item);
+        return;
+      }
+      if (key === "c" && onCopy) {
+        e.preventDefault();
+        onCopy(item);
+        return;
+      }
+      if (key === "v" && onPaste) {
+        e.preventDefault();
+        onPaste(item);
+        return;
+      }
+      if (key === "a" && onSelectAll) {
+        e.preventDefault();
+        onSelectAll(item);
+        return;
+      }
     }
 
     if (e.key === "Delete" || e.key === "Backspace") {
@@ -504,6 +546,7 @@ const TreeItem = ({
       <div
         className={`
           flex items-center select-none relative
+          ${isCut ? "opacity-50" : ""}
           ${rowDensityClass} transition-colors duration-150
           ${isSelected ? "bg-item-active text-text-primary font-medium" : "text-text-secondary"}
           ${isMultiSelected ? "bg-accent-dim text-text-primary ring-1 ring-inset ring-accent/30" : ""}
@@ -716,6 +759,14 @@ const TreeItem = ({
               selectedIds={selectedIds}
               onRowActivate={onRowActivate}
               renderChildren={renderChildren}
+              // Only the clipboard rows themselves dim — not their children.
+              isCut={false}
+              onCut={onCut}
+              onCopy={onCopy}
+              onPaste={onPaste}
+              onSelectAll={onSelectAll}
+              requestRename={false}
+              onRenameHandled={onRenameHandled}
             />
           ))}
         </div>

@@ -48,7 +48,10 @@ Thumbs.db
 
 # Rust
 /src-tauri/target
-Cargo.lock
+# Cargo.lock is deliberately NOT ignored. Marky is an application, not a
+# library: committing the lockfile is what makes a release rebuildable from a
+# tag with the exact dependency tree it shipped with. Without it every CI
+# release re-resolves transitive crates and can ship code no one reviewed.
 
 # Local env files
 .env

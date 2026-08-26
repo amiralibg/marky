@@ -34,6 +34,11 @@ const ContextMenu = ({
   // menu then offers only what makes sense for a set of rows.
   selectionCount = 0,
   onDeleteSelection,
+  onCut,
+  onCopy,
+  onPaste,
+  onSelectAll,
+  canPaste = false,
 }) => {
   const { createFolder, deleteItem, undoLastDelete, togglePinNote, isPinned } = useNotesStore();
   const { addNotification } = useUIStore();
@@ -50,6 +55,22 @@ const ContextMenu = ({
         await createFolder(item.type === "folder" ? item.id : item.parentId);
       } else if (action === "rename") {
         onRename(item);
+        return;
+      } else if (action === "cut") {
+        onCut?.(item);
+        onClose();
+        return;
+      } else if (action === "copy") {
+        onCopy?.(item);
+        onClose();
+        return;
+      } else if (action === "paste") {
+        onPaste?.(item);
+        onClose();
+        return;
+      } else if (action === "selectAll") {
+        onSelectAll?.(item);
+        onClose();
         return;
       } else if (action === "pin") {
         togglePinNote(item.id);
@@ -217,6 +238,78 @@ const ContextMenu = ({
                 )}
               </>
             )}
+            {/* Clipboard actions work the same on one row or a selection.
+                Paste lands inside this folder — or beside this row's parent. */}
+            <div className="my-1 border-t border-glass-border" />
+            <button
+              className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
+              onClick={() => handleAction("cut")}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="6" cy="6" r="2.6" />
+                <circle cx="6" cy="18" r="2.6" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8.2 7.7 20 19M8.2 16.3 20 5"
+                />
+              </svg>
+              Cut
+              <span className="ml-auto text-[11px] font-mono text-text-muted">⌘X</span>
+            </button>
+            <button
+              className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
+              onClick={() => handleAction("copy")}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="9" y="9" width="11" height="11" rx="2" strokeWidth={2} />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
+                />
+              </svg>
+              Copy
+              <span className="ml-auto text-[11px] font-mono text-text-muted">⌘C</span>
+            </button>
+            <button
+              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                canPaste
+                  ? "text-text-primary hover:bg-overlay-light"
+                  : "text-text-muted cursor-default"
+              }`}
+              disabled={!canPaste}
+              onClick={() => handleAction("paste")}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 3h6v3H9zM7 5H5a2 2 0 00-2 2v13a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2h-2"
+                />
+              </svg>
+              Paste
+              <span className="ml-auto text-[11px] font-mono text-text-muted">⌘V</span>
+            </button>
+            <button
+              className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
+              onClick={() => handleAction("selectAll")}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="3.5 3" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 12.5l2.5 2.5L16 9.5"
+                />
+              </svg>
+              Select All
+              <span className="ml-auto text-[11px] font-mono text-text-muted">⌘A</span>
+            </button>
             {selectionCount > 1 ? null : <div className="my-1 border-t border-glass-border" />}
             <button
               className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"

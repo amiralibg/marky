@@ -1,6 +1,8 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod git_sync;
+
 use notify_debouncer_full::{
     new_debouncer,
     notify::{RecursiveMode, Watcher},
@@ -1451,7 +1453,14 @@ fn main() {
             write_draft,
             remove_draft,
             clear_all_drafts,
-            confirm_exit
+            confirm_exit,
+            git_sync::git_available,
+            git_sync::git_repo_status,
+            git_sync::git_init_repo,
+            git_sync::git_clone_repo,
+            git_sync::git_test_remote,
+            git_sync::git_sync,
+            git_sync::git_reset_to_remote
         ])
         .on_window_event(|window, event| {
             // A closed window's watcher would otherwise sit in the map holding
