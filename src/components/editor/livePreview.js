@@ -5,6 +5,18 @@ import { marked } from "marked";
 import katex from "katex";
 import { detectBaseDirection } from "../../utils/bidi";
 import { widgetSelectionHighlight } from "./widgetSelectionHighlight";
+import {
+  parsePipeTable,
+  serializePipeTable,
+  insertRow,
+  insertColumn,
+  removeRow,
+  removeColumn,
+  setColumnAlign,
+} from "./tableEdit";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter";
+import { copyText } from "../../utils/clipboard";
+import { highlightCode, detectCodeLanguage } from "./markdownPreview";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Live Preview
@@ -206,6 +218,547 @@ function codeLineAt(target, event, lineCount) {
   return { line: Math.min(Math.max(index, 0) + 1, lineCount - 1), column: 0 };
 }
 
+/**
+ * Wrap preference for rendered code blocks, keyed by block source. A re-render
+ * (any edit above the block) would otherwise reset the toggle; the map is
+ * bounded because a document only ever holds so many distinct blocks.
+ */
+const codeWrapState = new Map();
+const CODE_WRAP_LIMIT = 64;
+
+const COMMON_LANGUAGES = [
+  "javascript",
+  "typescript",
+  "python",
+  "rust",
+  "go",
+  "bash",
+  "json",
+  "yaml",
+  "html",
+  "css",
+  "sql",
+];
+
+/**
+ * Hover chrome for a rendered fenced-code block: click the language label to
+ * change it (rewrites the fence's info string in the source), copy with one
+ * click, toggle soft wrapping. Everything else about the block is untouched.
+ */
+function attachCodeChrome(wrap, view, source, from) {
+  const header = wrap.querySelector(".code-block-header");
+  const copyBtn = wrap.querySelector(".code-copy-btn");
+  if (!header) return;
+
+  // ── Copy ────────────────────────────────────────────────────────────────
+  if (copyBtn) {
+    // The code inside the block is contenteditable, so a mousedown that runs
+    // its default action drops the caret into it and the block flips into edit
+    // mode — the reported "copy button edits instead of copying". The wrap
+    // toggle and the frontmatter `</>` chip already guard this the same way.
+    copyBtn.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    copyBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      // `textContent` of the rendered `pre` is the live text while the block is
+      // being edited; `data-code` is what it was rendered from.
+      const text = wrap.querySelector("pre")?.textContent || copyBtn.dataset.code || "";
+      copyText(text).then((ok) => {
+        if (!ok) return;
+        const copied = copyBtn.querySelector(".copy-icon");
+        const check = copyBtn.querySelector(".check-icon");
+        if (copied) copied.style.display = "none";
+        if (check) check.style.display = "";
+        setTimeout(() => {
+          if (copied) copied.style.display = "";
+          if (check) check.style.display = "none";
+        }, 1400);
+      });
+    });
+  }
+
+  const closeMenu = () => {
+    wrap.querySelector(".cm-lp-langmenu")?.remove();
+  };
+
+  // ── Language picker ────────────────────────────────────────────────────
+  const langLabel = header.querySelector(".code-block-lang");
+  if (langLabel) {
+    langLabel.classList.add("cm-lp-langpick");
+    langLabel.title = "Change language";
+
+    langLabel.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (wrap.querySelector(".cm-lp-langmenu")) {
+        closeMenu();
+        return;
+      }
+
+      const menu = document.createElement("div");
+      menu.className = "cm-lp-langmenu";
+      menu.setAttribute("role", "listbox");
+      menu.setAttribute("aria-label", "Code language");
+
+      const current = langLabel.textContent.trim().toLowerCase();
+      for (const lang of ["text", ...COMMON_LANGUAGES]) {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "cm-lp-langopt";
+        option.textContent = lang;
+        option.setAttribute("role", "option");
+        if (lang === current || (lang === "text" && !current)) {
+          option.setAttribute("aria-selected", "true");
+          option.classList.add("cm-lp-langopt-active");
+        }
+        option.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          closeMenu();
+
+          // Rewrite the opening fence's info string in place.
+          const fence = source.match(/^(`{3,})[^\n`]*/);
+          if (!fence || view.state.doc.sliceString(from, from + source.length) !== source) return;
+          const insert = lang === "text" ? "" : lang;
+          view.dispatch({
+            changes: {
+              from: from + fence[1].length,
+              to: from + fence[0].length,
+              insert,
+            },
+          });
+          view.focus();
+        });
+        menu.appendChild(option);
+      }
+
+      langLabel.appendChild(menu);
+      const dismiss = (e) => {
+        if (menu.contains(e.target)) return;
+        closeMenu();
+        document.removeEventListener("mousedown", dismiss);
+      };
+      document.addEventListener("mousedown", dismiss);
+    });
+  }
+
+  // ── In-place editing ─────────────────────────────────────────────────────
+  // The rendered code is directly editable, same contract as the table widget:
+  // click in and type. Editing happens against plain text (typing inside
+  // highlight spans would mangle them), but every keystroke re-highlights the
+  // block and restores the caret, so colour tracks the text as you go.
+  // Committing rewrites the block source, which rebuilds the widget with a
+  // fresh render.
+  const codeEl = wrap.querySelector("pre > code");
+  if (codeEl) {
+    try {
+      codeEl.contentEditable = "plaintext-only";
+    } catch {
+      codeEl.contentEditable = "true";
+    }
+    codeEl.spellcheck = false;
+
+    const fenceLine = () => {
+      const first = source.split("\n")[0] || "```";
+      const ticks = first.match(/^`{3,}/)?.[0] ?? "```";
+      return { opening: first, closing: ticks };
+    };
+    const fenceLang = () =>
+      (source.split("\n")[0] || "").match(/^`{3,}\s*([^\s`]+)/)?.[1]?.toLowerCase() ?? "";
+    // An unlabelled block is rendered with a detected language, so editing it
+    // has to keep using that language rather than dropping to plain text. It is
+    // detected once and then held: re-detecting per keystroke makes a block
+    // strobe between colour schemes as the guess changes.
+    let detectedLang = null;
+    const activeLang = () => {
+      const explicit = fenceLang();
+      if (explicit) return explicit;
+      if (detectedLang === null) detectedLang = detectCodeLanguage(rawCode());
+      return detectedLang;
+    };
+    const rawCode = () => {
+      const lines = source.split("\n");
+      return lines.slice(1, -1).join("\n");
+    };
+
+    let editing = false;
+    let highlightedHTML = null;
+    let rehighlightTimer = null;
+    let composing = false;
+
+    // Caret position as a character offset within the code text. Highlighting
+    // only wraps text in spans (the text itself never changes), so a plain
+    // character offset survives the re-render round trip.
+    const caretTextOffset = () => {
+      const sel = window.getSelection();
+      if (!sel.rangeCount || !codeEl.contains(sel.anchorNode)) return null;
+      const range = document.createRange();
+      range.selectNodeContents(codeEl);
+      range.setEnd(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset);
+      return range.toString().length;
+    };
+    const setCaretAtTextOffset = (offset) => {
+      const walker = document.createTreeWalker(codeEl, NodeFilter.SHOW_TEXT);
+      let remaining = offset;
+      let node = walker.nextNode();
+      while (node) {
+        if (remaining <= node.nodeValue.length) break;
+        remaining -= node.nodeValue.length;
+        node = walker.nextNode();
+      }
+      const range = document.createRange();
+      if (node) range.setStart(node, Math.min(remaining, node.nodeValue.length));
+      else {
+        // Offset past every text node (empty block): park at the end.
+        range.selectNodeContents(codeEl);
+        range.collapse(false);
+      }
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    };
+
+    const rehighlight = () => {
+      const caret = caretTextOffset();
+      if (caret === null) return;
+      const scrollTop = codeEl.scrollTop;
+      const scrollLeft = codeEl.scrollLeft;
+      codeEl.innerHTML = highlightCode(codeEl.textContent, activeLang(), {
+        detectLanguage: false,
+      });
+      setCaretAtTextOffset(caret);
+      codeEl.scrollTop = scrollTop;
+      codeEl.scrollLeft = scrollLeft;
+    };
+    const scheduleRehighlight = () => {
+      clearTimeout(rehighlightTimer);
+      rehighlightTimer = setTimeout(rehighlight, 120);
+    };
+
+    codeEl.addEventListener("compositionstart", () => {
+      composing = true;
+    });
+    codeEl.addEventListener("compositionend", () => {
+      composing = false;
+      rehighlight();
+    });
+
+    codeEl.addEventListener("focus", () => {
+      if (editing) return;
+      editing = true;
+      // The highlighted spans stay in the DOM. Flattening to `textContent`
+      // here turned every block white the instant it was clicked into, and it
+      // bought nothing: highlighting only wraps text, so the caret offsets
+      // this widget works in are the same either way.
+      highlightedHTML = codeEl.innerHTML;
+    });
+
+    codeEl.addEventListener("input", () => {
+      // Replacing the DOM mid-composition would cancel the IME session.
+      if (!composing) scheduleRehighlight();
+    });
+
+    const commit = () => {
+      if (!editing) return;
+      clearTimeout(rehighlightTimer);
+      editing = false;
+
+      const text = codeEl.textContent.replace(/\n$/, "");
+      const { opening, closing } = fenceLine();
+      const next = `${opening}\n${text}\n${closing}`;
+
+      if (
+        next !== source &&
+        view &&
+        view.state.doc.sliceString(from, from + source.length) === source
+      ) {
+        // The dispatch rebuilds this widget; the fresh render re-highlights.
+        view.dispatch({ changes: { from, to: from + source.length, insert: next } });
+        return;
+      }
+
+      // Nothing changed (a stray click): put the highlighting back.
+      if (highlightedHTML !== null && !composing) codeEl.innerHTML = highlightedHTML;
+    };
+
+    codeEl.addEventListener("blur", commit);
+    codeEl.addEventListener("keydown", (event) => {
+      // Escape is the "done" key: commit and leave the block rendered.
+      if (event.key === "Escape") {
+        event.preventDefault();
+        codeEl.blur();
+      }
+    });
+  }
+
+  // ── Wrap toggle ─────────────────────────────────────────────────────────
+  const wrapper = wrap.querySelector(".code-block-wrapper");
+  if (wrapper && codeEl) {
+    let wrapped = codeWrapState.get(source) ?? false;
+    const paint = () => wrapper.classList.toggle("cm-lp-code-wrap", wrapped);
+    paint();
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "cm-lp-wrapbtn";
+    toggle.title = wrapped ? "Disable soft wrap" : "Soft-wrap long lines";
+    toggle.setAttribute("aria-label", "Toggle soft wrap");
+    toggle.setAttribute("aria-pressed", String(wrapped));
+    toggle.innerHTML =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h13a3 3 0 1 1 0 6h-4l2-2m-2 2 2 2M3 18h4"/></svg>';
+    toggle.addEventListener("mousedown", (e) => e.preventDefault());
+    toggle.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      wrapped = !wrapped;
+      if (codeWrapState.size >= CODE_WRAP_LIMIT) codeWrapState.clear();
+      codeWrapState.set(source, wrapped);
+      paint();
+      toggle.setAttribute("aria-pressed", String(wrapped));
+      view?.requestMeasure?.();
+    });
+    header.insertBefore(toggle, copyBtn);
+  }
+}
+
+/**
+ * The YAML frontmatter as a live properties card.
+ *
+ * Same contract as the table: keys are labels, values are editable fields.
+ * Lists render comma-separated and go back that way. Committing rewrites the
+ * whole `--- … ---` region; emptying every field removes the frontmatter.
+ * The `</>` chip drops to raw YAML.
+ */
+class FrontMatterWidget extends WidgetType {
+  constructor(source, from, to) {
+    super();
+    this.source = source;
+    this.from = from;
+    this.to = to;
+  }
+
+  eq(other) {
+    return other.source === this.source && other.from === this.from;
+  }
+
+  parse() {
+    const parsed = parseFrontmatter(this.source);
+    return parsed.hasFrontmatter ? parsed.attributes : {};
+  }
+
+  commit(view, attributes) {
+    if (!view) return;
+    if (view.state.doc.sliceString(this.from, this.to) !== this.source) return;
+    const serialized = stringifyFrontmatter(attributes);
+    // An empty card means the user cleared every field: drop the frontmatter.
+    const insert = serialized ? `---\n${serialized}\n---` : "";
+    if (insert === this.source) return;
+    view.dispatch({ changes: { from: this.from, to: this.to, insert } });
+  }
+
+  toDOM(view) {
+    let attributes = this.parse();
+
+    const wrap = document.createElement("div");
+    wrap.className = "markdown-preview cm-lp-render cm-lp-fmwrap";
+    wrap.setAttribute("dir", "auto");
+
+    // Same structure and classes as `renderFrontmatterCard` in
+    // markdownPreview.js, so the card is pixel-identical to Read mode — the
+    // only difference is that values are editable fields.
+    const card = document.createElement("section");
+    card.className = "frontmatter-card";
+    card.setAttribute("aria-label", "Note properties");
+
+    const header = document.createElement("header");
+    header.className = "frontmatter-header";
+    header.innerHTML =
+      '<svg class="frontmatter-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>' +
+      "<span>Properties</span>";
+    const count = document.createElement("span");
+    count.className = "frontmatter-count";
+    header.appendChild(count);
+
+    const sourceBtn = document.createElement("button");
+    sourceBtn.type = "button";
+    sourceBtn.className = "cm-lp-fmsource";
+    sourceBtn.textContent = "</>";
+    sourceBtn.title = "Edit YAML source";
+    sourceBtn.setAttribute("aria-label", "Edit frontmatter as YAML");
+    sourceBtn.addEventListener("mousedown", (e) => e.preventDefault());
+    sourceBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      revealAt(view, this.from);
+    });
+    header.appendChild(sourceBtn);
+    card.appendChild(header);
+
+    const grid = document.createElement("dl");
+    grid.className = "frontmatter-grid";
+    card.appendChild(grid);
+    wrap.appendChild(card);
+
+    const makeEditable = (el) => {
+      try {
+        el.contentEditable = "plaintext-only";
+      } catch {
+        el.contentEditable = "true";
+      }
+      el.spellcheck = false;
+    };
+
+    // ── Chip editing ─────────────────────────────────────────────────────
+    // A chip is one editable span. Typing a comma or Enter at the caret splits
+    // it into two chips; Backspace at the start merges into the previous one;
+    // an emptied chip disappears on blur. The chip list is the value.
+    const chipKeyDown = (event, chip) => {
+      if (event.key !== "," && event.key !== "Enter" && event.key !== "Backspace") return;
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+
+      if (event.key === "Backspace") {
+        // Empty chip: remove it and step back into the previous one.
+        if (chip.textContent === "") {
+          event.preventDefault();
+          const prev = chip.previousElementSibling;
+          chip.remove();
+          if (prev instanceof HTMLElement) {
+            prev.focus();
+            // Caret to the end of the previous chip's text.
+            const range = document.createRange();
+            range.selectNodeContents(prev);
+            range.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        }
+        return;
+      }
+
+      // Comma / Enter: split the chip at the caret. Text after the caret
+      // becomes a new chip; at the end of the chip this just starts one.
+      event.preventDefault();
+      const caret = selection.getRangeAt(0);
+      const tailRange = caret.cloneRange();
+      tailRange.selectNodeContents(chip);
+      tailRange.setStart(caret.endContainer, caret.endOffset);
+      const tail = tailRange.toString();
+      caret.deleteContents();
+      chip.textContent = caret.toString().trim().replace(/,\s*$/, "");
+
+      const next = document.createElement("span");
+      next.className = "frontmatter-chip";
+      makeEditable(next);
+      next.setAttribute("dir", "auto");
+      next.textContent = tail.trim();
+      chip.after(next);
+      next.focus();
+    };
+
+    const buildRow = (key, value) => {
+      const row = document.createElement("div");
+      row.className = "frontmatter-row";
+      row.dataset.key = key;
+
+      const keyEl = document.createElement("dt");
+      keyEl.className = "frontmatter-key";
+      keyEl.textContent = key;
+      row.appendChild(keyEl);
+
+      const val = document.createElement("dd");
+      val.className = "frontmatter-val";
+
+      if (Array.isArray(value)) {
+        const chips = document.createElement("div");
+        chips.className = "frontmatter-chips";
+        value.forEach((item) => {
+          const chip = document.createElement("span");
+          chip.className = "frontmatter-chip";
+          makeEditable(chip);
+          chip.setAttribute("dir", "auto");
+          chip.textContent = String(item);
+          chip.addEventListener("keydown", (event) => chipKeyDown(event, chip));
+          chips.appendChild(chip);
+        });
+        val.appendChild(chips);
+      } else {
+        const text = document.createElement("span");
+        text.className = "frontmatter-value";
+        makeEditable(text);
+        text.setAttribute("dir", "auto");
+        text.textContent = String(value ?? "");
+        val.appendChild(text);
+      }
+
+      row.appendChild(val);
+      return row;
+    };
+
+    const renderRows = () => {
+      grid.textContent = "";
+      Object.entries(attributes).forEach(([key, value]) => {
+        grid.appendChild(buildRow(key, value));
+      });
+      count.textContent = String(Object.keys(attributes).length);
+    };
+    renderRows();
+
+    // Collect whatever is on screen back into the attributes object.
+    const collect = () => {
+      const next = {};
+      grid.querySelectorAll(".frontmatter-row").forEach((row) => {
+        const key = row.dataset.key;
+        const chips = [...row.querySelectorAll(".frontmatter-chip")]
+          .map((chip) => chip.textContent.trim())
+          .filter(Boolean);
+        if (chips.length > 0) {
+          next[key] = chips;
+          return;
+        }
+        const text = row.querySelector(".frontmatter-value")?.textContent.trim() ?? "";
+        if (text) next[key] = text;
+      });
+      return next;
+    };
+
+    wrap.addEventListener("focusout", (event) => {
+      if (wrap.contains(event.relatedTarget)) return;
+      // An emptied scalar or a chip row stripped of its chips drops the
+      // property — the card is the whole truth, there is no separate
+      // "delete key" affordance to learn.
+      attributes = collect();
+      this.commit(view, attributes);
+    });
+
+    return wrap;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
+/**
+ * The `--- … ---` region at the very top of the document, if there is one.
+ * Checked textually rather than via the syntax tree: the markdown parser reads
+ * a leading `---` as a heading underline or rule, not as frontmatter.
+ */
+function frontmatterRange(doc) {
+  const first = doc.line(1);
+  if (first.text.trim() !== "---") return null;
+  for (let n = 2; n <= Math.min(doc.lines, 200); n += 1) {
+    const line = doc.line(n);
+    if (line.text.trim() === "---") {
+      return { from: first.from, to: line.to };
+    }
+  }
+  return null;
+}
+
 // A rendered block (fenced code, table) that replaces its source until the
 // cursor enters it. Wrapped in `.markdown-preview` so preview CSS styles it.
 class RenderedBlockWidget extends WidgetType {
@@ -227,13 +780,19 @@ class RenderedBlockWidget extends WidgetType {
     wrap.className = "markdown-preview cm-lp-render";
     wrap.setAttribute("dir", "auto");
     wrap.innerHTML = renderFragment(this.source, false);
+    attachCodeChrome(wrap, view, this.source, this.from);
 
     // Put the cursor where you actually clicked. Without this every click on a
     // rendered block dropped the cursor at the block's edge, so revealing a
     // table meant hunting for the row again — worse under Vim, where you then
     // have to travel there in normal mode.
     wrap.addEventListener("mousedown", (event) => {
-      if (event.button !== 0 || event.target.closest?.(".code-copy-btn")) return;
+      // The code block's header is chrome (copy, language, wrap), not content:
+      // clicking it must not drop the cursor into the raw source.
+      if (event.button !== 0 || event.target.closest?.(".code-block-header")) return;
+      // Code is edited in place now (see `attachCodeChrome`): a click inside
+      // the pre focuses the contenteditable code instead of revealing pipes.
+      if (event.target.closest?.("pre")) return;
       const lines = this.source.split("\n");
       const hit = tablePositionAt(event.target, lines) ||
         codeLineAt(event.target, event, lines.length) ||
@@ -253,13 +812,376 @@ class RenderedBlockWidget extends WidgetType {
     return wrap;
   }
 
-  // Let clicks through so placing the cursor at the block edge reveals source.
+  // Events are handled by the widget itself — the header chrome and the
+  // contenteditable code. If CodeMirror observed these clicks it would place
+  // the cursor at the block edge and reveal the source mid-edit.
   ignoreEvent() {
-    return false;
+    return true;
+  }
+}
+
+// A structural table edit replaces the source, which destroys and rebuilds the
+// widget. This carries "put the caret back in this cell" across that rebuild;
+// it is read and cleared by the very next `toDOM` for the same table.
+let pendingTableFocus = null;
+
+/**
+ * A live, editable table.
+ *
+ * Cells are plain contenteditable text: click in and type, exactly like the
+ * rendered preview suggested you could. Edits stay local to the widget while
+ * you type and are committed back to the markdown source when the table loses
+ * focus or you use the toolbar — committing on every keystroke would rebuild
+ * this DOM under the caret and steal focus mid-word.
+ *
+ * The toolbar (visible on hover/focus) adds/removes rows and columns around
+ * the cell you are in, and sets the column's alignment; the `</>` button drops
+ * to raw pipe syntax at the same spot the arrow keys would reach, so power
+ * users never lose access.
+ *
+ * Tab/Shift-Tab, Enter and the arrow keys move between cells like a spreadsheet.
+ * Enter never inserts a line break: a pipe row is one line, so a newline in a
+ * cell splits the row and rewrites the table (see `escapeCell` in tableEdit).
+ */
+class InteractiveTableWidget extends WidgetType {
+  constructor(source, from, to) {
+    super();
+    this.source = source;
+    this.from = from;
+    this.to = to;
+  }
+
+  eq(other) {
+    return other.source === this.source && other.from === this.from;
+  }
+
+  parse() {
+    const grid = parsePipeTable(this.source);
+    if (!grid) return { rows: [[""]], aligns: [null] };
+    return grid;
+  }
+
+  /** Commit the grid to the document, unless the source moved underneath us. */
+  commit(view, grid) {
+    if (!view) return;
+    if (view.state.doc.sliceString(this.from, this.to) !== this.source) return;
+    const insert = serializePipeTable(grid);
+    if (insert === this.source) return;
+    view.dispatch({ changes: { from: this.from, to: this.to, insert } });
+  }
+
+  toDOM(view) {
+    let grid = this.parse();
+
+    const wrap = document.createElement("div");
+    wrap.className = "markdown-preview cm-lp-render cm-lp-tablewrap";
+    wrap.setAttribute("dir", "auto");
+
+    // ── Toolbar ──────────────────────────────────────────────────────────
+    const bar = document.createElement("div");
+    bar.className = "cm-lp-tablebar";
+    bar.setAttribute("role", "toolbar");
+    bar.setAttribute("aria-label", "Table actions");
+
+    let active = { row: 1, col: 0 }; // sensible default: first body cell
+
+    const icon = (path) =>
+      `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+
+    const button = (iconPath, title, onClick) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cm-lp-tablebtn";
+      btn.innerHTML = icon(iconPath);
+      btn.title = title;
+      btn.setAttribute("aria-label", title);
+      btn.addEventListener("mousedown", (e) => e.preventDefault()); // keep cell focus
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        onClick();
+      });
+      bar.appendChild(btn);
+      return btn;
+    };
+
+    const separator = () => {
+      const line = document.createElement("span");
+      line.className = "cm-lp-tablesep";
+      line.setAttribute("role", "separator");
+      bar.appendChild(line);
+    };
+
+    const clampedActive = () => ({
+      row: Math.min(active.row, grid.rows.length - 1),
+      col: Math.min(active.col, (grid.rows[0]?.length ?? 1) - 1),
+    });
+
+    /**
+     * Run a structural edit and rebuild the widget from the new source.
+     *
+     * `focusAt` says which cell should hold the caret afterwards. The dispatch
+     * destroys this DOM, so the request is parked on the module-level
+     * `pendingTableFocus` and picked up by the next `toDOM` — without it every
+     * toolbar click would drop the writer back into the document.
+     */
+    const apply = (operation, focusAt) => {
+      const at = clampedActive();
+      // One dispatch carries both any pending typing and the structural
+      // change — committing them separately would race the rebuild.
+      const next = operation(at);
+      if (view && view.state.doc.sliceString(this.from, this.to) === this.source) {
+        pendingTableFocus = focusAt ? { from: this.from, ...focusAt(at, next) } : null;
+        view.dispatch({
+          changes: { from: this.from, to: this.to, insert: serializePipeTable(next) },
+        });
+      }
+      grid = next;
+    };
+
+    button(
+      '<rect x="3" y="3.5" width="18" height="7" rx="1.5"/><path d="M12 14.5v6M9 17.5h6"/>',
+      "Insert row below",
+      () =>
+        apply(
+          (at) => insertRow(grid, at.row + 1),
+          (at) => ({ row: at.row + 1, col: at.col })
+        )
+    );
+    button(
+      '<rect x="3.5" y="3" width="7" height="18" rx="1.5"/><path d="M17.5 9v6M14.5 12h6"/>',
+      "Insert column right",
+      () =>
+        apply(
+          (at) => insertColumn(grid, at.col + 1),
+          (at) => ({ row: at.row, col: at.col + 1 })
+        )
+    );
+    const deleteRowBtn = button(
+      '<rect x="3" y="3.5" width="18" height="7" rx="1.5"/><path d="M9 17.5h6"/>',
+      "Delete current row",
+      () =>
+        apply(
+          (at) => removeRow(grid, at.row),
+          (at, next) => ({ row: Math.min(at.row, next.rows.length - 1), col: at.col })
+        )
+    );
+    const deleteColBtn = button(
+      '<rect x="3.5" y="3" width="7" height="18" rx="1.5"/><path d="M14.5 12h6"/>',
+      "Delete current column",
+      () =>
+        apply(
+          (at) => removeColumn(grid, at.col),
+          (at, next) => ({
+            row: at.row,
+            col: Math.min(at.col, (next.rows[0]?.length ?? 1) - 1),
+          })
+        )
+    );
+
+    separator();
+
+    // Column alignment. Each button toggles: pressing the alignment a column
+    // already has clears it back to the default.
+    const alignButtons = [
+      ["left", '<path d="M4 6h16M4 12h9M4 18h13"/>', "Align column left"],
+      ["center", '<path d="M4 6h16M7.5 12h9M6 18h12"/>', "Align column center"],
+      ["right", '<path d="M4 6h16M11 12h9M7 18h13"/>', "Align column right"],
+    ].map(([align, path, title]) => {
+      const btn = button(path, title, () =>
+        apply(
+          (at) => setColumnAlign(grid, at.col, align),
+          (at) => ({ row: at.row, col: at.col })
+        )
+      );
+      btn.dataset.align = align;
+      return btn;
+    });
+
+    separator();
+
+    const sourceBtn = button("", "Edit table as markdown", () => revealAt(view, this.from));
+    sourceBtn.classList.add("cm-lp-tablesource");
+    sourceBtn.textContent = "</>";
+
+    const syncToolbar = () => {
+      const at = clampedActive();
+      deleteRowBtn.disabled = grid.rows.length <= 2;
+      deleteColBtn.disabled = (grid.rows[0]?.length ?? 0) <= 1;
+      const current = grid.aligns[at.col] ?? null;
+      for (const btn of alignButtons) {
+        btn.setAttribute("aria-pressed", String(btn.dataset.align === current));
+      }
+    };
+
+    // ── Table ────────────────────────────────────────────────────────────
+    const sheet = document.createElement("div");
+    sheet.className = "table-wrap";
+    const table = document.createElement("table");
+
+    const width = () => grid.rows[0]?.length ?? 0;
+    const cellAt = (row, col) =>
+      table.querySelector(`[data-row="${row}"][data-col="${col}"]`) ?? null;
+
+    /** Move the caret into a cell, selecting nothing and landing at the end. */
+    const focusCell = (row, col) => {
+      const cell = cellAt(row, col);
+      if (!cell) return false;
+      cell.focus();
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      return true;
+    };
+
+    /**
+     * Spreadsheet-style movement. Stepping past the last cell appends a row so
+     * a table grows by typing, the way every other table editor behaves.
+     */
+    const step = (row, col, delta) => {
+      const flat = row * width() + col + delta;
+      if (flat < 0) return;
+      if (flat >= grid.rows.length * width()) {
+        apply(
+          () => insertRow(grid, grid.rows.length),
+          () => ({ row: grid.rows.length, col: 0 })
+        );
+        return;
+      }
+      focusCell(Math.floor(flat / width()), flat % width());
+    };
+
+    /** True when the caret sits at the very start/end of the cell's text. */
+    const caretAtEdge = (cell, edge) => {
+      const selection = window.getSelection();
+      if (!selection || !selection.isCollapsed || !cell.contains(selection.anchorNode)) return true;
+      const range = selection.getRangeAt(0).cloneRange();
+      range.selectNodeContents(cell);
+      range.setEnd(selection.anchorNode, selection.anchorOffset);
+      const before = range.toString().length;
+      return edge === "start" ? before === 0 : before === (cell.textContent ?? "").length;
+    };
+
+    const onCellKeyDown = (event, row, col) => {
+      const cell = event.currentTarget;
+
+      if (event.key === "Tab") {
+        event.preventDefault();
+        step(row, col, event.shiftKey ? -1 : 1);
+        return;
+      }
+
+      // A newline would split the pipe row, so Enter moves instead of typing.
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (row >= grid.rows.length - 1) {
+          apply(
+            () => insertRow(grid, grid.rows.length),
+            () => ({ row: grid.rows.length, col })
+          );
+        } else {
+          focusCell(row + 1, col);
+        }
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.commit(view, grid);
+        view?.focus();
+        return;
+      }
+
+      // Arrows leave the cell only from its edges, so a long wrapped cell can
+      // still be navigated internally.
+      if (event.key === "ArrowUp" && caretAtEdge(cell, "start")) {
+        if (focusCell(row - 1, col)) event.preventDefault();
+      } else if (event.key === "ArrowDown" && caretAtEdge(cell, "end")) {
+        if (focusCell(row + 1, col)) event.preventDefault();
+      }
+    };
+
+    const renderTable = () => {
+      table.textContent = "";
+      const head = document.createElement("thead");
+      const body = document.createElement("tbody");
+      grid.rows.forEach((row, rowIndex) => {
+        const tr = document.createElement("tr");
+        row.forEach((value, colIndex) => {
+          const cell = document.createElement(rowIndex === 0 ? "th" : "td");
+          const align = grid.aligns[colIndex];
+          if (align) cell.style.textAlign = align;
+          // `plaintext-only` keeps paste from smuggling formatting in; Firefox
+          // does not support it (and throws on assignment), so fall back.
+          try {
+            cell.contentEditable = "plaintext-only";
+          } catch {
+            cell.contentEditable = "true";
+          }
+          cell.textContent = value;
+          cell.dataset.row = String(rowIndex);
+          cell.dataset.col = String(colIndex);
+          cell.addEventListener("focusin", () => {
+            active = { row: rowIndex, col: colIndex };
+            syncToolbar();
+          });
+          cell.addEventListener("input", () => {
+            grid.rows[rowIndex][colIndex] = cell.textContent;
+          });
+          cell.addEventListener("keydown", (event) => onCellKeyDown(event, rowIndex, colIndex));
+          // Multi-line paste would render a cell taller than its row and read
+          // as a break the source cannot hold; flatten it on the way in.
+          cell.addEventListener("paste", (event) => {
+            const text = event.clipboardData?.getData("text/plain");
+            if (!text || !/\r?\n/.test(text)) return;
+            event.preventDefault();
+            document.execCommand("insertText", false, text.replace(/\s*\r?\n\s*/g, " "));
+          });
+          tr.appendChild(cell);
+        });
+
+        (rowIndex === 0 ? head : body).appendChild(tr);
+      });
+      table.appendChild(head);
+      table.appendChild(body);
+      syncToolbar();
+    };
+    renderTable();
+
+    sheet.appendChild(table);
+    wrap.appendChild(bar);
+    wrap.appendChild(sheet);
+
+    // Commit whatever is on screen when editing stops for any reason — blur,
+    // clicking another part of the document, switching notes.
+    wrap.addEventListener("focusout", (event) => {
+      if (!wrap.contains(event.relatedTarget)) this.commit(view, grid);
+    });
+
+    // Pick up a caret position parked by the toolbar edit that rebuilt us.
+    if (pendingTableFocus && pendingTableFocus.from === this.from) {
+      const { row, col } = pendingTableFocus;
+      pendingTableFocus = null;
+      active = { row, col };
+      // The widget is not in the document yet, so focusing has to wait a tick.
+      requestAnimationFrame(() => focusCell(row, col));
+    }
+
+    remeasureOnImageLoad(wrap, view);
+    return wrap;
+  }
+
+  // Events must reach the contenteditable cells; without this CodeMirror would
+  // turn every click into cursor placement and reveal the raw pipes instead.
+  ignoreEvent() {
+    return true;
   }
 }
 
 // A rendered inline fragment (e.g. an image) that replaces its source.
+
 class RenderedInlineWidget extends WidgetType {
   constructor(source) {
     super();
@@ -440,10 +1362,31 @@ function buildDecorations(state) {
     }
   };
 
+  // The frontmatter card replaces the whole `--- … ---` region when the
+  // cursor is elsewhere in the document; entering the region reveals YAML.
+  const fm = frontmatterRange(doc);
+  if (fm) {
+    if (touches(fm.from, fm.to)) {
+      revealSource(doc.lineAt(fm.from), doc.lineAt(fm.to));
+    } else {
+      render(
+        fm.from,
+        fm.to,
+        Decoration.replace({
+          widget: new FrontMatterWidget(doc.sliceString(fm.from, fm.to), fm.from, fm.to),
+          block: true,
+        })
+      );
+    }
+  }
+
   syntaxTree(state).iterate({
     from: 0,
     to: doc.length,
     enter: (node) => {
+      // The frontmatter region is spoken for; anything the grammar thinks is
+      // in there (a `---` reads as a rule) must not get decorated too.
+      if (fm && node.from < fm.to && node.to <= fm.to) return false;
       const name = node.name;
 
       // ── Headings ───────────────────────────────────────────────
@@ -517,7 +1460,7 @@ function buildDecorations(state) {
         return false; // don't decorate inside the code block
       }
 
-      // ── Tables → rendered table ────────────────────────────────
+      // ── Tables → live editable table ───────────────────────────
       if (name === "Table") {
         const fromLine = doc.lineAt(node.from);
         const toLine = doc.lineAt(node.to);
@@ -528,9 +1471,10 @@ function buildDecorations(state) {
             fromLine.from,
             toLine.to,
             Decoration.replace({
-              widget: new RenderedBlockWidget(
+              widget: new InteractiveTableWidget(
                 doc.sliceString(fromLine.from, toLine.to),
-                fromLine.from
+                fromLine.from,
+                toLine.to
               ),
               block: true,
             })
@@ -969,6 +1913,311 @@ const livePreviewTheme = EditorView.baseTheme({
     marginInlineEnd: "0.45em",
     cursor: "pointer",
     accentColor: "var(--color-accent)",
+  },
+  // Keep the wrap toggle beside the copy button: the header spreads its
+  // children with space-between, so without this the toggle drifts to the
+  // middle and reads as unrelated to the copy action next to it.
+  ".cm-lp-render .code-block-header .cm-lp-wrapbtn": {
+    marginLeft: "auto",
+  },
+  ".cm-lp-render .code-block-header .code-copy-btn": {
+    marginLeft: "4px",
+  },
+  // In-place code editing: the rendered code is directly editable, so it needs
+  // a quiet focus cue and no editor chrome fighting the caret.
+  ".cm-lp-render pre code[contenteditable]": {
+    cursor: "text",
+    outline: "none",
+  },
+  // One object lights up, not two. The ring lives on the card — putting it on
+  // the inner `pre` drew a second rounded frame inside the first at a smaller
+  // radius, which read as a box inside a box rather than "this block is live".
+  ".cm-lp-render .code-block-wrapper:focus-within": {
+    borderColor: "color-mix(in srgb, var(--color-accent) 55%, transparent)",
+    boxShadow: "0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent)",
+  },
+  // ── Live frontmatter card ─────────────────────────────────────────────────
+  // Structure and look come from the Read-mode `.frontmatter-*` styles via the
+  // `.markdown-preview` wrapper; only the editing affordances live here.
+  ".cm-lp-fmwrap": { position: "relative" },
+  ".cm-lp-fmwrap .frontmatter-card": { marginBottom: "0" },
+  ".cm-lp-fmwrap .frontmatter-row": { transition: "background-color 100ms ease" },
+  ".cm-lp-fmwrap .frontmatter-row:hover": {
+    backgroundColor: "color-mix(in srgb, var(--color-text-primary) 3%, transparent)",
+  },
+  ".cm-lp-fmwrap .frontmatter-value, .cm-lp-fmwrap .frontmatter-chip": {
+    cursor: "text",
+    outline: "none",
+    borderRadius: "4px",
+    transition: "background-color 120ms ease",
+  },
+  ".cm-lp-fmwrap .frontmatter-value:focus, .cm-lp-fmwrap .frontmatter-chip:focus": {
+    backgroundColor: "color-mix(in srgb, var(--color-accent) 7%, transparent)",
+  },
+  ".cm-lp-fmwrap .frontmatter-value:empty::before": {
+    content: '"empty — clears the field on blur"',
+    color: "var(--color-text-muted)",
+    opacity: "0.55",
+    fontStyle: "italic",
+    fontSize: "0.85em",
+  },
+  ".cm-lp-fmwrap .frontmatter-chip:empty::before": {
+    content: '"tag"',
+    color: "var(--color-accent)",
+    opacity: "0.5",
+    fontStyle: "italic",
+  },
+  ".cm-lp-fmsource": {
+    marginLeft: "0.4rem",
+    border: "none",
+    background: "transparent",
+    color: "var(--color-text-muted)",
+    font: "700 11px var(--font-family-mono)",
+    padding: "2px 6px",
+    borderRadius: "5px",
+    cursor: "pointer",
+    opacity: "0",
+    transition: "opacity 120ms ease, color 120ms ease",
+  },
+  ".cm-lp-fmwrap:hover .cm-lp-fmsource, .cm-lp-fmsource:focus-visible": {
+    opacity: "1",
+  },
+  ".cm-lp-fmsource:hover": {
+    color: "var(--color-accent)",
+    backgroundColor: "color-mix(in srgb, var(--color-accent) 14%, transparent)",
+  },
+  // ── Code block chrome ─────────────────────────────────────────────────────
+  // The wrapper clips (`overflow: hidden` in Read CSS, for its rounded frame),
+  // which would cut off the language dropdown. Live blocks show the menu, so
+  // the clip moves down to the `pre` itself, which keeps the rounded corners.
+  ".cm-lp-render .code-block-wrapper": {
+    overflow: "visible",
+  },
+  // `auto`, not `hidden`: the clip is only here to keep the rounded corners now
+  // that the wrapper cannot clip. `hidden` also swallowed the horizontal
+  // scrollbar, which made any line wider than the editor unreachable unless you
+  // turned soft wrap on.
+  ".cm-lp-render .code-block-wrapper pre": {
+    overflow: "auto",
+    borderRadius: "calc(var(--md-radius, 10px) - 1px)",
+  },
+  // The language label doubles as the picker trigger; the wrap toggle sits
+  // beside the copy button. All three only surface on hover, like Read mode.
+  ".cm-lp-render .code-block-wrapper:focus-within .code-copy-btn": {
+    opacity: "1",
+  },
+  // Nothing said the language label was a button. It now takes a chip shape on
+  // hover, which is the only affordance a 0.68em label can carry without
+  // shouting.
+  ".cm-lp-render .code-block-lang.cm-lp-langpick": {
+    cursor: "pointer",
+    textTransform: "lowercase",
+    position: "relative",
+    padding: "2px 6px",
+    margin: "-2px -6px",
+    borderRadius: "5px",
+    transition: "background-color 140ms ease, color 140ms ease",
+  },
+  ".cm-lp-render .code-block-lang.cm-lp-langpick:hover": {
+    color: "var(--color-accent)",
+    backgroundColor: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
+  },
+  ".cm-lp-langmenu": {
+    position: "absolute",
+    top: "calc(100% + 4px)",
+    left: "0",
+    zIndex: "14",
+    display: "flex",
+    flexDirection: "column",
+    minWidth: "110px",
+    maxHeight: "240px",
+    overflowY: "auto",
+    padding: "4px",
+    borderRadius: "8px",
+    backgroundColor: "var(--color-bg-editor)",
+    border: "1px solid var(--color-border)",
+    boxShadow: "0 6px 20px color-mix(in srgb, black 22%, transparent)",
+  },
+  ".cm-lp-langopt": {
+    border: "none",
+    background: "transparent",
+    color: "var(--color-text-secondary)",
+    font: "500 12px var(--font-family-mono)",
+    textAlign: "left",
+    padding: "5px 9px",
+    borderRadius: "5px",
+    cursor: "pointer",
+  },
+  ".cm-lp-langopt:hover": {
+    backgroundColor: "color-mix(in srgb, var(--color-accent) 14%, transparent)",
+    color: "var(--color-accent)",
+  },
+  ".cm-lp-langopt-active": {
+    color: "var(--color-accent)",
+    fontWeight: "700",
+  },
+  // Chrome, so it behaves like the copy button beside it: invisible until you
+  // are on the block. Two always-lit icons on every code block was the loudest
+  // thing on the page.
+  ".cm-lp-render .cm-lp-wrapbtn": {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "24px",
+    height: "24px",
+    padding: "0",
+    border: "none",
+    borderRadius: "5px",
+    background: "transparent",
+    color: "var(--color-text-muted)",
+    cursor: "pointer",
+    opacity: "0",
+    transition: "opacity 140ms ease, background-color 140ms ease, color 140ms ease",
+  },
+  ".cm-lp-render .code-block-wrapper:hover .cm-lp-wrapbtn, .cm-lp-render .code-block-wrapper:focus-within .cm-lp-wrapbtn, .cm-lp-render .cm-lp-wrapbtn:focus-visible":
+    {
+      opacity: "1",
+    },
+  ".cm-lp-render .cm-lp-wrapbtn:hover": {
+    color: "var(--color-text-primary)",
+    backgroundColor: "color-mix(in srgb, var(--color-text-primary) 10%, transparent)",
+  },
+  ".cm-lp-render .cm-lp-wrapbtn[aria-pressed='true']": {
+    color: "var(--color-accent)",
+  },
+  ".cm-lp-render .code-block-wrapper.cm-lp-code-wrap pre": {
+    whiteSpace: "pre-wrap",
+  },
+  ".cm-lp-render .code-block-wrapper.cm-lp-code-wrap pre code": {
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
+  },
+  // ── Interactive table editor ──────────────────────────────────────────────
+  // The table sits in a quiet card: hairline frame, rounded corners, header
+  // band. The toolbar is a compact icon pill floating above the card, visible
+  // only while you are on the table.
+  // The top padding is a reserved gutter for the toolbar, not decoration. The
+  // bar used to float at `top: -15px`, straddling the frame and covering the
+  // header row it was meant to act on. Reserving the strip costs a little
+  // height on every table but means the controls never sit on content — and it
+  // has to be padding, not margin (see `remeasureOnImageLoad`).
+  //
+  // Both classes are on the same element, and the bare `.cm-lp-render` padding
+  // rule below is declared later in this object — equal specificity, so source
+  // order would win and silently drop the gutter. Qualifying with both classes
+  // is what makes this stick.
+  //
+  // The gutter is px, not em, because what has to fit is the toolbar, and every
+  // part of it is sized in px: 24px buttons + 3px padding each side + 1px
+  // borders = 32px, plus clearance.
+  ".cm-lp-render.cm-lp-tablewrap": { position: "relative", padding: "38px 0 0.55em" },
+  ".cm-lp-tablewrap .table-wrap": {
+    border: "1px solid color-mix(in srgb, var(--color-text-primary) 12%, transparent)",
+    borderRadius: "10px",
+    overflow: "auto",
+    backgroundColor: "color-mix(in srgb, var(--color-text-primary) 2%, transparent)",
+    transition: "border-color 140ms ease, box-shadow 140ms ease",
+  },
+  // Same contract as the code card: the table is one object, and it is the
+  // object that lights up while you are editing inside it.
+  ".cm-lp-tablewrap .table-wrap:focus-within": {
+    borderColor: "color-mix(in srgb, var(--color-accent) 50%, transparent)",
+    boxShadow: "0 0 0 3px color-mix(in srgb, var(--color-accent) 11%, transparent)",
+  },
+  ".cm-lp-tablewrap th": {
+    backgroundColor: "color-mix(in srgb, var(--color-text-primary) 6%, transparent)",
+    fontWeight: "600",
+    fontSize: "0.86em",
+    letterSpacing: "0.01em",
+    color: "var(--color-text-secondary)",
+  },
+  ".cm-lp-tablewrap tbody tr": {
+    transition: "background-color 100ms ease",
+  },
+  ".cm-lp-tablewrap tbody tr:hover": {
+    backgroundColor: "color-mix(in srgb, var(--color-text-primary) 4%, transparent)",
+  },
+  ".cm-lp-tablewrap tbody tr + tr td": {
+    borderTop: "1px solid color-mix(in srgb, var(--color-text-primary) 8%, transparent)",
+  },
+  ".cm-lp-tablebar": {
+    display: "flex",
+    alignItems: "center",
+    gap: "2px",
+    position: "absolute",
+    top: "0",
+    insetInlineStart: "0",
+    zIndex: "12",
+    padding: "3px 4px",
+    borderRadius: "8px",
+    backgroundColor: "var(--color-bg-editor)",
+    border: "1px solid var(--color-border)",
+    boxShadow:
+      "0 1px 2px color-mix(in srgb, black 12%, transparent), 0 4px 14px color-mix(in srgb, black 16%, transparent)",
+    opacity: "0",
+    visibility: "hidden",
+    transition: "opacity 120ms ease, visibility 120ms ease",
+  },
+  ".cm-lp-tablewrap:hover .cm-lp-tablebar, .cm-lp-tablewrap:focus-within .cm-lp-tablebar": {
+    opacity: "1",
+    visibility: "visible",
+  },
+  ".cm-lp-tablebtn": {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "26px",
+    height: "24px",
+    padding: "0",
+    border: "none",
+    borderRadius: "6px",
+    background: "transparent",
+    color: "var(--color-text-secondary)",
+    cursor: "pointer",
+  },
+  ".cm-lp-tablebtn:hover": {
+    backgroundColor: "color-mix(in srgb, var(--color-accent) 14%, transparent)",
+    color: "var(--color-accent)",
+  },
+  ".cm-lp-tablebtn:disabled": {
+    opacity: "0.3",
+    cursor: "default",
+  },
+  ".cm-lp-tablebtn:disabled:hover": {
+    backgroundColor: "transparent",
+    color: "var(--color-text-secondary)",
+  },
+  // Alignment is a state, not an action, so the active one stays lit.
+  ".cm-lp-tablebtn[aria-pressed='true']": {
+    backgroundColor: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
+    color: "var(--color-accent)",
+  },
+  // Seven undifferentiated icons read as a wall. The rules group them into
+  // structure / alignment / escape-hatch.
+  ".cm-lp-tablesep": {
+    width: "1px",
+    alignSelf: "stretch",
+    margin: "3px 3px",
+    backgroundColor: "color-mix(in srgb, var(--color-text-primary) 14%, transparent)",
+  },
+  ".cm-lp-tablesource": {
+    font: "700 11px var(--font-family-mono)",
+  },
+  // Editable cells get a quiet affordance instead of an outline: a soft accent
+  // wash on focus keeps the writing surface calm but always findable. An underline
+  // rather than a side bar, so it lands on the same edge in an RTL table. The ring
+  // lives on the card (above), so the cell only tints — a rounded ring inset in
+  // a square cell never lined up with the grid it sat in.
+  ".cm-lp-tablewrap th[contenteditable], .cm-lp-tablewrap td[contenteditable]": {
+    padding: "0.55em 0.9em",
+    cursor: "text",
+    outline: "none",
+    transition: "background-color 120ms ease, box-shadow 120ms ease",
+  },
+  ".cm-lp-tablewrap th[contenteditable]:focus, .cm-lp-tablewrap td[contenteditable]:focus": {
+    backgroundColor: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
+    boxShadow: "inset 0 -2px 0 0 var(--color-accent)",
   },
   // Padding, not margin, and the rule itself carries none — see
   // `remeasureOnImageLoad` for why nothing here may sit outside the border box.

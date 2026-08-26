@@ -158,9 +158,7 @@ function ActivityChart({ daily, metric }: { daily: AdminStats["daily"]; metric: 
       {/* Bare bars with no stated ceiling are a shape, not a measurement. */}
       <div className="mb-2 flex items-baseline justify-between font-mono text-[11px] text-ink-faint">
         <span>peak {max}</span>
-        <span>
-          {total} in 14 days
-        </span>
+        <span>{total} in 14 days</span>
       </div>
       <div className="flex h-24 items-end gap-1.5 border-b border-line pb-px">
         {daily.map((day) => {
@@ -470,32 +468,68 @@ function Meta({ post }: { post: AdminFeedbackPost }) {
 }
 
 /**
- * The visible posts as a Markdown digest, shaped for handing to an agent: one
- * block per post with the metadata it needs up front and the body verbatim.
+ * One post as a Markdown block, shaped for handing to an agent: the metadata it
+ * needs up front, then the body verbatim.
  */
+function postToMarkdown(post: AdminFeedbackPost) {
+  return [
+    `## ${post.title}`,
+    "",
+    `- Type: ${post.type === "bug" ? "Bug" : "Feature"}`,
+    `- Status: ${STATUS_LABEL[post.status]}`,
+    `- Votes: ${post.voteCount}`,
+    `- From: ${post.authorName} <${post.authorEmail}>`,
+    `- Date: ${shortDate(post.createdAt)}`,
+    `- Id: ${post.id}`,
+    "",
+    post.body.trim(),
+  ].join("\n");
+}
+
+/** The visible posts as one Markdown digest. */
 function postsToMarkdown(list: AdminFeedbackPost[]) {
   const stamp = new Date().toLocaleString("en-GB");
-  const items = list.map((post) =>
-    [
-      `## ${post.title}`,
-      "",
-      `- Type: ${post.type === "bug" ? "Bug" : "Feature"}`,
-      `- Status: ${STATUS_LABEL[post.status]}`,
-      `- Votes: ${post.voteCount}`,
-      `- From: ${post.authorName} <${post.authorEmail}>`,
-      `- Date: ${shortDate(post.createdAt)}`,
-      `- Id: ${post.id}`,
-      "",
-      post.body.trim(),
-    ].join("\n")
-  );
   return [
     `# Marky feedback export`,
     "",
     `${list.length} ${list.length === 1 ? "post" : "posts"}, generated ${stamp}.`,
     "",
-    items.join("\n\n---\n\n"),
+    list.map(postToMarkdown).join("\n\n---\n\n"),
   ].join("\n");
+}
+
+/**
+ * Copy one post rather than the whole board — the common case is chasing a
+ * single report, and the digest button made that a copy-then-delete exercise.
+ */
+function CopyPostButton({ post }: { post: AdminFeedbackPost }) {
+  const [state, setState] = useState<"idle" | "done" | "failed">("idle");
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(postToMarkdown(post));
+      setState("done");
+    } catch {
+      setState("failed");
+    }
+    window.setTimeout(() => setState("idle"), 2000);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={`Copy ${post.title} as Markdown`}
+      className="inline-flex min-h-9 items-center gap-1.5 rounded-sm px-2 py-1 text-[13px] text-ink-soft transition-colors hover:bg-ink/[0.06] hover:text-ink"
+    >
+      {state === "done" ? (
+        <Check size={13} aria-hidden className="text-emerald-600 dark:text-emerald-400" />
+      ) : (
+        <Copy size={13} aria-hidden />
+      )}
+      {state === "done" ? "Copied" : state === "failed" ? "Failed" : "Copy"}
+    </button>
+  );
 }
 
 export default function Admin() {
@@ -854,7 +888,11 @@ export default function Admin() {
                     ) : (
                       <Copy size={13} aria-hidden />
                     )}
-                    {copiedFlash === "done" ? "Copied" : copiedFlash === "failed" ? "Failed" : "Copy"}
+                    {copiedFlash === "done"
+                      ? "Copied"
+                      : copiedFlash === "failed"
+                        ? "Failed"
+                        : "Copy"}
                   </button>
                   <button
                     type="button"
@@ -882,7 +920,10 @@ export default function Admin() {
                   aria-label="Filter by status"
                   className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1 md:-mx-10 md:px-10 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0"
                 >
-                  <FilterChip active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>
+                  <FilterChip
+                    active={statusFilter === "all"}
+                    onClick={() => setStatusFilter("all")}
+                  >
                     All
                   </FilterChip>
                   {STATUS_OPTIONS.map((status) => (
@@ -925,7 +966,8 @@ export default function Admin() {
                         <Meta post={post} />
                         <div className="mt-3 flex items-center gap-3 border-t border-line pt-3">
                           <StatusSelect post={post} onChange={changeStatus} />
-                          <div className="ml-auto">
+                          <div className="ml-auto flex items-center gap-1">
+                            <CopyPostButton post={post} />
                             <DeleteButton post={post} onDelete={() => setPendingDelete(post)} />
                           </div>
                         </div>
@@ -964,8 +1006,11 @@ export default function Admin() {
                             <td className="px-4 py-4 align-middle">
                               <StatusSelect post={post} onChange={changeStatus} />
                             </td>
-                            <td className="px-6 py-4 text-right align-middle">
-                              <DeleteButton post={post} onDelete={() => setPendingDelete(post)} />
+                            <td className="px-6 py-4 align-middle">
+                              <div className="flex items-center justify-end gap-1">
+                                <CopyPostButton post={post} />
+                                <DeleteButton post={post} onDelete={() => setPendingDelete(post)} />
+                              </div>
                             </td>
                           </tr>
                         ))}

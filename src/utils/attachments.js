@@ -181,6 +181,13 @@ export const addIndexedAttachment = (absolutePath) => {
 
 export const getAttachmentIndexSize = () => byAbsolute.size;
 
+/**
+ * Every indexed attachment as a real absolute path, sorted for a stable list.
+ * This is the source for the attachment manager's file listing.
+ */
+export const getIndexedAttachments = () =>
+  [...byAbsolute.values()].sort((a, b) => a.localeCompare(b));
+
 const indexHas = (absolutePath) => byAbsolute.has(normalizeSlashes(absolutePath).toLowerCase());
 
 // ── Per-render context ─────────────────────────────────────────────────────

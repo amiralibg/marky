@@ -160,6 +160,14 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
         keywords: ["network", "connections"],
       },
       {
+        id: "attachments",
+        name: "Manage Attachments",
+        category: "Tools",
+        icon: ArchiveIcon,
+        action: "openAttachments",
+        keywords: ["images", "files", "media", "unused"],
+      },
+      {
         id: "export",
         name: "Export Note",
         category: "Tools",

@@ -33,6 +33,33 @@ const escapeHtml = (value = "") =>
     }
   });
 
+/**
+ * Highlight one code block's body to HTML.
+ *
+ * Shared with the live-preview code widget so a block looks identical whether
+ * it is being read or typed into.
+ *
+ * `detectLanguage` exists for that live path. `highlightAuto` re-guesses the
+ * language from scratch on every keystroke, so a block being typed strobes
+ * between colour schemes as the guess changes — an unlabelled block is left
+ * plain instead.
+ */
+export const highlightCode = (text, lang, { detectLanguage = true } = {}) => {
+  if (lang && hljs.getLanguage(lang)) {
+    return hljs.highlight(text, { language: lang }).value;
+  }
+  return detectLanguage ? hljs.highlightAuto(text).value : escapeHtml(text);
+};
+
+/**
+ * Highlight.js's guess at what an unlabelled block is written in.
+ *
+ * The live code widget needs the answer once, when a block is first edited, so
+ * that it can keep highlighting with a fixed language instead of re-guessing
+ * (and re-colouring) on every keystroke.
+ */
+export const detectCodeLanguage = (text) => hljs.highlightAuto(text ?? "").language ?? "";
+
 const wikiLinkExtension = {
   name: "wikilink",
   level: "inline",
@@ -231,12 +258,12 @@ if (!extensionsRegistered) {
           return `<div class="mermaid-wrapper"><div class="mermaid">${escapeHtml(text)}</div></div>`;
         }
 
-        const validLang = lang && hljs.getLanguage(lang);
-        const highlighted = validLang
-          ? hljs.highlight(text, { language: lang }).value
-          : hljs.highlightAuto(text).value;
+        const highlighted = highlightCode(text, lang);
         const langLabel = lang || "text";
-        const escapedCode = text.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        // Full entity escaping, not just the quotes: a `&` left raw meant a
+        // block containing `&quot;` was handed back to the copy button decoded
+        // as `"`.
+        const escapedCode = escapeHtml(text);
 
         // Emitted without whitespace between tags. Indenting this template put
         // real newlines in the DOM, and in Live mode the widget inherits
@@ -256,7 +283,7 @@ if (!extensionsRegistered) {
           '<div class="code-block-wrapper">' +
           '<div class="code-block-header">' +
           `<span class="code-block-lang">${escapeHtml(langLabel)}</span>` +
-          `<button class="code-copy-btn" data-code="${escapedCode}" title="Copy code">${copyIcon}${checkIcon}</button>` +
+          `<button type="button" class="code-copy-btn" data-code="${escapedCode}" title="Copy code" aria-label="Copy code">${copyIcon}${checkIcon}</button>` +
           "</div>" +
           `<pre><code class="hljs language-${escapeHtml(langLabel)}">${highlighted}</code></pre>` +
           "</div>"

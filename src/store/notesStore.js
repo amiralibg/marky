@@ -611,7 +611,12 @@ const useNotesStore = create(
       // anything had happened; the sidebar watches this and scrolls the new row
       // into view. The nonce makes two creations in a row two separate events.
       revealRequest: null,
-      revealItem: (id) => set({ revealRequest: id ? { id, nonce: Date.now() } : null }),
+      // `options.rename` asks the sidebar to drop the new row straight into its
+      // inline name field (VS Code explorer behavior) instead of just marking it.
+      revealItem: (id, options = {}) =>
+        set({
+          revealRequest: id ? { id, nonce: Date.now(), rename: Boolean(options.rename) } : null,
+        }),
       clearReveal: () => set({ revealRequest: null }),
 
       setRootFolder: async (folderData) => {
@@ -881,8 +886,9 @@ const useNotesStore = create(
             });
             const folderId = buildId("folder", newPath);
             // A new folder opens nothing, so without this there is no feedback
-            // that it exists — least of all when it lands off-screen.
-            get().revealItem(folderId);
+            // that it exists — least of all when it lands off-screen. Naming
+            // it right away finishes the gesture the way explorers do.
+            get().revealItem(folderId, { rename: true });
             return folderId;
           } catch (error) {
             lastError = error;
@@ -954,7 +960,7 @@ const useNotesStore = create(
           focusPath: newPath,
         });
 
-        get().revealItem(buildId("note", newPath));
+        get().revealItem(buildId("note", newPath), { rename: true });
 
         try {
           const content = await readMarkdownFile(newPath);

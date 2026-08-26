@@ -15,6 +15,7 @@ import { checkForAppUpdate } from "./utils/appUpdater";
 import { windowVaultPath } from "./utils/windowVault";
 import { listenForWindow } from "./utils/windowEvents";
 import { startSettingsSync } from "./utils/settingsSync";
+import { startAutoSync, stopAutoSync } from "./utils/autoSyncRunner";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -41,6 +42,7 @@ const GraphModal = lazy(() => import("./components/modals/GraphModal"));
 const SearchModal = lazy(() => import("./components/modals/SearchModal"));
 const CommandPalette = lazy(() => import("./components/modals/CommandPalette"));
 const KeymapsModal = lazy(() => import("./components/modals/KeymapsModal"));
+const AttachmentManagerModal = lazy(() => import("./components/modals/AttachmentManagerModal"));
 
 const stripMarkdownExtension = (name = "") => name.replace(/\.(md|markdown|txt)$/i, "");
 
@@ -111,6 +113,13 @@ function App() {
 
   // Settings are shared by every window; this keeps the copies in step.
   useEffect(() => startSettingsSync(), []);
+
+  // The scheduler decides for itself whether auto-sync is switched on, so it is
+  // safe to start unconditionally — it costs one idle timer when it is off.
+  useEffect(() => {
+    startAutoSync();
+    return stopAutoSync;
+  }, []);
 
   useEffect(() => {
     if (!import.meta.env.PROD) return;
@@ -219,6 +228,7 @@ function App() {
   const [showGraphModal, setShowGraphModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showAttachmentsModal, setShowAttachmentsModal] = useState(false);
   const [scheduleTemplate, setScheduleTemplate] = useState(null);
   const [templateScheduleMode, setTemplateScheduleMode] = useState(false);
   const [templateParentId, setTemplateParentId] = useState(null);
@@ -396,6 +406,9 @@ function App() {
           break;
         case "openGraph":
           setShowGraphModal(true);
+          break;
+        case "openAttachments":
+          setShowAttachmentsModal(true);
           break;
         case "exportNote":
           editorRef.current?.handleExport?.();
@@ -880,6 +893,7 @@ function App() {
                     selectNote(SETTINGS_TAB_ID);
                   }}
                   onRenameItem={(item) => setRenamingItem(item)}
+                  onOpenCommandPalette={() => setShowCommandPalette(true)}
                 />
               )}
             </div>
@@ -944,6 +958,12 @@ function App() {
         )}
         {showGraphModal && (
           <GraphModal isOpen={showGraphModal} onClose={() => setShowGraphModal(false)} />
+        )}
+        {showAttachmentsModal && (
+          <AttachmentManagerModal
+            isOpen={showAttachmentsModal}
+            onClose={() => setShowAttachmentsModal(false)}
+          />
         )}
         {showSearchModal && (
           <SearchModal

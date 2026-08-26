@@ -1,6 +1,6 @@
 [package]
 name = "marky"
-version = "1.8.5"
+version = "1.8.6"
 description = "A beautiful markdown note-taking app"
 authors = ["you"]
 edition = "2021"
@@ -31,6 +31,17 @@ tauri-plugin-process = "2.3.1"
 # S3 sync signs its requests with SigV4 in JS; plain webview fetch is
 # CORS-blocked by buckets without a policy, so requests go through this.
 tauri-plugin-http = "2"
+# Git sync (see src/git_sync.rs) shells out to the system `git` binary rather
+# than linking libgit2 — the vendored libgit2 + OpenSSL stack cost ~3 MB of app
+# size for a feature most users never open, while `git` is already present on
+# every machine that could use this (macOS and Linux ship it; Windows users who
+# sync with git have Git for Windows). The frontend hides the whole section when
+# `git_available` finds no binary.
+
+[dev-dependencies]
+# Git sync's tests run a real push/pull/merge between throwaway repositories on
+# disk; they need somewhere safe to put them.
+tempfile = "3"
 
 [profile.release]
 panic = "abort"

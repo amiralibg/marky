@@ -64,3 +64,46 @@ export const pruneSelection = (selectedIds, items) => {
 
   return next.size === selectedIds.size ? selectedIds : next;
 };
+
+/**
+ * Where a paste on `item` lands: a folder takes the paste itself; anything
+ * else pastes into that row's own folder. Null means workspace root.
+ */
+export const resolvePasteDestination = (items, item) => {
+  if (!item) return null;
+  if (item.type === "folder") return item;
+  return items.find((entry) => entry.id === item.parentId) ?? null;
+};
+
+/**
+ * Clipboard rows that can actually be pasted at `destination`.
+ *
+ * A folder pasted into itself or one of its own descendants would either
+ * fail on disk or nest a copy inside its copy — both are dropped up front.
+ * A cut row pasted where it already lives moves nothing, so it drops out
+ * too; a copied row in the same spot is still wanted (it makes a duplicate).
+ */
+export const filterPasteTargets = (clipboardItems, destination, mode = "copy") => {
+  const rows = clipboardItems ?? [];
+  const destPath = destination?.filePath;
+  if (!destPath) return rows;
+
+  return rows.filter((entry) => {
+    if (!entry.filePath) return true;
+    if (mode === "cut" && (entry.parentId ?? null) === (destination?.id ?? null)) return false;
+    if (entry.filePath === destPath) return false;
+    return !destPath.startsWith(`${entry.filePath}/`);
+  });
+};
+
+/**
+ * The ids Cmd+A covers when a tree row has focus: every child of a focused
+ * folder, otherwise every sibling the row shares a parent with. Root rows
+ * select the whole root level — matching how explorers scope Select All to
+ * the folder you are looking at rather than the entire vault.
+ */
+export const selectFolderContents = (items, item) => {
+  if (!item) return [];
+  const parentId = item.type === "folder" ? item.id : (item.parentId ?? null);
+  return items.filter((entry) => (entry.parentId ?? null) === parentId).map((entry) => entry.id);
+};

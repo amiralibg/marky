@@ -8,6 +8,8 @@ import ScheduledNotesManager from "./ScheduledNotesManager";
 import TagManager from "./TagManager";
 import McpSettings from "./McpSettings";
 import S3SyncSettings from "./S3SyncSettings";
+import GitSyncSettings from "./GitSyncSettings";
+import AutoSyncSettings from "./AutoSyncSettings";
 import useNotesStore from "../../store/notesStore";
 import useSettingsStore from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
@@ -74,6 +76,10 @@ const ICONS = {
     />
   ),
   mcp: svg("M13 10V3L4 14h7v7l9-11h-7z"),
+  git: svg(
+    "M6 3v12m0 0a3 3 0 103 3m-3-3a3 3 0 113-3m0 0h6a3 3 0 003-3V6m0 0a3 3 0 100-3 3 3 0 000 3z"
+  ),
+  autosync: svg("M12 8v4l2 2m6-2a8 8 0 11-16 0 8 8 0 0116 0z"),
 };
 
 /**
@@ -131,6 +137,23 @@ const SECTIONS = [
     description: "Keep notes in sync across devices with your own S3-compatible storage.",
     keywords: "s3 sync backup cloud minio backblaze wasabi aws bucket remote storage",
     Content: S3SyncSettings,
+  },
+  {
+    id: "git",
+    label: "Git sync",
+    icon: ICONS.git,
+    description: "Back the vault up to a git remote, with real history you can inspect.",
+    keywords:
+      "git github gitlab gitea repository commit push pull clone branch version history remote ssh token backup sync",
+    Content: GitSyncSettings,
+  },
+  {
+    id: "autosync",
+    label: "Auto-sync",
+    icon: ICONS.autosync,
+    description: "Choose when Marky syncs on its own.",
+    keywords: "auto automatic background interval schedule sync on save focus offline retry",
+    Content: AutoSyncSettings,
   },
   {
     id: "workspace",
