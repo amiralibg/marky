@@ -183,8 +183,7 @@ fn describe(stderr: &str) -> String {
 }
 
 fn git_not_found() -> String {
-    "Git is not installed or not on this app's PATH. Install git, then restart Marky."
-        .to_string()
+    "Git is not installed or not on this app's PATH. Install git, then restart Marky.".to_string()
 }
 
 // ── Running git ─────────────────────────────────────────────────────────────
@@ -262,12 +261,7 @@ fn git_bytes(dir: &Path, args: &[&str], envs: &[(&str, String)]) -> Result<Vec<u
 /// True when a revision exists (`rev-parse --verify --quiet` exits non-zero
 /// silently for a missing one).
 fn rev_exists(dir: &Path, rev: &str, envs: &[(&str, String)]) -> Result<bool, String> {
-    Ok(git(
-        dir,
-        &["rev-parse", "--verify", "--quiet", rev],
-        envs,
-    )
-    .is_ok())
+    Ok(git(dir, &["rev-parse", "--verify", "--quiet", rev], envs).is_ok())
 }
 
 /// `~` in an SSH key path is written by hand often enough to be worth
@@ -352,7 +346,8 @@ fn prepare_auth(
             }
             if !is_ssh(url) {
                 return Err(
-                    "This remote is not an SSH remote — switch to token authentication.".to_string(),
+                    "This remote is not an SSH remote — switch to token authentication."
+                        .to_string(),
                 );
             }
             Ok((None, Vec::new()))
@@ -360,7 +355,8 @@ fn prepare_auth(
         "ssh-key" => {
             if !is_ssh(url) {
                 return Err(
-                    "This remote is not an SSH remote — switch to token authentication.".to_string(),
+                    "This remote is not an SSH remote — switch to token authentication."
+                        .to_string(),
                 );
             }
             let key = shell_expand(auth.ssh_key_path.as_deref().unwrap_or(""));
@@ -376,8 +372,7 @@ fn prepare_auth(
             let ssh_command =
                 format!("ssh -i {key} -o IdentitiesOnly=yes -o BatchMode={batch} -o StrictHostKeyChecking=accept-new");
 
-            let mut envs: Vec<(&'static str, String)> =
-                vec![("GIT_SSH_COMMAND", ssh_command)];
+            let mut envs: Vec<(&'static str, String)> = vec![("GIT_SSH_COMMAND", ssh_command)];
 
             // A passphrase-protected key needs something to type into. There is
             // no terminal here, so hand ssh an askpass program that knows one
@@ -385,22 +380,27 @@ fn prepare_auth(
             // a display; older builds want DISPLAY set as well, so set both.
             if !passphrase.is_empty() {
                 let escaped = passphrase.replace('\'', "'\\''");
-                let script = if cfg!(windows) {
-                    let path = std::env::temp_dir().join(format!(
-                        "marky-askpass-{}.cmd",
-                        std::process::id()
-                    ));
-                    let _ = std::fs::write(&path, format!("@echo {}\r\n", passphrase));
-                    path
-                } else {
-                    use std::os::unix::fs::PermissionsExt;
-                    let path = std::env::temp_dir().join(format!(
-                        "marky-askpass-{}.sh",
-                        std::process::id()
-                    ));
-                    let _ = std::fs::write(&path, format!("#!/bin/sh\nprintf '%s\\n' '{escaped}'\n"));
-                    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700));
-                    path
+                let script = {
+                    #[cfg(windows)]
+                    {
+                        let path = std::env::temp_dir()
+                            .join(format("marky-askpass-{}.cmd", std::process::id()));
+                        let _ = std::fs::write(&path, format!("@echo {}\r\n", passphrase));
+                        path
+                    }
+                    #[cfg(not(windows))]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        let path = std::env::temp_dir()
+                            .join(format("marky-askpass-{}.sh", std::process::id()));
+                        let _ = std::fs::write(
+                            &path,
+                            format!("#!/bin/sh\nprintf '%s\\n' '{escaped}'\n"),
+                        );
+                        let _ =
+                            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700));
+                        path
+                    }
                 };
                 envs.push(("GIT_SSH_COMMAND", format!("ssh -i {key} -o IdentitiesOnly=yes -o BatchMode=no -o StrictHostKeyChecking=accept-new -o SetEnv=SSH_ASKPASS={}", script.display())));
                 envs.push(("SSH_ASKPASS", script.display().to_string()));
@@ -590,21 +590,17 @@ pub fn git_repo_status(path: String) -> Result<GitStatus, String> {
         .unwrap_or(0);
 
     let last_commit = if head_exists {
-        git(
-            dir,
-            &["log", "-1", "--format=%H%x1f%s%x1f%at%x1f%an"],
-            &[],
-        )
-        .ok()
-        .and_then(|line| {
-            let mut fields = line.split('\x1f');
-            Some(CommitInfo {
-                id: fields.next()?.to_string(),
-                summary: fields.next().unwrap_or("").to_string(),
-                time: fields.next()?.parse().ok()?,
-                author: fields.next().unwrap_or("").to_string(),
+        git(dir, &["log", "-1", "--format=%H%x1f%s%x1f%at%x1f%an"], &[])
+            .ok()
+            .and_then(|line| {
+                let mut fields = line.split('\x1f');
+                Some(CommitInfo {
+                    id: fields.next()?.to_string(),
+                    summary: fields.next().unwrap_or("").to_string(),
+                    time: fields.next()?.parse().ok()?,
+                    author: fields.next().unwrap_or("").to_string(),
+                })
             })
-        })
     } else {
         None
     };
@@ -730,7 +726,11 @@ pub fn git_clone_repo(url: String, path: String, auth: GitAuth) -> Result<GitSta
 #[tauri::command(async)]
 pub fn git_test_remote(url: String, auth: GitAuth) -> Result<usize, String> {
     let context = AuthContext::new(&url, &auth)?;
-    let listing = git(Path::new("."), &["ls-remote", context.target(&url)], &context.envs)?;
+    let listing = git(
+        Path::new("."),
+        &["ls-remote", context.target(&url)],
+        &context.envs,
+    )?;
     Ok(listing.lines().count())
 }
 
@@ -757,9 +757,8 @@ pub fn git_sync(path: String, auth: GitAuth, options: SyncOptions) -> Result<Syn
         );
     }
 
-    let branch = current_branch(dir)?.ok_or_else(|| {
-        "HEAD is detached — check out a branch to sync.".to_string()
-    })?;
+    let branch = current_branch(dir)?
+        .ok_or_else(|| "HEAD is detached — check out a branch to sync.".to_string())?;
     let mut report = SyncReport {
         branch: branch.clone(),
         ..Default::default()
@@ -798,13 +797,25 @@ pub fn git_sync(path: String, auth: GitAuth, options: SyncOptions) -> Result<Syn
     let refspec = format!("+refs/heads/{branch}:refs/remotes/origin/{branch}");
     // A remote with no matching branch yet is not an error — it is the first
     // push of a brand new vault.
-    let fetched = git(dir, &["fetch", "--quiet", context.target("origin"), &refspec], &context.envs).is_ok();
+    let fetched = git(
+        dir,
+        &["fetch", "--quiet", context.target("origin"), &refspec],
+        &context.envs,
+    )
+    .is_ok();
 
     // ── 3. Merge ────────────────────────────────────────────────────────
     let remote_ref = format!("refs/remotes/origin/{branch}");
     let old_head = git(dir, &["rev-parse", "HEAD"], &empty_env).ok();
     if fetched && rev_exists(dir, &remote_ref, &context.envs)? {
-        merge_remote(dir, &branch, old_head.as_deref(), &options, &context, &mut report)?;
+        merge_remote(
+            dir,
+            &branch,
+            old_head.as_deref(),
+            &options,
+            &context,
+            &mut report,
+        )?;
     }
 
     // ── 4. Push ─────────────────────────────────────────────────────────
@@ -834,7 +845,15 @@ pub fn git_sync(path: String, auth: GitAuth, options: SyncOptions) -> Result<Syn
             // update it ourselves so the next sync sees the truth.
             let _ = git(dir, &["update-ref", &remote_ref, "HEAD"], &context.envs);
             // Record the upstream so `git status` in a terminal agrees with us.
-            let _ = git(dir, &["branch", &format!("--set-upstream-to=origin/{branch}"), &branch], &context.envs);
+            let _ = git(
+                dir,
+                &[
+                    "branch",
+                    &format!("--set-upstream-to=origin/{branch}"),
+                    &branch,
+                ],
+                &context.envs,
+            );
         }
     }
 
@@ -870,9 +889,7 @@ fn merge_remote(
             &["checkout", "--quiet", "-B", branch, &remote_short],
             &context.envs,
         )?;
-        report.pulled = git(dir, &["ls-files"], &context.envs)?
-            .lines()
-            .count();
+        report.pulled = git(dir, &["ls-files"], &context.envs)?.lines().count();
         return Ok(());
     };
 
@@ -914,10 +931,14 @@ fn merge_remote(
         .filter(|l| !l.is_empty())
         .unwrap_or_else(|| "conflict".to_string());
 
-    let conflicted_paths: Vec<String> = git(dir, &["diff", "--name-only", "--diff-filter=U"], &context.envs)?
-        .lines()
-        .map(str::to_string)
-        .collect();
+    let conflicted_paths: Vec<String> = git(
+        dir,
+        &["diff", "--name-only", "--diff-filter=U"],
+        &context.envs,
+    )?
+    .lines()
+    .map(str::to_string)
+    .collect();
     if conflicted_paths.is_empty() {
         // Not a conflict — a genuine failure (locked index, etc.). Surface it.
         return Err(git(
@@ -976,9 +997,7 @@ fn merge_remote(
     let message = if conflicts_note == 0 {
         message
     } else {
-        format!(
-            "{message} — {conflicts_note} conflict(s) kept side by side"
-        )
+        format!("{message} — {conflicts_note} conflict(s) kept side by side")
     };
     let commit_env: Vec<(&str, String)> = Vec::new();
     commit(dir, &message, options, &commit_env)?;
@@ -1045,7 +1064,11 @@ pub fn git_reset_to_remote(path: String, auth: GitAuth) -> Result<GitStatus, Str
     if !rev_exists(dir, &remote_ref, &context.envs)? {
         return Err(format!("The remote has no branch named '{branch}'."));
     }
-    git(dir, &["reset", "--hard", "--quiet", &remote_ref], &context.envs)?;
+    git(
+        dir,
+        &["reset", "--hard", "--quiet", &remote_ref],
+        &context.envs,
+    )?;
 
     drop(context);
     git_repo_status(path)
@@ -1135,7 +1158,10 @@ mod tests {
     fn git_is_available_in_the_test_environment() {
         // Everything below depends on shelling out to git; make its absence
         // loud instead of a pile of confusing failures.
-        assert!(git_available().is_some(), "git must be on PATH for these tests");
+        assert!(
+            git_available().is_some(),
+            "git must be on PATH for these tests"
+        );
     }
 
     #[test]
