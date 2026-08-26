@@ -292,6 +292,33 @@ fn url_encode(value: &str) -> String {
     out
 }
 
+/// Escape a value so that `echo(<value>` in a `.cmd` script prints it verbatim.
+///
+/// cmd parses each line twice. Percent expansion runs first, so a literal `%`
+/// has to be doubled or a passphrase containing `%PATH%` quietly turns into the
+/// environment variable. The second pass reads `& | < > ( ) "` as syntax, which
+/// is the part that matters here: an unescaped `&` does not merely corrupt the
+/// answer, it runs the rest of the passphrase as a command. Each of those gets a
+/// caret in front, `^` itself included.
+///
+/// `!` is deliberately left alone — it is only special when delayed expansion is
+/// on, and the script disables that before it echoes anything.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn cmd_echo_escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '%' => out.push_str("%%"),
+            '^' | '&' | '|' | '<' | '>' | '(' | ')' | '"' => {
+                out.push('^');
+                out.push(ch);
+            }
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
 fn is_http(url: &str) -> bool {
     url.starts_with("https://") || url.starts_with("http://")
 }
@@ -379,18 +406,29 @@ fn prepare_auth(
             // answer. OpenSSH ≥ 8.4 honours SSH_ASKPASS_REQUIRE=force without
             // a display; older builds want DISPLAY set as well, so set both.
             if !passphrase.is_empty() {
-                let escaped = passphrase.replace('\'', "'\\''");
                 let script = {
                     #[cfg(windows)]
                     {
                         let path = std::env::temp_dir()
                             .join(format!("marky-askpass-{}.cmd", std::process::id()));
-                        let _ = std::fs::write(&path, format!("@echo {}\r\n", passphrase));
+                        // `echo(` rather than `echo `: it prints a leading space
+                        // faithfully, and a passphrase of exactly `off` echoes
+                        // itself instead of silencing the script.
+                        let _ = std::fs::write(
+                            &path,
+                            format!(
+                                "@echo off\r\nsetlocal DisableDelayedExpansion\r\necho({}\r\n",
+                                cmd_echo_escape(&passphrase)
+                            ),
+                        );
                         path
                     }
                     #[cfg(not(windows))]
                     {
                         use std::os::unix::fs::PermissionsExt;
+                        // Single quotes make everything literal, so only the
+                        // quote itself needs the close-escape-reopen dance.
+                        let escaped = passphrase.replace('\'', "'\\''");
                         let path = std::env::temp_dir()
                             .join(format!("marky-askpass-{}.sh", std::process::id()));
                         let _ = std::fs::write(
@@ -465,6 +503,62 @@ fn identity_args(options: &SyncOptions) -> Vec<String> {
     args
 }
 
+/// The author to fall back on when neither Marky's settings nor the machine
+/// itself supply one.
+fn neutral_identity() -> Vec<String> {
+    vec![
+        "-c".to_string(),
+        "user.name=Marky".to_string(),
+        "-c".to_string(),
+        "user.email=marky@localhost".to_string(),
+    ]
+}
+
+/// Does this stderr mean git could not work out who the author is?
+fn is_missing_identity(err: &str) -> bool {
+    let lowered = err.to_lowercase();
+    // "Please tell me who you are" sits on an earlier stderr line than the one
+    // `describe` keeps, so match its final line's phrasing too.
+    lowered.contains("who you are")
+        || lowered.contains("user.email")
+        || lowered.contains("user.name")
+        || lowered.contains("no email was given")
+        || lowered.contains("no name was given")
+        || lowered.contains("auto-detection is disabled")
+        // An account that exists but has no full name set — a CI runner, a
+        // container, a trimmed-down install — makes git derive an ident that is
+        // empty rather than absent, and it says so in different words.
+        || lowered.contains("empty ident")
+}
+
+/// Run a git command that writes a commit, supplying the configured identity
+/// and retrying once with a neutral one when the machine has none.
+///
+/// `git merge` authors a commit exactly as `git commit` does, so it needs the
+/// same care. Without it a machine that has never had `user.name` set fails the
+/// merge outright, which strands sync the first time a second device edits
+/// anything — the one situation the whole feature exists for.
+fn git_authored(
+    dir: &Path,
+    args: &[&str],
+    options: &SyncOptions,
+    envs: &[(&str, String)],
+) -> Result<String, String> {
+    // Config overrides must come *before* the subcommand:
+    // `git -c user.name=… commit -m …`.
+    let attempt = |overrides: &[String]| -> Result<String, String> {
+        let mut all: Vec<&str> = overrides.iter().map(String::as_str).collect();
+        all.extend_from_slice(args);
+        git(dir, &all, envs)
+    };
+
+    match attempt(&identity_args(options)) {
+        Ok(out) => Ok(out),
+        Err(err) if is_missing_identity(&err) => attempt(&neutral_identity()),
+        Err(err) => Err(err),
+    }
+}
+
 /// Commit staged changes, retrying once with a neutral identity when the
 /// machine has no git identity configured at all.
 fn commit(
@@ -473,41 +567,8 @@ fn commit(
     options: &SyncOptions,
     envs: &[(&str, String)],
 ) -> Result<Option<String>, String> {
-    let identity = identity_args(options);
-    // Config overrides must come *before* the subcommand:
-    // `git -c user.name=… commit -m …`.
-    let neutral = [
-        "-c".to_string(),
-        "user.name=Marky".to_string(),
-        "-c".to_string(),
-        "user.email=marky@localhost".to_string(),
-    ];
-    let attempt = |overrides: &[String]| -> Result<String, String> {
-        let mut all: Vec<String> = overrides.to_vec();
-        all.extend(["commit".to_string(), "-m".to_string(), message.to_string()]);
-        let refs: Vec<&str> = all.iter().map(String::as_str).collect();
-        git(path, &refs, envs)
-    };
-
-    match attempt(&identity) {
-        Ok(_) => Ok(Some(message.to_string())),
-        Err(err) => {
-            let lowered = err.to_lowercase();
-            // "Please tell me who you are" sits on an earlier stderr line than
-            // the one `describe` keeps, so match its final line's phrasing too.
-            if lowered.contains("who you are")
-                || lowered.contains("user.email")
-                || lowered.contains("user.name")
-                || lowered.contains("no email was given")
-                || lowered.contains("no name was given")
-                || lowered.contains("auto-detection is disabled")
-            {
-                attempt(&neutral).map(Some)
-            } else {
-                Err(err)
-            }
-        }
-    }
+    git_authored(path, &["commit", "-m", message], options, envs)
+        .map(|_| Some(message.to_string()))
 }
 
 // ── Commands ────────────────────────────────────────────────────────────────
@@ -913,9 +974,10 @@ fn merge_remote(
     // Real three-way merge. On conflict git writes markers into the working
     // files and stops — we then rebuild each file from the index stages.
     let message = format!("Merge {remote_short} (Marky sync)");
-    if git(
+    if git_authored(
         dir,
         &["merge", "--no-ff", "-m", &message, &remote_short],
+        options,
         &context.envs,
     )
     .is_ok()
@@ -941,9 +1003,10 @@ fn merge_remote(
     .collect();
     if conflicted_paths.is_empty() {
         // Not a conflict — a genuine failure (locked index, etc.). Surface it.
-        return Err(git(
+        return Err(git_authored(
             dir,
             &["merge", "--no-ff", "-m", &message, &remote_short],
+            options,
             &context.envs,
         )
         .unwrap_err());
@@ -1111,6 +1174,54 @@ mod tests {
         assert_eq!(url_encode("to:ken/p@ss word"), "to%3Aken%2Fp%40ss%20word");
     }
 
+    #[test]
+    fn cmd_echo_escape_leaves_an_ordinary_passphrase_alone() {
+        assert_eq!(cmd_echo_escape("hunter2"), "hunter2");
+        // Spaces and `!` are not cmd syntax in a script that has turned
+        // delayed expansion off, so they must survive untouched.
+        assert_eq!(cmd_echo_escape("correct horse!"), "correct horse!");
+    }
+
+    #[test]
+    fn cmd_echo_escape_neutralises_command_separators() {
+        // The bug this guards: `echo(a&whoami` would have run `whoami`.
+        assert_eq!(cmd_echo_escape("a&whoami"), "a^&whoami");
+        assert_eq!(cmd_echo_escape("a|b<c>d"), "a^|b^<c^>d");
+        assert_eq!(cmd_echo_escape("(paren)"), "^(paren^)");
+        assert_eq!(cmd_echo_escape("say\"quote\""), "say^\"quote^\"");
+    }
+
+    #[test]
+    fn cmd_echo_escape_doubles_percent_and_escapes_the_caret_itself() {
+        // A single `%` would eat the following text as a variable name.
+        assert_eq!(cmd_echo_escape("50%"), "50%%");
+        assert_eq!(cmd_echo_escape("%PATH%"), "%%PATH%%");
+        // The caret is the escape character, so it needs escaping first-class,
+        // and escaping must not run twice over what it just inserted.
+        assert_eq!(cmd_echo_escape("a^b"), "a^^b");
+        assert_eq!(cmd_echo_escape("^&"), "^^^&");
+    }
+
+    #[test]
+    fn missing_identity_is_recognised_however_git_phrases_it() {
+        assert!(is_missing_identity(
+            "*** Please tell me who you are.\nfatal: unable to auto-detect email address"
+        ));
+        assert!(is_missing_identity(
+            "fatal: no name was given and auto-detection is disabled"
+        ));
+        // The phrasing on an account that exists with a blank full name. Missing
+        // it meant the neutral-identity fallback never fired on a CI runner or
+        // in a container — exactly where no identity is configured.
+        assert!(is_missing_identity(
+            "fatal: empty ident name (for <runner@build-host>) not allowed"
+        ));
+        // A real failure must still surface rather than be retried.
+        assert!(!is_missing_identity(
+            "fatal: Unable to create '/vault/.git/index.lock': File exists."
+        ));
+    }
+
     // ── Round-trip sync ─────────────────────────────────────────────────
     //
     // These drive the real thing: two vaults pushing and pulling through a
@@ -1215,6 +1326,20 @@ mod tests {
             "different files never conflict"
         );
         assert_eq!(read(&second, "B.md"), "beta");
+
+        // The merge commit must carry the identity Marky was configured with,
+        // not whatever the machine happens to have. A merge authors a commit
+        // just as `git commit` does, and when this was left to git it simply
+        // failed on any machine with no identity set at all.
+        let author = SysCommand::new("git")
+            .args(["log", "-1", "--merges", "--format=%an <%ae>"])
+            .current_dir(&second)
+            .output()
+            .unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&author.stdout).trim(),
+            "Test <test@example.com>"
+        );
 
         // …and the first device sees the second's note on its next sync.
         git_sync(first.clone(), GitAuth::default(), options()).unwrap();

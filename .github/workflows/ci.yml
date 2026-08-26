@@ -65,5 +65,35 @@ jobs:
       - name: Check Rust
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
+      - name: Test Rust
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
       - name: Build frontend
         run: pnpm build
+
+  # The job above checks Rust on Linux, where `#[cfg(windows)]` bodies are not
+  # compiled at all — they are parsed and then dropped. That blind spot is how
+  # v1.8.6 shipped with no Windows installers: the askpass fix in #36 compiled
+  # everywhere CI looked and nowhere it did not, and the break only surfaced
+  # once six release builds had already started. A native `cargo check` is the
+  # cheapest thing that actually reads that code.
+  windows-check:
+    name: Check Rust (Windows)
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: windows-check
+
+      - name: Check Rust
+        run: cargo check --manifest-path src-tauri/Cargo.toml
