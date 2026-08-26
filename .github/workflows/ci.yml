@@ -37,6 +37,22 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -46,5 +62,8 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Build
+      - name: Check Rust
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Build frontend
         run: pnpm build

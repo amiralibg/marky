@@ -384,7 +384,7 @@ fn prepare_auth(
                     #[cfg(windows)]
                     {
                         let path = std::env::temp_dir()
-                            .join(format("marky-askpass-{}.cmd", std::process::id()));
+                            .join(format!("marky-askpass-{}.cmd", std::process::id()));
                         let _ = std::fs::write(&path, format!("@echo {}\r\n", passphrase));
                         path
                     }
@@ -392,7 +392,7 @@ fn prepare_auth(
                     {
                         use std::os::unix::fs::PermissionsExt;
                         let path = std::env::temp_dir()
-                            .join(format("marky-askpass-{}.sh", std::process::id()));
+                            .join(format!("marky-askpass-{}.sh", std::process::id()));
                         let _ = std::fs::write(
                             &path,
                             format!("#!/bin/sh\nprintf '%s\\n' '{escaped}'\n"),
