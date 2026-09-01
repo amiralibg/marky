@@ -33,6 +33,12 @@ Your notes are ordinary Markdown files in an ordinary folder. No account, no dat
 
 Download the latest desktop build from the [Marky releases page](https://github.com/amiralibg/marky/releases/latest). Installers are attached to each GitHub release after the app is built.
 
+On macOS you can also install with Homebrew:
+
+```sh
+brew install --cask amiralibg/marky/marky
+```
+
 Current version: [`v1.8.9`](https://github.com/amiralibg/marky/releases/tag/v1.8.9).
 
 ## Highlights
