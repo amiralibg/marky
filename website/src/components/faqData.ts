@@ -35,7 +35,7 @@ export const FAQ: FaqItem[] = [
   },
   {
     q: "Which platforms does it run on?",
-    a: "macOS, Windows and Linux, each on both ARM64 and AMD64 — so Apple Silicon and Intel Macs are both native. Linux gets `.deb` and `.rpm` packages plus a portable AppImage. Every installer comes in under 10 MB.",
+    a: "macOS, Windows and Linux, each on both ARM64 and AMD64 — so Apple Silicon and Intel Macs are both native. Linux gets `.deb` and `.rpm` packages plus a portable AppImage. On macOS you can also install with Homebrew: `brew install --cask amiralibg/marky/marky`. Every installer comes in under 10 MB.",
   },
   {
     q: "How do AI assistants read my notes?",
