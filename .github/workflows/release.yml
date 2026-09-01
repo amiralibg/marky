@@ -238,3 +238,62 @@ jobs:
           fi
 
           echo "latest.json covers all six platforms, each signed and pointing at an asset on the release."
+
+  bump-homebrew-cask:
+    name: Update Homebrew cask
+    needs: [release-metadata, release, verify-updater]
+    # Runs after verify-updater rather than off its own success/failure so a
+    # release with a short manifest (see the comment above) never gets a cask
+    # bump pointing at binaries the updater itself won't serve.
+    if: needs.verify-updater.result == 'success' && needs.release-metadata.outputs.prerelease != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout tap
+        uses: actions/checkout@v4
+        with:
+          repository: amiralibg/homebrew-marky
+          # A same-owner repo still needs its own token: the default
+          # GITHUB_TOKEN is scoped to the repo the workflow runs in only.
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Update cask version and checksums
+        env:
+          TAG: ${{ needs.release-metadata.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          cask="tap/Casks/marky.rb"
+
+          # --fail so a 404/error page aborts loudly instead of quietly
+          # hashing into a plausible-looking sha256. Same two filenames the
+          # cask's own `url` template resolves to.
+          arm_sha="$(curl -sL --fail "https://github.com/${{ github.repository }}/releases/download/${TAG}/Marky_${version}_aarch64.dmg" | shasum -a 256 | cut -d' ' -f1)"
+          intel_sha="$(curl -sL --fail "https://github.com/${{ github.repository }}/releases/download/${TAG}/Marky_${version}_x64.dmg" | shasum -a 256 | cut -d' ' -f1)"
+
+          if [ "${#arm_sha}" != 64 ] || [ "${#intel_sha}" != 64 ]; then
+            echo "::error::Downloaded DMG did not hash to a sha256 — asset missing or truncated."
+            exit 1
+          fi
+
+          # Targeted substitutions rather than regenerating the file, so any
+          # hand-edited fields (desc, zap paths, livecheck, …) survive.
+          sed -i -E "s/version \"[0-9.]+\"/version \"${version}\"/" "$cask"
+          sed -i -E "s/(arm:[[:space:]]*)\"[0-9a-f]{64}\"/\1\"${arm_sha}\"/" "$cask"
+          sed -i -E "s/(intel:[[:space:]]*)\"[0-9a-f]{64}\"/\1\"${intel_sha}\"/" "$cask"
+
+      - name: Commit and push
+        env:
+          TAG: ${{ needs.release-metadata.outputs.tag_name }}
+        run: |
+          cd tap
+          git config user.name "marky-release-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "Cask already matches ${TAG}; nothing to commit."
+            exit 0
+          fi
+          git add Casks/marky.rb
+          git commit -m "marky ${TAG}"
+          git push
