@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import Sidebar from "./components/sidebar";
-import MarkdownEditor from "./components/editor/MarkdownEditor";
+const MarkdownEditor = lazy(() => import("./components/editor/MarkdownEditor"));
 import OnboardingModal from "./components/modals/OnboardingModal";
 import WorkspaceRequiredModal from "./components/modals/WorkspaceRequiredModal";
 import NotificationToast from "./components/layout/NotificationToast";
@@ -919,12 +919,14 @@ function App() {
         <div
           className={`flex-1 flex flex-col min-w-0 bg-bg-editor ${isResizingSidebar ? "pointer-events-none" : ""}`}
         >
-          <MarkdownEditor
-            ref={editorRef}
-            onOpenKeymapsModal={() => setShowKeymapsModal(true)}
-            initialSettingsSection={settingsSection}
-            focusMode={focusMode}
-          />
+          <Suspense fallback={<div className="flex-1 bg-bg-editor" />}>
+            <MarkdownEditor
+              ref={editorRef}
+              onOpenKeymapsModal={() => setShowKeymapsModal(true)}
+              initialSettingsSection={settingsSection}
+              focusMode={focusMode}
+            />
+          </Suspense>
         </div>
       </div>
       {showOnboarding && <OnboardingModal onSkip={() => setOnboardingDismissed(true)} />}

@@ -48,6 +48,13 @@ describe("openNoteInNewWindow", () => {
     expect(constructed[0].options.url).toBe("index.html?note=%2Fvault%2FMy%20Note.md");
   });
 
+  it("creates the window visible so startup cannot strand it off-screen", async () => {
+    const { openNoteInNewWindow } = await loadModule();
+    await openNoteInNewWindow("/vault/A.md");
+
+    expect(constructed[0].options.visible).not.toBe(false);
+  });
+
   it("removes native decorations when creating a Linux window", async () => {
     vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Marky Linux");
 
