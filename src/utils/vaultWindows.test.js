@@ -47,6 +47,13 @@ describe("openVaultInNewWindow", () => {
     expect(constructed[0].options.url).toBe("index.html?vault=%2FUsers%2Fme%2FMy%20Vault");
   });
 
+  it("creates the window visible so startup cannot strand it off-screen", async () => {
+    const { openVaultInNewWindow } = await loadModule();
+    await openVaultInNewWindow("/Users/me/A");
+
+    expect(constructed[0].options.visible).not.toBe(false);
+  });
+
   it("leaves the frame to Marky's own title bar off macOS", async () => {
     vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Marky Windows");
 
@@ -112,6 +119,13 @@ describe("openEmptyWindow", () => {
     expect(constructed).toHaveLength(1);
     expect(constructed[0].options.url).toMatch(/^index\.html\?win=[a-z0-9]+$/);
     expect(constructed[0].label).toMatch(/^window-[a-z0-9]+$/);
+  });
+
+  it("creates empty windows visible so startup cannot strand them off-screen", async () => {
+    const { openEmptyWindow } = await loadModule();
+    await openEmptyWindow();
+
+    expect(constructed[0].options.visible).not.toBe(false);
   });
 
   it("gives each empty window its own identity", async () => {

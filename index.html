@@ -6,23 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ffffff" />
     <title>Marky - Beautiful Markdown Notes</title>
-    <style>
-      /* Prevent flash before CSS loads — Vault light default */
-      body,
-      html {
-        margin: 0;
-        padding: 0;
-        background-color: var(--color-bg-base, #ffffff);
-        overflow: hidden;
-      }
-      #root {
-        width: 100%;
-        height: 100%;
-        background-color: var(--color-bg-base, #ffffff);
-      }
-    </style>
     <script>
       (() => {
+        // Keep in sync with src/store/settingsStore.js THEMES / ACCENT_COLORS
         const themes = {
           vault: {
             type: "light",
@@ -74,16 +60,6 @@
             textMuted: "#5d6e85",
             border: "rgba(255, 255, 255, 0.08)",
           },
-          midnight: {
-            type: "dark",
-            bgBase: "#0b0b0e",
-            bgSidebar: "#121116",
-            bgEditor: "#17151d",
-            textPrimary: "#ECECEF",
-            textSecondary: "#9b99a6",
-            textMuted: "#6b6a77",
-            border: "rgba(255, 255, 255, 0.075)",
-          },
           "gruvbox-light": {
             type: "light",
             bgBase: "#f2e5bc",
@@ -104,11 +80,96 @@
             textMuted: "#7c6f64",
             border: "rgba(235, 219, 178, 0.10)",
           },
+          "dark-matter-mars": {
+            type: "dark",
+            bgBase: "#0b0b0b",
+            bgSidebar: "#101010",
+            bgEditor: "#141414",
+            textPrimary: "#d4d4d4",
+            textSecondary: "#9a9a9a",
+            textMuted: "#6b6b6b",
+            border: "rgba(255, 255, 255, 0.075)",
+          },
+          "dark-matter-neptune": {
+            type: "dark",
+            bgBase: "#131421",
+            bgSidebar: "#16161e",
+            bgEditor: "#1a1b26",
+            textPrimary: "#d5d8e5",
+            textSecondary: "#9fa3bd",
+            textMuted: "#6b7089",
+            border: "rgba(230, 235, 255, 0.08)",
+          },
+          "catppuccin-mocha": {
+            type: "dark",
+            bgBase: "#181825",
+            bgSidebar: "#11111b",
+            bgEditor: "#1e1e2e",
+            textPrimary: "#cdd6f4",
+            textSecondary: "#a6adc8",
+            textMuted: "#6c7086",
+            border: "rgba(205, 214, 244, 0.09)",
+          },
+          "catppuccin-latte": {
+            type: "light",
+            bgBase: "#e6e9ef",
+            bgSidebar: "#dce0e8",
+            bgEditor: "#eff1f5",
+            textPrimary: "#4c4f69",
+            textSecondary: "#6c6f85",
+            textMuted: "#8c8fa1",
+            border: "rgba(76, 79, 105, 0.11)",
+          },
+          nord: {
+            type: "dark",
+            bgBase: "#272c36",
+            bgSidebar: "#2b303b",
+            bgEditor: "#2e3440",
+            textPrimary: "#e5e9f0",
+            textSecondary: "#9aa3b4",
+            textMuted: "#6e7789",
+            border: "rgba(216, 222, 233, 0.09)",
+          },
+          dracula: {
+            type: "dark",
+            bgBase: "#1e1f29",
+            bgSidebar: "#191a21",
+            bgEditor: "#282a36",
+            textPrimary: "#f8f8f2",
+            textSecondary: "#babdcc",
+            textMuted: "#6272a4",
+            border: "rgba(248, 248, 242, 0.09)",
+          },
+          "rose-pine": {
+            type: "dark",
+            bgBase: "#191724",
+            bgSidebar: "#15131f",
+            bgEditor: "#1f1d2e",
+            textPrimary: "#e0def4",
+            textSecondary: "#908caa",
+            textMuted: "#6e6a86",
+            border: "rgba(224, 222, 244, 0.09)",
+          },
+          "rose-pine-dawn": {
+            type: "light",
+            bgBase: "#faf4ed",
+            bgSidebar: "#f2e9e1",
+            bgEditor: "#fffaf3",
+            textPrimary: "#575279",
+            textSecondary: "#797593",
+            textMuted: "#9893a5",
+            border: "rgba(87, 82, 121, 0.11)",
+          },
         };
 
-        // Legacy persisted ids → Vault equivalents
-        const themeAlias = { light: "vault", charcoal: "vault-dark" };
-        const accentAlias = { violet: "purple", amber: "orange", teal: "green", cyan: "blue" };
+        const themeAlias = {
+          light: "vault",
+          charcoal: "vault-dark",
+          midnight: "dark-matter-mars",
+          "tokyo-night": "dark-matter-neptune",
+          "one-dark": "dracula",
+        };
+        const accentAlias = { violet: "purple", amber: "orange", cyan: "blue" };
 
         const accents = {
           purple: { value: "#6d5ce0", hover: "#5b4ad0" },
@@ -117,37 +178,178 @@
           red: { value: "#d35450", hover: "#bf413d" },
           orange: { value: "#d57a32", hover: "#c16a24" },
           green: { value: "#4f9d69", hover: "#3f8a58" },
+          lavender: { value: "#a874ff", hover: "#9560f0" },
+          teal: { value: "#3fb0b8", hover: "#329aa1" },
+          yellow: { value: "#d3a44a", hover: "#c08f36" },
         };
+
+        const normalizePath = (v) => (v ? v.replace(/\\/g, "/") : "");
 
         try {
           const raw = localStorage.getItem("marky-settings");
           const parsed = raw ? JSON.parse(raw) : null;
           const state = parsed?.state || {};
-          const themeId = themeAlias[state.themeId] || state.themeId;
-          const accentId = accentAlias[state.accentColorId] || state.accentColorId;
+
+          // Replicate store's workspace-aware resolution: top-level is already the
+          // active snapshot, but fall back to the explicit profile when present so
+          // a stale top-level never flashes the wrong vault theme.
+          let themeId = state.themeId;
+          let accentId = state.accentColorId;
+          const active = normalizePath(state.activeWorkspacePath);
+          if (active && state.workspaceProfiles && state.workspaceProfiles[active]) {
+            const profile = state.workspaceProfiles[active];
+            if (profile?.themeId) themeId = profile.themeId;
+            if (profile?.accentColorId) accentId = profile.accentColorId;
+          } else if (state.sharedSettings) {
+            // Fresh install before top-level migrated still has values under sharedSettings
+            if (!themeId && state.sharedSettings.themeId) themeId = state.sharedSettings.themeId;
+            if (!accentId && state.sharedSettings.accentColorId)
+              accentId = state.sharedSettings.accentColorId;
+          }
+
+          themeId = themeAlias[themeId] || themeId;
+          accentId = accentAlias[accentId] || accentId;
           const theme = themes[themeId] || themes.vault;
           const accent = accents[accentId] || accents.purple;
 
-          document.documentElement.setAttribute("data-theme", theme.type);
-          document.documentElement.style.setProperty("--color-bg-base", theme.bgBase);
-          document.documentElement.style.setProperty("--color-bg-sidebar", theme.bgSidebar);
-          document.documentElement.style.setProperty("--color-bg-editor", theme.bgEditor);
-          document.documentElement.style.setProperty("--color-text-primary", theme.textPrimary);
-          document.documentElement.style.setProperty("--color-text-secondary", theme.textSecondary);
-          document.documentElement.style.setProperty("--color-text-muted", theme.textMuted);
-          document.documentElement.style.setProperty("--color-border", theme.border);
-          document.documentElement.style.setProperty("--color-accent", accent.value);
-          document.documentElement.style.setProperty("--color-accent-hover", accent.hover);
-          document.documentElement.style.setProperty("--color-accent-dim", `${accent.value}24`);
+          const root = document.documentElement;
+          root.setAttribute("data-theme", theme.type);
+          // CSS variables for the full app; also paint html directly so the first
+          // frame before the stylesheet loads is already themed (no var() indirection).
+          root.style.setProperty("--color-bg-base", theme.bgBase);
+          root.style.setProperty("--color-bg-sidebar", theme.bgSidebar);
+          root.style.setProperty("--color-bg-editor", theme.bgEditor);
+          root.style.setProperty("--color-text-primary", theme.textPrimary);
+          root.style.setProperty("--color-text-secondary", theme.textSecondary);
+          root.style.setProperty("--color-text-muted", theme.textMuted);
+          root.style.setProperty("--color-border", theme.border);
+          root.style.setProperty("--color-accent", accent.value);
+          root.style.setProperty("--color-accent-hover", accent.hover);
+          root.style.setProperty("--color-accent-dim", accent.value + "24");
+          root.style.backgroundColor = theme.bgBase;
+          root.style.color = theme.textPrimary;
           document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme.bgBase);
+          // Paint body early too (DOM may not exist yet when this runs in head)
+          const applyBody = () => {
+            if (document.body) document.body.style.backgroundColor = theme.bgBase;
+            const r = document.getElementById("root");
+            if (r) r.style.backgroundColor = theme.bgBase;
+          };
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", applyBody, { once: true });
+          } else {
+            applyBody();
+          }
         } catch (error) {
           document.documentElement.setAttribute("data-theme", "light");
         }
       })();
     </script>
+    <style>
+      /* Prevent flash — vault light default, overwritten synchronously by the script above */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--color-bg-base, #ffffff);
+        overflow: hidden;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        min-height: 100vh;
+        background: var(--color-bg-base, #ffffff);
+      }
+      /* Skeleton keeps the first frame themed even before React mounts — avoids
+         a white/blank rect when the window is already visible (Tauri dev) */
+      #root:empty::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: var(--color-bg-base, #ffffff);
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Instant skeleton — themed by the script above, visible before React mounts.
+           Mirrors App's real layout (32px titlebar + 280px sidebar + editor) so
+           there is no layout shift when React hydrates. No waiting, no white. -->
+      <div
+        id="app-skeleton"
+        style="
+          height: 100vh;
+          display: flex;
+          flex-direction: column;
+          background: var(--color-bg-base, #ffffff);
+          color: var(--color-text-primary, #2f2f2b);
+          overflow: hidden;
+        "
+      >
+        <div
+          style="
+            height: 32px;
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+            background: var(--color-bg-sidebar, #f7f7f5);
+            border-bottom: 1px solid var(--color-border, rgba(35, 35, 32, 0.09));
+          "
+        >
+          <!-- traffic lights spacer on macOS (80px) is added by CSS at runtime;
+               here we just keep the titlebar visually occupied -->
+          <div
+            style="
+              width: 280px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 0 12px;
+              border-right: 1px solid var(--color-border, rgba(35, 35, 32, 0.09));
+              height: 100%;
+              box-sizing: border-box;
+            "
+          >
+            <div
+              style="
+                font-family:
+                  &quot;Hanken Grotesk&quot;,
+                  -apple-system,
+                  BlinkMacSystemFont,
+                  sans-serif;
+                font-weight: 600;
+                font-size: 13px;
+                color: var(--color-text-primary, #2f2f2b);
+                letter-spacing: -0.01em;
+              "
+            >
+              Marky
+            </div>
+            <div
+              style="
+                width: 14px;
+                height: 14px;
+                border-radius: 4px;
+                background: var(--color-border, rgba(35, 35, 32, 0.09));
+                opacity: 0.6;
+              "
+            ></div>
+          </div>
+          <div style="flex: 1"></div>
+        </div>
+        <div style="flex: 1; display: flex; overflow: hidden; min-height: 0">
+          <div
+            style="
+              width: 280px;
+              flex-shrink: 0;
+              background: var(--color-bg-sidebar, #f7f7f5);
+              border-right: 1px solid var(--color-border, rgba(35, 35, 32, 0.09));
+            "
+          ></div>
+          <div style="flex: 1; background: var(--color-bg-editor, #ffffff); min-width: 0"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

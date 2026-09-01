@@ -1,10 +1,12 @@
 import React from "react";
-import ReactDOM from "react-dom/client";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App.jsx";
 import NoteWindow from "./components/NoteWindow.jsx";
 import { applyPlatformAttribute } from "./utils/platform.js";
+import { renderAndRevealWindow } from "./utils/windowStartup.js";
 import "./index.css";
 
 // Set before the first render so platform-specific chrome (the Linux window
@@ -43,20 +45,13 @@ if (!import.meta.env.DEV) {
 }
 
 // Use createRoot without StrictMode in production for better performance
-const root = ReactDOM.createRoot(document.getElementById("root"));
+const root = createRoot(document.getElementById("root"));
 
 const Root = noteParam ? <NoteWindow filePath={noteParam} /> : <App />;
+const initialUI = import.meta.env.DEV ? <React.StrictMode>{Root}</React.StrictMode> : Root;
 
-// StrictMode causes double-renders in development which slows initial load
-if (import.meta.env.DEV) {
-  root.render(<React.StrictMode>{Root}</React.StrictMode>);
-} else {
-  root.render(Root);
-}
-
-// Show window after paint
-requestAnimationFrame(() => {
-  requestAnimationFrame(() => {
-    appWindow?.show().catch(console.error);
-  });
-});
+// A hidden WebView may throttle requestAnimationFrame, so waiting for a frame
+// before calling `show()` can leave the app permanently invisible. Commit the
+// initial React tree synchronously, then reveal immediately: the first native
+// frame already contains usable UI without adding a timer or loading screen.
+renderAndRevealWindow(root, initialUI, appWindow, flushSync);
