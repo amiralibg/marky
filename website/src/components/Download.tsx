@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, Copy } from "lucide-react";
 import { archLabel, osLabel, type DetectedPlatform } from "../lib/platform";
 import { useReveal } from "../lib/motion";
 import {
@@ -62,12 +63,25 @@ const ICONS = {
   linux: LinuxMark,
 } as const;
 
+const BREW_COMMAND = "brew install --cask amiralibg/marky/marky";
+
 export default function Download({ release, platform }: Props) {
   const [os, setOs] = useState<Os>(platform.os);
   const [arch, setArch] = useState<Arch>(platform.arch);
+  const [brewCopied, setBrewCopied] = useState(false);
   const touched = useRef(false);
   const copyRef = useReveal<HTMLDivElement>();
   const panelRef = useReveal<HTMLDivElement>();
+
+  const copyBrewCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(BREW_COMMAND);
+      setBrewCopied(true);
+      window.setTimeout(() => setBrewCopied(false), 2000);
+    } catch {
+      /* clipboard blocked — the command is on screen to select manually */
+    }
+  };
 
   // refineArch() resolves after mount, so without this guard a visitor who
   // picks a platform in that window has their choice silently reset.
@@ -189,6 +203,27 @@ export default function Download({ release, platform }: Props) {
             >
               Open GitHub releases
             </a>
+          )}
+
+          {os === "macos" && (
+            <div className="mt-4 flex min-h-11 items-center justify-between gap-3 rounded-sm border border-line bg-ink/[0.03] pl-4 pr-2">
+              <code className="truncate font-mono text-[12.5px] text-ink/80">{BREW_COMMAND}</code>
+              <button
+                type="button"
+                onClick={copyBrewCommand}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm text-ink/70 transition-colors duration-200 hover:text-ink"
+                aria-label={brewCopied ? "Copied" : "Copy Homebrew install command"}
+              >
+                {brewCopied ? (
+                  <Check size={15} strokeWidth={2.5} />
+                ) : (
+                  <Copy size={15} strokeWidth={2} />
+                )}
+              </button>
+              <span aria-live="polite" className="sr-only">
+                {brewCopied ? "Homebrew command copied to clipboard" : ""}
+              </span>
+            </div>
           )}
 
           {list.length > 0 && (
