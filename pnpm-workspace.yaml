@@ -1,3 +1,6 @@
 packages:
   - "."
   - "packages/*"
+
+# Wait seven days before resolving a newly published version.
+minimumReleaseAge: 10080
