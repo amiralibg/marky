@@ -2,6 +2,5 @@ packages:
   - "."
   - "packages/*"
 
+# Wait seven days before resolving a newly published version.
 minimumReleaseAge: 10080
-blockExoticSubdeps: true
-trustPolicy: no-downgrade
