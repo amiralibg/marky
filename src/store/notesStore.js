@@ -528,7 +528,9 @@ const buildItemsFromFolderData = async (
       noteContentMap.set(entry.path, cached ? cached.content : "");
     }
     loaded++;
-    if (onProgress) onProgress({ current: loaded, total, phase: "Loading notes" });
+    if (onProgress && (loaded === total || loaded % 50 === 0)) {
+      onProgress({ current: loaded, total, phase: "Loading notes" });
+    }
   }
 
   sortedEntries.forEach((entry) => {
@@ -551,7 +553,9 @@ const buildItemsFromFolderData = async (
       pathToId.set(normalizedEntry, folderId);
     } else {
       const noteId = buildId("note", entry.path);
+      const cached = reusable.get(normalizedEntry);
       const noteContent = noteContentMap.get(entry.path) || "";
+      const isUnchanged = entry.content == null && cached && cached.content != null;
       items.push({
         id: noteId,
         name: stripExtension(entry.name),
@@ -560,10 +564,12 @@ const buildItemsFromFolderData = async (
         filePath: entry.path,
         normalizedPath: normalizedEntry,
         content: noteContent,
-        createdAt: now,
-        updatedAt: now,
-        linkKey: buildNoteLinkKey(entry.name),
-        links: extractWikiLinks(noteContent),
+        createdAt: isUnchanged && cached.createdAt ? cached.createdAt : now,
+        updatedAt: isUnchanged && cached.updatedAt ? cached.updatedAt : now,
+        linkKey: isUnchanged && cached.linkKey ? cached.linkKey : buildNoteLinkKey(entry.name),
+        links: isUnchanged && cached.links ? cached.links : extractWikiLinks(noteContent),
+        tags: isUnchanged && cached.tags ? cached.tags : undefined,
+        properties: isUnchanged && cached.properties ? cached.properties : undefined,
         // Carried so the next refresh can tell whether this file changed.
         modified: entry.modified,
         size: entry.size,
@@ -2334,16 +2340,9 @@ const useNotesStore = create(
       // name, which is what existing installs restore from.
       name: notesStorageKey(),
       partialize: (state) => ({
-        // Vault-backed notes persist as metadata only. Their content is re-read
-        // from disk by `refreshRootFromDisk` on the very next launch, so keeping
-        // it here wrote the entire vault into localStorage's ~5 MB bucket on
-        // every store change — for data that was then thrown away. Unsaved work
-        // is not at risk: `dirtyNoteIds` isn't persisted, so the in-session
-        // recovery path can't fire on a cold start, and drafts come back from
-        // the on-disk draft store instead.
-        //
-        // Scratch buffers and loose files keep their content: they have no file
-        // on disk to reload from.
+        // Only loose files and scratch buffers need localStorage persistence.
+        // Vault-backed notes are re-read from disk by refreshRootFromDisk / loadFolderFromSystem on launch,
+        // so serializing thousands of vault notes into localStorage on every store change is eliminated.
         items: state.items.map((item) =>
           item.type === "note" && item.filePath && !item.isLoose ? { ...item, content: null } : item
         ),

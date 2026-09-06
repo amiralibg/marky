@@ -489,3 +489,36 @@ describe("vertical motion into a rendered block", () => {
     expect(headLineAfterStep(1, 7)).toBe("");
   });
 });
+
+describe("live preview widget reconciliation (typing performance)", () => {
+  it("reuses existing widget DOM nodes when typing shifts their document offset", () => {
+    const doc = "hello\n\n```js\nconst x = 1;\n```\n\n$$\ny = 2\n$$\n\n- [ ] task";
+    const view = makeView(doc, 0);
+
+    // Grab the rendered DOM nodes for code block, math block, and task checkbox
+    const initialCodeWidget = view.dom.querySelector(".cm-lp-render:not(.cm-lp-tablewrap)");
+    const initialMathWidget = view.dom.querySelector(".cm-lp-math");
+    const initialTaskCheckbox = view.dom.querySelector(".cm-lp-task");
+
+    expect(initialCodeWidget).not.toBeNull();
+    expect(initialMathWidget).not.toBeNull();
+    expect(initialTaskCheckbox).not.toBeNull();
+
+    // Type a character at the beginning of the document (offset 5, after "hello")
+    view.dispatch({
+      changes: { from: 5, insert: " world" },
+    });
+
+    // The document changed and shifted all widget positions by 6 chars,
+    // but their source content is identical. They must NOT be recreated!
+    const afterCodeWidget = view.dom.querySelector(".cm-lp-render:not(.cm-lp-tablewrap)");
+    const afterMathWidget = view.dom.querySelector(".cm-lp-math");
+    const afterTaskCheckbox = view.dom.querySelector(".cm-lp-task");
+
+    expect(afterCodeWidget).toBe(initialCodeWidget);
+    expect(afterMathWidget).toBe(initialMathWidget);
+    expect(afterTaskCheckbox).toBe(initialTaskCheckbox);
+
+    view.destroy();
+  });
+});

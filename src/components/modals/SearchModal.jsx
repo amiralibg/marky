@@ -247,6 +247,39 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
   const { items, selectNote } = useNotesStore();
   useModalAccessibility(isOpen, dialogRef, searchInputRef);
 
+  const notes = useMemo(() => items.filter((item) => item.type === "note"), [items]);
+  const normalizedNotes = useMemo(
+    () =>
+      notes.map((note) => ({
+        ...note,
+        tagsText: Array.isArray(note.tags) ? note.tags.join(" ") : "",
+      })),
+    [notes]
+  );
+
+  const enabledScopes = useMemo(() => {
+    const scopes = [];
+    if (searchOptions.title) scopes.push({ name: "name", weight: 2 });
+    if (searchOptions.content) scopes.push({ name: "content", weight: 1 });
+    if (searchOptions.tags) scopes.push({ name: "tagsText", weight: 1.1 });
+    if (searchOptions.path) scopes.push({ name: "filePath", weight: 0.9 });
+    return scopes;
+  }, [searchOptions.title, searchOptions.content, searchOptions.tags, searchOptions.path]);
+
+  const fuse = useMemo(() => {
+    if (!normalizedNotes.length || !enabledScopes.length) return null;
+    return new Fuse(normalizedNotes, {
+      keys: enabledScopes,
+      includeScore: true,
+      includeMatches: true,
+      threshold: 0.4,
+      ignoreLocation: true,
+      minMatchCharLength: 2,
+      findAllMatches: true,
+      isCaseSensitive: searchOptions.caseSensitive,
+    });
+  }, [normalizedNotes, enabledScopes, searchOptions.caseSensitive]);
+
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -254,13 +287,6 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
       setSearchError("");
       return;
     }
-
-    const notes = items.filter((item) => item.type === "note");
-    const enabledScopes = [];
-    if (searchOptions.title) enabledScopes.push({ name: "name", weight: 2 });
-    if (searchOptions.content) enabledScopes.push({ name: "content", weight: 1 });
-    if (searchOptions.tags) enabledScopes.push({ name: "tagsText", weight: 1.1 });
-    if (searchOptions.path) enabledScopes.push({ name: "filePath", weight: 0.9 });
 
     if (enabledScopes.length === 0) {
       setSearchResults([]);
@@ -270,11 +296,6 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
     }
 
     setSearchError("");
-
-    const normalizedNotes = notes.map((note) => ({
-      ...note,
-      tagsText: Array.isArray(note.tags) ? note.tags.join(" ") : "",
-    }));
 
     if (searchOptions.regex || searchOptions.exact) {
       try {
@@ -306,21 +327,16 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
       return;
     }
 
-    const fuse = new Fuse(normalizedNotes, {
-      keys: enabledScopes,
-      includeScore: true,
-      includeMatches: true,
-      threshold: 0.4,
-      ignoreLocation: true,
-      minMatchCharLength: 2,
-      findAllMatches: true,
-      isCaseSensitive: searchOptions.caseSensitive,
-    });
+    if (!fuse) {
+      setSearchResults([]);
+      setSelectedIndex(0);
+      return;
+    }
 
     const results = fuse.search(searchQuery).slice(0, 20);
     setSearchResults(results);
     setSelectedIndex(0);
-  }, [searchQuery, items, searchOptions]);
+  }, [searchQuery, enabledScopes, normalizedNotes, searchOptions, fuse]);
 
   useEffect(() => {
     if (isOpen && searchInputRef.current) {

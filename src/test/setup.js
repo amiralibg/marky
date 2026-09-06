@@ -21,3 +21,45 @@ if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
     },
   });
 }
+
+// Node 22+ introduces an experimental global localStorage that throws or has undefined methods
+// when --localstorage-file is not provided, shadowing jsdom's window.localStorage.
+class LocalStorageMock {
+  constructor() {
+    this.store = {};
+  }
+  clear() {
+    this.store = {};
+  }
+  getItem(key) {
+    return this.store[key] ?? null;
+  }
+  setItem(key, value) {
+    this.store[key] = String(value);
+  }
+  removeItem(key) {
+    delete this.store[key];
+  }
+  get length() {
+    return Object.keys(this.store).length;
+  }
+  key(index) {
+    return Object.keys(this.store)[index] ?? null;
+  }
+}
+
+if (!globalThis.localStorage || typeof globalThis.localStorage.clear !== "function") {
+  const mock = new LocalStorageMock();
+  Object.defineProperty(globalThis, "localStorage", {
+    value: mock,
+    writable: true,
+    configurable: true,
+  });
+  if (typeof window !== "undefined") {
+    Object.defineProperty(window, "localStorage", {
+      value: mock,
+      writable: true,
+      configurable: true,
+    });
+  }
+}
