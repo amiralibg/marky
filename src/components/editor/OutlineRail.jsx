@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { parseHeadings, activeHeadingIndex, activeHeadingPath } from "../../utils/headings";
 
 // Tick length per heading level. The rail reads as a miniature of the
@@ -128,4 +128,4 @@ const OutlineRail = ({ markdown, activeLine = 0, onSelect }) => {
   );
 };
 
-export default OutlineRail;
+export default memo(OutlineRail);

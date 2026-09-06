@@ -90,6 +90,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const measure = editorWidthValue(editorWidth);
 
   const [markdown, setMarkdown] = useState("");
+  const markdownRef = useRef(markdown);
+  markdownRef.current = markdown;
   const [debouncedMarkdown, setDebouncedMarkdown] = useState(""); // Debounced for preview
   const [viewMode, setViewMode] = useState("live"); // "source" (raw), "live" (inline preview), or "read" (rendered)
   const [selection, setSelection] = useState({ empty: true }); // for the bubble toolbar
@@ -637,6 +639,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   // Memoize preview HTML - only recalculate when debouncedMarkdown changes
   const previewHtml = useMemo(() => {
+    if (viewMode !== "read") return { __html: "" };
     try {
       // Use debouncedMarkdown to avoid expensive parsing on every keystroke
       const safeMarkdown = debouncedMarkdown || "";
@@ -647,7 +650,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     }
     // `currentNoteFilePath` is a dependency because it decides what a relative
     // image path resolves to, even when the markdown itself is unchanged.
-  }, [debouncedMarkdown, currentNoteFilePath, rootFolderPath]);
+  }, [viewMode, debouncedMarkdown, currentNoteFilePath, rootFolderPath]);
 
   // Memoize status bar calculations - only recalculate when debouncedMarkdown changes
   const statusBarStats = useMemo(() => {
@@ -912,7 +915,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
         }
         // Read mode has no document lines to point at, so translate the
         // heading's ordinal back into its source line.
-        const headings = parseHeadings(markdown);
+        const headings = parseHeadings(markdownRef.current);
         setOutlineLine(headings[line - 1]?.line ?? 1);
         return;
       }
@@ -935,7 +938,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
       pane.removeEventListener("scroll", onScroll);
       if (frame !== null) cancelAnimationFrame(frame);
     };
-  }, [viewMode, markdown, focusMode]);
+  }, [viewMode, focusMode]);
 
   const currentNote = getCurrentNote();
 
@@ -1327,7 +1330,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
         {/* Outline — hairline ticks on the right edge, expanding on hover */}
         {!focusMode && (
           <OutlineRail
-            markdown={markdown}
+            markdown={debouncedMarkdown}
             activeLine={outlineLine}
             onSelect={handleTOCHeaderClick}
           />

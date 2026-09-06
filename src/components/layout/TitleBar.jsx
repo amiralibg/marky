@@ -13,7 +13,11 @@ const TitleBar = ({
   onToggleSidebar,
   onCloseTab,
 }) => {
-  const { openNoteIds, currentNoteId, selectNote, closeNote, items } = useNotesStore();
+  const openNoteIds = useNotesStore((state) => state.openNoteIds);
+  const currentNoteId = useNotesStore((state) => state.currentNoteId);
+  const selectNote = useNotesStore((state) => state.selectNote);
+  const closeNote = useNotesStore((state) => state.closeNote);
+  const items = useNotesStore((state) => state.items);
   const getKeymap = useSettingsStore((state) => state.getKeymap);
   const sidebarShortcut = formatKeymap(getKeymap("toggleSidebar")).join("");
   const scrollRef = useRef(null);

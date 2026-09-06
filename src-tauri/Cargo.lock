@@ -1975,7 +1975,7 @@ dependencies = [
 
 [[package]]
 name = "marky"
-version = "1.8.9"
+version = "1.8.10"
 dependencies = [
  "ignore",
  "notify",

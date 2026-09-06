@@ -50,18 +50,16 @@ function App() {
   useFileWatcher();
   useSaveLifecycle();
 
-  const items = useNotesStore((state) => state.items);
-  const {
-    sidebarWidth,
-    setSidebarWidth,
-    createNote,
-    createDailyNote,
-    renameItem,
-    selectNote,
-    closeNote,
-    currentNoteId,
-    rootFolderPath,
-  } = useNotesStore();
+  const hasItems = useNotesStore((state) => state.items.length > 0);
+  const sidebarWidth = useNotesStore((state) => state.sidebarWidth);
+  const setSidebarWidth = useNotesStore((state) => state.setSidebarWidth);
+  const createNote = useNotesStore((state) => state.createNote);
+  const createDailyNote = useNotesStore((state) => state.createDailyNote);
+  const renameItem = useNotesStore((state) => state.renameItem);
+  const selectNote = useNotesStore((state) => state.selectNote);
+  const closeNote = useNotesStore((state) => state.closeNote);
+  const currentNoteId = useNotesStore((state) => state.currentNoteId);
+  const rootFolderPath = useNotesStore((state) => state.rootFolderPath);
   const { keymaps, initializeSettings, isRecordingKeymap } = useSettingsStore();
   const {
     focusMode,
@@ -295,14 +293,14 @@ function App() {
       const state = useNotesStore.getState();
       const isAutoSave = normalizeSaveMode(useSettingsStore.getState().saveMode) === "auto";
       if (!isAutoSave && state.isNoteDirty(noteId)) {
-        const note = items.find((item) => item.id === noteId);
+        const note = state.items.find((item) => item.id === noteId);
         setCloseConfirmation({ noteId, noteName: note?.name || "Untitled" });
         return;
       }
 
       closeNote(noteId);
     },
-    [closeNote, items]
+    [closeNote]
   );
 
   const handleSearchResultSelect = useCallback((query) => {
@@ -520,7 +518,7 @@ function App() {
   );
 
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
-  const showOnboarding = items.length === 0 && !onboardingDismissed;
+  const showOnboarding = !hasItems && !onboardingDismissed;
 
   // Global keyboard shortcut listener using configurable keymaps
   useEffect(() => {

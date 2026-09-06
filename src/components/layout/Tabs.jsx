@@ -19,7 +19,12 @@ const FileIcon = () => (
 );
 
 const Tabs = () => {
-  const { openNoteIds, currentNoteId, selectNote, closeNote, items, isNoteDirty } = useNotesStore();
+  const openNoteIds = useNotesStore((state) => state.openNoteIds);
+  const currentNoteId = useNotesStore((state) => state.currentNoteId);
+  const selectNote = useNotesStore((state) => state.selectNote);
+  const closeNote = useNotesStore((state) => state.closeNote);
+  const items = useNotesStore((state) => state.items);
+  const isNoteDirty = useNotesStore((state) => state.isNoteDirty);
   // Auto-save makes "unsaved" a state that lasts a second or two, so a dot for
   // it would blink on and off the whole time you type. Manual mode keeps it.
   const isAutoSave = useSettingsStore((state) => normalizeSaveMode(state.saveMode) === "auto");

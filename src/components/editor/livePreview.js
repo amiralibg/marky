@@ -53,7 +53,7 @@ class TaskCheckboxWidget extends WidgetType {
   }
 
   eq(other) {
-    return other.checked === this.checked && other.from === this.from;
+    return other.checked === this.checked;
   }
 
   toDOM(view) {
@@ -68,7 +68,9 @@ class TaskCheckboxWidget extends WidgetType {
     box.addEventListener("click", (e) => {
       e.preventDefault();
       const insert = this.checked ? "[ ]" : "[x]";
-      view.dispatch({ changes: { from: this.from, to: this.to, insert } });
+      const pos = view.posAtDOM(box) ?? this.from;
+      const len = this.to - this.from;
+      view.dispatch({ changes: { from: pos, to: pos + len, insert } });
     });
     return box;
   }
@@ -158,7 +160,9 @@ function revealOnClick(dom, view, pos) {
   dom.addEventListener("mousedown", (event) => {
     if (event.button !== 0) return;
     event.preventDefault();
-    revealAt(view, pos);
+    const targetPos =
+      typeof pos === "function" ? pos() : typeof pos === "number" ? pos : view.posAtDOM(dom);
+    if (targetPos != null) revealAt(view, targetPos);
   });
 }
 
@@ -246,6 +250,7 @@ const COMMON_LANGUAGES = [
  * click, toggle soft wrapping. Everything else about the block is untouched.
  */
 function attachCodeChrome(wrap, view, source, from) {
+  const getFrom = () => view.posAtDOM(wrap) ?? from;
   const header = wrap.querySelector(".code-block-header");
   const copyBtn = wrap.querySelector(".code-copy-btn");
   if (!header) return;
@@ -321,12 +326,18 @@ function attachCodeChrome(wrap, view, source, from) {
 
           // Rewrite the opening fence's info string in place.
           const fence = source.match(/^(`{3,})[^\n`]*/);
-          if (!fence || view.state.doc.sliceString(from, from + source.length) !== source) return;
+          const liveFrom = getFrom();
+          if (
+            !fence ||
+            liveFrom == null ||
+            view.state.doc.sliceString(liveFrom, liveFrom + source.length) !== source
+          )
+            return;
           const insert = lang === "text" ? "" : lang;
           view.dispatch({
             changes: {
-              from: from + fence[1].length,
-              to: from + fence[0].length,
+              from: liveFrom + fence[1].length,
+              to: liveFrom + fence[0].length,
               insert,
             },
           });
@@ -471,13 +482,15 @@ function attachCodeChrome(wrap, view, source, from) {
       const { opening, closing } = fenceLine();
       const next = `${opening}\n${text}\n${closing}`;
 
+      const liveFrom = getFrom();
       if (
         next !== source &&
         view &&
-        view.state.doc.sliceString(from, from + source.length) === source
+        liveFrom != null &&
+        view.state.doc.sliceString(liveFrom, liveFrom + source.length) === source
       ) {
         // The dispatch rebuilds this widget; the fresh render re-highlights.
-        view.dispatch({ changes: { from, to: from + source.length, insert: next } });
+        view.dispatch({ changes: { from: liveFrom, to: liveFrom + source.length, insert: next } });
         return;
       }
 
@@ -542,7 +555,7 @@ class FrontMatterWidget extends WidgetType {
   }
 
   eq(other) {
-    return other.source === this.source && other.from === this.from;
+    return other.source === this.source;
   }
 
   parse() {
@@ -552,18 +565,21 @@ class FrontMatterWidget extends WidgetType {
 
   commit(view, attributes) {
     if (!view) return;
-    if (view.state.doc.sliceString(this.from, this.to) !== this.source) return;
+    const from = this.dom ? (view.posAtDOM(this.dom) ?? this.from) : this.from;
+    const to = from + this.source.length;
+    if (view.state.doc.sliceString(from, to) !== this.source) return;
     const serialized = stringifyFrontmatter(attributes);
     // An empty card means the user cleared every field: drop the frontmatter.
     const insert = serialized ? `---\n${serialized}\n---` : "";
     if (insert === this.source) return;
-    view.dispatch({ changes: { from: this.from, to: this.to, insert } });
+    view.dispatch({ changes: { from, to, insert } });
   }
 
   toDOM(view) {
     let attributes = this.parse();
 
     const wrap = document.createElement("div");
+    this.dom = wrap;
     wrap.className = "markdown-preview cm-lp-render cm-lp-fmwrap";
     wrap.setAttribute("dir", "auto");
 
@@ -772,7 +788,7 @@ class RenderedBlockWidget extends WidgetType {
   }
 
   eq(other) {
-    return other.source === this.source && other.from === this.from;
+    return other.source === this.source;
   }
 
   toDOM(view) {
@@ -800,7 +816,8 @@ class RenderedBlockWidget extends WidgetType {
           // it, at its first line.
           { line: 0, column: 0 };
 
-      let pos = this.from;
+      let pos = view.posAtDOM(wrap);
+      if (pos == null) pos = this.from;
       for (let i = 0; i < hit.line; i += 1) pos += lines[i].length + 1;
       pos += Math.min(hit.column, lines[hit.line].length);
 
@@ -852,7 +869,7 @@ class InteractiveTableWidget extends WidgetType {
   }
 
   eq(other) {
-    return other.source === this.source && other.from === this.from;
+    return other.source === this.source;
   }
 
   parse() {
@@ -864,16 +881,23 @@ class InteractiveTableWidget extends WidgetType {
   /** Commit the grid to the document, unless the source moved underneath us. */
   commit(view, grid) {
     if (!view) return;
-    if (view.state.doc.sliceString(this.from, this.to) !== this.source) return;
+    const from = this.dom ? (view.posAtDOM(this.dom) ?? this.from) : this.from;
+    const to = from + this.source.length;
+    if (view.state.doc.sliceString(from, to) !== this.source) return;
     const insert = serializePipeTable(grid);
     if (insert === this.source) return;
-    view.dispatch({ changes: { from: this.from, to: this.to, insert } });
+    view.dispatch({ changes: { from, to, insert } });
   }
 
   toDOM(view) {
     let grid = this.parse();
 
     const wrap = document.createElement("div");
+    this.dom = wrap;
+    const getRange = () => {
+      const from = view.posAtDOM(wrap) ?? this.from;
+      return { from, to: from + this.source.length };
+    };
     wrap.className = "markdown-preview cm-lp-render cm-lp-tablewrap";
     wrap.setAttribute("dir", "auto");
 
@@ -929,10 +953,11 @@ class InteractiveTableWidget extends WidgetType {
       // One dispatch carries both any pending typing and the structural
       // change — committing them separately would race the rebuild.
       const next = operation(at);
-      if (view && view.state.doc.sliceString(this.from, this.to) === this.source) {
-        pendingTableFocus = focusAt ? { from: this.from, ...focusAt(at, next) } : null;
+      const { from, to } = getRange();
+      if (view && view.state.doc.sliceString(from, to) === this.source) {
+        pendingTableFocus = focusAt ? { from, ...focusAt(at, next) } : null;
         view.dispatch({
-          changes: { from: this.from, to: this.to, insert: serializePipeTable(next) },
+          changes: { from, to, insert: serializePipeTable(next) },
         });
       }
       grid = next;
@@ -1225,7 +1250,7 @@ class MermaidWidget extends WidgetType {
   }
 
   eq(other) {
-    return other.source === this.source && other.from === this.from;
+    return other.source === this.source;
   }
 
   toDOM(view) {
@@ -1233,7 +1258,7 @@ class MermaidWidget extends WidgetType {
     wrap.className = "cm-lp-mermaid";
     wrap.setAttribute("dir", "ltr");
     wrap.textContent = "Rendering diagram…";
-    revealOnClick(wrap, view, this.from);
+    revealOnClick(wrap, view, () => view.posAtDOM(wrap) ?? this.from);
     const id = `cm-lp-mermaid-${mermaidSeq++}`;
     getMermaid()
       .then((mermaid) => {
@@ -1272,14 +1297,14 @@ class MathWidget extends WidgetType {
   }
 
   eq(other) {
-    return other.tex === this.tex && other.from === this.from;
+    return other.tex === this.tex;
   }
 
   toDOM(view) {
     const wrap = document.createElement("div");
     wrap.className = "cm-lp-math markdown-preview";
     wrap.setAttribute("dir", "ltr");
-    revealOnClick(wrap, view, this.from);
+    revealOnClick(wrap, view, () => view.posAtDOM(wrap) ?? this.from);
     try {
       wrap.innerHTML = katex.renderToString(this.tex, {
         throwOnError: false,
@@ -1613,7 +1638,17 @@ function buildDecorations(state) {
   // ── Block math (`$$ … $$`) — the markdown grammar doesn't tag it, so scan
   // lines directly. Single-line `$$x$$` or fenced across lines. Code blocks and
   // quotes are excluded via protectedRanges to avoid false positives.
-  const isProtected = (pos) => protectedRanges.some((r) => pos >= r.from && pos <= r.to);
+  let protIdx = 0;
+  const isProtected = (pos) => {
+    while (protIdx < protectedRanges.length && protectedRanges[protIdx].to < pos) {
+      protIdx++;
+    }
+    if (protIdx < protectedRanges.length) {
+      const r = protectedRanges[protIdx];
+      return pos >= r.from && pos <= r.to;
+    }
+    return false;
+  };
   const totalLines = doc.lines;
   let ln = 1;
   while (ln <= totalLines) {

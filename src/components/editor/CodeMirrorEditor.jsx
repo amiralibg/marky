@@ -47,6 +47,7 @@ const CodeMirrorEditor = forwardRef(
     const saveImageRef = useRef(null);
     const onImageErrorRef = useRef(null);
     const suppressOnChangeRef = useRef(false);
+    const lastDocStringRef = useRef(value);
     const vimStatusSyncFrameRef = useRef(null);
     const selectionListenerRef = useRef(null);
 
@@ -115,6 +116,7 @@ const CodeMirrorEditor = forwardRef(
         readOnly,
         placeholderText: placeholder,
         onUpdate: (newValue) => {
+          lastDocStringRef.current = newValue;
           if (!suppressOnChangeRef.current && updateListenerRef.current) {
             updateListenerRef.current(newValue);
           }
@@ -142,21 +144,31 @@ const CodeMirrorEditor = forwardRef(
         onImageError: (error) => onImageErrorRef.current?.(error),
       });
 
+      const EMPTY_SELECTION = Object.freeze({ empty: true });
+      let lastSelectionWasEmpty = true;
+
       // Emit selection geometry so the parent can float a selection toolbar.
       const emitSelection = (view) => {
         const cb = selectionListenerRef.current;
         if (!cb) return;
         const sel = view.state.selection.main;
         if (sel.empty) {
-          cb({ empty: true });
+          if (!lastSelectionWasEmpty) {
+            lastSelectionWasEmpty = true;
+            cb(EMPTY_SELECTION);
+          }
           return;
         }
         const start = view.coordsAtPos(sel.from);
         const end = view.coordsAtPos(sel.to);
         if (!start || !end) {
-          cb({ empty: true });
+          if (!lastSelectionWasEmpty) {
+            lastSelectionWasEmpty = true;
+            cb(EMPTY_SELECTION);
+          }
           return;
         }
+        lastSelectionWasEmpty = false;
         cb({
           empty: false,
           from: sel.from,
@@ -249,11 +261,13 @@ const CodeMirrorEditor = forwardRef(
     // Update document when value changes externally (e.g., switching notes)
     useEffect(() => {
       if (!viewRef.current) return;
+      if (value === lastDocStringRef.current) return;
 
       const currentValue = viewRef.current.state.doc.toString();
       if (value !== currentValue) {
         // Suppress onChange to avoid marking note dirty when loading content
         suppressOnChangeRef.current = true;
+        lastDocStringRef.current = value || "";
         viewRef.current.dispatch({
           changes: {
             from: 0,

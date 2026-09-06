@@ -278,7 +278,40 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   }, [currentNote, isPinned]);
 
   // Get all notes for navigation
-  const notes = items.filter((item) => item.type === "note");
+  const notes = useMemo(() => items.filter((item) => item.type === "note"), [items]);
+
+  const allItems = useMemo(
+    () => [
+      // Add commands with searchable fields
+      ...commands.map((cmd) => ({
+        ...cmd,
+        searchText: `${cmd.name} ${cmd.category} ${cmd.keywords.join(" ")}`,
+        type: "command",
+      })),
+      // Add notes
+      ...notes.map((note) => ({
+        ...note,
+        searchText: `${note.name} ${note.content || ""}`,
+        type: "note",
+      })),
+    ],
+    [commands, notes]
+  );
+
+  const fuse = useMemo(
+    () =>
+      new Fuse(allItems, {
+        keys: [
+          { name: "name", weight: 3 },
+          { name: "searchText", weight: 1 },
+        ],
+        includeScore: true,
+        threshold: 0.3,
+        ignoreLocation: true,
+        minMatchCharLength: 1,
+      }),
+    [allItems]
+  );
 
   // Perform search
   useEffect(() => {
@@ -294,36 +327,10 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       return;
     }
 
-    const allItems = [
-      // Add commands with searchable fields
-      ...commands.map((cmd) => ({
-        ...cmd,
-        searchText: `${cmd.name} ${cmd.category} ${cmd.keywords.join(" ")}`,
-        type: "command",
-      })),
-      // Add notes
-      ...notes.map((note) => ({
-        ...note,
-        searchText: `${note.name} ${note.content || ""}`,
-        type: "note",
-      })),
-    ];
-
-    const fuse = new Fuse(allItems, {
-      keys: [
-        { name: "name", weight: 3 },
-        { name: "searchText", weight: 1 },
-      ],
-      includeScore: true,
-      threshold: 0.3,
-      ignoreLocation: true,
-      minMatchCharLength: 1,
-    });
-
     const searchResults = fuse.search(query).slice(0, 15);
     setResults(searchResults);
     setSelectedIndex(0);
-  }, [query, items, commands]);
+  }, [query, commands, fuse]);
 
   // Focus input when modal opens
   useEffect(() => {
