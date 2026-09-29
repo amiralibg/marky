@@ -130,6 +130,27 @@ jobs:
             xdg-utils \
             patchelf
 
+      # The Tauri bundler downloads AppRun into its tool cache with mode 0770
+      # and copies it into the AppDir as is, so the AppImage ships the real
+      # launcher (AppRun.wrapped) as root-owned and not executable by anyone
+      # else. Started normally the FUSE mount hides that, but anything that
+      # mounts the image as root and runs it as another user (firejail, the
+      # AppImageHub catalog test) fails with "AppRun.wrapped: Permission
+      # denied". The bundler only downloads AppRun when the cache has none, so
+      # seeding it here with 0755 is enough. Still 0770 upstream as of CLI
+      # 2.12.0, see https://github.com/tauri-apps/tauri/issues/16155
+      - name: Seed Tauri AppRun with world-executable mode
+        if: startsWith(matrix.platform, 'ubuntu-22.04')
+        run: |
+          set -euo pipefail
+          arch="$(uname -m)"
+          cache="${XDG_CACHE_HOME:-$HOME/.cache}/tauri"
+          mkdir -p "$cache"
+          curl -fsSL --retry 3 -o "$cache/AppRun-$arch" \
+            "https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-$arch"
+          chmod 0755 "$cache/AppRun-$arch"
+          ls -l "$cache/AppRun-$arch"
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
