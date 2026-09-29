@@ -39,7 +39,7 @@ On macOS you can also install with Homebrew:
 brew install --cask amiralibg/marky/marky
 ```
 
-Current version: [`v1.8.10`](https://github.com/amiralibg/marky/releases/tag/v1.8.10).
+Current version: [`v1.8.11`](https://github.com/amiralibg/marky/releases/tag/v1.8.11).
 
 ## Highlights
 
