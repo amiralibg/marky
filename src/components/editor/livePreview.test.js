@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { EditorView, Decoration } from "@codemirror/view";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { forceParsing, syntaxTree } from "@codemirror/language";
 
 // The copy button writes through `utils/clipboard`, which reaches for the Tauri
 // plugin; capture what it is handed instead.
@@ -18,13 +19,16 @@ const { livePreview, blockStepTarget } = await import("./livePreview");
 // Build a real EditorView (jsdom) with the markdown language + livePreview,
 // then inspect the decoration set the plugin produces for given content and
 // cursor position.
-function makeView(doc, cursor = 0) {
+function makeView(doc, cursor = 0, { parsed = true } = {}) {
   const state = EditorState.create({
     doc,
     selection: { anchor: cursor },
     extensions: [markdown({ base: markdownLanguage }), livePreview()],
   });
   const view = new EditorView({ state, parent: document.body });
+  // The first parse only gets 20ms, which a slow CI runner can run out of
+  // even on a short doc. Finish it so assertions don't depend on machine speed.
+  if (parsed) forceParsing(view, doc.length, 1e9);
   return view;
 }
 
@@ -339,6 +343,19 @@ describe("livePreview decorations", () => {
 
     expect(quoteLines).toHaveLength(5);
     expect(quoteLines.every((d) => d.deco.spec.class.includes("cm-lp-quote-rtl"))).toBe(true);
+  });
+
+  it("decorates the rest of a long note once the background parse reaches it", () => {
+    // The first parse stops at 3000 characters, so the quote at the end is
+    // past it until the parser catches up.
+    const filler = Array.from({ length: 200 }, (_, i) => `paragraph ${i} of filler text`);
+    const doc = ["intro", "", ...filler, "", "> the last line"].join("\n");
+    const quoteAt = doc.lastIndexOf(">");
+    view = makeView(doc, 0, { parsed: false });
+    expect(syntaxTree(view.state).length).toBeLessThan(quoteAt);
+
+    forceParsing(view, doc.length, 1e9);
+    expect(lineClassAt(collectDecorations(view), quoteAt)).toContain("cm-lp-quote");
   });
 
   it("renders a mermaid fence as a mermaid widget when inactive", () => {
