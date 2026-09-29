@@ -1781,13 +1781,16 @@ export function blockStepTarget(doc, blocks, from, to) {
 
 // Block widgets (fenced code, tables) and any replacement that crosses a line
 // break must be supplied by a StateField, not a ViewPlugin — hence a field.
-// It rebuilds on doc or selection change (selection drives the reveal logic).
+// It rebuilds on doc or selection change (selection drives the reveal logic),
+// and when the syntax tree grows: the parser only gets a few milliseconds up
+// front and finishes a long note in the background, so the first build can
+// see just its top part.
 const livePreviewField = StateField.define({
   create(state) {
     return buildDecorations(state);
   },
   update(value, tr) {
-    if (tr.docChanged || tr.selection) {
+    if (tr.docChanged || tr.selection || syntaxTree(tr.state) !== syntaxTree(tr.startState)) {
       return buildDecorations(tr.state);
     }
     return value;
