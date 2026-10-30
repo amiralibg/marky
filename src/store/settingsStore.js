@@ -548,6 +548,19 @@ export const SAVE_MODE_DEFAULT = "auto";
 export const normalizeSaveMode = (value) =>
   SAVE_MODES.includes(value) ? value : SAVE_MODE_DEFAULT;
 
+/**
+ * How the editor shows a note: `source` (raw markdown), `live` (inline
+ * preview) or `read` (rendered). Whatever was picked last is what the next
+ * note — and the next launch — opens in. Kept per device rather than in the
+ * workspace profile: it's a habit of the person at this machine, not a
+ * property of the vault.
+ */
+export const VIEW_MODES = ["source", "live", "read"];
+export const VIEW_MODE_DEFAULT = "live";
+
+export const normalizeViewMode = (value) =>
+  VIEW_MODES.includes(value) ? value : VIEW_MODE_DEFAULT;
+
 const createDefaultProfileSettings = () => ({
   themeId: "vault",
   accentColorId: "purple",
@@ -712,6 +725,8 @@ const useSettingsStore = create(
       sidebarDensity: "comfortable", // 'compact' | 'comfortable' | 'spacious'
       showSidebarMetadata: true,
       openRecentOnStartup: true,
+      // Last Source/Live/Read choice — see VIEW_MODES
+      editorViewMode: VIEW_MODE_DEFAULT,
 
       // Keymaps (user customizations stored here)
       keymaps: { ...DEFAULT_KEYMAPS },
@@ -847,6 +862,9 @@ const useSettingsStore = create(
       },
       setOpenRecentOnStartup: (enabled) => {
         set({ openRecentOnStartup: enabled });
+      },
+      setEditorViewMode: (mode) => {
+        set({ editorViewMode: normalizeViewMode(mode) });
       },
 
       toggleVimMode: () => {
@@ -1068,6 +1086,7 @@ const useSettingsStore = create(
         showSidebarMetadata: state.showSidebarMetadata,
         keymaps: state.keymaps,
         openRecentOnStartup: state.openRecentOnStartup,
+        editorViewMode: state.editorViewMode,
         sharedSettings: state.sharedSettings,
         workspaceProfiles: state.workspaceProfiles,
         activeWorkspacePath: state.activeWorkspacePath,

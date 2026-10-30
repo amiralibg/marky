@@ -17,7 +17,7 @@ import EditorScrollFade from "./EditorScrollFade";
 import EditorActionsMenu from "./EditorActionsMenu";
 import useNotesStore, { SETTINGS_TAB_ID, registerPendingEditFlusher } from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
-import useSettingsStore, { editorWidthValue } from "../../store/settingsStore";
+import useSettingsStore, { editorWidthValue, normalizeViewMode } from "../../store/settingsStore";
 import { renderMarkdownPreview } from "./markdownPreview";
 import { parseHeadings } from "../../utils/headings";
 import { saveMarkdownFile } from "../../utils/fileSystem";
@@ -83,6 +83,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
     vimVisualLineMotion,
     keymaps,
     attachmentFolder,
+    editorViewMode,
+    setEditorViewMode,
   } = useSettingsStore();
   // One measure for every view mode. Published as a CSS variable so the
   // rendered preview sheet (MarkdownPreview.css) reads the same value the
@@ -93,7 +95,10 @@ const MarkdownEditor = forwardRef((props, ref) => {
   const markdownRef = useRef(markdown);
   markdownRef.current = markdown;
   const [debouncedMarkdown, setDebouncedMarkdown] = useState(""); // Debounced for preview
-  const [viewMode, setViewMode] = useState("live"); // "source" (raw), "live" (inline preview), or "read" (rendered)
+  // "source" (raw), "live" (inline preview), or "read" (rendered). Persisted,
+  // so the editor reopens in whichever mode was picked last.
+  const viewMode = normalizeViewMode(editorViewMode);
+  const setViewMode = setEditorViewMode;
   const [selection, setSelection] = useState({ empty: true }); // for the bubble toolbar
   const [showExportModal, setShowExportModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -536,7 +541,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
       previousMatch,
       clearSearch,
     }),
-    [scrollToAndHighlight, handleSave, nextMatch, previousMatch, clearSearch]
+    [setViewMode, scrollToAndHighlight, handleSave, nextMatch, previousMatch, clearSearch]
   );
 
   const handleMarkdownChange = (value) => {

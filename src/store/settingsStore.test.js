@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import {
+import useSettingsStore, {
   applyFontScale,
   clampFontScale,
   FONT_SCALE_DEFAULT,
   FONT_SCALE_MAX,
   FONT_SCALE_MIN,
   FONT_SCALE_STEP,
+  normalizeViewMode,
+  VIEW_MODE_DEFAULT,
 } from "./settingsStore";
 
 describe("clampFontScale", () => {
@@ -46,5 +48,22 @@ describe("applyFontScale", () => {
   it("clamps before applying, so a stored out-of-range value cannot shrink the app away", () => {
     applyFontScale(10);
     expect(document.documentElement.style.fontSize).toBe(`${(16 * FONT_SCALE_MIN) / 100}px`);
+  });
+});
+
+describe("editor view mode", () => {
+  it("remembers the last Source/Live/Read choice across reloads", () => {
+    useSettingsStore.getState().setEditorViewMode("read");
+
+    expect(useSettingsStore.getState().editorViewMode).toBe("read");
+    const persisted = JSON.parse(localStorage.getItem("marky-settings"));
+    expect(persisted.state.editorViewMode).toBe("read");
+  });
+
+  it("falls back to Live for anything that is not a known mode", () => {
+    useSettingsStore.getState().setEditorViewMode("split");
+    expect(useSettingsStore.getState().editorViewMode).toBe(VIEW_MODE_DEFAULT);
+    expect(normalizeViewMode(undefined)).toBe("live");
+    expect(normalizeViewMode("source")).toBe("source");
   });
 });
