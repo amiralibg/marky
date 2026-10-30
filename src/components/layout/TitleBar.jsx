@@ -2,6 +2,7 @@ import { useRef, useEffect, useMemo, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import useNotesStore, { SETTINGS_TAB_ID } from "../../store/notesStore";
 import useSettingsStore, { formatKeymap } from "../../store/settingsStore";
+import useUIStore from "../../store/uiStore";
 import { SidebarIcon } from "../icons";
 import { detectPlatform } from "../../utils/platform";
 
@@ -19,6 +20,7 @@ const TitleBar = ({
   const closeNote = useNotesStore((state) => state.closeNote);
   const items = useNotesStore((state) => state.items);
   const getKeymap = useSettingsStore((state) => state.getKeymap);
+  const setTitlebarSlot = useUIStore((state) => state.setTitlebarSlot);
   const sidebarShortcut = formatKeymap(getKeymap("toggleSidebar")).join("");
   const scrollRef = useRef(null);
   const [platform, setPlatform] = useState(detectPlatform);
@@ -43,6 +45,7 @@ const TitleBar = ({
   }, []);
   const isMac = platform === "macos";
   const isWindows = platform === "windows";
+  const isLinux = platform === "linux";
 
   const openNotes = openNoteIds
     .map((id) => {
@@ -122,33 +125,32 @@ const TitleBar = ({
 
   return (
     <div
-      className={`custom-titlebar h-8 bg-titlebar-bg border-b border-border flex select-none shrink-0 ${isWindows ? "is-windows" : ""} ${isMac ? "is-mac" : ""}`}
+      className={`custom-titlebar h-10 flex select-none shrink-0 ${isWindows ? "is-windows" : ""} ${isMac ? "is-mac" : ""} ${isLinux ? "is-linux" : ""}`}
       onMouseDown={handleMouseDown}
     >
-      {/* Left section - Sidebar header area */}
+      {/* Leading section — over the sidebar column, so its actions read as the
+          sidebar's own. No wordmark and no hairline: the title bar and the
+          sidebar are one surface, and the note's sheet starts below both. */}
       <div
-        className="titlebar-left flex items-center shrink-0 border-r border-border"
+        className="titlebar-left flex items-center shrink-0"
         style={{
           width: showSidebar ? `${sidebarWidth}px` : "auto",
-          paddingLeft: isMac ? "80px" : "12px",
+          paddingInlineStart: isMac ? "80px" : "8px",
         }}
       >
-        {showSidebar && (
-          <div className="font-semibold text-text-primary tracking-tight text-sm">Marky</div>
-        )}
-
         {/* The toggle is deliberately rendered in one place for both states
             instead of once per branch: its icon morphs between open and closed
             with a CSS transition, and a button that unmounts when the sidebar
             hides would take the transition with it and snap instead. Keeping it
             at the same child index lets React reuse the same DOM node. */}
-        <div className={`flex items-center gap-0.5 ${showSidebar ? "ml-auto mr-2" : "ml-2"}`}>
+        <div className={`flex items-center gap-0.5 ${showSidebar ? "ms-auto me-2" : "ms-1"}`}>
           {showSidebar && (
             <>
               <button
                 onClick={onNewNote}
-                className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
+                className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-colors"
                 title="New Note (⌘N)"
+                aria-label="New note"
                 data-no-drag
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -162,8 +164,9 @@ const TitleBar = ({
               </button>
               <button
                 onClick={onNewFolder}
-                className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
+                className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-colors"
                 title="New Folder"
+                aria-label="New folder"
                 data-no-drag
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -193,13 +196,15 @@ const TitleBar = ({
         </div>
       </div>
 
-      {/* Right section - Tabs area */}
-      <div className="flex-1 flex items-center min-w-0">
-        {/* Tabs */}
+      {/* Tabs — quiet pills. The open note is the one lifted onto the page's
+          own surface, the same tone as the sheet below it. */}
+      <div className="flex-1 flex items-center min-w-0 ps-1">
         {openNotes.length > 0 && (
           <div
             ref={scrollRef}
-            className="flex overflow-x-auto no-scrollbar scroll-smooth"
+            className="flex items-center gap-0.5 overflow-x-auto no-scrollbar scroll-smooth py-1"
+            role="tablist"
+            aria-label="Open notes"
             data-no-drag
           >
             {openNotes.map((note) => {
@@ -208,22 +213,25 @@ const TitleBar = ({
               return (
                 <div
                   key={note.id}
+                  role="tab"
+                  aria-selected={isActive}
                   className={`
-                    group flex items-center gap-2 px-3 h-8 border-r border-border cursor-pointer transition-all duration-200 min-w-30 max-w-50
+                    group flex items-center gap-1.5 h-7 ps-3 pe-1 rounded-md cursor-pointer transition-colors min-w-24 max-w-50 shrink-0
                     ${
                       isActive
-                        ? "bg-bg-editor text-accent active-tab"
+                        ? "bg-bg-editor text-text-primary font-semibold shadow-[0_0_0_1px_var(--color-border)] active-tab"
                         : "text-text-secondary hover:bg-item-hover hover:text-text-primary"
                     }
                   `}
                   onClick={() => selectNote(note.id)}
                 >
-                  {isSettings ? (
+                  {isSettings && (
                     <svg
-                      className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-accent" : "text-text-muted"}`}
+                      className="w-3.5 h-3.5 shrink-0 text-text-muted"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"
@@ -238,23 +246,9 @@ const TitleBar = ({
                         d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                       />
                     </svg>
-                  ) : (
-                    <svg
-                      className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-accent" : "text-text-muted"}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
                   )}
 
-                  <span className="text-xs font-medium truncate flex-1" title={note.name}>
+                  <span className="text-[12.5px] truncate flex-1" title={note.name}>
                     {note.name}
                   </span>
 
@@ -267,8 +261,9 @@ const TitleBar = ({
                         closeNote(note.id);
                       }
                     }}
+                    aria-label={`Close ${note.name}`}
                     className={`
-                      p-0.5 rounded-md hover:bg-overlay-light transition-colors shrink-0
+                      p-0.5 rounded hover:bg-overlay-light text-text-muted hover:text-text-primary transition-colors shrink-0
                       ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}
                     `}
                   >
@@ -290,6 +285,13 @@ const TitleBar = ({
         {/* Empty draggable space - takes remaining width */}
         <div className="flex-1 h-full" />
       </div>
+
+      {/* The editor's controls land here (see `titlebarSlot` in uiStore). */}
+      <div
+        ref={setTitlebarSlot}
+        className="flex items-center shrink-0 pe-2 empty:pe-0"
+        data-no-drag
+      />
 
       {!isMac && (
         <div className="titlebar-window-controls flex h-full shrink-0" data-no-drag>

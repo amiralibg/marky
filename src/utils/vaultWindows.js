@@ -41,6 +41,8 @@ export async function openVaultInNewWindow(vaultPath, vaultName = null) {
     minHeight: 420,
     titleBarStyle: "Overlay",
     hiddenTitle: true,
+    // Centred in the 40px title bar; keep in step with tauri.conf.json.
+    trafficLightPosition: { x: 16, y: 22 },
     decorations: isMac,
     dragDropEnabled: true,
   });
@@ -73,6 +75,8 @@ export async function openEmptyWindow() {
     minHeight: 420,
     titleBarStyle: "Overlay",
     hiddenTitle: true,
+    // Centred in the 40px title bar; keep in step with tauri.conf.json.
+    trafficLightPosition: { x: 16, y: 22 },
     decorations: isMac,
     dragDropEnabled: true,
   });

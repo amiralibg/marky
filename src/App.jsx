@@ -840,7 +840,7 @@ function App() {
 
   return (
     <div
-      className={`app-shell h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden ${isResizingSidebar ? "select-none cursor-col-resize" : ""}`}
+      className={`app-shell h-screen flex flex-col bg-bg-sidebar text-text-primary overflow-hidden ${isResizingSidebar ? "select-none cursor-col-resize" : ""}`}
     >
       {/* Linux draws no frame of its own around an undecorated window. */}
       {isLinux && <WindowResizeHandles />}
@@ -848,11 +848,8 @@ function App() {
       {/* Custom Title Bar */}
       {!focusMode && (
         <TitleBar
-          /* Exactly the sidebar's width, not a nudge past it: `titlebar-left`
-             and the sidebar are both border-box with a 1px `border-r`, so equal
-             widths put both hairlines on the same pixel column. The old `+ 5`
-             cleared the resize handle back when it was a 4px column of its
-             own. */
+          /* Exactly the sidebar's width, so the title bar's leading actions sit
+             over the sidebar column and the tabs start where the sheet does. */
           sidebarWidth={sidebarWidth}
           showSidebar={showSidebar}
           onNewNote={() => sidebarRef.current?.handleNewNote?.()}
@@ -863,14 +860,13 @@ function App() {
       )}
 
       <div className="flex-1 flex relative overflow-hidden">
-        {/* Sidebar. Its `border-r` is the same hairline `titlebar-left` draws
-            above it, at the same x — the two meet as one line running the full
-            height of the window. */}
+        {/* Sidebar. No border of its own: it shares one surface with the title
+            bar, and the sheet beside it carries the only edge. */}
         {!focusMode && (
           <div className="relative flex">
             <div
               className={`
-              relative shrink-0 border-r border-border
+              relative shrink-0
               ${!showSidebar ? "hidden" : ""}
               ${isResizingSidebar ? "transition-none" : "transition-transform duration-300 ease-in-out"}
               flex flex-col overflow-hidden
@@ -913,9 +909,17 @@ function App() {
           </div>
         )}
 
-        {/* Main Content */}
+        {/* Main content — the sheet. One tone off the sidebar/title-bar
+            surface, joined to it by a hairline and a single rounded corner
+            where the two meet. */}
         <div
-          className={`flex-1 flex flex-col min-w-0 bg-bg-editor ${isResizingSidebar ? "pointer-events-none" : ""}`}
+          className={`flex-1 flex flex-col min-w-0 overflow-hidden bg-bg-editor ${
+            focusMode
+              ? ""
+              : showSidebar
+                ? "rounded-ss-[10px] border-s border-t border-border"
+                : "border-t border-border"
+          } ${isResizingSidebar ? "pointer-events-none" : ""}`}
         >
           <Suspense fallback={<div className="flex-1 bg-bg-editor" />}>
             <MarkdownEditor

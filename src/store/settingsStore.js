@@ -32,11 +32,13 @@ const defineTheme = (id, name, type, t) => ({
 });
 
 export const THEMES = [
+  // The page is a warm off-white sheet on a slightly deeper desk — never pure
+  // white, which reads as a lit screen rather than paper over a long session.
   defineTheme("vault", "Vault", "light", {
-    bg: "#ffffff",
-    sidebar: "#f7f7f5",
-    panel: "#ffffff",
-    raised: "#fafaf9",
+    bg: "#fcfbf9",
+    sidebar: "#f3f1ec",
+    panel: "#fcfbf9",
+    raised: "#ffffff",
     border: "rgba(35, 35, 32, 0.09)",
     borderLight: "rgba(35, 35, 32, 0.16)",
     text: "#2f2f2b",
@@ -515,6 +517,29 @@ export const editorWidthValue = (id) =>
   (EDITOR_WIDTHS.find((w) => w.id === id) || EDITOR_WIDTHS[1]).value;
 
 /**
+ * The typeface notes are set in, in Live and Read alike — one choice for both,
+ * so switching modes never changes the letterforms under the reader. Source
+ * stays monospace regardless. `mixed` is the pre-redesign look: sans body
+ * copy under serif headings.
+ */
+export const READING_FONTS = [
+  { id: "sans", label: "Sans", description: "Hanken Grotesk throughout" },
+  { id: "serif", label: "Serif", description: "Newsreader, for long reading" },
+  { id: "mixed", label: "Mixed", description: "Sans body, serif headings" },
+];
+export const READING_FONT_DEFAULT = "sans";
+
+export const normalizeReadingFont = (value) =>
+  READING_FONTS.some((f) => f.id === value) ? value : READING_FONT_DEFAULT;
+
+// Published as `<html data-reading-font>`; index.css maps it onto the
+// `--font-family-body` / `--font-family-heading` pair the editor and preview read.
+export const applyReadingFont = (value) => {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.readingFont = normalizeReadingFont(value);
+};
+
+/**
  * Extra gitignore-style globs the workspace scanner skips, one per line.
  *
  * `.gitignore`, `.ignore` and git's global excludes are always honoured, and
@@ -567,6 +592,7 @@ const createDefaultProfileSettings = () => ({
   fontScale: FONT_SCALE_DEFAULT,
   editorFontScale: FONT_SCALE_DEFAULT,
   editorWidth: "default",
+  readingFont: READING_FONT_DEFAULT,
   ignorePatterns: "",
   attachmentFolder: DEFAULT_ATTACHMENT_FOLDER,
   vimMode: false,
@@ -613,6 +639,7 @@ const buildProfileSettingsSnapshot = (state) => ({
   fontScale: state.fontScale,
   editorFontScale: state.editorFontScale,
   editorWidth: state.editorWidth,
+  readingFont: state.readingFont,
   ignorePatterns: state.ignorePatterns,
   attachmentFolder: state.attachmentFolder,
   vimMode: state.vimMode,
@@ -657,6 +684,7 @@ const mergeProfileSettings = (profile = {}) => {
   if (!THEMES.some((t) => t.id === merged.themeId)) merged.themeId = "vault";
   if (!ACCENT_COLORS.some((c) => c.id === merged.accentColorId)) merged.accentColorId = "purple";
   if (!EDITOR_WIDTHS.some((w) => w.id === merged.editorWidth)) merged.editorWidth = "default";
+  merged.readingFont = normalizeReadingFont(merged.readingFont);
   merged.fontScale = clampFontScale(merged.fontScale ?? FONT_SCALE_DEFAULT);
   merged.editorFontScale = clampFontScale(merged.editorFontScale ?? FONT_SCALE_DEFAULT);
   // Profiles written before save modes existed carry an `autosaveEnabled`
@@ -718,6 +746,7 @@ const useSettingsStore = create(
       typewriterMode: false,
       showLineNumbers: false, // Notion-clean default; toggle in Editor settings
       editorWidth: "default", // 'narrow' | 'default' | 'wide' — see EDITOR_WIDTHS
+      readingFont: READING_FONT_DEFAULT, // see READING_FONTS
       ignorePatterns: "", // extra scanner excludes, one glob per line
       // Where a pasted or dropped image is written, relative to the workspace
       // root. Empty means the root itself, which is what Obsidian defaults to.
@@ -837,6 +866,11 @@ const useSettingsStore = create(
       setEditorWidth: (width) => {
         get().syncProfileState({ editorWidth: width });
       },
+      setReadingFont: (font) => {
+        const value = normalizeReadingFont(font);
+        get().syncProfileState({ readingFont: value });
+        applyReadingFont(value);
+      },
       setIgnorePatterns: (patterns) => {
         get().syncProfileState({ ignorePatterns: patterns });
       },
@@ -944,6 +978,7 @@ const useSettingsStore = create(
           applyAccentColor(sharedSettings.accentColorId);
           applyFontScale(sharedSettings.fontScale);
           applyEditorFontScale(sharedSettings.editorFontScale);
+          applyReadingFont(sharedSettings.readingFont);
         }
       },
 
@@ -964,6 +999,7 @@ const useSettingsStore = create(
         applyAccentColor(snapshot.accentColorId);
         applyFontScale(snapshot.fontScale);
         applyEditorFontScale(snapshot.editorFontScale);
+        applyReadingFont(snapshot.readingFont);
       },
 
       clearActiveWorkspaceSettings: () => {
@@ -976,6 +1012,7 @@ const useSettingsStore = create(
         applyAccentColor(sharedSettings.accentColorId);
         applyFontScale(sharedSettings.fontScale);
         applyEditorFontScale(sharedSettings.editorFontScale);
+        applyReadingFont(sharedSettings.readingFont);
       },
 
       getSettingsExportPayload: () => {
@@ -1081,6 +1118,7 @@ const useSettingsStore = create(
         autosaveDelay: state.autosaveDelay,
         typewriterMode: state.typewriterMode,
         editorWidth: state.editorWidth,
+        readingFont: state.readingFont,
         ignorePatterns: state.ignorePatterns,
         sidebarDensity: state.sidebarDensity,
         showSidebarMetadata: state.showSidebarMetadata,

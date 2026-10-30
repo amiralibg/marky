@@ -25,6 +25,12 @@ const useUIStore = create((set) => ({
   clearTemplateRequest: () => set({ templateRequest: null }),
   clearScheduleRequest: () => set({ scheduleRequest: null }),
 
+  // The strip at the trailing end of the title bar. The editor portals its
+  // own controls (Source/Live/Read and the ⋯ menu) into it, so they share the
+  // tab row instead of costing the note a header row of its own.
+  titlebarSlot: null,
+  setTitlebarSlot: (element) => set({ titlebarSlot: element }),
+
   toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),
   setFocusMode: (value) => set({ focusMode: value }),
 

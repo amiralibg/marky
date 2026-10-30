@@ -2214,29 +2214,33 @@ const Sidebar = forwardRef(
             </div>
           )}
 
-          {/* Sync status */}
-          <div className="flex items-center gap-2 px-2.5 pt-1.5 pb-2 text-[11.5px] text-text-muted">
+          {/* One quiet row instead of five: save state on the leading edge, the
+              app-level actions as icons on the trailing one. Every action
+              keeps its label as a tooltip and an accessible name. */}
+          <div className="flex items-center gap-1 px-1.5 pt-1">
             <span
-              className={`w-[7px] h-[7px] rounded-full shrink-0 ${
-                dirtyCount > 0 ? "bg-amber-500" : "bg-[#3f9d63]"
-              }`}
-            />
-            <span className="truncate">
-              {dirtyCount > 0
-                ? `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`
-                : "All changes saved locally"}
+              className="flex min-w-0 flex-1 items-center gap-2 px-1 text-[11.5px] text-text-muted"
+              title={
+                dirtyCount > 0
+                  ? `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`
+                  : `All changes saved locally${lastSavedLabel ? ` · ${lastSavedLabel}` : ""}`
+              }
+            >
+              <span
+                className={`h-[7px] w-[7px] shrink-0 rounded-full ${
+                  dirtyCount > 0 ? "bg-amber-500" : "bg-[#3f9d63]"
+                }`}
+                aria-hidden="true"
+              />
+              <span className="truncate">{dirtyCount > 0 ? `${dirtyCount} unsaved` : "Saved"}</span>
             </span>
-            {dirtyCount === 0 && lastSavedLabel && (
-              <span className="ml-auto font-mono text-[10.5px] shrink-0">{lastSavedLabel}</span>
-            )}
-          </div>
 
-          <button
-            onClick={toggleColorScheme}
-            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
-            title={isDarkTheme ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {isDarkTheme ? (
+            <button
+              onClick={onOpenCommandPalette}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+              title="Command palette (⌘K)"
+              aria-label="Command palette"
+            >
               <svg
                 className="w-4 h-4"
                 fill="none"
@@ -2245,11 +2249,17 @@ const Sidebar = forwardRef(
                 viewBox="0 0 24 24"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
               >
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19" />
+                <path d="M4 6h16M4 12h10M4 18h7" />
               </svg>
-            ) : (
+            </button>
+            <button
+              onClick={() => onOpenTemplate(null)}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+              title="Templates"
+              aria-label="Templates"
+            >
               <svg
                 className="w-4 h-4"
                 fill="none"
@@ -2258,69 +2268,68 @@ const Sidebar = forwardRef(
                 viewBox="0 0 24 24"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
               >
-                <path d="M21 12.8A8 8 0 1111.2 3a6.2 6.2 0 009.8 9.8z" />
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+                <path d="M4 9h16" />
               </svg>
-            )}
-            {isDarkTheme ? "Light" : "Dark"} mode
-          </button>
-          <button
-            onClick={onOpenCommandPalette}
-            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
-            title="Command palette (⌘K)"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              viewBox="0 0 24 24"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+            </button>
+            <button
+              onClick={toggleColorScheme}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+              title={isDarkTheme ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={isDarkTheme ? "Switch to light mode" : "Switch to dark mode"}
             >
-              <path d="M4 6h16M4 12h10M4 18h7" />
-            </svg>
-            <span className="flex-1 text-left">Commands</span>
-            <span className="text-[10.5px] font-mono text-text-muted">⌘K</span>
-          </button>
-          <button
-            onClick={() => onOpenTemplate(null)}
-            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
-            title="Templates"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              viewBox="0 0 24 24"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              {isDarkTheme ? (
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  viewBox="0 0 24 24"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19" />
+                </svg>
+              ) : (
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  viewBox="0 0 24 24"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M21 12.8A8 8 0 1111.2 3a6.2 6.2 0 009.8 9.8z" />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={onSettingsClick}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+              title="Settings"
+              aria-label="Settings"
             >
-              <rect x="4" y="4" width="16" height="16" rx="2" />
-              <path d="M4 9h16" />
-            </svg>
-            Templates
-          </button>
-          <button
-            onClick={onSettingsClick}
-            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
-            title="Settings"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              viewBox="0 0 24 24"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-            Settings
-          </button>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                viewBox="0 0 24 24"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Drag Ghost */}

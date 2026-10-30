@@ -9,6 +9,7 @@ import {
   lazy,
   Suspense,
 } from "react";
+import { createPortal } from "react-dom";
 import CreateNoteModal from "../modals/CreateNoteModal";
 import CodeMirrorEditor from "./CodeMirrorEditor";
 import SelectionToolbar from "./SelectionToolbar";
@@ -52,6 +53,17 @@ const getMermaid = () => {
   return mermaidPromise;
 };
 
+// Source / Live / Read, each with a glyph: angle brackets, a pen, an open book.
+const VIEW_MODE_OPTIONS = [
+  { id: "source", label: "Source", icon: "m8 7-5 5 5 5M16 7l5 5-5 5" },
+  { id: "live", label: "Live", icon: "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" },
+  {
+    id: "read",
+    label: "Read",
+    icon: "M3 5.5c3-1 6-1 9 1 3-2 6-2 9-1v13c-3-1-6-1-9 1-3-2-6-2-9-1zM12 6.5v13",
+  },
+];
+
 const MarkdownEditor = forwardRef((props, ref) => {
   const { onOpenKeymapsModal, initialSettingsSection, focusMode = false } = props;
   const {
@@ -74,6 +86,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
   } = useNotesStore();
 
   const { addNotification, setShowWorkspaceModal } = useUIStore();
+  const titlebarSlot = useUIStore((state) => state.titlebarSlot);
   const {
     vimMode,
     saveMode,
@@ -366,6 +379,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     localEditNoteIdRef.current = null;
 
     const currentNote = getCurrentNote();
+
     if (currentNote) {
       const content = currentNote.content || "";
       setMarkdown(content);
@@ -947,6 +961,19 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   const currentNote = getCurrentNote();
 
+  // The folders between the workspace root and the note, for the path in the
+  // status line. Deep notes keep only the last two, so the line never wraps.
+  const noteFolders = (() => {
+    const file = currentNote?.filePath?.replace(/\\/g, "/");
+    const root = rootFolderPath?.replace(/\\/g, "/").replace(/\/+$/, "");
+    if (!file || !root || !file.startsWith(`${root}/`)) return [];
+    const folders = file
+      .slice(root.length + 1)
+      .split("/")
+      .slice(0, -1);
+    return folders.length > 2 ? ["…", ...folders.slice(-2)] : folders;
+  })();
+
   // Page header chrome (emoji + title + tags) derived from frontmatter / content
   // Sync editor content when external actions (e.g. Tag Manager / restore) update the current note.
   useEffect(() => {
@@ -994,30 +1021,41 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   const viewModeControl = (
     <div
-      className="flex items-center gap-0.5 rounded-lg bg-overlay-subtle p-0.5 shrink-0"
+      className="flex items-center gap-0.5 rounded-md bg-overlay-subtle p-0.5 shrink-0"
       role="group"
       aria-label="Editor view mode"
     >
-      {[
-        { id: "source", label: "Source" },
-        { id: "live", label: "Live" },
-        { id: "read", label: "Read" },
-      ].map((m) => (
-        <button
-          key={m.id}
-          onClick={() => setViewMode(m.id)}
-          aria-pressed={viewMode === m.id}
-          aria-label={`Switch to ${m.label} view`}
-          className={`rounded-md px-[11px] py-[5px] text-[13px] transition-colors ${
-            viewMode === m.id
-              ? "bg-accent-dim font-semibold text-accent"
-              : "text-text-secondary hover:text-text-primary"
-          }`}
-          title={`${m.label} view`}
-        >
-          {m.label}
-        </button>
-      ))}
+      {VIEW_MODE_OPTIONS.map((m) => {
+        const active = viewMode === m.id;
+        return (
+          <button
+            key={m.id}
+            onClick={() => setViewMode(m.id)}
+            aria-pressed={active}
+            aria-label={`Switch to ${m.label} view`}
+            className={`flex h-6 items-center gap-1.5 rounded-[5px] ps-2 pe-2.5 text-[12.5px] transition-colors ${
+              active
+                ? "bg-bg-editor font-semibold text-text-primary shadow-[0_0_0_1px_var(--color-border)]"
+                : "text-text-secondary hover:text-text-primary"
+            }`}
+            title={`${m.label} view`}
+          >
+            <svg
+              className={`h-3.5 w-3.5 shrink-0 ${active ? "text-accent" : ""}`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d={m.icon} />
+            </svg>
+            {m.label}
+          </button>
+        );
+      })}
     </div>
   );
 
@@ -1060,66 +1098,19 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-bg-editor">
-      {/* Header — breadcrumb and view mode only. Everything else that used to
-          sit here (Properties / Contents / Save / History / Export) is now one
-          "⋯" menu, and the outline moved to the rail on the right edge. */}
-      {!focusMode && (
-        <div className="h-11 flex items-center gap-3 px-4 shrink-0 z-10 justify-between">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            {rootFolderPath && (
-              <>
-                <button
-                  onClick={() => selectNote(null)}
-                  className="text-[13px] text-text-muted hover:text-text-primary truncate rounded px-1 py-0.5 transition-colors max-w-[12rem]"
-                  title="Workspace home"
-                >
-                  {rootFolderPath.split("/").filter(Boolean).pop()}
-                </button>
-                <span className="text-text-muted/60 text-[13px]" aria-hidden="true">
-                  /
-                </span>
-              </>
-            )}
-            <span className="text-[13px] text-text-primary font-medium truncate">
-              {currentNote.name}
-            </span>
-            {/* In auto mode saving is not the user's problem, so the only
-                thing worth saying is the moment it lands — and only for a note
-                that has no file yet is there anything to warn about. In manual
-                mode the amber dot is still the whole save story. */}
-            {isAutoSave ? (
-              <>
-                {!currentNote.filePath && (
-                  <span
-                    className="ms-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"
-                    title="Not saved to disk yet"
-                  />
-                )}
-                {currentNote.filePath && showSavedIndicator && (
-                  <span
-                    className="ms-1.5 shrink-0 text-[11px] text-text-muted animate-in fade-in duration-200"
-                    role="status"
-                  >
-                    Saved
-                  </span>
-                )}
-              </>
-            ) : (
-              (!currentNote.filePath || hasUnsavedChanges) && (
-                <span
-                  className="ms-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"
-                  title={!currentNote.filePath ? "Not saved to disk yet" : "Unsaved changes"}
-                />
-              )
-            )}
-          </div>
-
-          <div className="flex items-center gap-1.5 shrink-0">
+      {/* No header row of its own: the view switch and the ⋯ menu sit in the
+          title bar beside the tabs (portalled into its trailing slot), and the
+          note's path moved down into the status line. The page starts right
+          under the tabs. */}
+      {titlebarSlot &&
+        !focusMode &&
+        createPortal(
+          <div className="flex items-center gap-1.5">
             {viewModeControl}
             <EditorActionsMenu items={actionMenuItems} />
-          </div>
-        </div>
-      )}
+          </div>,
+          titlebarSlot
+        )}
 
       {recoveredDraft && (
         <div
@@ -1314,9 +1305,12 @@ const MarkdownEditor = forwardRef((props, ref) => {
                 className={`bg-bg-editor ${focusMode ? "max-w-3xl mx-auto" : ""}`}
               >
                 {/* The 40vh tail matches `.cm-content` in theme.js, so the end
-                    of a note can scroll to mid-window in Read mode too. */}
+                    of a note can scroll to mid-window in Read mode too. The
+                    side padding is Live mode's: its 4.5rem heading gutter plus
+                    CodeMirror's own line padding (6px / 2px), so switching
+                    Live ↔ Read leaves every line exactly where it was. */}
                 <div
-                  className="w-full px-8 md:px-12 pt-8 pb-[40vh]"
+                  className="w-full ps-[calc(4.5rem+6px)] pe-[calc(4.5rem+2px)] pt-8 pb-[40vh]"
                   onClick={handlePreviewClick}
                   role="region"
                   aria-label={`Markdown preview${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
@@ -1345,16 +1339,16 @@ const MarkdownEditor = forwardRef((props, ref) => {
       {/* Notion-style selection formatting bubble */}
       {viewMode !== "read" && <SelectionToolbar selection={selection} onInsert={insertMarkdown} />}
 
-      {/* Status line — no bar, no border, no fill. Just the counts sitting
-          quietly in the bottom corner, plus the Vim mode when it's on. The
-          view mode is already visible in the header, so it's dropped here. */}
+      {/* Status line — no bar, no border, no fill. Where the note lives on the
+          left (it used to be a header row of its own), what's in it and whether
+          it's on disk on the right. */}
       {currentNote && !focusMode && (
         <div
-          className="shrink-0 flex items-center justify-between gap-4 px-5 pb-2 pt-1 text-[11px] text-text-muted"
+          className="shrink-0 flex items-center justify-between gap-4 px-4 pb-2 pt-1 text-[11.5px] text-text-muted"
           role="status"
           aria-live="polite"
         >
-          <span className="flex min-w-0 items-center gap-3 truncate">
+          <span className="flex min-w-0 items-center gap-3">
             {vimMode && (
               <span
                 className={`font-mono font-medium ${
@@ -1370,14 +1364,52 @@ const MarkdownEditor = forwardRef((props, ref) => {
                 {vimModeStatus.mode.toUpperCase()}
               </span>
             )}
-            {/* A save confirmation that fades on its own — the header dot only
-                shows the *unsaved* state, so this closes the loop. */}
-            {showSavedIndicator && <span className="animate-fade-in">Saved</span>}
+            <span className="flex min-w-0 items-center gap-1">
+              {rootFolderPath && (
+                <>
+                  <button
+                    onClick={() => selectNote(null)}
+                    className="shrink-0 truncate rounded px-1 py-0.5 transition-colors hover:text-text-primary max-w-[10rem]"
+                    title="Workspace home"
+                  >
+                    {rootFolderPath.split("/").filter(Boolean).pop()}
+                  </button>
+                  {noteFolders.map((folder, index) => (
+                    <span key={`${index}-${folder}`} className="flex min-w-0 items-center gap-1">
+                      <span className="opacity-60" aria-hidden="true">
+                        /
+                      </span>
+                      <span className="truncate max-w-[8rem]">{folder}</span>
+                    </span>
+                  ))}
+                  <span className="opacity-60" aria-hidden="true">
+                    /
+                  </span>
+                </>
+              )}
+              <span className="truncate text-text-secondary">{currentNote.name}</span>
+              {/* In auto mode saving is not the user's problem, so the only
+                  thing worth saying is the moment it lands — and only for a
+                  note that has no file yet is there anything to warn about. In
+                  manual mode the amber dot is still the whole save story. */}
+              {(isAutoSave
+                ? !currentNote.filePath
+                : !currentNote.filePath || hasUnsavedChanges) && (
+                <span
+                  className="ms-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"
+                  title={!currentNote.filePath ? "Not saved to disk yet" : "Unsaved changes"}
+                />
+              )}
+            </span>
           </span>
           <span className="flex shrink-0 items-center gap-4 tabular-nums">
-            <span>{statusBarStats.wordCount.toLocaleString()} words</span>
-            <span>{statusBarStats.charCount.toLocaleString()} characters</span>
-            <span>{statusBarStats.paragraphCount.toLocaleString()} paragraphs</span>
+            {showSavedIndicator && <span className="animate-fade-in">Saved</span>}
+            <span
+              title={`${statusBarStats.charCount.toLocaleString()} characters · ${statusBarStats.paragraphCount.toLocaleString()} paragraphs`}
+            >
+              {statusBarStats.wordCount.toLocaleString()} words
+            </span>
+            <span>{statusBarStats.readTime.toLocaleString()} min read</span>
           </span>
         </div>
       )}

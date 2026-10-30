@@ -5,6 +5,7 @@ import useSettingsStore, {
   FONT_SCALE_MAX,
   FONT_SCALE_MIN,
   FONT_SCALE_STEP,
+  READING_FONTS,
   THEMES,
   formatKeymap,
 } from "../../store/settingsStore";
@@ -37,6 +38,8 @@ const AppearanceSettings = () => {
     setFontScale,
     editorFontScale,
     setEditorFontScale,
+    readingFont,
+    setReadingFont,
     getKeymap,
   } = useSettingsStore();
   // Default the filter to the current theme's mode so the list opens focused
@@ -178,6 +181,56 @@ const AppearanceSettings = () => {
                     />
                   )}
                 </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Reading typeface */}
+      <div>
+        <h3 className="text-[13px] font-semibold text-text-primary mb-0.5">Typeface</h3>
+        <p className="text-[13px] text-text-muted mb-4">
+          The face your notes are set in, in Live and Read. Source always stays monospace.
+        </p>
+
+        <div
+          className="grid grid-cols-3 gap-3 max-w-[36rem]"
+          role="radiogroup"
+          aria-label="Typeface"
+        >
+          {READING_FONTS.map((font) => {
+            const selected = readingFont === font.id;
+            const body = font.id === "serif" ? "font-serif" : "font-sans";
+            const heading = font.id === "sans" ? "font-sans" : "font-serif";
+            return (
+              <button
+                key={font.id}
+                onClick={() => setReadingFont(font.id)}
+                role="radio"
+                aria-checked={selected}
+                className={`rounded-[10px] border p-3 text-start transition-colors ${
+                  selected
+                    ? "border-accent bg-accent-dim"
+                    : "border-border hover:border-border-light hover:bg-overlay-subtle"
+                }`}
+              >
+                <span
+                  className={`block text-[22px] leading-none font-semibold tracking-[-0.02em] text-text-primary ${heading}`}
+                  aria-hidden="true"
+                >
+                  Aa
+                </span>
+                <span
+                  className={`mt-2 block text-[12px] leading-snug text-text-secondary ${body}`}
+                  aria-hidden="true"
+                >
+                  The quick brown fox
+                </span>
+                <span className="mt-3 block text-[13px] font-semibold text-text-primary">
+                  {font.label}
+                </span>
+                <span className="block text-[12px] text-text-muted">{font.description}</span>
               </button>
             );
           })}
