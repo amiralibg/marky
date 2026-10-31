@@ -15,6 +15,8 @@ import {
   stripEmbedSize,
 } from "../../utils/attachments";
 
+const LEADING_CHECKBOX = /^(<input\b[^>]*type="checkbox"[^>]*>)\s+/;
+
 const escapeHtml = (value = "") =>
   value.replace(/[&<>"']/g, (char) => {
     switch (char) {
@@ -208,7 +210,10 @@ if (!extensionsRegistered) {
       },
       paragraph(token) {
         const text = typeof token === "object" ? token.text : token;
-        return `<p dir="auto">${text}</p>\n`;
+        // A task item in a loose list gets its checkbox prepended to this
+        // paragraph with a newline after it — and paragraphs preserve newlines
+        // (`white-space: break-spaces`), so the box sat on a line of its own.
+        return `<p dir="auto">${text.replace(LEADING_CHECKBOX, "$1 ")}</p>\n`;
       },
       listitem(token) {
         const text = typeof token === "object" ? token.text : token;

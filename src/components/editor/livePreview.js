@@ -1845,7 +1845,9 @@ const blockStepFilter = EditorState.transactionFilter.of((tr) => {
 // Inline styling for the decorated content. Sizes are relative (em) so they
 // track the editor's base font size and the app's theme variables.
 const livePreviewTheme = EditorView.baseTheme({
-  // Live mode reads as prose — sans body, not the mono source font.
+  // Live mode reads as prose — the Reading typeface at the Read sheet's size
+  // and line height (`.markdown-preview` in MarkdownPreview.css), not the mono
+  // source font, so Live ↔ Read keeps every line break where it was.
   //
   // The wider gutter is room for the hanging hashes below. `###### ` measures
   // 65px including its trailing pad — well past the 2.25rem the base editor
@@ -1856,8 +1858,11 @@ const livePreviewTheme = EditorView.baseTheme({
   // `padding` shorthand — that rule comes from `EditorView.theme` and outranks
   // this base theme, so declaring `padding-inline` here would simply lose.
   ".cm-content": {
-    fontFamily: "var(--font-family-sans)",
+    fontFamily: "var(--font-family-body)",
     "--marky-editor-gutter": "4.5rem",
+    "--marky-content-font-size":
+      "calc(17px * var(--marky-editor-font-scale, 1) * var(--marky-font-scale, 1) * var(--font-reading-scale, 1))",
+    "--marky-content-line-height": "1.7",
   },
   // A flat top pad on every level, matching the preview sheet's heading
   // `margin-top`. Without it Read mode gave a heading room to breathe and Live
@@ -1875,7 +1880,7 @@ const livePreviewTheme = EditorView.baseTheme({
   ".cm-lp-h1, .cm-lp-h2, .cm-lp-h3, .cm-lp-h4, .cm-lp-h5, .cm-lp-h6": {
     paddingTop: "0.5rem",
     paddingBottom: "0.8rem",
-    fontFamily: "var(--font-family-serif)",
+    fontFamily: "var(--font-family-heading)",
     fontWeight: "600",
     letterSpacing: "-0.015em",
     // Positioning context for the hanging hash below.

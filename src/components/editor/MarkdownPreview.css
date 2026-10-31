@@ -41,10 +41,11 @@
 
   color: var(--color-text-primary);
   line-height: 1.7;
-  font-size: 1.0625rem;
-  /* Body copy in the clean UI sans for comfortable on-screen reading;
-     headings stay serif below for editorial character. */
-  font-family: var(--font-family-sans);
+  /* 17px at 100%; follows the editor text size the same way Live mode does. */
+  font-size: calc(1.0625rem * var(--marky-editor-font-scale, 1) * var(--font-reading-scale, 1));
+  /* The Reading typeface setting (index.css) — the same pair Live mode reads,
+     so a note keeps its letterforms across Live ↔ Read. */
+  font-family: var(--font-family-body);
   letter-spacing: -0.003em;
   text-underline-offset: 0.16em;
   /* Cap the measure so long lines stay readable in wide/Read mode. The value
@@ -100,7 +101,7 @@
 .markdown-preview h4,
 .markdown-preview h5,
 .markdown-preview h6 {
-  font-family: var(--font-family-serif);
+  font-family: var(--font-family-heading);
   font-weight: 600;
   color: var(--color-text-primary);
   /* Fixed, and the same for every level — see the `rem`-not-`em` note up top.
@@ -489,7 +490,8 @@
 /* ── Task lists ──────────────────────────────────────────────
    Pulled out to the list's outer edge so the checkbox sits where the bullet
    would, and the text column stays aligned with its siblings. */
-.markdown-preview li:has(> input[type="checkbox"]) {
+.markdown-preview li:has(> input[type="checkbox"]),
+.markdown-preview li:has(> p:first-child > input[type="checkbox"]:first-child) {
   list-style: none;
   margin-inline-start: -1.6em;
   padding-inline-start: 0;
@@ -505,7 +507,8 @@
 }
 
 /* A done item recedes without being struck through. */
-.markdown-preview li:has(> input[type="checkbox"]:checked) {
+.markdown-preview li:has(> input[type="checkbox"]:checked),
+.markdown-preview li:has(> p:first-child > input[type="checkbox"]:first-child:checked) {
   color: var(--color-text-muted);
 }
 

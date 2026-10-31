@@ -116,3 +116,20 @@ describe("images", () => {
     expect(renderMarkdownPreview(raw)).not.toContain("<img ");
   });
 });
+
+describe("task lists", () => {
+  // A blank line between a task list and the list above it makes one *loose*
+  // list, whose items wrap their text in <p>. The parser leaves a newline after
+  // the checkbox there, and paragraphs preserve newlines, so the box sat on its
+  // own line above its text.
+  it("keeps the checkbox on the same line as its text in a loose list", () => {
+    const html = renderMarkdownPreview("- plain item\n\n- [x] Done thing\n- [ ] Open thing\n");
+    expect(html).toMatch(/type="checkbox"[^>]*> Done thing/);
+    expect(html).toMatch(/type="checkbox"[^>]*> Open thing/);
+  });
+
+  it("keeps the checkbox on the same line in a tight list", () => {
+    const html = renderMarkdownPreview("- [x] Done thing\n- [ ] Open thing\n");
+    expect(html).toMatch(/type="checkbox"[^>]*> Done thing/);
+  });
+});

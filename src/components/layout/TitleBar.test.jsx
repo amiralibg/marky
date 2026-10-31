@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("@tauri-apps/api/window", () => ({
   // The title bar falls back to a no-op controller when this throws, which is
@@ -96,5 +96,85 @@ describe("SidebarIcon", () => {
     toggleTo(false);
 
     expect(chevron()).toBe("M12.41 9.43994L14.97 11.9999L12.41 14.5599");
+  });
+});
+
+describe("TitleBar tabs and edge dissolve", () => {
+  it("renders open notes with scrollPadding and comfortable spacing", async () => {
+    useNotesStore.setState({
+      openNoteIds: ["note-1", "note-2"],
+      currentNoteId: "note-1",
+      items: [
+        { id: "note-1", name: "First Note" },
+        { id: "note-2", name: "Second Note" },
+      ],
+    });
+
+    await renderTitleBar(true);
+
+    const tablist = screen.getByRole("tablist", { name: /open notes/i });
+    expect(tablist).toBeInTheDocument();
+    expect(tablist.style.scrollPadding).toBe("0 28px");
+    expect(screen.getByRole("tab", { name: /first note/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /second note/i })).toBeInTheDocument();
+  });
+
+  it("translates vertical wheel deltas into horizontal scroll on tabs", async () => {
+    useNotesStore.setState({
+      openNoteIds: ["note-1", "note-2"],
+      currentNoteId: "note-1",
+      items: [
+        { id: "note-1", name: "First Note" },
+        { id: "note-2", name: "Second Note" },
+      ],
+    });
+
+    await renderTitleBar(true);
+
+    const tablist = screen.getByRole("tablist", { name: /open notes/i });
+    const scrollByMock = vi.fn();
+    tablist.scrollBy = scrollByMock;
+
+    act(() => {
+      tablist.dispatchEvent(
+        new WheelEvent("wheel", {
+          deltaX: 0,
+          deltaY: 50,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+    });
+
+    expect(scrollByMock).toHaveBeenCalledWith({ left: 50, behavior: "auto" });
+  });
+
+  it("applies mask and renders edge blur overlays when tabs overflow and scroll", async () => {
+    useNotesStore.setState({
+      openNoteIds: ["note-1", "note-2"],
+      currentNoteId: "note-1",
+      items: [
+        { id: "note-1", name: "First Note" },
+        { id: "note-2", name: "Second Note" },
+      ],
+    });
+
+    await renderTitleBar(true);
+
+    const tablist = screen.getByRole("tablist", { name: /open notes/i });
+
+    // Mock dimensions to simulate overflowing tabs in the middle of scroll
+    Object.defineProperty(tablist, "scrollWidth", { value: 600, configurable: true });
+    Object.defineProperty(tablist, "clientWidth", { value: 300, configurable: true });
+    Object.defineProperty(tablist, "scrollLeft", { value: 100, configurable: true });
+
+    act(() => {
+      fireEvent.scroll(tablist);
+    });
+
+    // Blur overlays should be rendered for both left and right edges
+    const parentContainer = tablist.parentElement;
+    const blurOverlays = parentContainer.querySelectorAll('[aria-hidden="true"]');
+    expect(blurOverlays).toHaveLength(2);
   });
 });

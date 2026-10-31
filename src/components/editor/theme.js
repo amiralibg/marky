@@ -114,7 +114,10 @@ export const markyTheme = EditorView.theme(
       // `EditorView.theme`, which outranks anything the live-preview extension
       // can declare, so a plain `.cm-content { padding-inline }` there loses.
       padding: "2rem var(--marky-editor-gutter, 2.25rem) 40vh",
-      lineHeight: "1.9",
+      // Variables for the same reason as the gutter: Live mode sets prose at
+      // the Read sheet's size and rhythm, so the two modes never reflow.
+      fontSize: "var(--marky-content-font-size, inherit)",
+      lineHeight: "var(--marky-content-line-height, 1.9)",
       // `.cm-content` is a flex item of `.cm-scroller`, so it starts at
       // `min-width: auto` — it refuses to shrink below its own min-content
       // width. Ordinary lines make that harmless, because line wrapping brings

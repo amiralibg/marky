@@ -659,8 +659,11 @@ const TreeItem = ({
           />
         ) : (
           <>
+            {/* The name wins every width contest: badges and tags shrink and
+                clip before it does (tags at 100× the rate), so a tagged note
+                never collapses to its first letter. */}
             <span
-              className={`flex-1 ${nameDensityClass} truncate`}
+              className={`flex-[1_1_auto] min-w-0 ${nameDensityClass} truncate`}
               title={item.filePath || item.name}
             >
               {item.name}
@@ -693,12 +696,12 @@ const TreeItem = ({
             {/* Tags */}
             {showInlineMetadata && item.type === "note" && noteTags.length > 0 && (
               <div
-                className={`${isSpaciousDensity ? "gap-1.5 ml-3" : "gap-1 ml-2"} flex items-center`}
+                className={`${isSpaciousDensity ? "gap-1.5 ml-3" : "gap-1 ml-2"} flex min-w-0 flex-[0_100_auto] items-center overflow-hidden`}
               >
                 {noteTags.slice(0, 2).map((tag) => (
                   <span
                     key={tag}
-                    className={`${isSpaciousDensity ? "px-1.5 py-0.5 rounded-md" : "px-1 py-0.5 rounded"} text-[10px] bg-accent/20 text-accent`}
+                    className="shrink-0 whitespace-nowrap text-[10.5px] text-text-muted"
                     title={`#${tag}`}
                   >
                     #{tag}
@@ -710,14 +713,6 @@ const TreeItem = ({
               </div>
             )}
           </>
-        )}
-
-        {/* Saved indicator — small accent dot (Paper design) */}
-        {showInlineMetadata && item.type === "note" && item.filePath && (
-          <span
-            className="ml-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent/70"
-            aria-hidden="true"
-          />
         )}
       </div>
 

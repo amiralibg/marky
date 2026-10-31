@@ -6,12 +6,18 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App.jsx";
 import NoteWindow from "./components/NoteWindow.jsx";
 import { applyPlatformAttribute } from "./utils/platform.js";
+import { installQuietScrollbars } from "./utils/quietScrollbars.js";
+import useSettingsStore, { applyReadingFont } from "./store/settingsStore.js";
 import { renderAndRevealWindow } from "./utils/windowStartup.js";
 import "./index.css";
 
 // Set before the first render so platform-specific chrome (the Linux window
 // edge) paints with the rest of the app rather than a frame later.
 const platform = applyPlatformAttribute();
+// Same reason: notes should paint in the chosen typeface on the first frame.
+// The store rehydrates from localStorage synchronously, so this is the saved value.
+applyReadingFont(useSettingsStore.getState().readingFont);
+installQuietScrollbars();
 
 // GTK packs the app menu bar inside the window, over Marky's own title bar.
 // The main window is dealt with in Rust at startup; every window created after
