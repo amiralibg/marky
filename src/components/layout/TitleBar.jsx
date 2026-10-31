@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo, useState } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import useNotesStore, { SETTINGS_TAB_ID } from "../../store/notesStore";
 import useSettingsStore, { formatKeymap } from "../../store/settingsStore";
@@ -25,6 +25,29 @@ const TitleBar = ({
   const scrollRef = useRef(null);
   const [platform, setPlatform] = useState(detectPlatform);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const syncScrollEdges = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    const left = el.scrollLeft > 2;
+    const right = maxScroll > 2 && el.scrollLeft < maxScroll - 2;
+    setCanScrollLeft(left);
+    setCanScrollRight(right);
+  }, []);
+
+  const handleTabsWheel = useCallback((e) => {
+    if (e.deltaX === 0 && e.deltaY !== 0 && scrollRef.current) {
+      e.preventDefault();
+      scrollRef.current.scrollBy({ left: e.deltaY, behavior: "auto" });
+    }
+  }, []);
 
   // getCurrentWindow throws without the Tauri runtime; fall back to a no-op
   // controller so the UI still renders (e.g. in a plain browser preview).
@@ -85,11 +108,44 @@ const TitleBar = ({
   }, [windowControls]);
 
   useEffect(() => {
+    syncScrollEdges();
+    const el = scrollRef.current;
+    if (!el) return;
+
+    el.addEventListener("scroll", syncScrollEdges, { passive: true });
+
+    let ro;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(syncScrollEdges);
+      ro.observe(el);
+    }
+    window.addEventListener("resize", syncScrollEdges);
+
+    return () => {
+      el.removeEventListener("scroll", syncScrollEdges);
+      ro?.disconnect();
+      window.removeEventListener("resize", syncScrollEdges);
+    };
+  }, [syncScrollEdges, openNotes.length, showSidebar, sidebarWidth]);
+
+  useEffect(() => {
     const activeTab = scrollRef.current?.querySelector(".active-tab");
-    if (activeTab) {
+    if (activeTab && typeof activeTab.scrollIntoView === "function") {
       activeTab.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
     }
-  }, [currentNoteId]);
+    const timer = setTimeout(syncScrollEdges, 250);
+    return () => clearTimeout(timer);
+  }, [currentNoteId, syncScrollEdges]);
+
+  const FADE_SIZE = 28;
+  const tabsMask = useMemo(() => {
+    if (!canScrollLeft && !canScrollRight) return undefined;
+    const leftStop = canScrollLeft ? `transparent 0px, black ${FADE_SIZE}px` : "black 0px";
+    const rightStop = canScrollRight
+      ? `black calc(100% - ${FADE_SIZE}px), transparent 100%`
+      : "black 100%";
+    return `linear-gradient(to right, ${leftStop}, ${rightStop})`;
+  }, [canScrollLeft, canScrollRight]);
 
   const handleMouseDown = async (e) => {
     // Only handle left mouse button
@@ -143,7 +199,7 @@ const TitleBar = ({
             with a CSS transition, and a button that unmounts when the sidebar
             hides would take the transition with it and snap instead. Keeping it
             at the same child index lets React reuse the same DOM node. */}
-        <div className={`flex items-center gap-0.5 ${showSidebar ? "ms-auto me-2" : "ms-1"}`}>
+        <div className={`flex items-center gap-0.5 ${showSidebar ? "ms-auto me-2" : "ms-1 me-2"}`}>
           {showSidebar && (
             <>
               <button
@@ -196,100 +252,142 @@ const TitleBar = ({
         </div>
       </div>
 
-      {/* Tabs — quiet pills. The open note is the one lifted onto the page's
-          own surface, the same tone as the sheet below it. */}
-      <div className="flex-1 flex items-center min-w-0 ps-1">
+      {/* Tabs — quiet pills. Dissolves with a soft blur and gradient mask
+          at the edges whenever tabs overflow and scroll. */}
+      <div className="flex-1 flex items-center min-w-0 ps-2">
         {openNotes.length > 0 && (
-          <div
-            ref={scrollRef}
-            className="flex items-center gap-0.5 overflow-x-auto no-scrollbar scroll-smooth py-1"
-            role="tablist"
-            aria-label="Open notes"
-            data-no-drag
-          >
-            {openNotes.map((note) => {
-              const isActive = note.id === currentNoteId;
-              const isSettings = note.id === SETTINGS_TAB_ID;
-              return (
-                <div
-                  key={note.id}
-                  role="tab"
-                  aria-selected={isActive}
-                  className={`
-                    group flex items-center gap-1.5 h-7 ps-3 pe-1 rounded-md cursor-pointer transition-colors min-w-24 max-w-50 shrink-0
-                    ${
-                      isActive
-                        ? "bg-bg-editor text-text-primary font-semibold shadow-[0_0_0_1px_var(--color-border)] active-tab"
-                        : "text-text-secondary hover:bg-item-hover hover:text-text-primary"
-                    }
-                  `}
-                  onClick={() => selectNote(note.id)}
-                >
-                  {isSettings && (
-                    <svg
-                      className="w-3.5 h-3.5 shrink-0 text-text-muted"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                    </svg>
-                  )}
+          <div className="relative flex items-center min-w-0 max-w-full" data-no-drag>
+            {canScrollLeft && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute left-0 top-0.5 bottom-0.5 w-7 z-10 rounded-s"
+                style={{
+                  backdropFilter: "blur(2.5px)",
+                  WebkitBackdropFilter: "blur(2.5px)",
+                  maskImage: "linear-gradient(to right, black 25%, transparent 100%)",
+                  WebkitMaskImage: "linear-gradient(to right, black 25%, transparent 100%)",
+                }}
+              />
+            )}
 
-                  <span className="text-[12.5px] truncate flex-1" title={note.name}>
-                    {note.name}
-                  </span>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (onCloseTab) {
-                        onCloseTab(note.id);
-                      } else {
-                        closeNote(note.id);
-                      }
-                    }}
-                    aria-label={`Close ${note.name}`}
+            <div
+              ref={scrollRef}
+              onScroll={syncScrollEdges}
+              onWheel={handleTabsWheel}
+              className="flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-1 min-w-0 max-w-full"
+              style={{
+                maskImage: tabsMask,
+                WebkitMaskImage: tabsMask,
+                scrollPadding: "0 28px",
+              }}
+              role="tablist"
+              aria-label="Open notes"
+              data-no-drag
+            >
+              {openNotes.map((note) => {
+                const isActive = note.id === currentNoteId;
+                const isSettings = note.id === SETTINGS_TAB_ID;
+                return (
+                  <div
+                    key={note.id}
+                    role="tab"
+                    aria-selected={isActive}
                     className={`
-                      p-0.5 rounded hover:bg-overlay-light text-text-muted hover:text-text-primary transition-colors shrink-0
-                      ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}
+                      group flex items-center gap-1.5 h-7 ps-3 pe-1.5 rounded-md cursor-pointer transition-colors min-w-24 max-w-50 shrink-0
+                      ${
+                        isActive
+                          ? "bg-bg-editor text-text-primary font-semibold shadow-[0_0_0_1px_var(--color-border)] active-tab"
+                          : "text-text-secondary hover:bg-item-hover hover:text-text-primary"
+                      }
                     `}
+                    onClick={() => selectNote(note.id)}
                   >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              );
-            })}
+                    {isSettings && (
+                      <svg
+                        className="w-3.5 h-3.5 shrink-0 text-text-muted"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                      </svg>
+                    )}
+
+                    <span className="text-[12.5px] truncate flex-1" title={note.name}>
+                      {note.name}
+                    </span>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onCloseTab) {
+                          onCloseTab(note.id);
+                        } else {
+                          closeNote(note.id);
+                        }
+                      }}
+                      aria-label={`Close ${note.name}`}
+                      className={`
+                        p-0.5 rounded hover:bg-overlay-light text-text-muted hover:text-text-primary transition-colors shrink-0
+                        ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}
+                      `}
+                    >
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {canScrollRight && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute right-0 top-0.5 bottom-0.5 w-7 z-10 rounded-e"
+                style={{
+                  backdropFilter: "blur(2.5px)",
+                  WebkitBackdropFilter: "blur(2.5px)",
+                  maskImage: "linear-gradient(to left, black 25%, transparent 100%)",
+                  WebkitMaskImage: "linear-gradient(to left, black 25%, transparent 100%)",
+                }}
+              />
+            )}
           </div>
         )}
 
         {/* Empty draggable space - takes remaining width */}
-        <div className="flex-1 h-full" />
+        <div className="flex-1 h-full min-w-4" />
       </div>
 
-      {/* The editor's controls land here (see `titlebarSlot` in uiStore). */}
+      {/* The editor's controls land here (see `titlebarSlot` in uiStore).
+          Separated from the tab strip by comfortable spacing so mode switching
+          never collides with or looks fixed into the open tabs. */}
       <div
         ref={setTitlebarSlot}
-        className="flex items-center shrink-0 pe-2 empty:pe-0"
+        className="flex items-center shrink-0 ms-4 pe-3 empty:ms-0 empty:pe-0"
         data-no-drag
       />
 
