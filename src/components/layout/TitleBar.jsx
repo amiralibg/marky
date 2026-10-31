@@ -254,7 +254,7 @@ const TitleBar = ({
 
       {/* Tabs — quiet pills. Dissolves with a soft blur and gradient mask
           at the edges whenever tabs overflow and scroll. */}
-      <div className="flex-1 flex items-center min-w-0 ps-2">
+      <div className="flex-1 flex items-center min-w-0">
         {openNotes.length > 0 && (
           <div className="relative flex items-center min-w-0 max-w-full" data-no-drag>
             {canScrollLeft && (
@@ -377,9 +377,6 @@ const TitleBar = ({
             )}
           </div>
         )}
-
-        {/* Empty draggable space - takes remaining width */}
-        <div className="flex-1 h-full min-w-4" />
       </div>
 
       {/* The editor's controls land here (see `titlebarSlot` in uiStore).
@@ -387,7 +384,7 @@ const TitleBar = ({
           never collides with or looks fixed into the open tabs. */}
       <div
         ref={setTitlebarSlot}
-        className="flex items-center shrink-0 ms-4 pe-3 empty:ms-0 empty:pe-0"
+        className="flex items-center shrink-0 ms-3 pe-3 empty:ms-0 empty:pe-0"
         data-no-drag
       />
 
