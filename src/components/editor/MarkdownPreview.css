@@ -346,22 +346,26 @@
   overflow-x: auto;
 }
 
-/* Quiet scrollbars: present when needed, invisible when not. */
-.markdown-preview pre,
-.markdown-preview .table-wrap,
-.markdown-preview .mermaid-wrapper,
-.markdown-preview .katex-display {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  transition: scrollbar-color 200ms ease;
-}
+/* Quiet scrollbars: present when needed, invisible when not. The standard
+   properties only go to engines without `::-webkit-scrollbar`; in WKWebView
+   they switch the custom bar below off and bring back the white native one. */
+@supports not selector(::-webkit-scrollbar) {
+  .markdown-preview pre,
+  .markdown-preview .table-wrap,
+  .markdown-preview .mermaid-wrapper,
+  .markdown-preview .katex-display {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 200ms ease;
+  }
 
-.markdown-preview pre:hover,
-.markdown-preview .code-block-wrapper:hover pre,
-.markdown-preview .table-wrap:hover,
-.markdown-preview .mermaid-wrapper:hover,
-.markdown-preview .katex-display:hover {
-  scrollbar-color: var(--md-line) transparent;
+  .markdown-preview pre:hover,
+  .markdown-preview .code-block-wrapper:hover pre,
+  .markdown-preview .table-wrap:hover,
+  .markdown-preview .mermaid-wrapper:hover,
+  .markdown-preview .katex-display:hover {
+    scrollbar-color: var(--md-line) transparent;
+  }
 }
 
 .markdown-preview ::-webkit-scrollbar {

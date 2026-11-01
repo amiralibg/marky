@@ -314,17 +314,22 @@
      ancestors. Pointing straight at the thumb reveals it too, so it can still
      be found and dragged.
 
-     `scrollbar-width` is what makes macOS WKWebView honour the colours instead
-     of its wide white classic track; the WebKit pseudo-elements cover older
-     WKWebView and GTK WebKit. Base layer, so `.no-scrollbar` and the editor's
-     own `scrollbar-width: none` (utilities) still win. */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-  }
+     Engines that know `::-webkit-scrollbar` (WKWebView on macOS, GTK WebKit,
+     WebView2) are styled only through the pseudo-elements below. Setting
+     `scrollbar-width` there switches the custom bar off: current WKWebView
+     then draws the native classic scrollbar, a white track with a grey thumb
+     that never hides. The standard properties are for engines without the
+     pseudo-elements (Firefox). Base layer, so `.no-scrollbar` and the
+     editor's own `scrollbar-width: none` (utilities) still win. */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: transparent transparent;
+    }
 
-  [data-scrolling] {
-    scrollbar-color: var(--color-overlay-strong) transparent;
+    [data-scrolling] {
+      scrollbar-color: var(--color-overlay-strong) transparent;
+    }
   }
 
   ::-webkit-scrollbar {

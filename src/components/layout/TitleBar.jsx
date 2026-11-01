@@ -274,7 +274,7 @@ const TitleBar = ({
               ref={scrollRef}
               onScroll={syncScrollEdges}
               onWheel={handleTabsWheel}
-              className="flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-1 min-w-0 max-w-full"
+              className="flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-1 px-1 min-w-0 max-w-full"
               style={{
                 maskImage: tabsMask,
                 WebkitMaskImage: tabsMask,

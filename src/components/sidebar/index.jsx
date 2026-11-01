@@ -143,6 +143,7 @@ const Sidebar = forwardRef(
     // multi-select case share a single dialog and a single code path.
     const [pendingDeleteItems, setPendingDeleteItems] = useState([]);
     const [pinnedOpen, setPinnedOpen] = useState(true);
+    const [looseFilesOpen, setLooseFilesOpen] = useState(true);
 
     // Multi-select in the tree: Ctrl/Cmd-click adds a row, Shift-click takes the
     // run from the anchor to the row clicked — the gestures Finder, VS Code and
@@ -1796,84 +1797,108 @@ const Sidebar = forwardRef(
 
         {/* Open files (loose / unsaved) — shown above the vault tree */}
         {!searchQuery && looseOpenFiles.length > 0 && (
-          <div className="shrink-0">
-            <div className="px-3.5 pt-3 pb-1 flex items-center">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+          // Capped so a long OPEN list scrolls on its own instead of squeezing
+          // the file tree below it down to a sliver.
+          <div className="shrink-0 flex flex-col min-h-0 max-h-[35%]">
+            <button
+              type="button"
+              onClick={() => setLooseFilesOpen((prev) => !prev)}
+              aria-expanded={looseFilesOpen}
+              className="group/open shrink-0 px-3.5 pt-3 pb-1 flex items-center gap-1.5 text-left"
+            >
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted group-hover/open:text-text-secondary transition-colors">
                 Open
               </span>
-            </div>
-            <div className="px-2 pb-1 flex flex-col gap-px">
-              {looseOpenFiles.map((file) => {
-                const isActive = file.id === currentNoteId;
-                const isDirty = !isAutoSave && dirtyNoteIds.includes(file.id);
-                const locationHint = file.filePath
-                  ? file.filePath
-                      .replace(/^\/(Users|home)\/[^/]+/, "~")
-                      .split(/[/\\]/)
-                      .slice(0, -1)
-                      .join("/")
-                  : "Unsaved";
-                return (
-                  <div
-                    key={file.id}
-                    onClick={() => selectNote(file.id)}
-                    title={file.filePath || file.name}
-                    className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] cursor-pointer transition-colors ${
-                      isActive
-                        ? "bg-accent-dim text-accent"
-                        : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
-                    }`}
-                  >
-                    {isDirty ? (
-                      <span
-                        className="w-1.5 h-1.5 shrink-0 rounded-full bg-accent"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <svg
-                        className="w-4 h-4 shrink-0"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        viewBox="0 0 24 24"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
-                        <path d="M14 3v5h5" />
-                      </svg>
-                    )}
-                    <span className="min-w-0 flex-1 truncate">{file.name}</span>
-                    {locationHint && (
-                      <span className="shrink-0 max-w-[7rem] truncate text-[10px] text-text-muted group-hover:hidden">
-                        {locationHint}
-                      </span>
-                    )}
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        closeNote(file.id);
-                      }}
-                      className="shrink-0 opacity-0 group-hover:opacity-100 text-text-muted hover:text-text-primary transition-opacity p-0.5 -m-0.5 rounded"
-                      title="Close"
-                      aria-label={`Close ${file.name}`}
+              <span className="text-[11px] tabular-nums text-text-muted">
+                {looseOpenFiles.length}
+              </span>
+              <svg
+                className={`ml-auto w-3 h-3 shrink-0 text-text-muted transition-transform ${looseFilesOpen ? "rotate-90" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </button>
+            {looseFilesOpen && (
+              <div className="min-h-0 overflow-y-auto px-2 pb-1 flex flex-col gap-px">
+                {looseOpenFiles.map((file) => {
+                  const isActive = file.id === currentNoteId;
+                  const isDirty = !isAutoSave && dirtyNoteIds.includes(file.id);
+                  const locationHint = file.filePath
+                    ? file.filePath
+                        .replace(/^\/(Users|home)\/[^/]+/, "~")
+                        .split(/[/\\]/)
+                        .slice(0, -1)
+                        .join("/")
+                    : "Unsaved";
+                  return (
+                    <div
+                      key={file.id}
+                      onClick={() => selectNote(file.id)}
+                      title={file.filePath || file.name}
+                      className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] cursor-pointer transition-colors ${
+                        isActive
+                          ? "bg-accent-dim text-accent"
+                          : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
+                      }`}
                     >
-                      <svg
-                        className="w-3.5 h-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                      {isDirty ? (
+                        <span
+                          className="w-1.5 h-1.5 shrink-0 rounded-full bg-accent"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <svg
+                          className="w-4 h-4 shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          viewBox="0 0 24 24"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                          <path d="M14 3v5h5" />
+                        </svg>
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                      {locationHint && (
+                        <span className="shrink-0 max-w-[7rem] truncate text-[10px] text-text-muted group-hover:hidden">
+                          {locationHint}
+                        </span>
+                      )}
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          closeNote(file.id);
+                        }}
+                        className="shrink-0 opacity-0 group-hover:opacity-100 text-text-muted hover:text-text-primary transition-opacity p-0.5 -m-0.5 rounded"
+                        title="Close"
+                        aria-label={`Close ${file.name}`}
                       >
-                        <path d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          viewBox="0 0 24 24"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
