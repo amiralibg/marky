@@ -194,24 +194,95 @@ jobs:
           releaseBody: ${{ needs.release-metadata.outputs.release_body }}
           releaseDraft: false
           prerelease: ${{ needs.release-metadata.outputs.prerelease }}
-          includeUpdaterJson: true
+          # Off on purpose: six jobs merging into one shared latest.json race
+          # each other (read, modify, re-upload), and the loser either 404s on
+          # the re-upload or silently drops another platform's entry. v1.9.1
+          # lost both Linux entries that way. `publish-updater` below writes
+          # the manifest once, after every build has uploaded.
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
+
+  publish-updater:
+    name: Publish updater manifest
+    needs: [release-metadata, release]
+    # Runs even when a build failed, so the platforms that did ship still get
+    # updates; verify-updater then names the ones that are missing.
+    if: always() && needs.release-metadata.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Write latest.json from the release's signed assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-metadata.outputs.tag_name }}
+          NOTES: ${{ needs.release-metadata.outputs.release_body }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          base="https://github.com/$REPO/releases/download/$TAG"
+
+          gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name' > assets.txt
+
+          # `key file` pairs, in the shape tauri-action has always produced:
+          # the bare `{os}-{arch}` key is what the updater resolves (macOS
+          # .app.tar.gz, Windows .msi, Linux AppImage); the suffixed keys
+          # name each installer format.
+          cat > map.txt <<MAP
+          darwin-aarch64 Marky_aarch64.app.tar.gz
+          darwin-aarch64-app Marky_aarch64.app.tar.gz
+          darwin-x86_64 Marky_x64.app.tar.gz
+          darwin-x86_64-app Marky_x64.app.tar.gz
+          linux-x86_64 Marky_${version}_amd64.AppImage
+          linux-x86_64-appimage Marky_${version}_amd64.AppImage
+          linux-x86_64-deb Marky_${version}_amd64.deb
+          linux-x86_64-rpm Marky-${version}-1.x86_64.rpm
+          linux-aarch64 Marky_${version}_aarch64.AppImage
+          linux-aarch64-appimage Marky_${version}_aarch64.AppImage
+          linux-aarch64-deb Marky_${version}_arm64.deb
+          linux-aarch64-rpm Marky-${version}-1.aarch64.rpm
+          windows-x86_64 Marky_${version}_x64_en-US.msi
+          windows-x86_64-msi Marky_${version}_x64_en-US.msi
+          windows-x86_64-nsis Marky_${version}_x64-setup.exe
+          windows-aarch64 Marky_${version}_arm64_en-US.msi
+          windows-aarch64-msi Marky_${version}_arm64_en-US.msi
+          windows-aarch64-nsis Marky_${version}_arm64-setup.exe
+          MAP
+
+          platforms='{}'
+          while read -r key file; do
+            [ -n "$key" ] || continue
+            # A platform whose build failed has no asset or no signature;
+            # leave it out and let verify-updater report it.
+            if ! grep -qxF "$file" assets.txt || ! grep -qxF "$file.sig" assets.txt; then
+              echo "skip $key: $file or its .sig is not on the release"
+              continue
+            fi
+            sig="$(gh release download "$TAG" --repo "$REPO" --pattern "$file.sig" --output -)"
+            platforms="$(jq -c --arg k "$key" --arg u "$base/$file" --arg s "$sig" \
+              '. + {($k): {signature: $s, url: $u}}' <<<"$platforms")"
+          done < map.txt
+
+          jq -n --arg v "$version" --arg n "$NOTES" --arg d "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
+            --argjson p "$platforms" '{version: $v, notes: $n, pub_date: $d, platforms: $p}' > latest.json
+          jq -r '.platforms | keys[]' latest.json
+
+          gh release upload "$TAG" latest.json --repo "$REPO" --clobber
 
   verify-updater:
     name: Verify updater manifest
-    needs: [release-metadata, release]
+    needs: [release-metadata, release, publish-updater]
     # Runs whatever the builds did: a red build already says *something* broke,
     # but not that the release shipped binaries the updater cannot see.
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # Each build job merges its own platform into one shared `latest.json` on
-      # the release. A job that dies after uploading its binaries but before
-      # that merge — v1.8.0's macOS arm64 job hit a GitHub API 404 on its last
-      # upload — leaves the release complete and the manifest a platform short.
-      # Nothing downstream notices: the updater looks up a key that is not
-      # there and tells those users they are up to date.
+      # A build that fails, or a manifest job that misses an asset, leaves the
+      # manifest a platform short. Nothing downstream notices: the updater
+      # looks up a key that is not there and tells those users they are up to
+      # date. (Before publish-updater existed, the builds merged into a shared
+      # latest.json and raced: v1.8.0 and v1.9.1 both lost entries that way.)
       - name: Check every platform is in latest.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -252,8 +323,8 @@ jobs:
             [ -n "$unsigned" ] && echo "  present but unsigned:$unsigned"
             [ -n "$dangling" ] && echo "  pointing at an asset that is not on the release:$dangling"
             echo
-            echo "The binaries are usually already uploaded; re-running the failed"
-            echo "build restores its entry without a new tag:"
+            echo "Re-run the failed jobs; publish-updater rewrites the manifest"
+            echo "from whatever is on the release, without a new tag:"
             echo "  gh run rerun $RUN_ID --failed"
             exit 1
           fi
