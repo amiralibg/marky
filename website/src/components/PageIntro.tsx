@@ -27,7 +27,7 @@ export default function PageIntro({ kicker, title, lede, aside }: Props) {
         <h1 className="display mt-4 max-w-[16ch] text-[clamp(40px,8vw,72px)]">{title}</h1>
       </div>
       <div className="max-w-[28rem] md:pb-2">
-        <p className="font-display text-[18px] leading-[1.5] text-ink-soft">{lede}</p>
+        <p className="lede">{lede}</p>
         {aside}
       </div>
     </div>

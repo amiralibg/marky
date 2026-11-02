@@ -50,12 +50,14 @@ export default function Home() {
   return (
     <main>
       <Hero release={release} platform={platform} loading={loading} error={error} />
-      <Features spotlight={spotlight} />
-      <Gallery />
-      <GraphSection active={spotlight} onSelect={selectFeature} />
-      <McpSection />
-      <Download release={release} platform={platform} />
-      <Faq />
+      <div className="desk-sheet">
+        <Features spotlight={spotlight} />
+        <Gallery />
+        <GraphSection active={spotlight} onSelect={selectFeature} />
+        <McpSection />
+        <Download release={release} platform={platform} />
+        <Faq />
+      </div>
     </main>
   );
 }

@@ -152,13 +152,13 @@ export default function CommandPalette({ open, onClose, onToggleTheme, theme }: 
       {/* Not a <button>: a full-screen button lands in the tab order and is
           announced ahead of the dialog. Escape and the close handler cover
           keyboard users. */}
-      <div className="absolute inset-0 bg-[rgb(28_27_24/0.38)]" onClick={onClose} aria-hidden />
+      <div className="absolute inset-0 bg-dusk/40" onClick={onClose} aria-hidden />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="relative flex max-h-full w-full max-w-[560px] flex-col overflow-hidden rounded-md border border-line bg-surface"
+        className="relative flex max-h-full w-full max-w-[560px] flex-col overflow-hidden rounded-md border border-line bg-raised shadow-[var(--float)]"
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             onClose();

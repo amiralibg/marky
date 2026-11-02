@@ -109,7 +109,7 @@ function PostCard({
           aria-label={post.voted ? `Remove your vote from ${post.title}` : `Vote for ${post.title}`}
           className={`flex h-fit w-11 shrink-0 flex-col items-center gap-0.5 rounded-sm border py-1.5 transition-colors duration-200 ${
             post.voted
-              ? "border-ink bg-ink text-canvas"
+              ? "border-line-strong bg-raised text-ink"
               : "border-line bg-canvas text-ink-soft hover:border-ink/30 hover:text-ink"
           }`}
         >
@@ -212,7 +212,7 @@ function ComposeForm({ onPosted }: { onPosted: () => void }) {
             aria-pressed={type === option}
             className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-[5px] py-1.5 text-[13px] font-medium transition-colors duration-200 ${
               type === option
-                ? "bg-surface text-ink shadow-[0_1px_2px_rgb(28_27_24/0.08)]"
+                ? "bg-surface text-ink border border-line"
                 : "text-ink-faint hover:text-ink"
             }`}
           >
@@ -385,7 +385,7 @@ export default function Feedback() {
             <button
               type="button"
               onClick={openCompose}
-              className="btn-accent inline-flex min-h-10 items-center gap-1.5 rounded-pill px-4 py-1.5 text-[14px] font-medium"
+              className="btn-accent inline-flex min-h-10 items-center gap-1.5 rounded-sm px-4 py-1.5 text-[14px] font-medium"
             >
               <Plus size={15} strokeWidth={2.2} aria-hidden />
               New post
@@ -505,7 +505,7 @@ export default function Feedback() {
                     <button
                       type="button"
                       onClick={openCompose}
-                      className="btn-accent inline-flex min-h-10 items-center gap-1.5 rounded-pill px-4 py-1.5 text-[13px] font-medium"
+                      className="btn-accent inline-flex min-h-10 items-center gap-1.5 rounded-sm px-4 py-1.5 text-[13px] font-medium"
                     >
                       <Plus size={14} strokeWidth={2.2} aria-hidden />
                       Post the first idea
@@ -562,7 +562,7 @@ function Chip({
       onClick={onClick}
       aria-pressed={active}
       className={`shrink-0 rounded-pill px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
-        active ? "bg-ink text-canvas" : "text-ink-soft hover:bg-ink/[0.05] hover:text-ink"
+        active ? "bg-raised text-ink ring-1 ring-line" : "text-ink-soft hover:bg-ink/[0.05] hover:text-ink"
       }`}
     >
       {children}
@@ -593,7 +593,7 @@ function Segmented<T extends string>({
             aria-pressed={value === option.id}
             onClick={() => onChange(option.id)}
             className={`rounded-pill px-3 py-1 text-[12px] font-medium transition-colors duration-200 ${
-              value === option.id ? "bg-ink text-canvas" : "text-ink-soft hover:text-ink"
+              value === option.id ? "bg-raised text-ink ring-1 ring-line" : "text-ink-soft hover:text-ink"
             }`}
           >
             {option.label}

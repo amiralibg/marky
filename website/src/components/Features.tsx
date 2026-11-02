@@ -64,7 +64,8 @@ function StickyNote({ feature, index, lit, draggable, offset, onDrag, onLift, z 
       id={`feature-${feature.id}`}
       data-dragging={dragging || undefined}
       className={`note ${STOCK[feature.tone]} p-6 pb-9 ${
-        feature.wide ? "xl:col-span-2" : ""
+        // Nine notes leave one dead cell in two columns, so the last runs wide there.
+        index === FEATURES.length - 1 ? "md:col-span-2 xl:col-span-1" : ""
       } ${lit ? "outline outline-2 outline-offset-4 outline-ink" : ""}`}
       style={
         {
@@ -90,10 +91,10 @@ function StickyNote({ feature, index, lit, draggable, offset, onDrag, onLift, z 
       </div>
 
       <p className="kicker">{feature.kicker}</p>
-      <h3 className="mt-3 font-display text-[26px] leading-[1.1] tracking-[-0.03em] md:text-[30px]">
+      <h3 className="mt-3 text-[23px] font-semibold leading-[1.15] tracking-[-0.02em]">
         {feature.title}
       </h3>
-      <p className="mt-3 max-w-[34rem] text-[15.5px] leading-[1.55] text-note-ink/75">
+      <p className="mt-3 max-w-[34rem] text-[15.5px] leading-[1.55] text-note-ink/80">
         {feature.body}
       </p>
     </article>
@@ -127,21 +128,19 @@ export default function Features({ spotlight }: Props) {
   };
 
   return (
-    <section id="features" className="mx-auto max-w-[1440px] px-6 py-20 md:px-10 md:py-28">
+    <section id="features" className="section-x scroll-mt-16 py-20 md:py-28">
       <div
         ref={headingRef}
-        className="reveal flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
+        className="reveal grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:items-end lg:gap-16"
       >
-        <h2 className="display max-w-[16ch] text-[clamp(36px,8vw,72px)]">
-          Built on files you already own.
-        </h2>
-        <div className="max-w-[28rem]">
-          <p className="font-display text-[18px] leading-[1.5] text-ink-soft">
+        <h2 className="display text-[clamp(36px,6.5vw,72px)]">Built on files you already own.</h2>
+        <div className="max-w-[34rem]">
+          <p className="lede">
             Nothing in here is a database row. You open a folder, you write Markdown, and Marky does
             the linking, searching and scheduling on top of it.
           </p>
           {draggable && (
-            <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-faint">
+            <p className="mt-3 text-[13px] text-ink-faint">
               {nudged ? (
                 <button
                   type="button"
@@ -158,7 +157,7 @@ export default function Features({ spotlight }: Props) {
         </div>
       </div>
 
-      <div className="mt-10 grid gap-5 md:mt-14 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-12 grid gap-6 md:mt-16 md:grid-cols-2 xl:grid-cols-3">
         {FEATURES.map((feature, index) => (
           <StickyNote
             key={feature.id}

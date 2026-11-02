@@ -120,7 +120,7 @@ export default function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`sheet-pop relative flex max-h-[92vh] w-full flex-col overflow-y-auto overscroll-contain rounded-t-md border border-b-0 border-line bg-surface shadow-[0_-12px_40px_-12px_rgb(28_27_24/0.35)] sm:max-h-[calc(100vh-3rem)] sm:rounded-md sm:border-b sm:shadow-[0_24px_60px_-24px_rgb(28_27_24/0.45)] ${
+        className={`sheet-pop relative flex max-h-[92vh] w-full flex-col overflow-y-auto overscroll-contain rounded-t-md border border-b-0 border-line bg-surface shadow-[var(--float)] sm:max-h-[calc(100vh-3rem)] sm:rounded-md sm:border-b  ${
           size === "md" ? "sm:max-w-[34rem]" : "sm:max-w-[26rem]"
         }`}
       >
@@ -133,14 +133,14 @@ export default function Sheet({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-3 top-3 hidden h-8 w-8 items-center justify-center rounded-pill text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink sm:inline-flex"
+          className="absolute right-3 top-3 hidden h-8 w-8 items-center justify-center rounded-sm text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink sm:inline-flex"
         >
           <X size={16} aria-hidden />
         </button>
 
         {/* pb keeps the last control clear of a phone's home indicator. */}
         <div className="px-6 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-5 sm:px-7 sm:pb-7 sm:pt-6">
-          <h2 className="font-display text-[26px] leading-[1.15] tracking-[-0.02em]">{title}</h2>
+          <h2 className="text-[22px] font-semibold leading-[1.2] tracking-[-0.02em]">{title}</h2>
           {description && (
             <p className="mt-2 text-[15px] leading-[1.6] text-ink-soft">{description}</p>
           )}

@@ -1,3 +1,25 @@
+import {
+  BookOpen,
+  CalendarDays,
+  ChevronDown,
+  Code,
+  FilePlus2,
+  FileText,
+  Folder,
+  GitFork,
+  Home,
+  Link2,
+  ListTree,
+  Moon,
+  MoreHorizontal,
+  PanelLeft,
+  Pencil,
+  Plus,
+  Search,
+  Settings,
+  Sun,
+  X,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 type NoteId = string;
@@ -74,84 +96,23 @@ Parked in [[Projects]] until there is time.
 
 type Mode = "source" | "live" | "read";
 
-function FileIcon({ active }: { active?: boolean }) {
-  return (
-    <svg
-      className={`size-3.5 shrink-0 ${active ? "text-accent-text" : "text-[var(--app-text-3)]"}`}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-      />
-    </svg>
-  );
-}
+const EDGE = "border-[var(--app-border)]";
 
-/** Only the paths this mockup actually draws, kept inline to avoid a dependency. */
-const ICON = {
-  folder: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z",
-  chevronDown: "m6 9 6 6 6-6",
-  chevronRight: "m9 6 6 6-6 6",
-  search: "M11 4a7 7 0 100 14 7 7 0 000-14zm9 16-3.5-3.5",
-  home: "M4 10.5 12 4l8 6.5V19a1 1 0 01-1 1h-4v-6H9v6H5a1 1 0 01-1-1z",
-  // Three nodes and their edges, which reads at 14px where a dense glyph does not.
-  graph: [
-    "M6.5 7.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z",
-    "M17.5 7.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z",
-    "M12 21.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z",
-    "M9 5h6M7.6 7.2l3 9.6M16.4 7.2l-3 9.6",
-  ],
-  calendar: "M4 6a1 1 0 011-1h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1zM8 3v4m8-4v4M4 10h16",
-  plus: "M12 5v14m7-7H5",
-  sun: "M12 7a5 5 0 100 10 5 5 0 000-10zM12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
-  template: "M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1zM4 9h16M9 9v11",
-  // Copied verbatim from the app's own Settings icon, so the mockup matches.
-  settings: [
-    "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
-    "M15 12a3 3 0 11-6 0 3 3 0 016 0z",
-  ],
-  link: "M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7",
-} as const;
+/** The toolbar's icon button, at the size the app uses. */
+const ICON_BTN =
+  "inline-flex size-7 shrink-0 items-center justify-center rounded-sm text-[var(--app-text-2)] transition-colors duration-150 hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]";
 
-function Glyph({ d, className }: { d: string | readonly string[]; className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
-      aria-hidden
-    >
-      {(Array.isArray(d) ? d : [d]).map((path) => (
-        <path key={path} d={path} />
-      ))}
-    </svg>
-  );
-}
+const VIEW_ICON = { source: Code, live: Pencil, read: BookOpen } as const;
 
-/** The accent-tinted tag pills the real file tree shows beside a note. */
-function TagChips({ tags }: { tags?: string[] }) {
+export type ReadingFont = "sans" | "serif" | "mixed";
+
+/** The muted tags the real file tree shows beside a note. */
+function TagLabel({ tags }: { tags?: string[] }) {
   if (!tags?.length) return null;
   return (
-    <>
-      {tags.map((tag) => (
-        <span
-          key={tag}
-          className="shrink-0 rounded-sm bg-accent-dim px-1 py-px font-mono text-[9.5px] leading-4 text-accent-text"
-        >
-          #{tag}
-        </span>
-      ))}
-    </>
+    <span className="min-w-0 truncate font-mono text-[9.5px] text-[var(--app-text-3)]">
+      #{tags[0]}
+    </span>
   );
 }
 
@@ -262,7 +223,7 @@ function wikiInline(
         type="button"
         disabled={!interactive || !target}
         onClick={() => target && onOpen(target.id)}
-        className={variant === "live" ? "marky-live-wiki" : "wikilink"}
+        className="marky-link"
       >
         {label}
       </button>
@@ -291,27 +252,17 @@ function LiveDoc({
 }) {
   const blocks = parseBlocks(note.source);
   return (
-    <div className="marky-live">
+    <div className="marky-doc marky-live">
       {blocks.map((block, index) => {
         if (block.type === "blank") {
-          return (
-            <div
-              key={index}
-              className="marky-live-line"
-              style={{ height: `${block.count * 1.6}em` }}
-            />
-          );
+          return <div key={index} className="marky-blank" />;
         }
         if (block.type === "heading") {
           const Tag = block.level === 1 ? "h1" : "h2";
           return (
-            <Tag
-              key={index}
-              tabIndex={0}
-              className={`marky-live-h marky-live-h${block.level === 1 ? "1" : "2"}`}
-            >
+            <Tag key={index}>
               <span className="marky-live-hash" aria-hidden>
-                {block.hashes}{" "}
+                {block.hashes}
               </span>
               {block.text}
             </Tag>
@@ -319,30 +270,30 @@ function LiveDoc({
         }
         if (block.type === "ul") {
           return (
-            <div key={index}>
+            <ul key={index}>
               {block.items.map((item) => (
-                <div key={item.raw} className="marky-live-line">
-                  -{" "}
+                <li
+                  key={item.raw}
+                  className={item.task ? `task${item.checked ? " done" : ""}` : undefined}
+                >
+                  <span className="marky-live-dash" aria-hidden>
+                    -
+                  </span>
                   {item.task ? (
                     <input
                       type="checkbox"
-                      className="marky-live-task"
                       checked={item.checked}
                       aria-label={item.checked ? "Completed task" : "Task"}
                       onChange={() => onToggleTask(item.raw)}
                     />
                   ) : null}
                   {wikiInline(item.text, notes, onOpen, true, "live")}
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           );
         }
-        return (
-          <div key={index} className="marky-live-line whitespace-pre-wrap">
-            {wikiInline(block.text, notes, onOpen, true, "live")}
-          </div>
-        );
+        return <p key={index}>{wikiInline(block.text, notes, onOpen, true, "live")}</p>;
       })}
     </div>
   );
@@ -359,16 +310,10 @@ function ReadDoc({
 }) {
   const blocks = parseBlocks(note.source);
   return (
-    <div className="marky-read">
+    <div className="marky-doc marky-read">
       {blocks.map((block, index) => {
         if (block.type === "blank") {
-          return (
-            <div
-              key={index}
-              className="marky-read-blank"
-              style={{ height: `${block.count * 1.7}em` }}
-            />
-          );
+          return <div key={index} className="marky-blank" />;
         }
         if (block.type === "heading") {
           const Tag = block.level === 1 ? "h1" : "h2";
@@ -403,12 +348,53 @@ function ReadDoc({
   );
 }
 
-export default function AppWindow() {
+function TreeRow({
+  note,
+  current,
+  depth,
+  onOpen,
+}: {
+  note: Note;
+  current: boolean;
+  depth: number;
+  onOpen: (id: NoteId) => void;
+}) {
+  const links = linkCount(note.source);
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(note.id)}
+      style={{ paddingInlineStart: `${8 + depth * 12}px` }}
+      className={`flex min-h-7 w-full items-center gap-1.5 rounded-sm pr-2 text-left text-[12.5px] transition-colors duration-150 ${
+        current
+          ? "bg-[var(--app-raised)] font-medium text-[var(--app-text)]"
+          : "text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
+      }`}
+    >
+      <FileText size={13} strokeWidth={1.75} className="shrink-0 text-[var(--app-text-3)]" />
+      <span className="min-w-0 truncate">{note.title}</span>
+      <span className="ml-auto flex min-w-0 items-center gap-1.5">
+        {links > 0 && (
+          <span className="flex shrink-0 items-center gap-0.5 font-mono text-[9.5px] text-[var(--app-text-3)]">
+            <Link2 size={10} strokeWidth={2} aria-hidden />
+            {links}
+          </span>
+        )}
+        <TagLabel tags={note.tags} />
+      </span>
+    </button>
+  );
+}
+
+export default function AppWindow({ readingFont = "sans" }: { readingFont?: ReadingFont }) {
   const [notes, setNotes] = useState<Note[]>(STARTER);
   const [currentId, setCurrentId] = useState<NoteId>("daily");
   const [openIds, setOpenIds] = useState<NoteId[]>(["daily"]);
   const [mode, setMode] = useState<Mode>("live");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // On a phone the sidebar would open over the note it is there to show off.
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => typeof window === "undefined" || window.matchMedia("(min-width: 768px)").matches
+  );
   const [query, setQuery] = useState("");
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [scratchCount, setScratchCount] = useState(1);
@@ -420,7 +406,6 @@ export default function AppWindow() {
     return {
       words: (body.match(/\S+/g) ?? []).length,
       characters: body.length,
-      paragraphs: body.split(/\n\s*\n/).filter((block) => block.trim()).length,
     };
   }, [note.source]);
   const q = query.trim().toLowerCase();
@@ -484,97 +469,37 @@ export default function AppWindow() {
   };
 
   return (
-    // flex column + a flex-1 body: the hero grid stretches this card to the
-    // height of the copy beside it, and without this the body kept its content
-    // height and left a bare strip of --app-editor showing at the bottom.
-    <div className="marky-app relative flex h-full flex-col overflow-hidden rounded-md border border-[var(--app-border)] bg-[var(--app-editor)]">
-      <div className="relative flex h-8 shrink-0 border-b border-[var(--app-border)] bg-[var(--app-titlebar)]">
-        <div className="pointer-events-none absolute left-3 top-1/2 z-10 flex -translate-y-1/2 gap-1.5">
-          <span className="size-2.5 rounded-pill bg-[#ff5f57]" />
-          <span className="size-2.5 rounded-pill bg-[#febc2e]" />
-          <span className="size-2.5 rounded-pill bg-[#28c840]" />
-        </div>
+    <div
+      data-reading-font={readingFont}
+      className="marky-app relative flex h-[min(680px,78vh)] min-h-[440px] flex-col overflow-hidden rounded-md border border-[var(--app-border-strong)] bg-[var(--app-sidebar)]"
+    >
+      {/* One bar: the sidebar's tools, the tabs, the view switch and the menu. */}
+      <div className="flex h-10 shrink-0 items-center">
         <div
-          className={`flex shrink-0 items-center border-r border-[var(--app-border)] ${
-            sidebarOpen ? "w-[200px] pl-[72px] pr-2" : "pl-[72px] pr-2"
-          }`}
+          className={`flex shrink-0 items-center gap-0.5 pl-3 pr-2 ${sidebarOpen ? "md:w-[232px]" : ""}`}
         >
-          {sidebarOpen ? (
-            <>
-              <span className="text-[13px] font-semibold tracking-tight text-[var(--app-text)]">
-                Marky
-              </span>
-              <div className="ml-auto flex">
-                <button
-                  type="button"
-                  onClick={addNote}
-                  className="rounded-sm p-1 text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
-                  title="New note"
-                >
-                  <svg
-                    className="size-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSidebarOpen((open) => !open)}
-                  className="rounded-sm p-1 text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
-                  title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
-                >
-                  <svg
-                    className="size-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 6h16M4 12h16M4 18h16"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="rounded-sm p-1 text-[var(--app-text-2)] hover:bg-[var(--app-hover)]"
-              title="Show sidebar"
-            >
-              <svg
-                className="size-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              </svg>
+          <span className="pointer-events-none mr-auto hidden gap-2 pr-3 sm:flex" aria-hidden>
+            <span className="size-3 rounded-pill bg-[#ff5f57]" />
+            <span className="size-3 rounded-pill bg-[#febc2e]" />
+            <span className="size-3 rounded-pill bg-[#28c840]" />
+          </span>
+          {sidebarOpen && (
+            <button type="button" onClick={addNote} className={ICON_BTN} aria-label="New note">
+              <Plus size={14} strokeWidth={1.75} aria-hidden />
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((open) => !open)}
+            className={ICON_BTN}
+            aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+            aria-pressed={sidebarOpen}
+          >
+            <PanelLeft size={14} strokeWidth={1.75} aria-hidden />
+          </button>
         </div>
 
-        <div className="flex min-w-0 flex-1 overflow-x-auto">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pl-1 [scrollbar-width:none]">
           {openIds.map((id) => {
             const tab = notes.find((item) => item.id === id);
             if (!tab) return null;
@@ -582,48 +507,79 @@ export default function AppWindow() {
             return (
               <div
                 key={id}
-                className={`group flex h-8 min-w-[7.5rem] max-w-[12.5rem] shrink-0 items-center gap-2 border-r border-[var(--app-border)] px-3 ${
+                className={`group flex h-7 max-w-[11rem] shrink-0 items-center gap-1 rounded-sm border pl-2.5 pr-1 text-[12px] transition-colors duration-150 ${
                   active
-                    ? "bg-[var(--app-editor)] text-accent-text"
-                    : "text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
+                    ? "border-[var(--app-border)] bg-[var(--app-raised)] font-semibold text-[var(--app-text)]"
+                    : "border-transparent text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
                 }`}
               >
                 <button
                   type="button"
                   onClick={() => openNote(id)}
-                  className="flex min-w-0 flex-1 items-center gap-2"
+                  className="min-w-0 truncate"
+                  aria-current={active ? "page" : undefined}
                 >
-                  <FileIcon active={active} />
-                  <span className="truncate text-[12px] font-medium">{tab.name}</span>
+                  {tab.title}
                 </button>
                 <button
                   type="button"
                   onClick={() => closeTab(id)}
-                  className={`rounded-sm p-0.5 hover:bg-[var(--app-hover)] ${
+                  className={`inline-flex size-5 shrink-0 items-center justify-center rounded-sm hover:bg-[var(--app-hover)] focus-visible:opacity-100 ${
                     active ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                   }`}
-                  aria-label={`Close ${tab.name}`}
+                  aria-label={`Close ${tab.title}`}
                 >
-                  <svg className="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18 18 6M6 6l12 12"
-                    />
-                  </svg>
+                  <X size={11} strokeWidth={2} aria-hidden />
                 </button>
               </div>
             );
           })}
         </div>
+
+        <div className="flex shrink-0 items-center gap-1 pl-2 pr-2">
+          <div
+            className="flex items-center gap-0.5 rounded-sm bg-[var(--app-hover)] p-0.5"
+            role="group"
+            aria-label="Editor view"
+          >
+            {(["source", "live", "read"] as const).map((id) => {
+              const Icon = VIEW_ICON[id];
+              const selected = mode === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setMode(id)}
+                  aria-pressed={selected}
+                  aria-label={id}
+                  className={`inline-flex h-6 items-center gap-1.5 rounded-[5px] border px-2 text-[11.5px] capitalize transition-colors duration-150 ${
+                    selected
+                      ? "border-[var(--app-border)] bg-[var(--app-raised)] font-semibold text-[var(--app-text)]"
+                      : "border-transparent text-[var(--app-text-2)] hover:text-[var(--app-text)]"
+                  }`}
+                >
+                  <Icon
+                    size={12}
+                    strokeWidth={1.75}
+                    className={selected ? "text-accent-text" : undefined}
+                    aria-hidden
+                  />
+                  <span className="hidden lg:inline">{id}</span>
+                </button>
+              );
+            })}
+          </div>
+          <span className={`${ICON_BTN} hidden sm:inline-flex`} aria-hidden>
+            <MoreHorizontal size={14} strokeWidth={1.75} />
+          </span>
+        </div>
       </div>
 
-      <div className="relative flex min-h-[380px] flex-1 md:min-h-[460px]">
+      <div className="relative flex min-h-0 flex-1">
         {sidebarOpen && (
           <button
             type="button"
-            className="absolute inset-0 z-10 bg-[rgb(28_27_24/0.28)] md:hidden"
+            className="absolute inset-0 z-10 bg-dusk/30 md:hidden"
             aria-label="Close sidebar"
             onClick={() => setSidebarOpen(false)}
           />
@@ -631,225 +587,139 @@ export default function AppWindow() {
         <aside
           className={`${
             sidebarOpen ? "flex" : "hidden"
-          } absolute inset-y-0 left-0 z-20 w-[200px] shrink-0 flex-col border-r border-[var(--app-border)] bg-[var(--app-sidebar)] md:static`}
+          } absolute inset-y-0 left-0 z-20 w-[232px] shrink-0 flex-col bg-[var(--app-sidebar)] md:static`}
         >
-          <div className="flex items-center gap-2 px-2.5 py-2.5">
-            <Glyph d={ICON.folder} className="size-4 shrink-0 text-[var(--app-text-2)]" />
+          <div className="flex items-center gap-2 px-3 pb-2 pt-1">
+            <span
+              className={`grid size-7 shrink-0 place-items-center rounded-sm border ${EDGE} text-[var(--app-text-2)]`}
+            >
+              <Folder size={13} strokeWidth={1.75} aria-hidden />
+            </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[12px] font-semibold text-[var(--app-text)]">
+              <span className="block truncate text-[12px] font-semibold leading-4 text-[var(--app-text)]">
                 {VAULT_NAME}
               </span>
-              <span className="block truncate font-mono text-[10px] text-[var(--app-text-3)]">
+              <span className="block truncate font-mono text-[9.5px] leading-3.5 text-[var(--app-text-2)]">
                 {VAULT_PATH}
               </span>
             </span>
-            <Glyph d={ICON.chevronDown} className="size-3.5 shrink-0 text-[var(--app-text-3)]" />
+            <ChevronDown size={13} className="shrink-0 text-[var(--app-text-3)]" aria-hidden />
           </div>
 
-          <div className="px-2">
+          <div className="px-2.5">
             <label className="sr-only" htmlFor="vault-search">
               Search notes
             </label>
             <div className="relative">
-              <Glyph
-                d={ICON.search}
-                className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-[var(--app-text-3)]"
+              <Search
+                size={12}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--app-text-3)]"
+                aria-hidden
               />
               <input
                 id="vault-search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search"
-                className="w-full rounded-sm border border-[var(--app-border)] bg-[var(--app-editor)] py-1.5 pl-7 pr-8 text-[12px] text-[var(--app-text)] outline-none placeholder:text-[var(--app-text-3)]"
+                className="w-full rounded-sm bg-[var(--app-raised)] py-1.5 pl-7 pr-10 text-[16px] text-[var(--app-text)] outline-none placeholder:text-[var(--app-text-2)] focus:ring-1 focus:ring-[var(--app-border-strong)] md:text-[12px]"
               />
-              <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[10px] text-[var(--app-text-3)]">
-                ⌘K
-              </kbd>
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[9.5px] text-[var(--app-text-3)]">
+                Filter
+              </span>
             </div>
           </div>
 
-          <nav className="mt-1.5 px-1.5" aria-label="Workspace">
+          <div className="mt-2 px-2.5" aria-hidden>
             {[
-              { label: "Home", icon: ICON.home },
-              { label: "Graph", icon: ICON.graph },
-              { label: "Scheduled", icon: ICON.calendar },
-            ].map((row) => (
+              { label: "Home", Icon: Home },
+              { label: "Graph", Icon: GitFork },
+            ].map(({ label, Icon }) => (
               <span
-                key={row.label}
-                className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-[var(--app-text-2)]"
+                key={label}
+                className="flex min-h-7 items-center gap-2 px-2 text-[12.5px] text-[var(--app-text-2)]"
               >
-                <Glyph d={row.icon} className="size-3.5 shrink-0 text-[var(--app-text-3)]" />
-                {row.label}
+                <Icon size={13} strokeWidth={1.75} className="text-[var(--app-text-3)]" />
+                {label}
               </span>
             ))}
-          </nav>
+          </div>
 
-          <div className="mt-2 flex items-center justify-between px-3 pb-1">
-            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--app-text-3)]">
+          <div className="mt-3 flex items-center justify-between px-4 pb-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--app-text-2)]">
               Files
             </p>
             <button
               type="button"
               onClick={addNote}
-              className="rounded-sm p-0.5 text-[var(--app-text-3)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
-              title="New note"
+              className="inline-flex size-5 items-center justify-center rounded-sm text-[var(--app-text-3)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
+              aria-label="Add a note"
             >
-              <Glyph d={ICON.plus} className="size-3.5" />
+              <FilePlus2 size={12} strokeWidth={1.75} aria-hidden />
             </button>
           </div>
-          <ul className="flex-1 overflow-auto px-1.5 pb-3">
+          <div className="min-h-0 flex-1 overflow-auto px-2.5 pb-2 [scrollbar-width:none]">
             {roots.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => openNote(item.id)}
-                  className={`flex w-full items-center gap-1.5 rounded-sm px-2 py-1.5 text-left text-[12.5px] ${
-                    item.id === currentId
-                      ? "bg-[var(--app-hover)] font-medium text-[var(--app-text)]"
-                      : "text-[var(--app-text-2)] hover:bg-[var(--app-hover)]"
-                  }`}
-                >
-                  <FileIcon active={item.id === currentId} />
-                  <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                  {linkCount(item.source) > 0 && (
-                    <span className="flex shrink-0 items-center gap-0.5 font-mono text-[9.5px] text-[var(--app-text-3)]">
-                      <Glyph d={ICON.link} className="size-2.5" />
-                      {linkCount(item.source)}
-                    </span>
-                  )}
-                  <TagChips tags={item.tags} />
-                </button>
-              </li>
+              <TreeRow
+                key={item.id}
+                note={item}
+                current={item.id === currentId}
+                depth={0}
+                onOpen={openNote}
+              />
             ))}
-            <li>
-              <button
-                type="button"
-                onClick={() => setProjectsOpen((open) => !open)}
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] text-[var(--app-text-2)] hover:bg-[var(--app-hover)]"
-              >
-                <svg
-                  className="size-3.5 text-[var(--app-text-3)]"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d={
-                      projectsOpen
-                        ? "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                        : "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                    }
-                  />
-                </svg>
-                Projects
-              </button>
-              {projectsOpen &&
-                nested.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => openNote(item.id)}
-                    className={`flex w-full items-center gap-2 rounded-sm py-1.5 pl-7 pr-2 text-left text-[13px] ${
-                      item.id === currentId
-                        ? "bg-[var(--app-hover)] font-medium text-[var(--app-text)]"
-                        : "text-[var(--app-text-2)] hover:bg-[var(--app-hover)]"
-                    }`}
-                  >
-                    <FileIcon active={item.id === currentId} />
-                    <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                    <TagChips tags={item.tags} />
-                  </button>
-                ))}
-            </li>
-          </ul>
+            <button
+              type="button"
+              onClick={() => setProjectsOpen((open) => !open)}
+              aria-expanded={projectsOpen}
+              className="flex min-h-7 w-full items-center gap-1.5 rounded-sm px-2 text-left text-[12.5px] text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
+            >
+              <Folder
+                size={13}
+                strokeWidth={1.75}
+                className="shrink-0 text-[var(--app-text-3)]"
+                aria-hidden
+              />
+              Projects
+            </button>
+            {projectsOpen &&
+              nested.map((item) => (
+                <TreeRow
+                  key={item.id}
+                  note={item}
+                  current={item.id === currentId}
+                  depth={1}
+                  onOpen={openNote}
+                />
+              ))}
+          </div>
 
-          {/* The real sidebar pins a save-state line and three shortcuts here. */}
-          <div className="mt-auto border-t border-[var(--app-border)] px-2 py-1.5">
-            <div className="flex items-center gap-1.5 px-1 py-1">
-              <span className="size-1.5 shrink-0 rounded-pill bg-[#3fb950]" />
-              <span className="min-w-0 flex-1 truncate text-[10.5px] text-[var(--app-text-3)]">
-                All changes saved locally
-              </span>
-              <span className="shrink-0 font-mono text-[9.5px] text-[var(--app-text-3)]">
-                just now
-              </span>
-            </div>
-            {[
-              { label: "Light mode", icon: ICON.sun },
-              { label: "Templates", icon: ICON.template },
-              { label: "Settings", icon: ICON.settings },
-            ].map((row) => (
-              <span
-                key={row.label}
-                className="flex items-center gap-2 rounded-sm px-1 py-1 text-[11.5px] text-[var(--app-text-2)]"
-              >
-                <Glyph d={row.icon} className="size-3.5 shrink-0 text-[var(--app-text-3)]" />
-                {row.label}
-              </span>
-            ))}
+          {/* Save state beside one row of icons, as the app has it. */}
+          <div className="flex items-center gap-1.5 px-4 py-2.5" aria-hidden>
+            <span className="size-1.5 shrink-0 rounded-pill bg-[#3fb950]" />
+            <span className="mr-auto text-[10.5px] text-[var(--app-text-2)]">Saved</span>
+            <span className="flex items-center gap-2.5 text-[var(--app-text-3)]">
+              <ListTree size={12} strokeWidth={1.75} />
+              <CalendarDays size={12} strokeWidth={1.75} />
+              <Moon size={12} strokeWidth={1.75} className="dark-hide" />
+              <Sun size={12} strokeWidth={1.75} className="light-hide" />
+              <Settings size={12} strokeWidth={1.75} />
+            </span>
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col bg-[var(--app-editor)]">
-          <div className="flex items-center justify-between gap-2 border-b border-[var(--app-border)] px-3 py-2">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen((open) => !open)}
-              className="rounded-sm p-1.5 text-[var(--app-text-2)] hover:bg-[var(--app-hover)]"
-              aria-label="Toggle notes"
-            >
-              <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              </svg>
-            </button>
-            <p className="min-w-0 flex-1 truncate text-[11.5px] text-[var(--app-text-3)]">
-              {VAULT_NAME}
-              <span className="px-1">/</span>
-              {note.folder && (
-                <>
-                  {note.folder}
-                  <span className="px-1">/</span>
-                </>
-              )}
-              <span className="text-[var(--app-text-2)]">{note.title}</span>
-            </p>
-            <div
-              className="ml-auto flex items-center gap-0.5 rounded-sm bg-[var(--app-hover)] p-0.5"
-              role="group"
-              aria-label="Editor view"
-            >
-              {(["source", "live", "read"] as const).map((id) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setMode(id)}
-                  aria-pressed={mode === id}
-                  className={`rounded-sm px-2.5 py-1 text-[12px] capitalize sm:px-[11px] sm:text-[13px] ${
-                    mode === id
-                      ? "bg-accent-dim font-semibold text-accent-text"
-                      : "text-[var(--app-text-2)] hover:text-[var(--app-text)]"
-                  }`}
-                >
-                  {id}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-auto">
+        {/* The sheet: one tone off the desk, a hairline edge, a single corner. */}
+        <div
+          className={`flex min-w-0 flex-1 flex-col border-t ${EDGE} bg-[var(--app-editor)] ${
+            sidebarOpen ? "md:rounded-tl-md md:border-l" : ""
+          }`}
+        >
+          <div className="min-h-0 flex-1 overflow-auto [scrollbar-width:thin]">
             {mode === "source" ? (
               <textarea
                 value={note.source}
                 onChange={(event) => updateSource(event.target.value)}
-                className="h-full min-h-[280px] w-full resize-none bg-transparent p-5 font-mono text-[13px] leading-7 text-[var(--app-text)] outline-none sm:p-8"
+                aria-label={`Markdown source of ${note.title}`}
+                className="mx-auto block h-full w-full max-w-[38rem] resize-none bg-transparent px-6 py-6 font-mono text-[13.5px] leading-[1.75] text-[var(--app-text)] outline-none sm:px-10 sm:py-10"
                 spellCheck={false}
               />
             ) : mode === "live" ? (
@@ -859,14 +729,24 @@ export default function AppWindow() {
             )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-3 border-t border-[var(--app-border)] px-3 py-1.5">
-            <span className="font-mono text-[10px] font-semibold tracking-wide text-accent-text">
-              NORMAL
-            </span>
-            <span className="ml-auto flex gap-3 font-mono text-[10px] text-[var(--app-text-3)]">
+          <div className="flex h-8 shrink-0 items-center gap-3 px-4 text-[10.5px] text-[var(--app-text-2)]">
+            <p className="min-w-0 truncate">
+              {VAULT_NAME}
+              <span className="px-1 text-[var(--app-text-3)]">/</span>
+              {note.folder && (
+                <>
+                  {note.folder}
+                  <span className="px-1 text-[var(--app-text-3)]">/</span>
+                </>
+              )}
+              <span className="text-[var(--app-text)]">{note.title}</span>
+            </p>
+            <span
+              className="ml-auto flex shrink-0 gap-3 tabular-nums"
+              title={`${stats.characters} characters`}
+            >
               <span>{stats.words} words</span>
-              <span className="hidden sm:inline">{stats.characters} characters</span>
-              <span className="hidden md:inline">{stats.paragraphs} paragraphs</span>
+              <span>{Math.max(1, Math.round(stats.words / 220))} min read</span>
             </span>
           </div>
         </div>
