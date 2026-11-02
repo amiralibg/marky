@@ -8,10 +8,10 @@ type Shot = {
   alt: string;
 };
 
-// Every image is 1800x1122 (2x of a 900px display width), cropped to the window
-// and rounded; the width/height below match so the browser reserves the space.
+// Every image is 1800x1125, from a 1440x900 capture of the app itself; the
+// width/height below match so the browser reserves the space.
 const SHOT_W = 1800;
-const SHOT_H = 1122;
+const SHOT_H = 1125;
 
 const SHOTS: Shot[] = [
   {
@@ -23,14 +23,14 @@ const SHOTS: Shot[] = [
   {
     id: "reading",
     label: "Reading",
-    caption: "Reading view draws Mermaid diagrams and KaTeX maths where you wrote them.",
-    alt: "A note in reading view with a rendered Mermaid flow diagram and a KaTeX equation",
+    caption: "Read draws Mermaid diagrams and KaTeX maths where you wrote them.",
+    alt: "A note in Read view with a rendered Mermaid flow diagram and a KaTeX equation",
   },
   {
     id: "source",
     label: "Source",
-    caption: "The same note in source view. What you see here is what sits in the file.",
-    alt: "The same note in source view showing the raw Mermaid fence and dollar-delimited maths",
+    caption: "The same note in Source. What you see here is what sits in the file.",
+    alt: "The same note in Source view showing the raw Mermaid fence and dollar-delimited maths",
   },
   {
     id: "code",
@@ -41,14 +41,14 @@ const SHOTS: Shot[] = [
   {
     id: "daily",
     label: "Daily notes",
-    caption: "A daily note with its tasks and wiki links, created for you on a schedule.",
-    alt: "A daily note dated 2026-08-17 with completed and open task checkboxes and a wiki link",
+    caption: "A daily note in Live view, with its tasks and wiki links, created for you on a schedule.",
+    alt: "A daily note dated 2026-08-18 in Live view, with completed and open task checkboxes and wiki links",
   },
   {
     id: "themes",
     label: "Themes",
-    caption: "Ten themes and nine accent colours. Picking one repaints the app straight away.",
-    alt: "Marky's appearance settings showing a grid of theme previews and a row of accent colour swatches",
+    caption: "Fifteen themes and three typefaces. Picking one repaints the app straight away.",
+    alt: "Marky's appearance settings showing theme previews and the Sans, Serif and Mixed typeface picker",
   },
 ];
 
@@ -60,51 +60,37 @@ export default function Gallery() {
   const shot = SHOTS.find((item) => item.id === active) ?? SHOTS[0];
 
   return (
-    <section id="screenshots" className="mx-auto max-w-[1440px] px-6 py-20 md:px-10 md:py-28">
+    <section id="screenshots" className="section-x scroll-mt-16 py-20 md:py-28">
       <div
         ref={headingRef}
-        className="reveal flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
+        className="reveal grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:items-end lg:gap-16"
       >
-        <div>
-          <p className="kicker">Screenshots</p>
-          <h2 className="display mt-4 max-w-[14ch] text-[clamp(36px,8vw,64px)]">
-            Straight from the app.
-          </h2>
-        </div>
-        <p className="max-w-[26rem] font-display text-[18px] leading-[1.5] text-ink-soft">
-          Every shot below is Marky running on a vault someone actually writes in. They are in a
-          dark theme here; nine others ship with the app.
+        <h2 className="display text-[clamp(36px,6.5vw,72px)]">Straight from the app.</h2>
+        <p className="lede max-w-[34rem]">
+          Every shot is Marky running on a demo vault, in Vault and Vault Dark. Thirteen other
+          themes ship with it.
         </p>
       </div>
 
-      <div
-        className="mt-8 flex flex-wrap gap-2 md:mt-10"
-        role="group"
-        aria-label="Choose a screenshot"
-      >
-        {SHOTS.map((item) => {
-          const selected = item.id === active;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => setActive(item.id)}
-              className={`min-h-10 rounded-pill px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
-                selected ? "bg-ink text-surface" : "border border-line text-ink/70 hover:text-ink"
-              }`}
-            >
-              {item.label}
-            </button>
-          );
-        })}
+      <div className="seg mt-10 md:mt-14" role="group" aria-label="Choose a screenshot">
+        {SHOTS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            aria-pressed={item.id === active}
+            onClick={() => setActive(item.id)}
+            className="seg-btn"
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       <div ref={frameRef} className="reveal mt-5">
         <figure className="m-0">
           <img
-            // Re-keying restarts the swap animation, so switching shots reads as
-            // a new sheet being laid down rather than pixels mutating in place.
+            // Re-keying restarts the fade, so switching shots does not read as
+            // pixels mutating in place.
             key={shot.id}
             src={`/screenshots/${shot.id}.webp`}
             alt={shot.alt}
@@ -112,9 +98,9 @@ export default function Gallery() {
             height={SHOT_H}
             loading="lazy"
             decoding="async"
-            className="note-swap shot w-full"
+            className="swap-in shot w-full"
           />
-          <figcaption className="mt-4 max-w-[46rem] text-[15px] leading-6 text-ink-soft">
+          <figcaption className="mt-4 max-w-[46rem] text-[14px] leading-6 text-ink-soft">
             {shot.caption}
           </figcaption>
         </figure>

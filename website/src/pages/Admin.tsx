@@ -795,7 +795,7 @@ export default function Admin() {
                           onClick={() => setMetric(option.id)}
                           className={`rounded-pill px-3 py-1 text-[12px] font-medium transition-colors duration-200 ${
                             metric === option.id
-                              ? "bg-ink text-canvas"
+                              ? "bg-raised text-ink ring-1 ring-line"
                               : "text-ink-soft hover:text-ink"
                           }`}
                         >
@@ -877,7 +877,7 @@ export default function Admin() {
                     disabled={visible.length === 0}
                     className={`inline-flex min-h-9 items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-50 ${
                       copiedFlash === "done"
-                        ? "border-transparent bg-ink text-canvas"
+                        ? "border-line-strong bg-raised text-ink"
                         : copiedFlash === "failed"
                           ? "border-transparent bg-red-600/10 text-red-600 dark:text-red-400"
                           : "border-line text-ink-faint hover:text-ink"
@@ -900,7 +900,7 @@ export default function Admin() {
                     disabled={visible.length === 0}
                     className={`inline-flex min-h-9 items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-50 ${
                       exportedFlash
-                        ? "border-transparent bg-ink text-canvas"
+                        ? "border-line-strong bg-raised text-ink"
                         : "border-line text-ink-faint hover:text-ink"
                     }`}
                   >
@@ -1080,7 +1080,7 @@ function FilterChip({
       aria-pressed={active}
       className={`shrink-0 rounded-pill border px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
         active
-          ? "border-transparent bg-ink text-canvas"
+          ? "border-line-strong bg-raised text-ink"
           : "border-line text-ink-soft hover:text-ink"
       }`}
     >

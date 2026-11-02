@@ -1,26 +1,25 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { FeatureId } from "./featureData";
 
-type NoteStock = "butter" | "mint" | "sky" | "blush" | "lilac" | "cream";
-
 type NodeDef = {
   id: FeatureId;
   label: string;
   hx: number;
   hy: number;
-  stock: NoteStock;
-  tilt: number;
+  /** Node diameter, which in the app grows with a note's link count. */
+  size: number;
 };
 
 const NODES: NodeDef[] = [
-  { id: "local", label: "Inbox", hx: 0.18, hy: 0.28, stock: "cream", tilt: -2.4 },
-  { id: "wiki", label: "[[Wiki]]", hx: 0.46, hy: 0.18, stock: "butter", tilt: 1.8 },
-  { id: "graph", label: "Graph", hx: 0.78, hy: 0.26, stock: "sky", tilt: -1.5 },
-  { id: "search", label: "Search", hx: 0.28, hy: 0.58, stock: "blush", tilt: 2.2 },
-  { id: "editor", label: "Daily", hx: 0.58, hy: 0.52, stock: "mint", tilt: -1.9 },
-  { id: "math", label: "KaTeX", hx: 0.82, hy: 0.62, stock: "lilac", tilt: 1.6 },
-  { id: "themes", label: "Themes", hx: 0.42, hy: 0.82, stock: "butter", tilt: -2.1 },
-  { id: "templates", label: "Daily.md", hx: 0.16, hy: 0.84, stock: "sky", tilt: 1.3 },
+  { id: "local", label: "Inbox", hx: 0.14, hy: 0.3, size: 24 },
+  { id: "wiki", label: "Wiki links", hx: 0.4, hy: 0.2, size: 34 },
+  { id: "quiet", label: "Quiet", hx: 0.68, hy: 0.16, size: 18 },
+  { id: "graph", label: "Graph", hx: 0.86, hy: 0.36, size: 26 },
+  { id: "search", label: "Search", hx: 0.27, hy: 0.6, size: 26 },
+  { id: "editor", label: "Daily", hx: 0.56, hy: 0.5, size: 40 },
+  { id: "math", label: "KaTeX", hx: 0.78, hy: 0.7, size: 22 },
+  { id: "themes", label: "Themes", hx: 0.48, hy: 0.82, size: 24 },
+  { id: "templates", label: "Templates", hx: 0.14, hy: 0.84, size: 22 },
 ];
 
 const EDGES: Array<[FeatureId, FeatureId]> = [
@@ -34,6 +33,8 @@ const EDGES: Array<[FeatureId, FeatureId]> = [
   ["search", "templates"],
   ["editor", "themes"],
   ["templates", "themes"],
+  ["wiki", "quiet"],
+  ["quiet", "graph"],
 ];
 
 type LiveNode = NodeDef & { x: number; y: number; vx: number; vy: number };
@@ -173,14 +174,20 @@ export default function GraphField({ active, onSelect }: Props) {
   return (
     <div
       ref={wrapRef}
-      className="relative h-[300px] w-full overflow-hidden rounded-md border border-line bg-surface sm:h-[380px] md:h-[460px]"
+      className="relative h-[340px] w-full overflow-hidden rounded-md border border-line sm:h-[420px] md:h-[520px]"
+      style={{
+        // Solid, so its dot grid is not fighting the ruled paper behind it.
+        backgroundColor: "var(--color-surface)",
+        backgroundImage:
+          "radial-gradient(color-mix(in srgb, var(--color-ink) 12%, transparent) 1px, transparent 1px)",
+        backgroundSize: "24px 24px",
+      }}
       onMouseMove={onMove}
       onMouseLeave={() => {
         mouse.current.inside = false;
         setHover(null);
       }}
     >
-      <p className="kicker pointer-events-none absolute left-5 top-5 z-10">Graph · live</p>
       <svg ref={svgRef} className="absolute inset-0" aria-hidden>
         {EDGES.map(([a, b]) => {
           const hot = lit
@@ -196,8 +203,8 @@ export default function GraphField({ active, onSelect }: Props) {
               y1={0}
               x2={0}
               y2={0}
-              stroke={hot ? "var(--color-accent)" : "var(--color-line)"}
-              strokeWidth={hot ? 1.6 : 1}
+              stroke={hot ? "var(--color-accent)" : "var(--color-line-strong)"}
+              strokeWidth={hot ? 1.5 : 1}
             />
           );
         })}
@@ -215,21 +222,31 @@ export default function GraphField({ active, onSelect }: Props) {
             onMouseEnter={() => setHover(node.id)}
             onFocus={() => setHover(node.id)}
             onClick={() => onSelect(node.id)}
-            className="graph-note absolute z-10 min-h-10 rounded-sm px-3 py-2 text-[13px] font-medium"
-            style={
-              {
-                left: `${node.hx * 100}%`,
-                top: `${node.hy * 100}%`,
-                // Nodes are scraps of the same paper as the feature board, so the
-                // graph reads as the same vault seen from above.
-                "--graph-tilt": `${node.tilt}deg`,
-                background: selected ? "var(--color-ink)" : `var(--color-note-${node.stock})`,
-                color: selected ? "var(--color-surface)" : "var(--color-note-ink)",
-                opacity: hot ? 1 : 0.5,
-              } as React.CSSProperties
-            }
+            className="absolute z-10 flex min-h-11 min-w-11 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5 transition-opacity duration-150"
+            style={{
+              left: `${node.hx * 100}%`,
+              top: `${node.hy * 100}%`,
+              opacity: hot ? 1 : 0.4,
+            }}
           >
-            {node.label}
+            <span
+              aria-hidden
+              className="block rounded-pill border border-accent transition-colors duration-150"
+              style={{
+                width: node.size,
+                height: node.size,
+                background: selected
+                  ? "var(--color-accent)"
+                  : "color-mix(in srgb, var(--color-accent) 30%, var(--color-surface))",
+              }}
+            />
+            <span
+              className={`whitespace-nowrap text-[12px] font-medium ${
+                selected ? "text-accent-text" : "text-ink-soft"
+              }`}
+            >
+              {node.label}
+            </span>
           </button>
         );
       })}

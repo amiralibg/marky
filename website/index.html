@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" sizes="128x128" href="/icon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f3efe6" />
+    <meta name="theme-color" content="#f3f1ec" />
     <link rel="manifest" href="/site.webmanifest" />
 
     <title>Marky — Offline-first Markdown notes for macOS, Windows and Linux</title>
@@ -107,8 +107,9 @@
               "Wiki links with autocomplete and contextual backlinks",
               "Graph view of the whole vault",
               "Fuzzy search across note names and contents",
+              "Source, Live and Read views with a choice of sans, serif or mixed typefaces",
               "Mermaid diagrams, KaTeX maths, footnotes and syntax highlighting",
-              "Ten themes, nine accent colours and remappable shortcuts",
+              "Fifteen themes, nine accent colours and remappable shortcuts",
               "Scheduled daily, weekly and monthly notes from templates",
               "MCP server for Claude, Cursor, Zed and ChatGPT"
             ],
@@ -123,16 +124,9 @@
          off that request's critical path. -->
     <link rel="preconnect" href="https://api.github.com" crossorigin />
 
-    <!-- Fonts are self-hosted from /public/fonts; see src/fonts.css. The two
-         families used above the fold are preloaded so they start downloading
-         alongside the CSS rather than after it parses. -->
-    <link
-      rel="preload"
-      href="/fonts/newsreader-variable.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
+    <!-- Fonts are self-hosted from /public/fonts; see src/fonts.css. The face
+         used above the fold is preloaded so it starts downloading alongside the
+         CSS rather than after it parses. -->
     <link
       rel="preload"
       href="/fonts/hanken-grotesk-variable.woff2"
@@ -156,7 +150,7 @@
           document.documentElement.setAttribute("data-theme", theme);
           document
             .querySelector('meta[name="theme-color"]')
-            ?.setAttribute("content", theme === "dark" ? "#1e1e1c" : "#f3efe6");
+            ?.setAttribute("content", theme === "dark" ? "#191918" : "#f3f1ec");
         } catch {
           /* ignore */
         }
@@ -183,14 +177,15 @@
         <ul>
           <li>Any local directory becomes a vault of ordinary <code>.md</code> files.</li>
           <li>Wiki links with autocomplete, and backlinks shown with surrounding context.</li>
-          <li>One editing pane with a live view and a reading view, plus Vim keys and RTL.</li>
+          <li>Source, Live and Read views of the same note, plus Vim keys and RTL.</li>
+          <li>Sans, serif or mixed typefaces, shared by Live and Read.</li>
           <li>
             Fuzzy search over note names and contents, and a command palette for everything else.
           </li>
           <li>
             Mermaid diagrams, KaTeX maths, footnotes and syntax highlighting, with no plugins.
           </li>
-          <li>Ten themes, nine accent colours and remappable keyboard shortcuts.</li>
+          <li>Fifteen themes, nine accent colours and remappable keyboard shortcuts.</li>
           <li>Daily, weekly and monthly notes created from templates on a schedule.</li>
           <li>A graph view of the whole vault, exportable as an image.</li>
           <li>

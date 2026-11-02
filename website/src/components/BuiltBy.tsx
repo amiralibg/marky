@@ -4,7 +4,7 @@ type Props = {
 
 export default function BuiltBy({ className = "" }: Props) {
   return (
-    <p className={`flex flex-wrap items-center gap-2.5 text-[16px] text-ink/55 ${className}`}>
+    <p className={`flex flex-wrap items-center gap-2.5 text-[14px] text-ink-faint ${className}`}>
       <span>Built by</span>
       <a
         href="https://x.com/_amiralibgi"
@@ -15,10 +15,10 @@ export default function BuiltBy({ className = "" }: Props) {
         <img
           src="/amirali.jpg"
           alt=""
-          width={32}
-          height={32}
+          width={24}
+          height={24}
           loading="lazy"
-          className="size-8 rounded-pill object-cover border border-ink/10 shadow-sm"
+          className="size-6 rounded-pill object-cover outline outline-1 -outline-offset-1 outline-ink/10"
         />
         amiralibgi
       </a>

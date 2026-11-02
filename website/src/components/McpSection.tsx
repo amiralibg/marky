@@ -90,14 +90,14 @@ export default function McpSection() {
   };
 
   return (
-    <section id="mcp" className="mx-auto max-w-[1440px] px-6 py-20 md:px-10 md:py-28">
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-12">
+    <section id="mcp" className="section-x scroll-mt-16 py-20 md:py-28">
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-16">
         <div ref={copyRef} className="reveal min-w-0">
           <p className="kicker">Model Context Protocol</p>
-          <h2 className="display mt-4 text-[clamp(36px,8vw,64px)]">
+          <h2 className="display mt-4 text-[clamp(36px,5.5vw,64px)]">
             Your notes, in your AI assistant.
           </h2>
-          <p className="mt-6 max-w-[30rem] font-display text-[18px] leading-[1.5] text-ink-soft">
+          <p className="lede mt-6 max-w-[30rem]">
             Marky ships an MCP server, so Claude, Cursor, Zed and ChatGPT can read and write the
             same vault you are editing. It talks over stdio on your own machine, so nothing gets
             uploaded anywhere.
@@ -124,10 +124,10 @@ export default function McpSection() {
 
         <div
           ref={panelRef}
-          className="reveal min-w-0 rounded-md border border-line bg-surface p-5 md:p-8"
+          className="reveal paper-surface min-w-0 p-5 md:p-8"
           style={{ "--reveal-delay": "120ms" } as React.CSSProperties}
         >
-          <div className="flex flex-wrap gap-2" role="group" aria-label="MCP client">
+          <div className="seg" role="group" aria-label="MCP client">
             {CLIENTS.map((item) => {
               const selected = item.id === active;
               return (
@@ -139,11 +139,7 @@ export default function McpSection() {
                     setActive(item.id);
                     setCopied(false);
                   }}
-                  className={`min-h-10 rounded-pill px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
-                    selected
-                      ? "bg-ink text-surface"
-                      : "border border-line text-ink/70 hover:text-ink"
-                  }`}
+                  className="seg-btn"
                 >
                   {item.label}
                 </button>
@@ -156,7 +152,7 @@ export default function McpSection() {
           <div className="relative mt-3">
             <pre
               key={active}
-              className="note-swap overflow-x-auto rounded-sm bg-ink/[0.04] p-4 pr-14 font-mono text-[12.5px] leading-6 text-ink/90"
+              className="swap-in overflow-x-auto rounded-sm bg-ink/[0.04] p-4 pr-14 font-mono text-[12.5px] leading-6 text-ink/90"
             >
               <code>{client.snippet}</code>
             </pre>

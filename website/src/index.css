@@ -1,28 +1,37 @@
 @import "tailwindcss";
 @import "./fonts.css";
 
+/* Quiet Desk, the app's design language (docs/design/marky-redesign.html).
+
+   One warm neutral ramp plus one accent. The page sits one tone above the desk.
+   Don'ts, carried over from the app:
+   - Three radii only: 6px controls, 10px panels, pills.
+   - No shadows on anything that does not float, plus one exception: a sticky
+     note has to read as paper resting on a board.
+   - No boxes where space or a hairline will do.
+   - The accent marks links and the one filled action in a view, nothing else.
+
+   Two things are the site's own rather than the app's, and carry its character:
+   the ruled-paper lines and the sticky-note feature board. */
 @theme {
-  --color-canvas: #f3efe6;
-  --color-surface: #fffdf8;
-  --color-ink: #1c1b18;
-  --color-ink-soft: #5c594f;
-  /* 4.9:1 on canvas, 5.6:1 on surface — this is body-sized text, so it has to
-     clear WCAG AA (4.5:1). The previous #8a867a sat at 3.2:1. */
-  --color-ink-faint: #6a675e;
-  --color-line: rgb(28 27 24 / 0.1);
+  --color-canvas: #f3f1ec;
+  --color-surface: #fcfbf9;
+  --color-raised: #ffffff;
+  --color-ink: #2f2f2b;
+  --color-ink-soft: #5f5e59;
+  /* Body-sized text, so it has to clear 4.5:1 on both canvas and surface. */
+  --color-ink-faint: #6b6a65;
+  --color-line: rgb(35 35 32 / 0.09);
+  --color-line-strong: rgb(35 35 32 / 0.16);
   --color-accent: #6d5ce0;
   --color-accent-hover: #5b4ad0;
-  /* Accent as a fill passes on white; accent as *text* on canvas does not
-     (4.3:1), so links use this darker step instead. */
+  /* Accent as a fill passes on white; as text on the desk it does not. */
   --color-accent-text: #5b4ad0;
-  --color-accent-dim: rgba(109, 92, 224, 0.16);
-  --color-marigold: #e4b56a;
-  --color-moss: #c9d6b4;
+  --color-accent-dim: rgb(109 92 224 / 0.14);
   --color-dusk: #1a1916;
-  --color-sky: #d7e4f2;
 
-  /* Sticky-note stock. Decorative only — per the accent rule these never
-     become buttons, links, or borders. */
+  /* Sticky-note stock. Decorative only: these never become buttons, links or
+     borders. */
   --color-note-butter: #f4dfa0;
   --color-note-mint: #cfe0bd;
   --color-note-sky: #cfe0f2;
@@ -30,17 +39,19 @@
   --color-note-lilac: #ded7f5;
   --color-note-cream: #fdf3d9;
 
-  /* Note paper stays light in both themes, so its ink must NOT follow
-     --color-ink — that flips to near-white in dark mode and makes note text
-     invisible. This is deliberately theme-independent. */
+  /* Note paper stays light in both themes, so its ink must not follow
+     --color-ink, which flips to near-white in dark mode. */
   --color-note-ink: #1c1b18;
 
-  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  /* "Display" is the sans now, as in the app's default typeface. Newsreader is
+     only the Serif and Mixed options inside the app mockup. */
+  --font-display: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+  --font-serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
   --radius-pill: 9999px;
 
   --text-caption: 12px;
@@ -61,52 +72,59 @@
   -webkit-font-smoothing: antialiased;
   color-scheme: light;
 
-  --app-sidebar: #f7f7f5;
-  --app-editor: #ffffff;
-  --app-titlebar: #f7f7f5;
+  --float: 0 1px 2px rgb(30 25 15 / 0.06), 0 12px 32px -8px rgb(30 25 15 / 0.18);
+  --ruling: rgb(35 35 32 / 0.05);
+
+  /* The app's Vault theme, verbatim, for the mockup. */
+  --app-sidebar: #f3f1ec;
+  --app-editor: #fcfbf9;
+  --app-raised: #ffffff;
   --app-text: #2f2f2b;
   --app-text-2: #73726e;
   --app-text-3: #9f9e9a;
-  --app-border: rgba(35, 35, 32, 0.09);
-  --app-border-strong: rgba(35, 35, 32, 0.16);
-  --app-hover: rgba(35, 35, 32, 0.045);
+  --app-mark: rgb(35 35 32 / 0.3);
+  --app-border: rgb(35 35 32 / 0.09);
+  --app-border-strong: rgb(35 35 32 / 0.16);
+  --app-hover: rgb(35 35 32 / 0.045);
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --color-canvas: #1e1e1c;
-  --color-surface: #242422;
+  --color-canvas: #191918;
+  --color-surface: #1e1e1c;
+  --color-raised: #2b2b29;
   --color-ink: #e7e6e2;
   --color-ink-soft: #a3a29d;
-  /* 5.2:1 on dark canvas, 4.8:1 on dark surface. Was #71706b at 3.4:1. */
   --color-ink-faint: #918f8a;
+  --color-line: rgb(240 240 235 / 0.09);
+  --color-line-strong: rgb(240 240 235 / 0.16);
+  /* The light accent is only 3.4:1 on the dark desk; lift it for text. */
+  --color-accent-text: #a497f5;
+  --color-accent-dim: rgb(164 151 245 / 0.16);
+  --color-dusk: #121211;
 
-  /* Notes keep their dark ink in dark mode (see --color-note-ink), but the
-     paper is knocked back so a wall of bright pastel does not glare against
-     the dark board. */
+  /* Paper knocked back, so bright pastels do not glare against the dark board. */
   --color-note-butter: #d8c489;
   --color-note-mint: #b4c4a3;
   --color-note-sky: #b3c5d6;
   --color-note-blush: #d7b9b3;
   --color-note-lilac: #c3bcd9;
   --color-note-cream: #e2d9c0;
-  /* The light accent is only 3.4:1 on the dark canvas; lift it for text. */
-  --color-accent-text: #8f82e8;
-  --color-line: rgb(240 240 235 / 0.1);
-  --color-marigold: #c9a056;
-  --color-moss: #3f4a36;
-  --color-dusk: #121211;
-  --color-sky: #2a3340;
 
+  --float: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -8px rgb(0 0 0 / 0.55);
+  --ruling: rgb(240 240 235 / 0.04);
+
+  /* The app's Vault Dark theme. */
   --app-sidebar: #191918;
   --app-editor: #242422;
-  --app-titlebar: #191918;
+  --app-raised: #2b2b29;
   --app-text: #e7e6e2;
   --app-text-2: #a3a29d;
   --app-text-3: #71706b;
-  --app-border: rgba(240, 240, 235, 0.09);
-  --app-border-strong: rgba(240, 240, 235, 0.16);
-  --app-hover: rgba(240, 240, 235, 0.05);
+  --app-mark: rgb(240 240 235 / 0.3);
+  --app-border: rgb(240 240 235 / 0.09);
+  --app-border-strong: rgb(240 240 235 / 0.16);
+  --app-hover: rgb(240 240 235 / 0.05);
 }
 
 * {
@@ -120,42 +138,23 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  /* A dragged sticky note can travel past the right edge, and narrow viewports
-     have no room to spare. `clip` rather than `hidden` so position: sticky on
-     the header keeps working. */
+  /* `clip` rather than `hidden` so position: sticky on the header keeps working. */
   overflow-x: clip;
   background-color: var(--color-canvas);
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--color-ink) 4%, transparent) 1px, transparent 1px),
-    radial-gradient(1200px 600px at 80% -10%, rgb(109 92 224 / 0.07), transparent 55%);
-  background-size:
-    100% 32px,
-    auto;
+}
+
+/* The ruled paper. Desk and sheet share one fixed ruling, so the lines carry on
+   unbroken across the edge between them. */
+body,
+.desk-sheet {
+  background-image: linear-gradient(var(--ruling) 1px, transparent 1px);
+  background-size: 100% 32px;
   background-attachment: fixed;
 }
 
-/* The ruled paper and the purple bloom are marketing devices. Behind a dense
-   table the ruling fights the rows and the bloom tints every number in the top
-   right, so tools opt out: no background image, and a ground shifted a step
-   away from the marketing beige so the two never get mistaken for each other. */
-[data-canvas="plain"] {
-  --color-canvas: #eeece7;
-}
-
-[data-theme="dark"][data-canvas="plain"] {
-  --color-canvas: #191918;
-  --color-surface: #212120;
-}
-
-[data-canvas="plain"] body,
-[data-theme="dark"][data-canvas="plain"] body {
+/* Behind a dense table the ruling fights the rows, so tools opt out. */
+[data-canvas="plain"] body {
   background-image: none;
-}
-
-[data-theme="dark"] body {
-  background-image:
-    linear-gradient(rgb(240 240 235 / 0.04) 1px, transparent 1px),
-    radial-gradient(1200px 600px at 80% -10%, rgb(109 92 224 / 0.16), transparent 55%);
 }
 
 #root {
@@ -170,6 +169,7 @@ a {
 .btn-accent {
   background: var(--color-accent);
   color: #fffdf8;
+  transition: background-color 150ms ease;
 }
 
 .btn-accent:hover {
@@ -178,7 +178,8 @@ a {
 }
 
 button:focus-visible,
-a:focus-visible {
+a:focus-visible,
+summary:focus-visible {
   outline: 2px solid var(--color-ink);
   outline-offset: 2px;
 }
@@ -187,37 +188,164 @@ a:focus-visible {
   background: rgb(109 92 224 / 0.22);
 }
 
+/* ---- The sheet ------------------------------------------------------------
+   The app sets a note on a sheet one tone above the desk. The home page does
+   the same: the hero sits on the desk, and everything below it on one sheet
+   that runs off the bottom of the window into the footer. */
+.desk-sheet {
+  background-color: var(--color-surface);
+  border-block-start: 1px solid var(--color-line);
+}
+
+@media (min-width: 768px) {
+  .desk-sheet {
+    margin-inline: 16px;
+    border-inline: 1px solid var(--color-line);
+    border-start-start-radius: var(--radius-md);
+    border-start-end-radius: var(--radius-md);
+  }
+}
+
 .paper-surface {
   background: var(--color-surface);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
 }
 
-.ink-hairline {
-  border: 1px solid var(--color-line);
-}
-
 .display {
   font-family: var(--font-display);
-  font-weight: 500;
-  letter-spacing: -0.04em;
-  line-height: 0.92;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+  text-wrap: balance;
 }
 
 .kicker {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
-  letter-spacing: 0.16em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  /* 12px uppercase needs the full 4.5:1; 55% ink only reached 3.7:1. */
-  color: color-mix(in srgb, var(--color-ink) 70%, transparent);
+  color: var(--color-ink-faint);
 }
 
-/* ---- Sticky notes -------------------------------------------------------
-   The one place this design breaks the shadowless rule: a note has to read as
-   paper resting on a board, and a hairline cannot do that. Kept to two soft
-   layers, and it is the only shadow on the page apart from the app mockup. */
+.lede {
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--color-ink-soft);
+  text-wrap: pretty;
+}
 
+/* The app's view switch, used for every either/or control on the site: a tinted
+   track with the current option raised out of it. */
+.seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+}
+
+.seg-btn {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink-soft);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+.seg-btn:hover {
+  color: var(--color-ink);
+}
+
+.seg-btn[aria-pressed="true"] {
+  background: var(--color-raised);
+  border-color: var(--color-line);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+/* A section's opening: heading on the leading side, its lede on the other. */
+.section-x {
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+@media (min-width: 768px) {
+  .section-x {
+    padding-inline: 40px;
+  }
+}
+
+/* Hero entrance. Runs on load rather than on scroll, since it is already in
+   view, and each child is offset by its own --enter-delay. */
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.enter > * {
+  opacity: 0;
+  animation: settle 560ms cubic-bezier(0.2, 0, 0, 1) forwards;
+  animation-delay: var(--enter-delay, 0ms);
+}
+
+.enter > *:nth-child(1) {
+  --enter-delay: 40ms;
+}
+.enter > *:nth-child(2) {
+  --enter-delay: 120ms;
+}
+.enter > *:nth-child(3) {
+  --enter-delay: 200ms;
+}
+
+/* The headline's wiki link, set the way Live mode sets one. */
+.hero-link {
+  color: var(--color-accent-text);
+  text-decoration: underline dashed 0.03em;
+  text-decoration-color: color-mix(in srgb, var(--color-accent-text) 55%, transparent);
+  text-underline-offset: 0.12em;
+}
+
+.hero-bracket {
+  color: color-mix(in srgb, var(--color-ink) 28%, transparent);
+  font-weight: 400;
+}
+
+/* Generic section reveal, used by headings and panels. */
+.reveal {
+  opacity: 0;
+  translate: 0 10px;
+}
+
+.reveal[data-revealed] {
+  opacity: 1;
+  translate: none;
+  transition:
+    opacity 480ms ease,
+    translate 560ms cubic-bezier(0.2, 0, 0, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+/* ---- Sticky notes ------------------------------------------------------- */
 .note {
   position: relative;
   /* Paper is light in both themes, so ink is fixed rather than inherited. */
@@ -231,8 +359,7 @@ a:focus-visible {
   translate: 0 18px;
 }
 
-/* The turned-up bottom corner. Purely decorative, drawn with a gradient
-   rather than an extra element. */
+/* The turned-up bottom corner, drawn with a gradient rather than an element. */
 .note::after {
   content: "";
   position: absolute;
@@ -241,11 +368,7 @@ a:focus-visible {
   width: 26px;
   height: 26px;
   border-bottom-right-radius: var(--radius-sm);
-  background: linear-gradient(
-    135deg,
-    transparent 0 50%,
-    color-mix(in srgb, var(--color-ink) 7%, transparent) 50% 100%
-  );
+  background: linear-gradient(135deg, transparent 0 50%, rgb(28 27 24 / 0.07) 50% 100%);
   transition:
     width 320ms cubic-bezier(0.2, 0.9, 0.25, 1),
     height 320ms cubic-bezier(0.2, 0.9, 0.25, 1);
@@ -291,36 +414,6 @@ a:focus-visible {
   z-index: 20;
 }
 
-/* Graph nodes are scraps of the same paper, seen from above. The centring
-   translate lives here rather than in a utility class, so it can compose with
-   the tilt instead of being overwritten by it. */
-.graph-note {
-  transform: translate(-50%, -50%) rotate(var(--graph-tilt, 0deg));
-  box-shadow:
-    0 1px 1px rgb(28 27 24 / 0.08),
-    0 4px 10px -6px rgb(28 27 24 / 0.3);
-  transition:
-    transform 240ms cubic-bezier(0.2, 0.9, 0.25, 1),
-    opacity 240ms ease,
-    box-shadow 240ms ease;
-}
-
-.graph-note:hover,
-.graph-note:focus-visible {
-  transform: translate(-50%, -50%) rotate(0deg) scale(1.07);
-  box-shadow:
-    0 2px 2px rgb(28 27 24 / 0.07),
-    0 10px 20px -8px rgb(28 27 24 / 0.36);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .graph-note,
-  .graph-note:hover,
-  .graph-note:focus-visible {
-    transform: translate(-50%, -50%);
-  }
-}
-
 /* .kicker keys off --color-ink; inside a note it has to key off the paper ink. */
 .note .kicker {
   color: color-mix(in srgb, var(--color-note-ink) 70%, transparent);
@@ -335,57 +428,10 @@ a:focus-visible {
   cursor: grabbing;
 }
 
-/* Hero entrance. Runs on load rather than on scroll, since it is already in
-   view, and each child is offset by its own --enter-delay. */
-@keyframes note-settle {
-  from {
-    opacity: 0;
-    transform: translateY(14px) rotate(-1.2deg);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.enter > * {
-  opacity: 0;
-  animation: note-settle 720ms cubic-bezier(0.2, 0.9, 0.25, 1) forwards;
-  animation-delay: var(--enter-delay, 0ms);
-}
-
-.enter > *:nth-child(1) {
-  --enter-delay: 40ms;
-}
-.enter > *:nth-child(2) {
-  --enter-delay: 130ms;
-}
-.enter > *:nth-child(3) {
-  --enter-delay: 220ms;
-}
-.enter > *:nth-child(4) {
-  --enter-delay: 310ms;
-}
-.enter > *:nth-child(5) {
-  --enter-delay: 390ms;
-}
-.enter > *:nth-child(6) {
-  --enter-delay: 460ms;
-}
-
-/* The highlight pill behind "link" draws itself once the headline has landed. */
-.pill-draw {
-  animation: pill-in 520ms cubic-bezier(0.2, 0.9, 0.25, 1) 420ms backwards;
-  transform-origin: left center;
-}
-
-@keyframes pill-in {
-  from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
+/* Tailwind's list-none clears the marker in Chrome and Firefox; Safari draws its
+   own triangle from a webkit pseudo-element that has to go separately. */
+.faq-item summary::-webkit-details-marker {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -394,34 +440,6 @@ a:focus-visible {
     animation: none;
   }
 
-  .pill-draw {
-    animation: none;
-  }
-}
-
-/* Generic section reveal, used by headings and panels. */
-.reveal {
-  opacity: 0;
-  translate: 0 14px;
-}
-
-.reveal[data-revealed] {
-  opacity: 1;
-  translate: none;
-  transition:
-    opacity 560ms ease,
-    translate 640ms cubic-bezier(0.2, 0.9, 0.25, 1);
-  transition-delay: var(--reveal-delay, 0ms);
-}
-
-/* ---- FAQ ----------------------------------------------------------------
-   Tailwind's list-none clears the marker in Chrome and Firefox; Safari draws
-   its own triangle from a webkit pseudo-element that has to go separately. */
-.faq-item summary::-webkit-details-marker {
-  display: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
   .note,
   .reveal {
     opacity: 1;
@@ -435,198 +453,169 @@ a:focus-visible {
   }
 }
 
+/* ---- App mockup ----------------------------------------------------------- */
+[data-theme="dark"] .dark-hide,
+:root:not([data-theme="dark"]) .light-hide {
+  display: none;
+}
+
 .marky-app {
-  --color-text-primary: var(--app-text);
-  --color-text-secondary: var(--app-text-2);
-  --color-text-muted: var(--app-text-3);
-  --color-bg-editor: var(--app-editor);
-  --font-family-sans: var(--font-sans);
-  --font-family-serif: var(--font-display);
-  --font-family-mono: var(--font-mono);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+  --note-font: var(--font-sans);
+  --note-heading: var(--font-sans);
+  --note-size: 16px;
+  box-shadow: var(--float);
 }
 
-[data-theme="dark"] .marky-app {
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+/* Newsreader sets small for its size, so it reads a step larger, as in the app. */
+.marky-app[data-reading-font="serif"] {
+  --note-font: var(--font-serif);
+  --note-heading: var(--font-serif);
+  --note-size: 17.5px;
 }
 
-/* Live: decorated editor, not a published page. */
-.marky-live {
-  font-family: var(--font-sans);
-  font-size: 1.0625rem;
-  line-height: 1.6;
+.marky-app[data-reading-font="mixed"] {
+  --note-heading: var(--font-serif);
+}
+
+/* Live and Read share one rule set: same face, size, line height and measure, so
+   flipping between them does not move the page. */
+.marky-doc {
+  max-width: 38rem;
+  margin-inline: auto;
+  padding: 24px 24px 40px 40px;
+  font-family: var(--note-font);
+  font-size: var(--note-size);
+  line-height: 1.7;
   color: var(--app-text);
-  padding: 1.25rem 1.25rem 2rem 4.5rem;
 }
 
 @media (min-width: 640px) {
-  .marky-live {
-    padding: 2rem 2rem 2.5rem 4.5rem;
+  .marky-doc {
+    padding: 40px 40px 48px 56px;
   }
 }
 
-.marky-live-line {
-  min-height: 1.6em;
-}
-
-.marky-live-h {
+.marky-doc h1,
+.marky-doc h2 {
   position: relative;
-  padding-top: 0.5rem;
-  font-weight: 700;
-  line-height: 1.3;
+  margin: 0;
+  font-family: var(--note-heading);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--app-text);
+  text-wrap: balance;
 }
 
-.marky-live-h1 {
-  font-size: 1.9em;
+.marky-doc h1 {
+  font-size: 2em;
 }
 
-.marky-live-h2 {
-  font-size: 1.55em;
+.marky-doc h2 {
+  font-size: 1.45em;
 }
 
-.marky-live-hash {
-  position: absolute;
-  inset-inline-end: 100%;
-  padding-inline-end: 0.4em;
-  color: var(--app-text-3);
-  white-space: pre;
-  opacity: 0;
-  font-weight: 400;
-  transition: opacity 120ms ease;
+.marky-doc p {
+  margin: 0;
+  white-space: break-spaces;
 }
 
-.marky-live-h:hover .marky-live-hash,
-.marky-live-h:focus-within .marky-live-hash {
-  opacity: 1;
+.marky-blank {
+  height: 1.7em;
 }
 
-.marky-live-task {
-  vertical-align: middle;
-  margin-inline-end: 0.45em;
-  cursor: pointer;
+.marky-doc h1 + .marky-blank,
+.marky-doc h2 + .marky-blank {
+  height: 0.6em;
+}
+
+.marky-doc ul {
+  margin: 0;
+  padding: 0 0 0 1.6em;
+  list-style: none;
+}
+
+.marky-doc li {
+  position: relative;
+}
+
+.marky-doc li.task {
+  margin-inline-start: -1.6em;
+}
+
+.marky-read li:not(.task) {
+  list-style: disc outside;
+}
+
+.marky-read li:not(.task)::marker {
+  color: var(--app-text-2);
+}
+
+.marky-doc input[type="checkbox"] {
+  width: 1em;
+  height: 1em;
+  margin: 0 0.5em 0 0;
+  vertical-align: -0.12em;
   accent-color: var(--color-accent);
 }
 
-.marky-live-task:disabled {
+.marky-read input[type="checkbox"] {
   cursor: default;
 }
 
-.marky-live-wiki,
-.marky-read .wikilink {
+.marky-live input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.marky-doc li.task.done {
+  color: var(--app-text-2);
+}
+
+/* Markdown syntax glyphs in Live. They hang in the gutter so that the text sits
+   on the same edge as it does in Read. */
+.marky-live-hash,
+.marky-live-dash {
+  position: absolute;
+  inset-inline-end: 100%;
+  padding-inline-end: 0.35em;
+  color: var(--app-mark);
+  font-weight: 400;
+  white-space: pre;
+  user-select: none;
+}
+
+.marky-live-dash {
+  inset-inline-start: -1.1em;
+  inset-inline-end: auto;
+  padding: 0;
+}
+
+.marky-doc li.task .marky-live-dash {
+  inset-inline-start: -1em;
+}
+
+.marky-live-bracket {
+  color: var(--app-mark);
+}
+
+.marky-link {
   color: var(--color-accent-text);
-  text-decoration: underline;
-  text-decoration-style: dashed;
-  text-decoration-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  text-decoration: underline solid 1px;
+  text-decoration-color: color-mix(in srgb, var(--color-accent-text) 45%, transparent);
   text-underline-offset: 0.16em;
-  text-decoration-thickness: 1px;
   background: none;
   border: none;
   padding: 0;
   font: inherit;
   cursor: pointer;
+  transition: text-decoration-color 150ms ease;
 }
 
-.marky-live-wiki:hover,
-.marky-read .wikilink:hover {
-  text-decoration-style: solid;
+.marky-link:hover {
+  text-decoration-color: currentColor;
 }
 
-.marky-live-wiki:disabled,
-.marky-read .wikilink:disabled {
-  cursor: default;
-}
-
-.marky-live-bracket {
-  color: var(--app-text-3);
-}
-
-/* Read: the published markdown sheet. */
-.marky-read {
-  color: var(--app-text);
-  line-height: 1.7;
-  font-size: 1.0625rem;
-  font-family: var(--font-sans);
-  letter-spacing: -0.003em;
-  max-width: 46rem;
-  margin-inline: auto;
-  padding: 1.25rem 1.25rem 2rem;
-}
-
-@media (min-width: 640px) {
-  .marky-read {
-    padding: 2rem 2rem 2.5rem;
-  }
-}
-
-.marky-read h1,
-.marky-read h2 {
-  font-family: var(--font-display);
-  font-weight: 600;
-  color: var(--app-text);
-  margin: 0.6rem 0 0.25em;
-  line-height: 1.25;
-  letter-spacing: -0.018em;
-  text-wrap: balance;
-}
-
-.marky-read > :first-child {
-  margin-top: 0;
-}
-
-.marky-read h1 {
-  font-size: 2em;
-  letter-spacing: -0.022em;
-}
-
-.marky-read h2 {
-  font-size: 1.55em;
-}
-
-.marky-read p {
-  margin: 0;
-  white-space: break-spaces;
-}
-
-.marky-read-blank {
-  height: 1.7em;
-}
-
-.marky-read h1 + .marky-read-blank,
-.marky-read h2 + .marky-read-blank {
-  height: 0.3em;
-}
-
-.marky-read ul {
-  margin: 0.15em 0;
-  padding-inline-start: 1.6em;
-  list-style: disc outside;
-}
-
-.marky-read li {
-  margin: 0.25em 0;
-  padding-inline-start: 0.3em;
-}
-
-.marky-read ul li::marker {
-  color: var(--color-accent-text);
-}
-
-.marky-read li.task {
-  list-style: none;
-  margin-inline-start: -1.6em;
-  padding-inline-start: 0;
-}
-
-.marky-read li.task.done {
-  color: var(--app-text-3);
-}
-
-.marky-read input[type="checkbox"] {
-  width: 1em;
-  height: 1em;
-  margin-inline-end: 0.5em;
-  vertical-align: -0.1em;
-  accent-color: var(--color-accent);
+.marky-link:disabled {
   cursor: default;
 }
 
@@ -656,16 +645,15 @@ a:focus-visible {
   }
 }
 
-/* The MCP snippet is re-keyed when the client changes, so it animates in as a
-   fresh note handed to the new app rather than silently swapping text. */
-.note-swap {
-  animation: note-swap 340ms cubic-bezier(0.2, 0.9, 0.25, 1);
+/* A swapped screenshot or MCP snippet fades in rather than changing in place. */
+.swap-in {
+  animation: swap-in 240ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-@keyframes note-swap {
+@keyframes swap-in {
   from {
     opacity: 0;
-    transform: translateY(6px) rotate(-0.6deg);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -674,7 +662,7 @@ a:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .note-swap {
+  .swap-in {
     animation: none;
   }
 }
@@ -767,18 +755,14 @@ a:focus-visible {
   }
 }
 
-/* Screenshots are pre-rounded in the asset itself; the shadow is applied here
-   so it stays consistent with the sticky notes and the app mockup. */
+/* Screenshots are square-cornered in the asset, and rounded and edged here. */
 .shot {
   display: block;
   border-radius: var(--radius-md);
-  box-shadow:
-    0 2px 4px rgb(28 27 24 / 0.06),
-    0 24px 48px -20px rgb(28 27 24 / 0.4);
+  outline: 1px solid rgb(0 0 0 / 0.1);
+  outline-offset: -1px;
 }
 
 [data-theme="dark"] .shot {
-  box-shadow:
-    0 2px 4px rgb(0 0 0 / 0.3),
-    0 24px 48px -20px rgb(0 0 0 / 0.6);
+  outline-color: rgb(255 255 255 / 0.1);
 }

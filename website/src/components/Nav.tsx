@@ -75,15 +75,15 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props
   const active = (link: NavLink) => link.page && link.href === path;
 
   const linkClass = (link: NavLink) =>
-    `rounded-sm px-3 py-2 text-[14px] font-medium transition-colors duration-200 hover:text-ink xl:px-4 ${
-      active(link) ? "text-ink" : "text-ink/70"
+    `rounded-sm px-2.5 py-1.5 text-[13.5px] font-medium transition-colors duration-150 hover:bg-ink/[0.05] hover:text-ink ${
+      active(link) ? "text-ink" : "text-ink-soft"
     } ${link.wide ? "hidden lg:inline" : ""}`;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-canvas/85 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-6 md:px-10">
+    <header className="sticky top-0 z-40 bg-canvas/90 backdrop-blur-md">
+      <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between px-6 md:px-10">
         <Link to="/" className="flex items-center gap-2.5">
-          <img src="/icon.png" alt="" width={28} height={28} className="rounded-sm" />
+          <img src="/icon.png" alt="" width={24} height={24} className="rounded-sm" />
           <span className="text-[15px] font-semibold tracking-[-0.02em]">Marky</span>
         </Link>
 
@@ -116,7 +116,7 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props
           <button
             type="button"
             onClick={onToggleTheme}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-line bg-surface text-ink/70 transition-colors duration-200 hover:text-ink"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-sm text-ink-soft transition-colors duration-150 hover:bg-ink/[0.05] hover:text-ink"
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
             {theme === "dark" ? (
@@ -130,7 +130,7 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props
           <button
             type="button"
             onClick={onOpenPalette}
-            className="hidden h-9 items-center gap-2 rounded-sm border border-line bg-surface px-2.5 text-[12px] text-ink/70 transition-colors duration-200 hover:text-ink sm:inline-flex"
+            className="hidden h-9 items-center gap-2 rounded-sm px-2.5 text-[12px] text-ink-soft transition-colors duration-150 hover:bg-ink/[0.05] hover:text-ink sm:inline-flex"
             aria-label="Open command palette"
           >
             <Command size={13} strokeWidth={2} />
@@ -139,7 +139,7 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props
           </button>
           <Link
             to="/#download"
-            className="btn-accent inline-flex h-9 items-center rounded-sm px-4 text-[14px] font-medium"
+            className="inline-flex h-9 items-center rounded-sm border border-line bg-raised px-3.5 text-[13.5px] font-semibold text-ink transition-colors duration-150 hover:border-line-strong"
           >
             Download
           </Link>
@@ -151,7 +151,7 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props
             aria-expanded={menuOpen}
             aria-controls="mobile-menu"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-line bg-surface text-ink/70 transition-colors duration-200 hover:text-ink sm:hidden"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-sm text-ink-soft transition-colors duration-150 hover:bg-ink/[0.05] hover:text-ink sm:hidden"
           >
             {menuOpen ? (
               <X size={17} strokeWidth={2} aria-hidden />
@@ -174,7 +174,7 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props
               tabIndex={-1}
               aria-hidden
               onClick={() => setMenuOpen(false)}
-              className="menu-backdrop fixed inset-x-0 bottom-0 top-16 z-30 cursor-default bg-dusk/40 backdrop-blur-[2px] sm:hidden"
+              className="menu-backdrop fixed inset-x-0 bottom-0 top-14 z-30 cursor-default bg-dusk/40 backdrop-blur-[2px] sm:hidden"
             />,
             document.body
           )}
@@ -183,7 +183,7 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props
           <nav
             id="mobile-menu"
             aria-label="Primary"
-            className="menu-drop absolute inset-x-0 top-full z-40 max-h-[calc(100vh-4rem)] overflow-y-auto overscroll-contain border-b border-line bg-canvas px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_16px_32px_-16px_rgb(28_27_24/0.35)] sm:hidden"
+            className="menu-drop absolute inset-x-0 top-full z-40 max-h-[calc(100vh-3.5rem)] overflow-y-auto overscroll-contain border-b border-line bg-canvas px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-2 shadow-[var(--float)] sm:hidden"
           >
             <ul className="divide-y divide-line">
               {LINKS.map((link) => (

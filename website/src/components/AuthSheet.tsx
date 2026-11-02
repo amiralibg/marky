@@ -100,7 +100,7 @@ export default function AuthSheet({
             onClick={() => switchTo(value)}
             className={`rounded-[5px] py-2 text-[13px] font-medium transition-colors duration-200 ${
               mode === value
-                ? "bg-surface text-ink shadow-[0_1px_2px_rgb(28_27_24/0.08)]"
+                ? "bg-surface text-ink border border-line"
                 : "text-ink-faint hover:text-ink"
             }`}
           >

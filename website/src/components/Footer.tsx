@@ -4,17 +4,17 @@ import { Link } from "../lib/router";
 
 export default function Footer() {
   return (
-    <footer className="relative z-[1] border-t border-line bg-surface">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-8 px-6 py-10 md:flex-row md:items-end md:justify-between md:px-10">
+    <footer className="relative z-[1]">
+      <div className="mx-auto flex max-w-[1280px] flex-col gap-8 px-6 py-10 md:flex-row md:items-end md:justify-between md:px-10">
         <div>
-          <p className="font-display text-[28px] tracking-[-0.03em]">Marky</p>
+          <p className="text-[20px] font-semibold tracking-[-0.02em]">Marky</p>
           <p className="mt-2 max-w-[28rem] text-[14px] leading-6 text-ink-soft">
             Markdown notes that live in a folder on your own disk. MIT licensed, and every installer
             comes in under 10 MB.
           </p>
           <BuiltBy className="mt-5" />
         </div>
-        <div className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink/60">
+        <div className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink-soft">
           {/* Written against `/` rather than as bare fragments: the footer is
               on every page, and a bare `#download` on the changelog does
               nothing. */}

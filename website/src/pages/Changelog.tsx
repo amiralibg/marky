@@ -266,7 +266,7 @@ export default function Changelog() {
 
   return (
     <main>
-      <section className="mx-auto max-w-[1440px] px-6 py-16 md:px-10 md:py-24">
+      <section className="mx-auto max-w-[1280px] px-6 py-16 md:px-10 md:py-24">
         <PageIntro
           kicker="Changelog"
           title="Every release, in order."
@@ -296,7 +296,7 @@ export default function Changelog() {
                     aria-pressed={filter === option.id}
                     className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
                       filter === option.id
-                        ? "border-transparent bg-ink text-canvas"
+                        ? "border-line-strong bg-raised text-ink"
                         : "border-line text-ink-soft hover:text-ink"
                     }`}
                   >
