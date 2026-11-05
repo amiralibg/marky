@@ -198,8 +198,14 @@ const TitleBar = ({
             instead of once per branch: its icon morphs between open and closed
             with a CSS transition, and a button that unmounts when the sidebar
             hides would take the transition with it and snap instead. Keeping it
-            at the same child index lets React reuse the same DOM node. */}
-        <div className={`flex items-center gap-0.5 ${showSidebar ? "ms-auto me-2" : "ms-1 me-2"}`}>
+            at the same child index lets React reuse the same DOM node.
+
+            Only macOS pushes these to the sidebar's far edge, next to the traffic
+            lights. Windows and Linux have nothing on the left of the bar, so the
+            same push would leave a sidebar's width of empty space before them. */}
+        <div
+          className={`flex items-center gap-0.5 me-2 ${isMac ? (showSidebar ? "ms-auto" : "ms-1") : ""}`}
+        >
           {showSidebar && (
             <>
               <button

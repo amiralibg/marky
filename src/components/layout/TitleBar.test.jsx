@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("@tauri-apps/api/window", () => ({
@@ -75,6 +75,37 @@ describe("TitleBar sidebar toggle", () => {
 
     expect(screen.queryByTitle(/new note/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Marky")).not.toBeInTheDocument();
+  });
+});
+
+describe("TitleBar leading actions", () => {
+  const LINUX_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15";
+  const WINDOWS_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+  const MAC_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15";
+
+  const actionsGroup = () => screen.getByRole("button", { name: /new note/i }).parentElement;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["Linux", LINUX_UA],
+    ["Windows", WINDOWS_UA],
+  ])("starts at the window's edge on %s, where no traffic lights sit", async (_name, userAgent) => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(userAgent);
+
+    await renderTitleBar(true);
+
+    expect(actionsGroup()).not.toHaveClass("ms-auto");
+  });
+
+  it("sits at the sidebar's far edge on macOS, clear of the traffic lights", async () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(MAC_UA);
+
+    await renderTitleBar(true);
+
+    expect(actionsGroup()).toHaveClass("ms-auto");
   });
 });
 
