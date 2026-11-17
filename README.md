@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/hero.png" alt="Marky's note graph, showing eight notes connected by twelve wiki links" width="100%" />
+  <img src="docs/images/hero.png" alt="Marky in the light Soft Light theme: a roadmap note in the live editor, with a checklist, wiki links and a code block, beside the vault sidebar" width="100%" />
 </p>
 
 Marky is an offline-first Markdown notes app built with Tauri, React, and Rust.
@@ -26,7 +26,7 @@ It is designed for local folder-based note-taking with wiki links, graph navigat
 Your notes are ordinary Markdown files in an ordinary folder. No account, no database — git them, put them in any sync folder, point the built-in S3 sync at your own bucket, or leave them on a USB stick. Native installers stay under 10 MB.
 
 <p align="center">
-  <img src="docs/images/grid.png" alt="Four views of Marky: a daily note, the appearance settings with theme previews, a note with highlighted Rust code, and the note graph" width="100%" />
+  <img src="docs/images/grid.png" alt="Four views of Marky: a daily note in dark mode, the appearance settings with theme previews, a long-form note in the serif reading view, and the note graph" width="100%" />
 </p>
 
 ## Download
@@ -39,7 +39,7 @@ On macOS you can also install with Homebrew:
 brew install --cask amiralibg/marky/marky
 ```
 
-Current version: [`v1.9.2`](https://github.com/amiralibg/marky/releases/tag/v1.9.2).
+Current version: [`v1.10.0`](https://github.com/amiralibg/marky/releases/tag/v1.10.0).
 
 ## Highlights
 

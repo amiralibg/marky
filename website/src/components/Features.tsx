@@ -1,102 +1,26 @@
-import { useCallback, useRef, useState } from "react";
-import { FEATURES, type Feature, type FeatureId, type NoteTone } from "./featureData";
-import { useFinePointer, useReveal } from "../lib/motion";
+import { FEATURES, type Feature, type FeatureId } from "./featureData";
+import { useReveal } from "../lib/motion";
 
-const STOCK: Record<NoteTone, string> = {
-  butter: "bg-note-butter",
-  mint: "bg-note-mint",
-  sky: "bg-note-sky",
-  blush: "bg-note-blush",
-  lilac: "bg-note-lilac",
-  cream: "bg-note-cream",
-};
-
-type Offset = { x: number; y: number };
-
-type NoteProps = {
-  feature: Feature;
-  index: number;
-  lit: boolean;
-  draggable: boolean;
-  offset: Offset | undefined;
-  onDrag: (id: FeatureId, offset: Offset) => void;
-  onLift: () => void;
-  z: number;
-};
-
-function StickyNote({ feature, index, lit, draggable, offset, onDrag, onLift, z }: NoteProps) {
+function FeatureCard({ feature, index, lit }: { feature: Feature; index: number; lit: boolean }) {
   const ref = useReveal<HTMLElement>();
-  const [dragging, setDragging] = useState(false);
-  const start = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
-
-  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!draggable || event.button !== 0) return;
-    onLift();
-    setDragging(true);
-    start.current = {
-      px: event.clientX,
-      py: event.clientY,
-      ox: offset?.x ?? 0,
-      oy: offset?.y ?? 0,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    const s = start.current;
-    if (!s) return;
-    onDrag(feature.id, {
-      x: s.ox + (event.clientX - s.px),
-      y: s.oy + (event.clientY - s.py),
-    });
-  };
-
-  const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!start.current) return;
-    start.current = null;
-    setDragging(false);
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-  };
 
   return (
     <article
       ref={ref}
       id={`feature-${feature.id}`}
-      data-dragging={dragging || undefined}
-      className={`note ${STOCK[feature.tone]} p-6 pb-9 ${
-        // Nine notes leave one dead cell in two columns, so the last runs wide there.
-        index === FEATURES.length - 1 ? "md:col-span-2 xl:col-span-1" : ""
-      } ${lit ? "outline outline-2 outline-offset-4 outline-ink" : ""}`}
-      style={
-        {
-          "--note-tilt": `${feature.tilt}deg`,
-          "--note-dx": `${offset?.x ?? 0}px`,
-          "--note-dy": `${offset?.y ?? 0}px`,
-          "--note-delay": `${index * 70}ms`,
-          zIndex: z || undefined,
-        } as React.CSSProperties
-      }
+      data-lit={lit || undefined}
+      className="reveal feature-card flex flex-col p-6 md:p-7"
+      // Three columns at most, so the stagger restarts every row.
+      style={{ "--reveal-delay": `${(index % 3) * 70}ms` } as React.CSSProperties}
     >
-      {/* Real sticky notes are gummed along the top edge, so that is the grab
-          handle. Dragging from the body would fight text selection. */}
-      <div
-        className={draggable ? "note-grip -mx-6 -mt-6 mb-1 flex h-7 items-center px-6" : "hidden"}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        aria-hidden
-      >
-        <span className="h-1 w-8 rounded-pill bg-note-ink/20" />
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-[12px] font-medium text-ink-faint">{feature.kicker}</span>
+        {feature.isNew && <span className="badge">New</span>}
       </div>
-
-      <p className="kicker">{feature.kicker}</p>
-      <h3 className="mt-3 text-[23px] font-semibold leading-[1.15] tracking-[-0.02em]">
+      <h3 className="mt-5 text-[21px] font-semibold leading-[1.2] tracking-[-0.018em] text-ink">
         {feature.title}
       </h3>
-      <p className="mt-3 max-w-[34rem] text-[15.5px] leading-[1.55] text-note-ink/80">
-        {feature.body}
-      </p>
+      <p className="mt-3 text-[15px] leading-[1.6] text-ink-soft">{feature.body}</p>
     </article>
   );
 }
@@ -107,25 +31,6 @@ type Props = {
 
 export default function Features({ spotlight }: Props) {
   const headingRef = useReveal<HTMLDivElement>();
-  const draggable = useFinePointer();
-  const [offsets, setOffsets] = useState<Partial<Record<FeatureId, Offset>>>({});
-  const [order, setOrder] = useState<FeatureId[]>([]);
-  const [nudged, setNudged] = useState(false);
-
-  const onDrag = useCallback((id: FeatureId, offset: Offset) => {
-    setNudged(true);
-    setOffsets((prev) => ({ ...prev, [id]: offset }));
-  }, []);
-
-  const lift = useCallback((id: FeatureId) => {
-    setOrder((prev) => [...prev.filter((item) => item !== id), id]);
-  }, []);
-
-  const tidy = () => {
-    setOffsets({});
-    setOrder([]);
-    setNudged(false);
-  };
 
   return (
     <section id="features" className="section-x scroll-mt-16 py-20 md:py-28">
@@ -134,41 +39,19 @@ export default function Features({ spotlight }: Props) {
         className="reveal grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:items-end lg:gap-16"
       >
         <h2 className="display text-[clamp(36px,6.5vw,72px)]">Built on files you already own.</h2>
-        <div className="max-w-[34rem]">
-          <p className="lede">
-            Nothing in here is a database row. You open a folder, you write Markdown, and Marky does
-            the linking, searching and scheduling on top of it.
-          </p>
-          {draggable && (
-            <p className="mt-3 text-[13px] text-ink-faint">
-              {nudged ? (
-                <button
-                  type="button"
-                  onClick={tidy}
-                  className="underline underline-offset-4 hover:text-ink"
-                >
-                  Tidy the board
-                </button>
-              ) : (
-                "Drag a note by its top edge"
-              )}
-            </p>
-          )}
-        </div>
+        <p className="lede max-w-[34rem]">
+          Nothing in here is a database row. You open a folder, you write Markdown, and Marky does
+          the linking, searching and scheduling on top of it.
+        </p>
       </div>
 
-      <div className="mt-12 grid gap-6 md:mt-16 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-12 grid gap-5 md:mt-16 md:grid-cols-2 xl:grid-cols-3">
         {FEATURES.map((feature, index) => (
-          <StickyNote
+          <FeatureCard
             key={feature.id}
             feature={feature}
             index={index}
             lit={spotlight === feature.id}
-            draggable={draggable}
-            offset={offsets[feature.id]}
-            onDrag={onDrag}
-            onLift={() => lift(feature.id)}
-            z={order.indexOf(feature.id) + 1}
           />
         ))}
       </div>

@@ -6,49 +6,70 @@ type Shot = {
   label: string;
   caption: string;
   alt: string;
+  width: number;
+  height: number;
 };
 
-// Every image is 1800x1125, from a 1440x900 capture of the app itself; the
-// width/height below match so the browser reserves the space.
-const SHOT_W = 1800;
-const SHOT_H = 1125;
-
+// Cut from Retina window captures of the app on a demo vault. Width and height
+// match each file so the browser reserves the space before it loads.
 const SHOTS: Shot[] = [
   {
-    id: "graph",
-    label: "Graph",
-    caption: "The whole vault as a graph. Drag to pan, scroll to zoom, click a node to open it.",
-    alt: "Marky's note graph showing eight notes connected by twelve links, with Marky Roadmap as the largest node",
+    id: "live",
+    label: "Live",
+    caption: "A roadmap note in Live: the Markdown formats as you type, and the syntax steps back.",
+    alt: "Marky in the light Vault theme: a roadmap note in Live view with a checklist, wiki links and a code block, beside the vault sidebar",
+    width: 1800,
+    height: 1125,
   },
   {
-    id: "reading",
-    label: "Reading",
-    caption: "Read draws Mermaid diagrams and KaTeX maths where you wrote them.",
-    alt: "A note in Read view with a rendered Mermaid flow diagram and a KaTeX equation",
+    id: "read",
+    label: "Read",
+    caption:
+      "Read, set in Newsreader. Footnotes number themselves and wiki links read as plain links.",
+    alt: "A long-form note titled Notes on Deep Work in Read view, set in a serif face, with a numbered footnote",
+    width: 1080,
+    height: 675,
   },
   {
     id: "source",
     label: "Source",
-    caption: "The same note in Source. What you see here is what sits in the file.",
-    alt: "The same note in Source view showing the raw Mermaid fence and dollar-delimited maths",
+    caption: "Source shows exactly what sits in the file: front matter, a Mermaid fence and TeX.",
+    alt: "A note in Source view showing its front matter, a raw Mermaid fence and dollar-delimited maths",
+    width: 1080,
+    height: 675,
   },
   {
-    id: "code",
-    label: "Code",
-    caption: "Syntax highlighting and numbered footnotes, both on out of the box.",
-    alt: "A note showing a highlighted Rust code block and a numbered footnote",
+    id: "math",
+    label: "Diagrams & maths",
+    caption: "The same note in Read: Mermaid draws the diagram and KaTeX sets the equation.",
+    alt: "The same note in Read view with a rendered Mermaid flow diagram and a KaTeX equation",
+    width: 1080,
+    height: 675,
   },
   {
     id: "daily",
     label: "Daily notes",
-    caption: "A daily note in Live view, with its tasks and wiki links, created for you on a schedule.",
-    alt: "A daily note dated 2026-08-18 in Live view, with completed and open task checkboxes and wiki links",
+    caption: "Today’s daily note in Vault Dark, created for you from a template.",
+    alt: "A daily note in the dark Vault theme, with checked and open tasks and wiki links",
+    width: 1080,
+    height: 675,
+  },
+  {
+    id: "graph",
+    label: "Graph",
+    caption: "The whole vault as a graph. Drag to pan, scroll to zoom, click a node to open it.",
+    alt: "Marky's note graph in the dark theme, showing fourteen notes and their connections",
+    width: 1080,
+    height: 675,
   },
   {
     id: "themes",
-    label: "Themes",
-    caption: "Fifteen themes and three typefaces. Picking one repaints the app straight away.",
-    alt: "Marky's appearance settings showing theme previews and the Sans, Serif and Mixed typeface picker",
+    label: "Appearance",
+    caption:
+      "Sixteen themes, three typefaces and the translucent window, all in one settings page.",
+    alt: "Marky's appearance settings with light theme previews, the translucent window switch and the Sans, Serif and Mixed typeface picker",
+    width: 1080,
+    height: 675,
   },
 ];
 
@@ -67,7 +88,7 @@ export default function Gallery() {
       >
         <h2 className="display text-[clamp(36px,6.5vw,72px)]">Straight from the app.</h2>
         <p className="lede max-w-[34rem]">
-          Every shot is Marky running on a demo vault, in Vault and Vault Dark. Thirteen other
+          Every shot is Marky running on a demo vault, in Vault and Vault Dark. Fourteen other
           themes ship with it.
         </p>
       </div>
@@ -94,8 +115,8 @@ export default function Gallery() {
             key={shot.id}
             src={`/screenshots/${shot.id}.webp`}
             alt={shot.alt}
-            width={SHOT_W}
-            height={SHOT_H}
+            width={shot.width}
+            height={shot.height}
             loading="lazy"
             decoding="async"
             className="swap-in shot w-full"

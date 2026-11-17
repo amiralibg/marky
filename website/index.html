@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" sizes="128x128" href="/icon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f3f1ec" />
+    <meta name="theme-color" content="#ecebf1" />
     <link rel="manifest" href="/site.webmanifest" />
 
     <title>Marky — Offline-first Markdown notes for macOS, Windows and Linux</title>
@@ -109,7 +109,8 @@
               "Fuzzy search across note names and contents",
               "Source, Live and Read views with a choice of sans, serif or mixed typefaces",
               "Mermaid diagrams, KaTeX maths, footnotes and syntax highlighting",
-              "Fifteen themes, nine accent colours and remappable shortcuts",
+              "Sixteen themes, nine accent colours and remappable shortcuts",
+              "HTML documents beside your notes, with preview, in-place editing and source",
               "Scheduled daily, weekly and monthly notes from templates",
               "MCP server for Claude, Cursor, Zed and ChatGPT"
             ],
@@ -150,7 +151,7 @@
           document.documentElement.setAttribute("data-theme", theme);
           document
             .querySelector('meta[name="theme-color"]')
-            ?.setAttribute("content", theme === "dark" ? "#191918" : "#f3f1ec");
+            ?.setAttribute("content", theme === "dark" ? "#131217" : "#ecebf1");
         } catch {
           /* ignore */
         }

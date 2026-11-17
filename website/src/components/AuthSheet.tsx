@@ -157,7 +157,7 @@ export default function AuthSheet({
         <button
           type="submit"
           disabled={busy}
-          className="btn-accent inline-flex h-11 w-full items-center justify-center rounded-sm text-[14px] font-medium transition-colors duration-200 disabled:opacity-60"
+          className="btn-accent inline-flex h-11 w-full items-center justify-center rounded-pill text-[14px] font-medium transition-colors duration-200 disabled:opacity-60"
         >
           {busy
             ? mode === "register"

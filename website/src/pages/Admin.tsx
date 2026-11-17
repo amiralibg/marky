@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowUp, Check, Copy, Download, RotateCw, Search, Trash2 } from "lucide-react";
 import Sheet from "../components/Sheet";
 import { FIELD_CLASS, PasswordField } from "../components/Field";
-import { usePlainCanvas } from "../lib/canvas";
 import {
   ApiError,
   api,
@@ -410,7 +409,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
             <button
               type="submit"
               disabled={busy}
-              className="btn-accent inline-flex h-11 w-full items-center justify-center rounded-sm text-[14px] font-medium transition-colors disabled:opacity-60"
+              className="btn-accent inline-flex h-11 w-full items-center justify-center rounded-pill text-[14px] font-medium transition-colors disabled:opacity-60"
             >
               {busy ? "Signing in…" : "Sign in"}
             </button>
@@ -533,8 +532,6 @@ function CopyPostButton({ post }: { post: AdminFeedbackPost }) {
 }
 
 export default function Admin() {
-  usePlainCanvas();
-
   const [signedIn, setSignedIn] = useState(() => api.admin.hasToken());
   const [posts, setPosts] = useState<AdminFeedbackPost[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);

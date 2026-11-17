@@ -174,14 +174,8 @@ export default function GraphField({ active, onSelect }: Props) {
   return (
     <div
       ref={wrapRef}
-      className="relative h-[340px] w-full overflow-hidden rounded-md border border-line sm:h-[420px] md:h-[520px]"
-      style={{
-        // Solid, so its dot grid is not fighting the ruled paper behind it.
-        backgroundColor: "var(--color-surface)",
-        backgroundImage:
-          "radial-gradient(color-mix(in srgb, var(--color-ink) 12%, transparent) 1px, transparent 1px)",
-        backgroundSize: "24px 24px",
-      }}
+      // The app's graph sits on plain paper: no grid, no texture.
+      className="paper-surface relative h-[340px] w-full overflow-hidden !rounded-lg sm:h-[420px] md:h-[520px]"
       onMouseMove={onMove}
       onMouseLeave={() => {
         mouse.current.inside = false;

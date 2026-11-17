@@ -158,7 +158,7 @@ export default function CommandPalette({ open, onClose, onToggleTheme, theme }: 
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="relative flex max-h-full w-full max-w-[560px] flex-col overflow-hidden rounded-md border border-line bg-raised shadow-[var(--float)]"
+        className="relative flex max-h-full w-full max-w-[560px] flex-col overflow-hidden frost rounded-lg"
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             onClose();
