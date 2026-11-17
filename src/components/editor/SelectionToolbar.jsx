@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import useSettingsStore, { formatKeymap } from "../../store/settingsStore";
 
 // Notion-style bubble toolbar — appears above the current text selection.
-// Styling and spring motion follow the Marky "Vault" claude.ai/design.
+// Frosted like every surface that floats above the sheet (`.glass-panel`).
 
-const Icon = ({ path, strokeWidth = 2.1 }) => (
+const Icon = ({ path, strokeWidth = 1.8 }) => (
   <svg
     width="15"
     height="15"
@@ -161,6 +161,11 @@ const ACTIONS = [
 
 const GAP = 10;
 
+// The rise-in is decoration; with reduced motion asked for, the bar only fades.
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+
 const SelectionToolbar = ({ selection, onInsert }) => {
   const keymaps = useSettingsStore((state) => state.keymaps);
   const [mounted, setMounted] = useState(false);
@@ -211,16 +216,17 @@ const SelectionToolbar = ({ selection, onInsert }) => {
       ref={barRef}
       role="toolbar"
       aria-label="Text formatting"
-      className="fixed z-40 flex items-center gap-px rounded-[10px] border border-border bg-bg-editor p-[3px]"
+      className="glass-panel fixed z-40 flex items-center gap-px rounded-card p-1"
       style={{
         left,
         top,
-        transform: `translate(-50%, ${above ? "-100%" : "0"}) translateY(${
-          visible ? "0" : above ? "6px" : "-6px"
-        }) scale(${visible ? 1 : 0.97})`,
+        transform: prefersReducedMotion()
+          ? `translate(-50%, ${above ? "-100%" : "0"})`
+          : `translate(-50%, ${above ? "-100%" : "0"}) translateY(${
+              visible ? "0" : above ? "6px" : "-6px"
+            }) scale(${visible ? 1 : 0.97})`,
         opacity: visible ? 1 : 0,
-        boxShadow: "0 10px 30px rgba(20,20,15,.16)",
-        transition: "transform .2s cubic-bezier(.3,1.4,.5,1), opacity .16s ease",
+        transition: "transform 200ms cubic-bezier(0.2, 0, 0, 1), opacity 160ms ease",
         pointerEvents: visible ? "auto" : "none",
       }}
       // Keep the editor selection while clicking toolbar buttons.
@@ -228,7 +234,7 @@ const SelectionToolbar = ({ selection, onInsert }) => {
     >
       {ACTIONS.map((a, i) =>
         a.divider ? (
-          <span key={`d${i}`} className="mx-[5px] h-4 w-px bg-border" aria-hidden="true" />
+          <span key={`d${i}`} className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
         ) : (
           <button
             key={a.id}
@@ -236,7 +242,7 @@ const SelectionToolbar = ({ selection, onInsert }) => {
             title={getTitle(a)}
             aria-label={a.title}
             onClick={() => onInsert(a.before, a.after, a.placeholder)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-overlay-subtle hover:text-text-primary"
+            className="flex h-7 w-7 items-center justify-center rounded-control text-text-secondary transition-colors hover:bg-item-hover hover:text-text-primary"
           >
             {a.icon}
           </button>

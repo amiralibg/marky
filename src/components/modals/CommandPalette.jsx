@@ -2,12 +2,15 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Fuse from "fuse.js";
 import useNotesStore from "../../store/notesStore";
+import useSettingsStore, { formatShortcutHint } from "../../store/settingsStore";
 import useModalAccessibility from "../../hooks/useModalAccessibility";
-import { notePreview } from "../../utils/notePreview";
+import { documentExcerpt, documentText } from "../../utils/documentText";
+import { isHtmlDocument } from "../../utils/documentKind";
 import { scrollItemIntoView } from "../../utils/scrollItemIntoView";
 import {
   NoteIcon,
   NotePlusIcon,
+  CodeDocumentIcon,
   FolderPlusIcon,
   FolderOpenIcon,
   CalendarIcon,
@@ -28,6 +31,7 @@ import {
   BookmarkIcon,
   PinIcon,
 } from "../icons";
+import EmptyState from "../ui/EmptyState";
 
 const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   const [query, setQuery] = useState("");
@@ -40,6 +44,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   const activeResultId = results.length > 0 ? `command-palette-result-${selectedIndex}` : undefined;
 
   const { items, currentNoteId, isPinned } = useNotesStore();
+  const keymaps = useSettingsStore((state) => state.keymaps);
   useModalAccessibility(isOpen, dialogRef, inputRef);
   const currentNote = items.find((item) => item.id === currentNoteId && item.type === "note");
 
@@ -49,48 +54,56 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       // File Operations
       {
         id: "new-note",
-        name: "New Note",
-        category: "File Operations",
+        name: "New note",
+        category: "File operations",
         icon: NotePlusIcon,
         action: "newNote",
         keywords: ["create", "add"],
       },
       {
+        id: "new-html-document",
+        name: "New HTML document",
+        category: "File operations",
+        icon: CodeDocumentIcon,
+        action: "newHtmlDocument",
+        keywords: ["create", "page", "web", "html"],
+      },
+      {
         id: "new-folder",
-        name: "New Folder",
-        category: "File Operations",
+        name: "New folder",
+        category: "File operations",
         icon: FolderPlusIcon,
         action: "newFolder",
         keywords: ["create", "directory"],
       },
       {
         id: "daily-note",
-        name: "Open Today’s Daily Note",
-        category: "File Operations",
+        name: "Open today’s daily note",
+        category: "File operations",
         icon: CalendarIcon,
         action: "openDailyNote",
         keywords: ["journal", "today", "calendar"],
       },
       {
         id: "open-folder",
-        name: "Open Folder",
-        category: "File Operations",
+        name: "Open folder",
+        category: "File operations",
         icon: FolderOpenIcon,
         action: "openFolder",
         keywords: ["import", "load"],
       },
       {
         id: "new-window",
-        name: "New Window",
-        category: "File Operations",
+        name: "New window",
+        category: "File operations",
         icon: WindowIcon,
         action: "newWindow",
         keywords: ["empty window", "another window", "second window"],
       },
       {
         id: "open-folder-new-window",
-        name: "Open Folder in New Window",
-        category: "File Operations",
+        name: "Open folder in new window",
+        category: "File operations",
         icon: WindowIcon,
         action: "openFolderInNewWindow",
         keywords: ["vault", "second window", "side by side", "another vault"],
@@ -98,7 +111,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       {
         id: "save",
         name: "Save now",
-        category: "File Operations",
+        category: "File operations",
         icon: SaveIcon,
         action: "save",
         keywords: ["write", "flush", "save note"],
@@ -107,7 +120,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       // Navigation
       {
         id: "search",
-        name: "Search All Notes",
+        name: "Search all notes",
         category: "Navigation",
         icon: SearchIcon,
         action: "search",
@@ -115,7 +128,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       },
       {
         id: "toggle-sidebar",
-        name: "Toggle Sidebar",
+        name: "Toggle sidebar",
         category: "Navigation",
         icon: SidebarIcon,
         action: "toggleSidebar",
@@ -127,7 +140,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
 
       {
         id: "increase-font-size",
-        name: "Increase Font Size",
+        name: "Increase font size",
         category: "View",
         icon: TextSizeIcon,
         action: "increaseFontSize",
@@ -135,7 +148,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       },
       {
         id: "decrease-font-size",
-        name: "Decrease Font Size",
+        name: "Decrease font size",
         category: "View",
         icon: TextSizeIcon,
         action: "decreaseFontSize",
@@ -143,7 +156,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       },
       {
         id: "reset-font-size",
-        name: "Reset Font Size",
+        name: "Reset font size",
         category: "View",
         icon: TextSizeIcon,
         action: "resetFontSize",
@@ -153,7 +166,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       // Tools
       {
         id: "graph",
-        name: "Open Graph View",
+        name: "Open graph view",
         category: "Tools",
         icon: GraphIcon,
         action: "openGraph",
@@ -161,7 +174,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       },
       {
         id: "attachments",
-        name: "Manage Attachments",
+        name: "Manage attachments",
         category: "Tools",
         icon: ArchiveIcon,
         action: "openAttachments",
@@ -169,7 +182,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       },
       {
         id: "export",
-        name: "Export Note",
+        name: "Export note",
         category: "Tools",
         icon: ExportIcon,
         action: "exportNote",
@@ -177,7 +190,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       },
       {
         id: "settings",
-        name: "Open Settings",
+        name: "Open settings",
         category: "Tools",
         icon: SettingsIcon,
         action: "openSettings",
@@ -185,7 +198,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       },
       {
         id: "shortcuts",
-        name: "Show Keyboard Shortcuts",
+        name: "Show keyboard shortcuts",
         category: "Help",
         icon: KeyboardIcon,
         action: "showShortcuts",
@@ -195,7 +208,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       // Focus
       {
         id: "focus-mode",
-        name: "Toggle Focus Mode",
+        name: "Toggle focus mode",
         category: "View",
         icon: FocusIcon,
         action: "toggleFocusMode",
@@ -205,7 +218,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       // Backup
       {
         id: "backup",
-        name: "Backup Workspace",
+        name: "Backup workspace",
         category: "Tools",
         icon: ArchiveIcon,
         action: "backupWorkspace",
@@ -215,53 +228,53 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
 
     if (!currentNote) return baseCommands;
 
-    const pinLabel = isPinned(currentNote.id) ? "Unpin Current Note" : "Pin Current Note";
+    const pinLabel = isPinned(currentNote.id) ? "Unpin current note" : "Pin current note";
     return [
       ...baseCommands,
       {
         id: "new-note-current-folder",
-        name: "New Note in Current Folder",
-        category: "Current Note",
+        name: "New note in current folder",
+        category: "Current note",
         icon: NotePlusIcon,
         action: "newNoteInCurrentFolder",
         keywords: ["create", "same folder", "template"],
       },
       {
         id: "template-current-folder",
-        name: "Open Templates for Current Folder",
-        category: "Current Note",
+        name: "Open templates for current folder",
+        category: "Current note",
         icon: TemplateIcon,
         action: "openTemplatesForCurrentFolder",
         keywords: ["template", "same folder"],
       },
       {
         id: "rename-current-note",
-        name: "Rename Current Note",
-        category: "Current Note",
+        name: "Rename current note",
+        category: "Current note",
         icon: EditIcon,
         action: "renameCurrentNote",
         keywords: ["title", "file name"],
       },
       {
         id: "open-current-in-window",
-        name: "Open Current Note in New Window",
-        category: "Current Note",
+        name: "Open current note in new window",
+        category: "Current note",
         icon: WindowIcon,
         action: "openCurrentNoteInNewWindow",
         keywords: ["window", "split", "side by side", "detach", "popout"],
       },
       {
         id: "copy-current-path",
-        name: "Copy Current Note Path",
-        category: "Current Note",
+        name: "Copy current note path",
+        category: "Current note",
         icon: LinkIcon,
         action: "copyCurrentNotePath",
         keywords: ["clipboard", "file path"],
       },
       {
         id: "copy-current-wikilink",
-        name: "Copy Current Note Wiki Link",
-        category: "Current Note",
+        name: "Copy current note wiki link",
+        category: "Current note",
         icon: BookmarkIcon,
         action: "copyCurrentNoteWikiLink",
         keywords: ["clipboard", "markdown", "link"],
@@ -269,7 +282,7 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       {
         id: "toggle-current-pin",
         name: pinLabel,
-        category: "Current Note",
+        category: "Current note",
         icon: PinIcon,
         action: "toggleCurrentNotePin",
         keywords: ["favorite", "pinned"],
@@ -279,6 +292,18 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
 
   // Get all notes for navigation
   const notes = useMemo(() => items.filter((item) => item.type === "note"), [items]);
+  const folderNames = useMemo(() => {
+    const map = new Map();
+    for (const item of items) if (item.type === "folder") map.set(item.id, item.name);
+    return map;
+  }, [items]);
+
+  // A command's own shortcut, where it has one, as the trailing hint. Actions
+  // and keymap ids share names for the commands that have both.
+  const shortcutFor = (action) => {
+    const keymap = keymaps?.[action];
+    return keymap?.modifiers ? formatShortcutHint(keymap) : "";
+  };
 
   const allItems = useMemo(
     () => [
@@ -291,7 +316,8 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
       // Add notes
       ...notes.map((note) => ({
         ...note,
-        searchText: `${note.name} ${note.content || ""}`,
+        // An HTML document is found by the words on its page, not its markup.
+        searchText: `${note.name} ${documentText(note)}`,
         type: "note",
       })),
     ],
@@ -317,11 +343,16 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   useEffect(() => {
     if (!query.trim()) {
       // Show all commands when no query
-      const commandResults = commands.map((cmd) => ({
-        type: "command",
-        item: cmd,
-        score: 0,
-      }));
+      // Grouped by category, in the order each category first appears, so
+      // every group label shows once.
+      const categoryOrder = [...new Set(commands.map((cmd) => cmd.category))];
+      const commandResults = [...commands]
+        .sort((a, b) => categoryOrder.indexOf(a.category) - categoryOrder.indexOf(b.category))
+        .map((cmd) => ({
+          type: "command",
+          item: cmd,
+          score: 0,
+        }));
       setResults(commandResults);
       setSelectedIndex(0);
       return;
@@ -336,8 +367,10 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus({ preventScroll: true });
+      // Results are not cleared here: the search effect has already listed
+      // every command for the empty query, and clearing them left the palette
+      // blank until the first keystroke.
       setQuery("");
-      setResults([]);
       setSelectedIndex(0);
     }
   }, [isOpen]);
@@ -379,7 +412,10 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
   useEffect(() => {
     if (results.length === 0) return;
     const container = resultsContainerRef.current;
-    scrollItemIntoView(container, container?.children[selectedIndex]);
+    scrollItemIntoView(
+      container,
+      container?.querySelector(`#command-palette-result-${selectedIndex}`)
+    );
   }, [selectedIndex, results.length]);
 
   const handleSelect = (result) => {
@@ -402,252 +438,143 @@ const CommandPalette = ({ isOpen, onClose, onExecuteCommand }) => {
 
   if (!isOpen) return null;
 
+  // Group labels sit between rows wherever the group changes. Results are
+  // never reordered for them: with a query the ranking decides what Enter
+  // opens, so a label may repeat rather than move a better match down.
+  const groupOf = (result) => {
+    const item = result.item || result;
+    if (item.type === "note") return "Documents";
+    return query.trim() ? "Commands" : item.category;
+  };
+
   // Rendered into <body> so the overlay never inherits a transformed or
   // scrollable ancestor from the app layout.
   return createPortal(
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="modal-scrim z-50 animate-fade-in" onClick={onClose} aria-hidden="true" />
 
-      {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[15vh] pb-4 pointer-events-none">
+      <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[14vh] pb-4 pointer-events-none">
         <div
           ref={dialogRef}
-          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-2xl max-h-full flex flex-col pointer-events-auto animate-slideUp overflow-hidden"
+          className="glass-panel modal-panel w-full max-w-[600px] max-h-[min(560px,100%)] flex flex-col pointer-events-auto animate-fade-in"
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
           aria-labelledby="command-palette-title"
           tabIndex={-1}
         >
-          {/* Search Input */}
-          <div className="shrink-0 border-b border-glass-border p-4">
-            <h2 id="command-palette-title" className="sr-only">
-              Command palette
-            </h2>
-            <div className="relative">
-              <svg
-                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-accent pointer-events-none"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+          <h2 id="command-palette-title" className="sr-only">
+            Command palette
+          </h2>
+          <div className="modal-query">
+            <SearchIcon className="w-[18px] h-[18px]" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search notes or run a command"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={results.length > 0}
+              aria-label="Search commands and notes"
+              aria-controls={resultsListboxId}
+              aria-activedescendant={activeResultId}
+              aria-describedby="command-palette-status"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="icon-btn"
+                title="Clear"
+                aria-label="Clear command search"
               >
-                <path
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
                   strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search notes or type a command..."
-                role="combobox"
-                aria-autocomplete="list"
-                aria-expanded={results.length > 0}
-                aria-label="Search commands and notes"
-                aria-controls={resultsListboxId}
-                aria-activedescendant={activeResultId}
-                aria-describedby="command-palette-status"
-                className="w-full pl-10 pr-4 py-3 bg-overlay-subtle border border-overlay-subtle rounded-lg text-sm text-text-primary placeholder-text-muted outline-none focus:bg-overlay-subtle focus:border-accent/50 transition-all"
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-overlay-light rounded text-text-muted hover:text-text-primary transition-colors"
-                  title="Clear"
-                  aria-label="Clear command search"
+                  aria-hidden="true"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              )}
-            </div>
-
-            {/* Result count */}
-            <div
-              id="command-palette-status"
-              className="mt-2 text-xs text-text-muted px-1"
-              role="status"
-              aria-live="polite"
-            >
-              {results.length > 0
-                ? `${results.length} result${results.length !== 1 ? "s" : ""}`
-                : query
-                  ? "No results found"
-                  : "All commands"}
-            </div>
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+            )}
+          </div>
+          <div id="command-palette-status" className="sr-only" role="status" aria-live="polite">
+            {results.length > 0
+              ? `${results.length} result${results.length !== 1 ? "s" : ""}`
+              : query
+                ? "No results found"
+                : "All commands"}
           </div>
 
-          {/* Results */}
           <div
             ref={resultsContainerRef}
             id={resultsListboxId}
             role="listbox"
             aria-label="Command palette results"
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar"
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2"
           >
             {results.length === 0 && query.trim() !== "" && (
-              <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                <svg
-                  className="w-16 h-16 text-text-muted opacity-50 mb-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-                <p className="text-text-secondary font-medium">No results found</p>
-                <p className="text-sm text-text-muted mt-1">Try a different search term</p>
-              </div>
+              <EmptyState
+                icon="search"
+                title="No commands or notes match"
+                body={`Nothing is called “${query.trim()}”. Try a shorter or different word.`}
+              />
             )}
 
             {results.map((result, index) => {
               const item = result.item || result;
               const isSelected = index === selectedIndex;
               const isNote = item.type === "note";
+              const group = groupOf(result);
+              const showGroup = index === 0 || groupOf(results[index - 1]) !== group;
+              const Glyph = isNote
+                ? isHtmlDocument(item)
+                  ? CodeDocumentIcon
+                  : NoteIcon
+                : item.icon;
+              const shortcut = !isNote && shortcutFor(item.action);
+              const folderName = isNote && item.parentId ? folderNames.get(item.parentId) : "";
 
               return (
-                <button
-                  key={isNote ? item.id : item.id}
-                  id={`command-palette-result-${index}`}
-                  onClick={() => handleSelect(result)}
-                  tabIndex={-1}
-                  role="option"
-                  aria-selected={isSelected}
-                  className={`w-full text-left px-4 py-3 border-b border-overlay-subtle hover:bg-overlay-light transition-colors ${
-                    isSelected ? "bg-overlay-light border-l-2 border-l-accent" : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Icon */}
-                    <div className="shrink-0 text-text-muted" aria-hidden="true">
-                      {(() => {
-                        const Glyph = isNote ? NoteIcon : item.icon;
-                        return Glyph ? <Glyph className="w-[18px] h-[18px]" /> : null;
-                      })()}
+                <div key={item.id} role="presentation">
+                  {showGroup && (
+                    <div className="palette-group" role="presentation" aria-hidden="true">
+                      {group}
                     </div>
-
-                    <div className="flex-1 min-w-0">
-                      {/* Title */}
-                      <div className="font-medium text-text-primary flex items-center gap-2">
-                        <span className="truncate" title={item.name}>
-                          {item.name}
-                        </span>
-                        {isNote && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded uppercase font-semibold">
-                            Note
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Subtitle */}
-                      <p
-                        className="text-xs text-text-muted truncate"
-                        title={
-                          isNote ? notePreview(item.content, 200) || "Empty note" : item.category
-                        }
-                      >
-                        {/* The row already carries an icon on the left, so the
-                            category needs no second glyph. Notes show cleaned
-                            prose rather than raw markdown. */}
-                        {isNote ? notePreview(item.content, 80) || "Empty note" : item.category}
-                      </p>
-                    </div>
-
-                    {/* Selected indicator */}
-                    {isSelected && (
-                      <svg
-                        className="w-5 h-5 text-accent shrink-0"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                </button>
+                  )}
+                  <button
+                    type="button"
+                    id={`command-palette-result-${index}`}
+                    onClick={() => handleSelect(result)}
+                    tabIndex={-1}
+                    role="option"
+                    aria-selected={isSelected}
+                    className={`palette-row ${isSelected ? "is-selected" : ""}`}
+                    title={isNote ? documentExcerpt(item, 200) || "Empty note" : undefined}
+                  >
+                    {Glyph ? <Glyph /> : <span className="w-4" aria-hidden="true" />}
+                    <span className="min-w-0 flex-1 truncate" dir="auto">
+                      {item.name}
+                    </span>
+                    {shortcut ? (
+                      <span className="kbd-hint">{shortcut}</span>
+                    ) : folderName ? (
+                      <span className="max-w-[40%] truncate text-[12px] text-text-muted" dir="auto">
+                        {folderName}
+                      </span>
+                    ) : null}
+                  </button>
+                </div>
               );
             })}
           </div>
-
-          {/* Footer with keyboard hints */}
-          {results.length > 0 && (
-            <div className="shrink-0 border-t border-glass-border px-4 py-2 bg-overlay-subtle/50">
-              <div className="flex items-center justify-between text-[10px] text-text-muted">
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
-                      ↑
-                    </kbd>
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
-                      ↓
-                    </kbd>
-                    Navigate
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
-                      Enter
-                    </kbd>
-                    Select
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
-                      Esc
-                    </kbd>
-                    Close
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-        .animate-slideUp {
-          animation: slideUp 0.3s ease-out;
-        }
-      `}</style>
     </>,
     document.body
   );

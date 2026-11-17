@@ -8,6 +8,7 @@ import {
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { isHtmlDocument } from "./documentKind";
 
 /**
  * Export the current workspace as a .zip file
@@ -28,7 +29,10 @@ export async function exportWorkspaceAsZip(rootFolderPath, items, settings = nul
 
   for (const note of notes) {
     try {
-      const content = await readTextFile(note.filePath);
+      // The file's bytes, not a decoded string: a backup restores exactly
+      // what was on disk (a BOM, CRLF line endings, an HTML document's
+      // encoding declaration and all).
+      const content = await readFile(note.filePath);
 
       // Get relative path from workspace root
       let relativePath = note.filePath;
@@ -379,7 +383,10 @@ export async function batchExportNotes(notes, format, rootFolderPath, markedPars
       relativePath = relativePath.slice(rootFolderPath.length).replace(/^[/\\]+/, "");
     }
 
-    if (format === "html") {
+    if (isHtmlDocument(note)) {
+      // Already a page: exported as it is, whichever format was picked.
+      zip.file(relativePath, content);
+    } else if (format === "html") {
       const htmlPath = relativePath.replace(/\.(md|markdown|txt)$/i, ".html");
       zip.file(htmlPath, buildNoteHTML(note.name, content, markedParser));
     } else {

@@ -32,14 +32,7 @@ type Props = {
  * scroll lock marks #root inert, and a dialog rendered inside #root would make
  * itself unfocusable.
  */
-export default function Sheet({
-  open,
-  onClose,
-  title,
-  description,
-  children,
-  size = "sm",
-}: Props) {
+export default function Sheet({ open, onClose, title, description, children, size = "sm" }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
   // Where focus came from, so it can be handed back on close.
   const restoreRef = useRef<HTMLElement | null>(null);
@@ -120,7 +113,7 @@ export default function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`sheet-pop relative flex max-h-[92vh] w-full flex-col overflow-y-auto overscroll-contain rounded-t-md border border-b-0 border-line bg-surface shadow-[var(--float)] sm:max-h-[calc(100vh-3rem)] sm:rounded-md sm:border-b  ${
+        className={`sheet-pop relative flex max-h-[92vh] w-full flex-col overflow-y-auto overscroll-contain frost rounded-t-lg sm:max-h-[calc(100vh-3rem)] sm:rounded-lg  ${
           size === "md" ? "sm:max-w-[34rem]" : "sm:max-w-[26rem]"
         }`}
       >

@@ -1,6 +1,6 @@
 [package]
 name = "marky"
-version = "1.9.2"
+version = "1.10.0"
 description = "A beautiful markdown note-taking app"
 authors = ["you"]
 edition = "2021"
@@ -16,7 +16,16 @@ tauri-build = { version = "2", features = [] }
 # `protocol-asset` serves local files to the webview over `asset://`, which is
 # how a note's images reach the preview — a webview on `tauri://localhost` can
 # fetch nothing from disk without it.
-tauri = { version = "2", features = ["protocol-asset"] }
+#
+# `macos-private-api` is what lets a macOS window be transparent (WKWebView
+# stops drawing its own background), which the Translucent window setting
+# needs for the vibrancy material to show through.
+tauri = { version = "2", features = ["protocol-asset", "macos-private-api"] }
+# The window materials behind the Translucent window setting (see
+# `set_window_translucency`). Already in the tree through Tauri; used directly
+# for the Windows 11 Mica → Windows 10 Acrylic fallback, which Tauri's own
+# `set_effects` doesn't do (it applies the first effect listed, or nothing).
+window-vibrancy = "0.6"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
@@ -37,6 +46,13 @@ tauri-plugin-http = "2"
 # every machine that could use this (macOS and Linux ship it; Windows users who
 # sync with git have Git for Windows). The frontend hides the whole section when
 # `git_available` finds no binary.
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# An empty unified toolbar on every window (see `install_title_toolbar`), so
+# AppKit lays out the traffic lights itself. Both crates are already in the
+# tree through Tauri.
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSToolbar", "NSWindow", "NSResponder"] }
 
 [dev-dependencies]
 # Git sync's tests run a real push/pull/merge between throwaway repositories on

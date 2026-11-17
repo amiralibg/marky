@@ -39,23 +39,20 @@ const EditorActionsMenu = ({ items }) => {
         aria-expanded={open}
         aria-label="More note actions"
         title="More actions"
-        className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
-          open
-            ? "bg-overlay-light text-text-primary"
-            : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
-        }`}
+        className="icon-btn"
       >
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <circle cx="5" cy="12" r="1.6" />
-          <circle cx="12" cy="12" r="1.6" />
-          <circle cx="19" cy="12" r="1.6" />
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="5.5" cy="12" r="1.4" />
+          <circle cx="12" cy="12" r="1.4" />
+          <circle cx="18.5" cy="12" r="1.4" />
         </svg>
       </button>
 
+      {/* Frosted, like every surface that floats above the sheet. */}
       {open && (
         <div
           role="menu"
-          className="absolute end-0 top-full z-40 mt-1.5 w-56 overflow-hidden rounded-xl border border-border bg-bg-sidebar/95 py-1.5 shadow-2xl backdrop-blur-md animate-fade-in"
+          className="glass-panel absolute end-0 top-full z-40 mt-2 w-60 rounded-card p-1.5 animate-fade-in"
         >
           {visible.map((item) => (
             <button
@@ -67,19 +64,13 @@ const EditorActionsMenu = ({ items }) => {
                 item.onSelect();
               }}
               title={item.title}
-              className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-start text-[13px] transition-colors ${
-                item.disabled
-                  ? "cursor-not-allowed text-text-muted opacity-50"
-                  : item.active
-                    ? "text-accent hover:bg-overlay-subtle"
-                    : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
-              }`}
+              className={`menu-item ${item.disabled ? "opacity-50" : ""}`}
             >
               <svg
-                className="h-4 w-4 shrink-0"
+                className={item.active ? "text-accent!" : ""}
                 fill="none"
                 stroke="currentColor"
-                strokeWidth={1.8}
+                strokeWidth={1.6}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 viewBox="0 0 24 24"

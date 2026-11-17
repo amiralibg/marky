@@ -139,7 +139,7 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props
           </button>
           <Link
             to="/#download"
-            className="inline-flex h-9 items-center rounded-sm border border-line bg-raised px-3.5 text-[13.5px] font-semibold text-ink transition-colors duration-150 hover:border-line-strong"
+            className="inline-flex h-9 items-center rounded-pill bg-raised px-4 text-[13.5px] font-semibold text-ink shadow-[0_0_0_1px_var(--color-line)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_var(--color-line-strong)]"
           >
             Download
           </Link>
@@ -183,7 +183,7 @@ export default function Nav({ onOpenPalette, theme, onToggleTheme, path }: Props
           <nav
             id="mobile-menu"
             aria-label="Primary"
-            className="menu-drop absolute inset-x-0 top-full z-40 max-h-[calc(100vh-3.5rem)] overflow-y-auto overscroll-contain border-b border-line bg-canvas px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-2 shadow-[var(--float)] sm:hidden"
+            className="menu-drop absolute inset-x-0 top-full z-40 max-h-[calc(100vh-3.5rem)] overflow-y-auto overscroll-contain frost px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-2 sm:hidden"
           >
             <ul className="divide-y divide-line">
               {LINKS.map((link) => (

@@ -1,12 +1,5 @@
 import { ArrowUp, Bug, Lightbulb, Plus, RotateCw } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import AuthSheet from "../components/AuthSheet";
 import Sheet from "../components/Sheet";
 import { FIELD_CLASS } from "../components/Field";
@@ -126,7 +119,10 @@ function PostCard({
                 off. A badge every row carries is one more thing to read past. */}
             {post.status !== "open" && (
               <span className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-faint">
-                <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[post.status]}`} />
+                <span
+                  aria-hidden
+                  className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[post.status]}`}
+                />
                 {STATUS_LABEL[post.status]}
               </span>
             )}
@@ -216,11 +212,7 @@ function ComposeForm({ onPosted }: { onPosted: () => void }) {
                 : "text-ink-faint hover:text-ink"
             }`}
           >
-            {option === "bug" ? (
-              <Bug size={13} aria-hidden />
-            ) : (
-              <Lightbulb size={13} aria-hidden />
-            )}
+            {option === "bug" ? <Bug size={13} aria-hidden /> : <Lightbulb size={13} aria-hidden />}
             {option === "bug" ? "Bug" : "Feature"}
           </button>
         ))}
@@ -264,7 +256,7 @@ function ComposeForm({ onPosted }: { onPosted: () => void }) {
       <button
         type="submit"
         disabled={busy}
-        className="btn-accent inline-flex h-11 w-full items-center justify-center rounded-sm text-[14px] font-medium transition-colors disabled:opacity-60"
+        className="btn-accent inline-flex h-11 w-full items-center justify-center rounded-pill text-[14px] font-medium transition-colors disabled:opacity-60"
       >
         {busy ? "Posting…" : "Post it"}
       </button>
@@ -385,7 +377,7 @@ export default function Feedback() {
             <button
               type="button"
               onClick={openCompose}
-              className="btn-accent inline-flex min-h-10 items-center gap-1.5 rounded-sm px-4 py-1.5 text-[14px] font-medium"
+              className="btn-accent inline-flex min-h-10 items-center gap-1.5 rounded-pill px-4 py-1.5 text-[14px] font-medium"
             >
               <Plus size={15} strokeWidth={2.2} aria-hidden />
               New post
@@ -505,7 +497,7 @@ export default function Feedback() {
                     <button
                       type="button"
                       onClick={openCompose}
-                      className="btn-accent inline-flex min-h-10 items-center gap-1.5 rounded-sm px-4 py-1.5 text-[13px] font-medium"
+                      className="btn-accent inline-flex min-h-10 items-center gap-1.5 rounded-pill px-4 py-1.5 text-[13px] font-medium"
                     >
                       <Plus size={14} strokeWidth={2.2} aria-hidden />
                       Post the first idea
@@ -562,7 +554,9 @@ function Chip({
       onClick={onClick}
       aria-pressed={active}
       className={`shrink-0 rounded-pill px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
-        active ? "bg-raised text-ink ring-1 ring-line" : "text-ink-soft hover:bg-ink/[0.05] hover:text-ink"
+        active
+          ? "bg-raised text-ink ring-1 ring-line"
+          : "text-ink-soft hover:bg-ink/[0.05] hover:text-ink"
       }`}
     >
       {children}
@@ -585,7 +579,11 @@ function Segmented<T extends string>({
   return (
     <div className="flex items-center gap-2">
       <span className="kicker">{label}</span>
-      <div role="group" aria-label={label} className="flex gap-1 rounded-pill border border-line p-1">
+      <div
+        role="group"
+        aria-label={label}
+        className="flex gap-1 rounded-pill border border-line p-1"
+      >
         {options.map((option) => (
           <button
             key={option.id}
@@ -593,7 +591,9 @@ function Segmented<T extends string>({
             aria-pressed={value === option.id}
             onClick={() => onChange(option.id)}
             className={`rounded-pill px-3 py-1 text-[12px] font-medium transition-colors duration-200 ${
-              value === option.id ? "bg-raised text-ink ring-1 ring-line" : "text-ink-soft hover:text-ink"
+              value === option.id
+                ? "bg-raised text-ink ring-1 ring-line"
+                : "text-ink-soft hover:text-ink"
             }`}
           >
             {option.label}

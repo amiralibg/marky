@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import EmptyState from "../ui/EmptyState";
 import useNotesStore from "../../store/notesStore";
 import useSettingsStore from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
@@ -101,26 +102,22 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
       aria-modal="true"
       aria-label="Attachment manager"
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="modal-scrim animate-fade-in" onClick={onClose} aria-hidden="true" />
       <div
         ref={dialogRef}
-        className="relative z-10 w-full max-w-3xl max-h-[80vh] flex flex-col bg-bg-sidebar border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+        className="relative z-10 w-full max-w-3xl max-h-[80vh] flex flex-col glass-panel modal-panel animate-fade-in"
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-border shrink-0 flex items-center gap-3">
+        <div className="modal-header shrink-0 pb-3">
           <div className="flex-1 min-w-0">
-            <h2 className="text-base font-semibold text-text-primary">Attachments</h2>
-            <p className="text-xs text-text-muted mt-0.5">
+            <h2 className="modal-title">Attachments</h2>
+            <p className="modal-subtitle">
               {attachments.length} file{attachments.length !== 1 ? "s" : ""} in{" "}
               <span className="font-mono">{attachmentFolder || "the workspace root"}</span> ·{" "}
               {usageMap.size} referenced
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors"
-            aria-label="Close attachment manager"
-          >
+          <button onClick={onClose} className="icon-btn" aria-label="Close attachment manager">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
@@ -133,25 +130,12 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
         </div>
 
         {attachments.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-6 py-14 text-center">
-            <svg
-              className="w-10 h-10 text-text-muted opacity-50 mb-3"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"
-              />
-            </svg>
-            <p className="text-sm font-medium text-text-primary">No attachments yet</p>
-            <p className="text-xs text-text-muted mt-1 max-w-xs leading-relaxed">
-              Drop or paste an image into a note and it lands here, ready to reuse.
-            </p>
+          <div className="flex-1 flex items-center justify-center">
+            <EmptyState
+              icon="attachment"
+              title="No attachments yet"
+              body="Drop or paste an image into a note and it lands here, ready to reuse."
+            />
           </div>
         ) : !selected ? (
           /* Gallery: every attachment visible at a glance. Picking one opens
@@ -165,7 +149,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Filter by name"
                 aria-label="Filter attachments by name"
-                className="w-full px-3 py-2 bg-bg-base border border-border rounded-lg text-xs text-text-primary placeholder-text-muted outline-none focus:border-accent/50 transition-colors"
+                className="field"
               />
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar px-5 pb-5">
@@ -176,7 +160,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                     <button
                       key={path}
                       onClick={() => setSelectedPath(path)}
-                      className="group text-left rounded-xl border border-border overflow-hidden bg-bg-base hover:border-accent/40 hover:shadow-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                      className="group overflow-hidden rounded-card bg-item-active text-start shadow-[0_0_0_1px_var(--color-border)] transition-shadow hover:shadow-[0_0_0_1px_var(--color-border-light)]"
                       title={path}
                     >
                       <span className="block aspect-square w-full overflow-hidden bg-overlay-subtle">
@@ -185,7 +169,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                             src={toAssetUrl(path)}
                             alt=""
                             loading="lazy"
-                            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.04]"
+                            className="w-full h-full object-cover"
                           />
                         ) : (
                           <span className="w-full h-full flex items-center justify-center">
@@ -208,7 +192,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                         )}
                       </span>
                       <span className="flex items-center gap-1.5 px-2.5 py-2">
-                        <span className="flex-1 min-w-0 truncate text-[11px] text-text-secondary group-hover:text-text-primary transition-colors">
+                        <span className="min-w-0 flex-1 truncate text-[12px] text-text-secondary transition-colors group-hover:text-text-primary">
                           {baseNameOf(path)}
                         </span>
                         {uses === 0 ? (
@@ -217,7 +201,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                             title="Not referenced by any note"
                           />
                         ) : (
-                          <span className="shrink-0 text-[10px] tabular-nums text-text-muted">
+                          <span className="shrink-0 text-[11px] tabular-nums text-text-muted">
                             {uses}
                           </span>
                         )}
@@ -227,14 +211,19 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                 })}
               </div>
               {visible.length === 0 && (
-                <p className="text-xs text-text-muted text-center py-10">No matches</p>
+                <EmptyState
+                  icon="filter"
+                  title="No attachments match"
+                  body={`No file name contains “${query.trim()}”.`}
+                  action={{ label: "Clear filter", onClick: () => setQuery("") }}
+                />
               )}
             </div>
           </div>
         ) : (
           <div className="flex-1 flex min-h-0">
             {/* File list */}
-            <div className="w-64 shrink-0 border-r border-border flex flex-col min-h-0">
+            <div className="w-64 shrink-0 border-e border-border flex flex-col min-h-0">
               <div className="px-3 pt-3 pb-2">
                 <input
                   ref={searchRef}
@@ -243,7 +232,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Filter by name"
                   aria-label="Filter attachments by name"
-                  className="w-full px-2.5 py-1.5 bg-bg-base border border-border rounded-lg text-xs text-text-primary placeholder-text-muted outline-none focus:border-accent/50 transition-colors"
+                  className="field h-9"
                 />
               </div>
               <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-2 space-y-px">
@@ -254,11 +243,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                     <button
                       key={path}
                       onClick={() => setSelectedPath(path)}
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors ${
-                        isSelected
-                          ? "bg-accent/10 text-accent"
-                          : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
-                      }`}
+                      className={`palette-row min-h-9 gap-2 px-2 text-[13px] ${isSelected ? "is-selected" : ""}`}
                       title={path}
                     >
                       {isImagePath(path) ? (
@@ -266,10 +251,10 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                           src={toAssetUrl(path)}
                           alt=""
                           loading="lazy"
-                          className="w-7 h-7 rounded object-cover bg-overlay-subtle shrink-0 border border-border"
+                          className="h-7 w-7 shrink-0 rounded-control bg-overlay-subtle object-cover"
                         />
                       ) : (
-                        <span className="w-7 h-7 rounded bg-overlay-subtle border border-border flex items-center justify-center shrink-0">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control bg-overlay-subtle">
                           <svg
                             className="w-3.5 h-3.5 text-text-muted"
                             fill="none"
@@ -287,9 +272,9 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                           </svg>
                         </span>
                       )}
-                      <span className="flex-1 min-w-0 truncate text-xs">{baseNameOf(path)}</span>
+                      <span className="min-w-0 flex-1 truncate">{baseNameOf(path)}</span>
                       {uses > 0 ? (
-                        <span className="shrink-0 text-[10px] tabular-nums text-text-muted">
+                        <span className="shrink-0 text-[11px] tabular-nums text-text-muted">
                           {uses}
                         </span>
                       ) : (
@@ -302,7 +287,12 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                   );
                 })}
                 {visible.length === 0 && (
-                  <p className="text-xs text-text-muted text-center py-6">No matches</p>
+                  <EmptyState
+                    compact
+                    icon="filter"
+                    title="No attachments match"
+                    action={{ label: "Clear filter", onClick: () => setQuery("") }}
+                  />
                 )}
               </div>
             </div>
@@ -311,7 +301,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
             <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar p-5">
               {!selected ? (
                 <div className="h-full flex items-center justify-center text-center">
-                  <p className="text-xs text-text-muted max-w-[16rem] leading-relaxed">
+                  <p className="text-[12.5px] text-text-muted max-w-[16rem] leading-relaxed">
                     Select a file to see where it is used.
                     <br />
                     The amber dot marks files no note references.
@@ -319,10 +309,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                 </div>
               ) : (
                 <>
-                  <button
-                    onClick={() => setSelectedPath(null)}
-                    className="mb-3 inline-flex items-center gap-1.5 text-[11px] font-medium text-text-muted hover:text-text-primary transition-colors"
-                  >
+                  <button onClick={() => setSelectedPath(null)} className="btn btn-sm -ms-3 mb-2">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
@@ -334,7 +321,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                     All attachments
                   </button>
                   {isImagePath(selected) && (
-                    <div className="mb-4 rounded-lg border border-border overflow-hidden bg-bg-base flex items-center justify-center max-h-56">
+                    <div className="mb-4 flex max-h-56 items-center justify-center overflow-hidden rounded-card bg-overlay-subtle">
                       <img
                         src={toAssetUrl(selected)}
                         alt={baseNameOf(selected)}
@@ -349,7 +336,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                   >
                     {baseNameOf(selected)}
                   </p>
-                  <p className="text-[11px] font-mono text-text-muted mt-1 break-all">
+                  <p className="mt-1 break-all font-mono text-[11.5px] text-text-muted">
                     {relativePath}
                   </p>
 
@@ -358,25 +345,25 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                       onClick={() =>
                         copyText(`![[${baseNameOf(selected)}]]`, "Embed copied — paste into a note")
                       }
-                      className="px-2.5 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-semibold hover:bg-accent/20 transition-colors"
+                      className="btn btn-sm btn-primary"
                     >
                       Copy embed
                     </button>
                     <button
                       onClick={() => copyText(relativePath, "Path copied")}
-                      className="px-2.5 py-1.5 rounded-lg bg-overlay-subtle text-text-secondary text-xs font-medium hover:bg-overlay-light hover:text-text-primary transition-colors"
+                      className="btn btn-sm"
                     >
                       Copy path
                     </button>
                     <button
                       onClick={() => setPendingDelete(selected)}
-                      className="px-2.5 py-1.5 rounded-lg text-red-400 text-xs font-medium hover:bg-red-500/10 transition-colors ml-auto"
+                      className="btn btn-sm btn-danger ms-auto"
                     >
                       Delete…
                     </button>
                   </div>
 
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mt-6 mb-2">
+                  <h3 className="side-label mt-6 mb-2">
                     Used in{" "}
                     {usedBy.length > 0
                       ? `${usedBy.length} note${usedBy.length !== 1 ? "s" : ""}`
@@ -391,7 +378,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                               selectNote(note.id);
                               onClose();
                             }}
-                            className="w-full text-left px-2.5 py-1.5 rounded-md text-xs text-text-secondary hover:bg-overlay-subtle hover:text-text-primary transition-colors truncate"
+                            className="palette-row min-h-8 truncate px-2.5 text-[13px]"
                           >
                             {note.name}
                           </button>
@@ -399,7 +386,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-xs text-text-muted leading-relaxed">
+                    <p className="text-[12.5px] text-text-muted leading-relaxed">
                       No note links to this file. Deleting it will not change any note.
                     </p>
                   )}
@@ -411,7 +398,7 @@ const AttachmentManagerModal = ({ isOpen, onClose }) => {
 
         <ConfirmDialog
           isOpen={Boolean(pendingDelete)}
-          title="Delete Attachment"
+          title="Delete attachment"
           message={
             pendingDelete
               ? `Delete "${baseNameOf(pendingDelete)}" from the workspace?${

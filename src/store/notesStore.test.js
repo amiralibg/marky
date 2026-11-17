@@ -465,3 +465,144 @@ describe("auto-save", () => {
     );
   });
 });
+
+describe("HTML documents in the store", () => {
+  const entry = (name, content, modified = 1000) => ({
+    name,
+    path: `/workspace/${name}`,
+    is_dir: false,
+    modified,
+    size: content.length || 1,
+    content,
+  });
+
+  const report =
+    "<!doctype html><html><head><style>.kpi{color:#fff} #main{}</style></head><body><h1>Q3 report</h1><p>[[Not a link]] #nottag</p></body></html>";
+
+  let fs;
+
+  beforeEach(async () => {
+    window.localStorage.clear();
+    fs = await import("../utils/fileSystem");
+    fs.readWorkspaceFiles.mockReset();
+    fs.createMarkdownFileOnDisk.mockReset();
+    fs.writeMarkdownFileOnDisk.mockReset();
+  });
+
+  const loadWith = async (entries) => {
+    const store = await loadStore();
+    seedStore(store);
+    store.setState({ items: [rootFolder] });
+    fs.readWorkspaceFiles.mockResolvedValue(entries);
+    await store.getState().refreshRootFromDisk({ silent: true });
+    return store;
+  };
+
+  it("loads .html files as notes of kind html, named without the extension", async () => {
+    const store = await loadWith([
+      entry("Q3 report.html", report),
+      entry("Q3 report.md", "# Notes on the report"),
+      entry("Legacy.HTM", "<p>old</p>"),
+    ]);
+    const items = store.getState().items.filter((i) => i.type === "note");
+    const html = items.find((i) => i.filePath.endsWith(".html"));
+    const md = items.find((i) => i.filePath.endsWith(".md"));
+    const htm = items.find((i) => i.filePath.endsWith(".HTM"));
+
+    expect(html).toMatchObject({ name: "Q3 report", kind: "html", tags: [], links: [] });
+    expect(htm).toMatchObject({ name: "Legacy", kind: "html" });
+    expect(md).toMatchObject({ name: "Q3 report", kind: "markdown" });
+    // Same base name, still two items.
+    expect(html.id).not.toBe(md.id);
+  });
+
+  it("never reads hashtags or wiki links out of an HTML document", async () => {
+    const store = await loadWith([entry("Report.html", report)]);
+    expect(
+      store
+        .getState()
+        .getAllTags()
+        .map((t) => t.tag ?? t)
+    ).not.toContain("fff");
+    expect(store.getState().getBrokenWikiLinks()).toEqual([]);
+  });
+
+  it("resolves wiki links to HTML documents, preferring a note on a shared name", async () => {
+    const store = await loadWith([
+      entry("Q3 report.html", report),
+      entry("Q3 report.md", "# Notes"),
+      entry("Pricing.html", "<h1>Pricing</h1>"),
+      entry(
+        "Index.md",
+        "See [[Pricing]], [[Q3 report]] and [[Q3 report.html|the page]] and [[Pricing.html]]"
+      ),
+    ]);
+    const state = store.getState();
+    expect(state.findNoteByLinkTarget("Pricing").filePath).toBe("/workspace/Pricing.html");
+    expect(state.findNoteByLinkTarget("Q3 report").filePath).toBe("/workspace/Q3 report.md");
+    expect(state.findNoteByLinkTarget("Q3 report.html").filePath).toBe("/workspace/Q3 report.html");
+    expect(state.findNoteByLinkTarget("Index.html")).toBeNull();
+
+    const index = state.items.find((i) => i.name === "Index");
+    const outgoing = state.getOutgoingLinks(index.id).map((l) => l.note?.filePath);
+    expect(outgoing).toEqual([
+      "/workspace/Pricing.html",
+      "/workspace/Q3 report.md",
+      "/workspace/Q3 report.html",
+      "/workspace/Pricing.html",
+    ]);
+
+    const html = state.items.find((i) => i.filePath === "/workspace/Q3 report.html");
+    const md = state.items.find((i) => i.filePath === "/workspace/Q3 report.md");
+    expect(state.getBacklinks(html.id).map((n) => n.name)).toEqual(["Index"]);
+    expect(state.getBacklinks(md.id).map((n) => n.name)).toEqual(["Index"]);
+  });
+
+  it("creates a minimal valid HTML document and opens it", async () => {
+    const store = await loadWith([entry("Q3 report.md", "# Notes")]);
+    fs.createMarkdownFileOnDisk.mockImplementation(async (parent, name) => `${parent}/${name}`);
+    fs.readWorkspaceFiles.mockResolvedValue([
+      entry("Q3 report.md", "# Notes"),
+      entry("Q3 report.html", "<!doctype html>"),
+    ]);
+
+    const id = await store.getState().createHtmlDocument(null, "Q3 report");
+
+    const [parent, fileName, content] = fs.createMarkdownFileOnDisk.mock.calls[0];
+    expect(parent).toBe("/workspace");
+    // A note of the same name does not push the document to "Q3 report 1".
+    expect(fileName).toBe("Q3 report.html");
+    expect(content).toMatch(/^<!doctype html>\n<html lang="en">/);
+    expect(content).toContain("<title>Q3 report</title>");
+    expect(content).toContain('<meta charset="utf-8">');
+    expect(id).toBe("note::/workspace/Q3 report.html");
+    expect(store.getState().currentNoteId).toBe(id);
+  });
+
+  it("escapes the title it writes into a new document", async () => {
+    const { buildHtmlDocumentTemplate } = await import("./notesStore");
+    const page = buildHtmlDocumentTemplate("Fish & <chips>");
+    expect(page).toContain("<title>Fish &amp; &lt;chips&gt;</title>");
+    expect(page).not.toContain("<chips>");
+  });
+
+  it("refuses to create a document without a vault", async () => {
+    const store = await loadStore();
+    seedStore(store);
+    store.setState({ rootFolderPath: null, rootFolderId: null });
+    await expect(store.getState().createHtmlDocument()).rejects.toThrow(/workspace/i);
+  });
+
+  it("leaves HTML documents out of tag renames", async () => {
+    const store = await loadWith([
+      entry("Report.html", "<p>#project in markup</p>"),
+      entry("Plan.md", "Plan #project"),
+    ]);
+    const result = await store
+      .getState()
+      .applyTagOperation({ action: "rename", sourceTag: "project", targetTag: "work" });
+    expect(result.changedNotes).toBe(1);
+    const writes = fs.writeMarkdownFileOnDisk.mock.calls.map(([path]) => path);
+    expect(writes).toEqual(["/workspace/Plan.md"]);
+  });
+});

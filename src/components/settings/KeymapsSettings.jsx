@@ -113,26 +113,26 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
       {/* Header with actions */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-text-primary">Keyboard Shortcuts</h3>
-          <p className="text-xs text-text-muted mt-1">Click on a shortcut to customize it.</p>
+          <h3 className="text-[13.5px] font-semibold text-text-primary">Keyboard shortcuts</h3>
+          <p className="mt-1 text-[12.5px] text-text-muted">Click a shortcut to change it.</p>
         </div>
         <div className="flex items-center gap-2">
           {onOpenKeymapsModal && (
             <button
               onClick={onOpenKeymapsModal}
-              className="px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-overlay-subtle hover:bg-overlay-light rounded-lg border border-overlay-light transition-colors"
+              className="btn btn-sm"
               aria-label="View all keyboard shortcuts"
             >
-              View All
+              View all
             </button>
           )}
           {hasAnyModifications && (
             <button
               onClick={resetKeymaps}
-              className="px-3 py-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg border border-amber-500/20 transition-colors"
+              className="btn btn-sm btn-danger"
               aria-label="Reset all keyboard shortcuts to defaults"
             >
-              Reset All
+              Reset all
             </button>
           )}
         </div>
@@ -142,9 +142,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
       <div className="space-y-6">
         {KEYMAP_CATEGORIES.map((category) => (
           <div key={category.name}>
-            <h4 className="text-xs font-semibold text-accent uppercase tracking-wider mb-3">
-              {category.name}
-            </h4>
+            <h4 className="side-label mb-2">{category.name}</h4>
             <div className="space-y-1">
               {category.actions.map((actionId) => {
                 const keymap = keymaps[actionId];
@@ -162,14 +160,14 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                     role="group"
                     aria-label={`${keymap.description} shortcut`}
                     className={`
-                      flex items-center justify-between py-2 px-3 rounded-lg transition-colors
+                      flex items-center justify-between py-2 px-3 rounded-control transition-colors
                       ${isEditing ? "bg-accent/20 ring-1 ring-accent" : "hover:bg-overlay-subtle"}
                     `}
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-text-secondary">{keymap.description}</span>
                       {modified && !isEditing && (
-                        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400 rounded">
+                        <span className="px-1.5 py-0.5 text-[11px] font-medium bg-amber-500/20 text-amber-600 rounded-control">
                           Modified
                         </span>
                       )}
@@ -182,14 +180,14 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                           {recordedKeys ? (
                             /* Show recorded keys */
                             <div
-                              className="flex items-center gap-1 px-2 py-1 bg-accent/30 rounded-md"
+                              className="flex h-7 items-center gap-1 rounded-control bg-accent-dim px-2"
                               role="status"
                               aria-live="polite"
                               aria-label={`Recorded shortcut ${recordedKeys.join(" plus ")}`}
                             >
                               {recordedKeys.map((key, i) => (
                                 <span key={i} className="inline-flex items-center">
-                                  <kbd className="px-1.5 py-0.5 text-xs font-mono bg-overlay-light border border-overlay-medium rounded text-text-primary">
+                                  <kbd className="font-mono text-[12px] text-text-primary">
                                     {key}
                                   </kbd>
                                   {i < recordedKeys.length - 1 && (
@@ -215,7 +213,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                             disabled={!recordedKeymap}
                             aria-label={`Confirm shortcut for ${keymap.description}`}
                             className={`
-                              p-1.5 rounded-md transition-colors
+                              p-1.5 rounded-control transition-colors
                               ${
                                 recordedKeymap
                                   ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
@@ -242,7 +240,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                           {/* Cancel button */}
                           <button
                             onClick={handleCancelRecording}
-                            className="p-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-md transition-colors"
+                            className="p-1.5 bg-danger/20 text-danger hover:bg-danger/30 rounded-control transition-colors"
                             title="Cancel (Esc)"
                             aria-label={`Cancel shortcut recording for ${keymap.description}`}
                           >
@@ -266,15 +264,13 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
                         <>
                           <button
                             onClick={() => handleStartRecording(actionId)}
-                            className="flex items-center gap-1 px-2 py-1 rounded-md bg-overlay-subtle hover:bg-overlay-light border border-overlay-light transition-colors"
+                            className="flex h-7 items-center gap-1 rounded-control bg-item-hover px-2 transition-colors hover:bg-press"
                             title="Click to change shortcut"
                             aria-label={`Change shortcut for ${keymap.description}. Current shortcut is ${keys.join(" plus ")}`}
                           >
                             {keys.map((key, i) => (
                               <span key={i} className="inline-flex items-center">
-                                <kbd className="px-1.5 py-0.5 text-xs font-mono bg-overlay-subtle border border-overlay-light rounded text-text-primary">
-                                  {key}
-                                </kbd>
+                                <kbd className="font-mono text-[12px] text-text-primary">{key}</kbd>
                                 {i < keys.length - 1 && (
                                   <span className="mx-0.5 text-text-muted">+</span>
                                 )}
@@ -317,7 +313,7 @@ const KeymapsSettings = ({ onOpenKeymapsModal }) => {
       </div>
 
       {/* Info box */}
-      <div className="p-4 bg-overlay-subtle rounded-xl border border-overlay-light">
+      <div className="rounded-card bg-item-hover p-4">
         <div className="flex items-start gap-3">
           <svg
             className="w-5 h-5 text-text-muted shrink-0 mt-0.5"

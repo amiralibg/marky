@@ -96,8 +96,6 @@ Parked in [[Projects]] until there is time.
 
 type Mode = "source" | "live" | "read";
 
-const EDGE = "border-[var(--app-border)]";
-
 /** The toolbar's icon button, at the size the app uses. */
 const ICON_BTN =
   "inline-flex size-7 shrink-0 items-center justify-center rounded-sm text-[var(--app-text-2)] transition-colors duration-150 hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]";
@@ -367,11 +365,15 @@ function TreeRow({
       style={{ paddingInlineStart: `${8 + depth * 12}px` }}
       className={`flex min-h-7 w-full items-center gap-1.5 rounded-sm pr-2 text-left text-[12.5px] transition-colors duration-150 ${
         current
-          ? "bg-[var(--app-raised)] font-medium text-[var(--app-text)]"
-          : "text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
+          ? "bg-[var(--app-pill)] font-semibold text-[var(--app-text)]"
+          : "font-medium text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
       }`}
     >
-      <FileText size={13} strokeWidth={1.75} className="shrink-0 text-[var(--app-text-3)]" />
+      <FileText
+        size={13}
+        strokeWidth={1.75}
+        className={`shrink-0 ${current ? "text-accent" : "text-[var(--app-text-3)]"}`}
+      />
       <span className="min-w-0 truncate">{note.title}</span>
       <span className="ml-auto flex min-w-0 items-center gap-1.5">
         {links > 0 && (
@@ -386,11 +388,124 @@ function TreeRow({
   );
 }
 
+/** A note drawn in miniature, the way the Home library previews it. */
+function Miniature({ note, bare = false }: { note: Note; bare?: boolean }) {
+  const blocks = parseBlocks(note.source);
+  const plain = (text: string) =>
+    text.split(/(\[\[[^\]]+\]\])/g).map((part, index) => {
+      const match = part.match(/^\[\[([^\]]+)\]\]$/);
+      return match ? (
+        <span key={index} className="lnk">
+          {match[1]}
+        </span>
+      ) : (
+        <span key={index}>{part}</span>
+      );
+    });
+  return (
+    <div className={`mk-mini${bare ? " mk-mini-bare" : ""}`} aria-hidden>
+      {blocks.map((block, index) => {
+        if (block.type === "blank") return null;
+        if (block.type === "heading") return <b key={index}>{block.text}</b>;
+        if (block.type === "ul") {
+          return block.items.map((item) => (
+            <p
+              key={item.raw}
+              className={item.task ? `task${item.checked ? " done" : ""}` : undefined}
+            >
+              {item.task ? null : "• "}
+              {plain(item.text)}
+            </p>
+          ));
+        }
+        return <p key={index}>{plain(block.text)}</p>;
+      })}
+    </div>
+  );
+}
+
+function HomeView({ notes, onOpen }: { notes: Note[]; onOpen: (id: NoteId) => void }) {
+  const loose = notes.filter((item) => !item.folder);
+  const projects = notes.filter((item) => item.folder === "Projects");
+
+  return (
+    <div className="mx-auto max-w-[760px] px-5 pb-10 pt-7 sm:px-10 sm:pt-10">
+      <h2 className="text-[26px] font-bold leading-[1.1] tracking-[-0.028em] text-[var(--app-text)]">
+        {VAULT_NAME}
+      </h2>
+      <p className="mt-1.5 text-[12.5px] text-[var(--app-text-2)]">
+        {notes.length} notes · 1 folder
+      </p>
+
+      <div className="mb-3.5 mt-6 flex items-center gap-1" aria-hidden>
+        {["Library", "Recent", "Pinned"].map((label, index) => (
+          <span
+            key={label}
+            className={`inline-flex h-7 items-center rounded-pill px-3 text-[12px] ${
+              index === 0
+                ? "bg-[var(--app-hover)] font-semibold text-[var(--app-text)]"
+                : "font-medium text-[var(--app-text-2)]"
+            }`}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3.5">
+        {projects.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onOpen(projects[0].id)}
+            className="mk-folder"
+            aria-label={`Projects, ${projects.length} ${projects.length === 1 ? "note" : "notes"}`}
+          >
+            {projects[1] && (
+              <span className="mk-fsheet back">
+                <Miniature note={projects[1]} bare />
+              </span>
+            )}
+            <span className="mk-fsheet">
+              <Miniature note={projects[0]} bare />
+            </span>
+            <span className="mk-pocket">
+              <span className="block text-[13px] font-semibold tracking-[-0.012em] text-[var(--app-text)]">
+                Projects
+              </span>
+              <span className="block text-[10.5px] text-[var(--app-text-2)]">
+                {projects.length} {projects.length === 1 ? "note" : "notes"}
+              </span>
+            </span>
+          </button>
+        )}
+        {loose.map((item) => {
+          const links = linkCount(item.source);
+          return (
+            <button key={item.id} type="button" onClick={() => onOpen(item.id)} className="mk-card">
+              <Miniature note={item} />
+              <span className="block px-3 pb-2.5 pt-2">
+                <span className="block truncate text-[12px] font-semibold text-[var(--app-text)]">
+                  {item.title}
+                </span>
+                <span className="block text-[10.5px] text-[var(--app-text-3)]">
+                  {links} {links === 1 ? "link" : "links"}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function AppWindow({ readingFont = "sans" }: { readingFont?: ReadingFont }) {
   const [notes, setNotes] = useState<Note[]>(STARTER);
   const [currentId, setCurrentId] = useState<NoteId>("daily");
   const [openIds, setOpenIds] = useState<NoteId[]>(["daily"]);
   const [mode, setMode] = useState<Mode>("live");
+  // The sheet shows either the current note or the vault's Home library.
+  const [view, setView] = useState<"note" | "home">("note");
   // On a phone the sidebar would open over the note it is there to show off.
   const [sidebarOpen, setSidebarOpen] = useState(
     () => typeof window === "undefined" || window.matchMedia("(min-width: 768px)").matches
@@ -422,6 +537,7 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
   const nested = visible.filter((item) => item.folder === "Projects");
 
   const openNote = (id: NoteId) => {
+    setView("note");
     setCurrentId(id);
     setOpenIds((ids) => (ids.includes(id) ? ids : [...ids, id]));
   };
@@ -471,10 +587,10 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
   return (
     <div
       data-reading-font={readingFont}
-      className="marky-app relative flex h-[min(680px,78vh)] min-h-[440px] flex-col overflow-hidden rounded-md border border-[var(--app-border-strong)] bg-[var(--app-sidebar)]"
+      className="marky-app relative flex h-[min(680px,78vh)] min-h-[440px] flex-col overflow-hidden rounded-md bg-[var(--app-desk)]"
     >
       {/* One bar: the sidebar's tools, the tabs, the view switch and the menu. */}
-      <div className="flex h-10 shrink-0 items-center">
+      <div className="flex h-11 shrink-0 items-center">
         <div
           className={`flex shrink-0 items-center gap-0.5 pl-3 pr-2 ${sidebarOpen ? "md:w-[232px]" : ""}`}
         >
@@ -503,14 +619,14 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
           {openIds.map((id) => {
             const tab = notes.find((item) => item.id === id);
             if (!tab) return null;
-            const active = id === currentId;
+            const active = view === "note" && id === currentId;
             return (
               <div
                 key={id}
-                className={`group flex h-7 max-w-[11rem] shrink-0 items-center gap-1 rounded-sm border pl-2.5 pr-1 text-[12px] transition-colors duration-150 ${
+                className={`group flex h-7 max-w-[11rem] shrink-0 items-center gap-1 rounded-sm pl-2.5 pr-1 text-[12px] transition-colors duration-150 ${
                   active
-                    ? "border-[var(--app-border)] bg-[var(--app-raised)] font-semibold text-[var(--app-text)]"
-                    : "border-transparent text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
+                    ? "bg-[var(--app-pill)] font-semibold text-[var(--app-text)]"
+                    : "font-medium text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
                 }`}
               >
                 <button
@@ -538,7 +654,9 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
 
         <div className="flex shrink-0 items-center gap-1 pl-2 pr-2">
           <div
-            className="flex items-center gap-0.5 rounded-sm bg-[var(--app-hover)] p-0.5"
+            className={`flex items-center gap-0.5 rounded-sm bg-[var(--app-hover)] p-0.5 ${
+              view === "home" ? "invisible" : ""
+            }`}
             role="group"
             aria-label="Editor view"
           >
@@ -552,10 +670,10 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
                   onClick={() => setMode(id)}
                   aria-pressed={selected}
                   aria-label={id}
-                  className={`inline-flex h-6 items-center gap-1.5 rounded-[5px] border px-2 text-[11.5px] capitalize transition-colors duration-150 ${
+                  className={`inline-flex h-6 items-center gap-1.5 rounded-[6px] px-2 text-[11.5px] capitalize transition-colors duration-150 ${
                     selected
-                      ? "border-[var(--app-border)] bg-[var(--app-raised)] font-semibold text-[var(--app-text)]"
-                      : "border-transparent text-[var(--app-text-2)] hover:text-[var(--app-text)]"
+                      ? "bg-[var(--app-raised)] font-semibold text-[var(--app-text)] shadow-[0_0_0_1px_var(--app-border)]"
+                      : "font-medium text-[var(--app-text-2)] hover:text-[var(--app-text)]"
                   }`}
                 >
                   <Icon
@@ -587,26 +705,27 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
         <aside
           className={`${
             sidebarOpen ? "flex" : "hidden"
-          } absolute inset-y-0 left-0 z-20 w-[232px] shrink-0 flex-col bg-[var(--app-sidebar)] md:static`}
+          } absolute inset-y-0 left-0 z-20 w-[232px] shrink-0 flex-col bg-[var(--app-desk)] md:static`}
         >
-          <div className="flex items-center gap-2 px-3 pb-2 pt-1">
+          <div className="mx-1.5 flex items-center gap-2.5 rounded-md px-1.5 pb-1.5 pt-0.5">
             <span
-              className={`grid size-7 shrink-0 place-items-center rounded-sm border ${EDGE} text-[var(--app-text-2)]`}
+              className="grid size-7 shrink-0 place-items-center rounded-sm bg-accent text-[13px] font-bold text-white"
+              aria-hidden
             >
-              <Folder size={13} strokeWidth={1.75} aria-hidden />
+              M
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[12px] font-semibold leading-4 text-[var(--app-text)]">
+              <span className="block truncate text-[12.5px] font-semibold leading-4 tracking-[-0.01em] text-[var(--app-text)]">
                 {VAULT_NAME}
               </span>
-              <span className="block truncate font-mono text-[9.5px] leading-3.5 text-[var(--app-text-2)]">
+              <span className="block truncate text-[10.5px] leading-3.5 text-[var(--app-text-3)]">
                 {VAULT_PATH}
               </span>
             </span>
             <ChevronDown size={13} className="shrink-0 text-[var(--app-text-3)]" aria-hidden />
           </div>
 
-          <div className="px-2.5">
+          <div className="mt-1 px-2.5">
             <label className="sr-only" htmlFor="vault-search">
               Search notes
             </label>
@@ -621,33 +740,41 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search"
-                className="w-full rounded-sm bg-[var(--app-raised)] py-1.5 pl-7 pr-10 text-[16px] text-[var(--app-text)] outline-none placeholder:text-[var(--app-text-2)] focus:ring-1 focus:ring-[var(--app-border-strong)] md:text-[12px]"
+                className="h-8 w-full rounded-pill bg-[var(--app-pill)] pl-7 pr-3 text-[16px] text-[var(--app-text)] outline-none placeholder:text-[var(--app-text-3)] focus:ring-1 focus:ring-[var(--app-border-strong)] md:text-[12px]"
               />
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[9.5px] text-[var(--app-text-3)]">
-                Filter
-              </span>
             </div>
           </div>
 
-          <div className="mt-2 px-2.5" aria-hidden>
-            {[
-              { label: "Home", Icon: Home },
-              { label: "Graph", Icon: GitFork },
-            ].map(({ label, Icon }) => (
-              <span
-                key={label}
-                className="flex min-h-7 items-center gap-2 px-2 text-[12.5px] text-[var(--app-text-2)]"
-              >
-                <Icon size={13} strokeWidth={1.75} className="text-[var(--app-text-3)]" />
-                {label}
-              </span>
-            ))}
+          <div className="mt-2.5 px-2.5">
+            <button
+              type="button"
+              onClick={() => setView("home")}
+              aria-pressed={view === "home"}
+              className={`flex min-h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-[12.5px] transition-colors duration-150 ${
+                view === "home"
+                  ? "bg-[var(--app-pill)] font-semibold text-[var(--app-text)]"
+                  : "font-medium text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
+              }`}
+            >
+              <Home
+                size={13}
+                strokeWidth={1.75}
+                className={view === "home" ? "text-accent" : "text-[var(--app-text-3)]"}
+                aria-hidden
+              />
+              Home
+            </button>
+            <span
+              className="flex min-h-7 items-center gap-2 px-2 text-[12.5px] font-medium text-[var(--app-text-2)]"
+              aria-hidden
+            >
+              <GitFork size={13} strokeWidth={1.75} className="text-[var(--app-text-3)]" />
+              Graph
+            </span>
           </div>
 
           <div className="mt-3 flex items-center justify-between px-4 pb-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--app-text-2)]">
-              Files
-            </p>
+            <p className="text-[11px] font-semibold text-[var(--app-text-3)]">Files</p>
             <button
               type="button"
               onClick={addNote}
@@ -662,7 +789,7 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
               <TreeRow
                 key={item.id}
                 note={item}
-                current={item.id === currentId}
+                current={view === "note" && item.id === currentId}
                 depth={0}
                 onOpen={openNote}
               />
@@ -671,7 +798,7 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
               type="button"
               onClick={() => setProjectsOpen((open) => !open)}
               aria-expanded={projectsOpen}
-              className="flex min-h-7 w-full items-center gap-1.5 rounded-sm px-2 text-left text-[12.5px] text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
+              className="flex min-h-7 w-full items-center gap-1.5 rounded-sm px-2 text-left text-[12.5px] font-medium text-[var(--app-text-2)] hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"
             >
               <Folder
                 size={13}
@@ -686,7 +813,7 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
                 <TreeRow
                   key={item.id}
                   note={item}
-                  current={item.id === currentId}
+                  current={view === "note" && item.id === currentId}
                   depth={1}
                   onOpen={openNote}
                 />
@@ -695,7 +822,7 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
 
           {/* Save state beside one row of icons, as the app has it. */}
           <div className="flex items-center gap-1.5 px-4 py-2.5" aria-hidden>
-            <span className="size-1.5 shrink-0 rounded-pill bg-[#3fb950]" />
+            <span className="size-1.5 shrink-0 rounded-pill bg-[#35a36b]" />
             <span className="mr-auto text-[10.5px] text-[var(--app-text-2)]">Saved</span>
             <span className="flex items-center gap-2.5 text-[var(--app-text-3)]">
               <ListTree size={12} strokeWidth={1.75} />
@@ -707,14 +834,16 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
           </div>
         </aside>
 
-        {/* The sheet: one tone off the desk, a hairline edge, a single corner. */}
+        {/* The sheet: an opaque page floating on the desk, held by a hairline. */}
         <div
-          className={`flex min-w-0 flex-1 flex-col border-t ${EDGE} bg-[var(--app-editor)] ${
-            sidebarOpen ? "md:rounded-tl-md md:border-l" : ""
+          className={`mb-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-md bg-[var(--app-sheet)] shadow-[0_0_0_1px_var(--app-border)] ${
+            sidebarOpen ? "ml-2 md:ml-0" : "ml-2"
           }`}
         >
-          <div className="min-h-0 flex-1 overflow-auto [scrollbar-width:thin]">
-            {mode === "source" ? (
+          <div className="min-h-0 flex-1 overflow-auto [scrollbar-width:none]">
+            {view === "home" ? (
+              <HomeView notes={notes} onOpen={openNote} />
+            ) : mode === "source" ? (
               <textarea
                 value={note.source}
                 onChange={(event) => updateSource(event.target.value)}
@@ -733,16 +862,22 @@ export default function AppWindow({ readingFont = "sans" }: { readingFont?: Read
             <p className="min-w-0 truncate">
               {VAULT_NAME}
               <span className="px-1 text-[var(--app-text-3)]">/</span>
-              {note.folder && (
+              {view === "home" ? (
+                <span className="text-[var(--app-text)]">Home</span>
+              ) : (
                 <>
-                  {note.folder}
-                  <span className="px-1 text-[var(--app-text-3)]">/</span>
+                  {note.folder && (
+                    <>
+                      {note.folder}
+                      <span className="px-1 text-[var(--app-text-3)]">/</span>
+                    </>
+                  )}
+                  <span className="text-[var(--app-text)]">{note.title}</span>
                 </>
               )}
-              <span className="text-[var(--app-text)]">{note.title}</span>
             </p>
             <span
-              className="ml-auto flex shrink-0 gap-3 tabular-nums"
+              className={`ml-auto flex shrink-0 gap-3 tabular-nums ${view === "home" ? "invisible" : ""}`}
               title={`${stats.characters} characters`}
             >
               <span>{stats.words} words</span>

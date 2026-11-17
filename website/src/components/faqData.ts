@@ -47,7 +47,7 @@ export const FAQ: FaqItem[] = [
   },
   {
     q: "What renders beyond plain Markdown?",
-    a: "Mermaid diagrams, KaTeX maths, footnotes and syntax-highlighted code blocks, none of which need a plugin installed first. A note exports as Markdown or HTML, and the whole workspace exports as a ZIP with its settings.",
+    a: "Mermaid diagrams, KaTeX maths, footnotes and syntax-highlighted code blocks, none of which need a plugin installed first. HTML files in the vault open too: you can read one as it renders, edit its text in place or edit its source, and it runs sandboxed so it can only load the files next to it. A note exports as Markdown or HTML, and the whole workspace exports as a ZIP with its settings.",
   },
 ];
 

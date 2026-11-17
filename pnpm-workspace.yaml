@@ -2,5 +2,10 @@ packages:
   - "."
   - "packages/*"
 
+# esbuild's install script only verifies its platform binary; allow it so a
+# strict-builds pnpm (11+) installs without stopping to ask.
+allowBuilds:
+  esbuild: true
+
 # Wait seven days before resolving a newly published version.
 minimumReleaseAge: 10080

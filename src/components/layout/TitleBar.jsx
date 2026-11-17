@@ -5,6 +5,7 @@ import useSettingsStore, { formatKeymap } from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
 import { SidebarIcon } from "../icons";
 import { detectPlatform } from "../../utils/platform";
+import { isHtmlDocument } from "../../utils/documentKind";
 
 const TitleBar = ({
   sidebarWidth,
@@ -181,17 +182,19 @@ const TitleBar = ({
 
   return (
     <div
-      className={`custom-titlebar h-10 flex select-none shrink-0 ${isWindows ? "is-windows" : ""} ${isMac ? "is-mac" : ""} ${isLinux ? "is-linux" : ""}`}
+      // 52px on macOS: the window's empty unified toolbar (install_title_toolbar
+      // in main.rs) centres the traffic lights 26px down, so the row matches.
+      className={`custom-titlebar ${isMac ? "h-[52px]" : "h-12"} flex select-none shrink-0 ${isWindows ? "is-windows" : ""} ${isMac ? "is-mac" : ""} ${isLinux ? "is-linux" : ""}`}
       onMouseDown={handleMouseDown}
     >
       {/* Leading section — over the sidebar column, so its actions read as the
           sidebar's own. No wordmark and no hairline: the title bar and the
-          sidebar are one surface, and the note's sheet starts below both. */}
+          sidebar are one surface, the desk, and the sheet floats below both. */}
       <div
         className="titlebar-left flex items-center shrink-0"
         style={{
           width: showSidebar ? `${sidebarWidth}px` : "auto",
-          paddingInlineStart: isMac ? "80px" : "8px",
+          paddingInlineStart: isMac ? "80px" : "12px",
         }}
       >
         {/* The toggle is deliberately rendered in one place for both states
@@ -204,40 +207,46 @@ const TitleBar = ({
             lights. Windows and Linux have nothing on the left of the bar, so the
             same push would leave a sidebar's width of empty space before them. */}
         <div
-          className={`flex items-center gap-0.5 me-2 ${isMac ? (showSidebar ? "ms-auto" : "ms-1") : ""}`}
+          className={`flex items-center gap-0.5 me-3 ${isMac ? (showSidebar ? "ms-auto" : "ms-1") : ""}`}
         >
           {showSidebar && (
             <>
               <button
                 onClick={onNewNote}
-                className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-colors"
+                className="icon-btn"
                 title="New Note (⌘N)"
                 aria-label="New note"
                 data-no-drag
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
+                <svg
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M12 5v14M5 12h14" />
                 </svg>
               </button>
               <button
                 onClick={onNewFolder}
-                className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-colors"
+                className="icon-btn"
                 title="New Folder"
                 aria-label="New folder"
                 data-no-drag
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
-                  />
+                <svg
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2zM12 10.5v5M9.5 13h5" />
                 </svg>
               </button>
             </>
@@ -247,26 +256,27 @@ const TitleBar = ({
               at the sidebar's own edge so it reads as belonging to it. */}
           <button
             onClick={onToggleSidebar}
-            className="p-1.5 hover:bg-overlay-light active:scale-95 rounded-md text-text-secondary hover:text-text-primary transition-all"
+            className="icon-btn"
             title={`${showSidebar ? "Hide" : "Show"} sidebar (${sidebarShortcut})`}
             aria-label={showSidebar ? "Hide sidebar" : "Show sidebar"}
             aria-expanded={showSidebar}
             data-no-drag
           >
-            <SidebarIcon open={showSidebar} className="w-3.5 h-3.5" />
+            <SidebarIcon open={showSidebar} />
           </button>
         </div>
       </div>
 
-      {/* Tabs — quiet pills. Dissolves with a soft blur and gradient mask
-          at the edges whenever tabs overflow and scroll. */}
+      {/* Tabs — 32px pills. The active one takes the translucent pill fill and
+          weight, no ring. Dissolves with a soft blur and mask at the edges
+          whenever tabs overflow and scroll. */}
       <div className="flex-1 flex items-center min-w-0">
         {openNotes.length > 0 && (
           <div className="relative flex items-center min-w-0 max-w-full" data-no-drag>
             {canScrollLeft && (
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute left-0 top-0.5 bottom-0.5 w-7 z-10 rounded-s"
+                className="pointer-events-none absolute left-0 top-0.5 bottom-0.5 w-7 z-10"
                 style={{
                   backdropFilter: "blur(2.5px)",
                   WebkitBackdropFilter: "blur(2.5px)",
@@ -299,11 +309,12 @@ const TitleBar = ({
                     role="tab"
                     aria-selected={isActive}
                     className={`
-                      group flex items-center gap-1.5 h-7 ps-3 pe-1.5 rounded-md cursor-pointer transition-colors min-w-24 max-w-50 shrink-0
+                      group flex items-center gap-2 h-8 ps-3 pe-1 rounded-control cursor-pointer min-w-24 max-w-50 shrink-0 text-[13px]
+                      transition-[background-color,color] duration-140
                       ${
                         isActive
-                          ? "bg-bg-editor text-text-primary font-semibold shadow-[0_0_0_1px_var(--color-border)] active-tab"
-                          : "text-text-secondary hover:bg-item-hover hover:text-text-primary"
+                          ? "bg-pill text-text-primary font-semibold active-tab"
+                          : "font-medium text-text-secondary hover:bg-item-hover hover:text-text-primary"
                       }
                     `}
                     onClick={() => selectNote(note.id)}
@@ -313,25 +324,23 @@ const TitleBar = ({
                         className="w-3.5 h-3.5 shrink-0 text-text-muted"
                         fill="none"
                         stroke="currentColor"
+                        strokeWidth={1.6}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                         viewBox="0 0 24 24"
                         aria-hidden="true"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" />
                       </svg>
                     )}
 
-                    <span className="text-[12.5px] truncate flex-1" title={note.name}>
+                    {!isSettings && isHtmlDocument(note) && (
+                      <span className="kind-tag" aria-label="HTML document">
+                        HTML
+                      </span>
+                    )}
+                    <span className="truncate flex-1" title={note.name}>
                       {note.name}
                     </span>
 
@@ -346,7 +355,9 @@ const TitleBar = ({
                       }}
                       aria-label={`Close ${note.name}`}
                       className={`
-                        p-0.5 rounded hover:bg-overlay-light text-text-muted hover:text-text-primary transition-colors shrink-0
+                        grid h-6 w-6 shrink-0 place-items-center rounded-control text-text-muted
+                        transition-[background-color,color,opacity] duration-140
+                        hover:bg-item-hover hover:text-text-primary focus-visible:opacity-100
                         ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}
                       `}
                     >
@@ -354,14 +365,13 @@ const TitleBar = ({
                         className="w-3 h-3"
                         fill="none"
                         stroke="currentColor"
+                        strokeWidth={1.8}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                         viewBox="0 0 24 24"
+                        aria-hidden="true"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
+                        <path d="m6 6 12 12M18 6 6 18" />
                       </svg>
                     </button>
                   </div>
@@ -372,7 +382,7 @@ const TitleBar = ({
             {canScrollRight && (
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute right-0 top-0.5 bottom-0.5 w-7 z-10 rounded-e"
+                className="pointer-events-none absolute right-0 top-0.5 bottom-0.5 w-7 z-10"
                 style={{
                   backdropFilter: "blur(2.5px)",
                   WebkitBackdropFilter: "blur(2.5px)",
@@ -387,7 +397,9 @@ const TitleBar = ({
 
       {/* The editor's controls land here (see `titlebarSlot` in uiStore).
           Separated from the tab strip by comfortable spacing so mode switching
-          never collides with or looks fixed into the open tabs. */}
+          never collides with or looks fixed into the open tabs. The 12px end
+          padding lines the ⋯ button up with the sheet's trailing edge, inside
+          its 8px gap. */}
       <div
         ref={setTitlebarSlot}
         className="flex items-center shrink-0 ms-3 pe-3 empty:ms-0 empty:pe-0"

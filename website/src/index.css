@@ -1,57 +1,43 @@
 @import "tailwindcss";
 @import "./fonts.css";
 
-/* Quiet Desk, the app's design language (docs/design/marky-redesign.html).
+/* Soft Light, the app's design language (docs/design/marky-soft-light.html).
 
-   One warm neutral ramp plus one accent. The page sits one tone above the desk.
-   Don'ts, carried over from the app:
-   - Three radii only: 6px controls, 10px panels, pills.
-   - No shadows on anything that does not float, plus one exception: a sticky
-     note has to read as paper resting on a board.
-   - No boxes where space or a hairline will do.
-   - The accent marks links and the one filled action in a view, nothing else.
-
-   Two things are the site's own rather than the app's, and carry its character:
-   the ruled-paper lines and the sticky-note feature board. */
+   A cool desk, an opaque page floating on it, one accent, frosted floating
+   surfaces. The rules, carried over from the app:
+   - No gradients. The desk is one flat neutral.
+   - Hover never adds a shadow and never lifts. A hairline firms up instead.
+   - The only shadow is --pop-shadow, under things that float (menus, dialogs,
+     the command palette, the app window in the hero).
+   - Radii are 8 (controls), 14 (panels), 20 (cards) and the pill. Nothing else.
+   - The accent marks links and the one filled action in a view. */
 @theme {
-  --color-canvas: #f3f1ec;
-  --color-surface: #fcfbf9;
+  --color-canvas: #ecebf1;
+  --color-surface: #fdfdfc;
   --color-raised: #ffffff;
-  --color-ink: #2f2f2b;
-  --color-ink-soft: #5f5e59;
-  /* Body-sized text, so it has to clear 4.5:1 on both canvas and surface. */
-  --color-ink-faint: #6b6a65;
-  --color-line: rgb(35 35 32 / 0.09);
-  --color-line-strong: rgb(35 35 32 / 0.16);
+  --color-ink: #1b1a21;
+  --color-ink-soft: #5d5c69;
+  /* Body-sized text, so it has to clear 4.5:1 on both desk and sheet. The
+     app's --ink-3 (#9795a2) is for glyphs and meta only and would not. */
+  --color-ink-faint: #63616f;
+  --color-line: rgb(24 20 48 / 0.08);
+  --color-line-strong: rgb(24 20 48 / 0.14);
   --color-accent: #6d5ce0;
   --color-accent-hover: #5b4ad0;
-  /* Accent as a fill passes on white; as text on the desk it does not. */
+  /* Accent as a fill passes on white; as small text on the desk it needs a
+     step darker. */
   --color-accent-text: #5b4ad0;
-  --color-accent-dim: rgb(109 92 224 / 0.14);
-  --color-dusk: #1a1916;
+  --color-accent-dim: rgb(109 92 224 / 0.13);
+  --color-dusk: #131217;
 
-  /* Sticky-note stock. Decorative only: these never become buttons, links or
-     borders. */
-  --color-note-butter: #f4dfa0;
-  --color-note-mint: #cfe0bd;
-  --color-note-sky: #cfe0f2;
-  --color-note-blush: #f2d3cd;
-  --color-note-lilac: #ded7f5;
-  --color-note-cream: #fdf3d9;
-
-  /* Note paper stays light in both themes, so its ink must not follow
-     --color-ink, which flips to near-white in dark mode. */
-  --color-note-ink: #1c1b18;
-
-  /* "Display" is the sans now, as in the app's default typeface. Newsreader is
-     only the Serif and Mixed options inside the app mockup. */
   --font-display: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Newsreader", "Iowan Old Style", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
   --radius-pill: 9999px;
 
   --text-caption: 12px;
@@ -72,59 +58,65 @@
   -webkit-font-smoothing: antialiased;
   color-scheme: light;
 
-  --float: 0 1px 2px rgb(30 25 15 / 0.06), 0 12px 32px -8px rgb(30 25 15 / 0.18);
-  --ruling: rgb(35 35 32 / 0.05);
+  /* The one shadow: a hairline ring plus a soft drop, under floating things. */
+  --pop-shadow: 0 0 0 1px var(--color-line), 0 16px 48px -12px rgb(24 20 48 / 0.28);
+  /* Frosted floating surfaces: raised at 70%, blurred and lifted in saturation. */
+  --frost: color-mix(in oklab, var(--color-raised) 70%, transparent);
+  --blur: blur(24px) saturate(1.6);
+  /* What fills a selected row, tab or search field in the app. */
+  --pill: rgb(255 255 255 / 0.74);
+  --hover: rgb(24 20 48 / 0.05);
 
   /* The app's Vault theme, verbatim, for the mockup. */
-  --app-sidebar: #f3f1ec;
-  --app-editor: #fcfbf9;
+  --app-desk: #ecebf1;
+  --app-sheet: #fdfdfc;
   --app-raised: #ffffff;
-  --app-text: #2f2f2b;
-  --app-text-2: #73726e;
-  --app-text-3: #9f9e9a;
-  --app-mark: rgb(35 35 32 / 0.3);
-  --app-border: rgb(35 35 32 / 0.09);
-  --app-border-strong: rgb(35 35 32 / 0.16);
-  --app-hover: rgb(35 35 32 / 0.045);
+  --app-text: #1b1a21;
+  --app-text-2: #5d5c69;
+  --app-text-3: #9795a2;
+  --app-mark: rgb(24 20 48 / 0.28);
+  --app-border: rgb(24 20 48 / 0.08);
+  --app-border-strong: rgb(24 20 48 / 0.14);
+  --app-hover: rgb(24 20 48 / 0.05);
+  --app-pill: rgb(255 255 255 / 0.74);
+  --app-folder: color-mix(in oklab, var(--color-accent) 9%, var(--app-desk));
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --color-canvas: #191918;
-  --color-surface: #1e1e1c;
-  --color-raised: #2b2b29;
-  --color-ink: #e7e6e2;
-  --color-ink-soft: #a3a29d;
-  --color-ink-faint: #918f8a;
-  --color-line: rgb(240 240 235 / 0.09);
-  --color-line-strong: rgb(240 240 235 / 0.16);
-  /* The light accent is only 3.4:1 on the dark desk; lift it for text. */
+  --color-canvas: #131217;
+  --color-surface: #1b1a20;
+  --color-raised: #24232a;
+  --color-ink: #edecf3;
+  --color-ink-soft: #a5a3b1;
+  --color-ink-faint: #8b8997;
+  --color-line: rgb(236 232 255 / 0.08);
+  --color-line-strong: rgb(236 232 255 / 0.15);
+  --color-accent: #8f81f2;
+  --color-accent-hover: #a194f5;
+  /* The dark accent clears 4.5:1 on the dark sheet as text; lift it a touch
+     more for small type on the desk. */
   --color-accent-text: #a497f5;
-  --color-accent-dim: rgb(164 151 245 / 0.16);
-  --color-dusk: #121211;
+  --color-accent-dim: rgb(143 129 242 / 0.18);
+  --color-dusk: #0b0a0e;
 
-  /* Paper knocked back, so bright pastels do not glare against the dark board. */
-  --color-note-butter: #d8c489;
-  --color-note-mint: #b4c4a3;
-  --color-note-sky: #b3c5d6;
-  --color-note-blush: #d7b9b3;
-  --color-note-lilac: #c3bcd9;
-  --color-note-cream: #e2d9c0;
-
-  --float: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -8px rgb(0 0 0 / 0.55);
-  --ruling: rgb(240 240 235 / 0.04);
+  --pop-shadow: 0 0 0 1px var(--color-line-strong), 0 16px 48px -12px rgb(0 0 0 / 0.6);
+  --pill: rgb(236 232 255 / 0.09);
+  --hover: rgb(236 232 255 / 0.055);
 
   /* The app's Vault Dark theme. */
-  --app-sidebar: #191918;
-  --app-editor: #242422;
-  --app-raised: #2b2b29;
-  --app-text: #e7e6e2;
-  --app-text-2: #a3a29d;
-  --app-text-3: #71706b;
-  --app-mark: rgb(240 240 235 / 0.3);
-  --app-border: rgb(240 240 235 / 0.09);
-  --app-border-strong: rgb(240 240 235 / 0.16);
-  --app-hover: rgb(240 240 235 / 0.05);
+  --app-desk: #131217;
+  --app-sheet: #1b1a20;
+  --app-raised: #24232a;
+  --app-text: #edecf3;
+  --app-text-2: #a5a3b1;
+  --app-text-3: #6d6b79;
+  --app-mark: rgb(236 232 255 / 0.28);
+  --app-border: rgb(236 232 255 / 0.08);
+  --app-border-strong: rgb(236 232 255 / 0.15);
+  --app-hover: rgb(236 232 255 / 0.055);
+  --app-pill: rgb(236 232 255 / 0.09);
+  --app-folder: color-mix(in oklab, var(--color-accent) 14%, var(--app-raised));
 }
 
 * {
@@ -143,20 +135,6 @@ body {
   background-color: var(--color-canvas);
 }
 
-/* The ruled paper. Desk and sheet share one fixed ruling, so the lines carry on
-   unbroken across the edge between them. */
-body,
-.desk-sheet {
-  background-image: linear-gradient(var(--ruling) 1px, transparent 1px);
-  background-size: 100% 32px;
-  background-attachment: fixed;
-}
-
-/* Behind a dense table the ruling fights the rows, so tools opt out. */
-[data-canvas="plain"] body {
-  background-image: none;
-}
-
 #root {
   min-height: 100vh;
 }
@@ -166,21 +144,28 @@ a {
   touch-action: manipulation;
 }
 
+/* The one filled action in a view. A pill, as every button in the app is. */
 .btn-accent {
   background: var(--color-accent);
-  color: #fffdf8;
-  transition: background-color 150ms ease;
+  color: #fff;
+  transition:
+    background-color 140ms ease,
+    transform 140ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .btn-accent:hover {
   background: var(--color-accent-hover);
-  color: #fffdf8;
+  color: #fff;
+}
+
+.btn-accent:active {
+  transform: scale(0.98);
 }
 
 button:focus-visible,
 a:focus-visible,
 summary:focus-visible {
-  outline: 2px solid var(--color-ink);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
@@ -189,27 +174,35 @@ summary:focus-visible {
 }
 
 /* ---- The sheet ------------------------------------------------------------
-   The app sets a note on a sheet one tone above the desk. The home page does
-   the same: the hero sits on the desk, and everything below it on one sheet
-   that runs off the bottom of the window into the footer. */
+   The app floats an opaque page on the desk, held by a hairline alone. The
+   home page does the same: the hero sits on the desk, and everything below it
+   on one sheet that runs off the bottom of the window into the footer. */
 .desk-sheet {
   background-color: var(--color-surface);
-  border-block-start: 1px solid var(--color-line);
+  box-shadow: 0 0 0 1px var(--color-line);
 }
 
 @media (min-width: 768px) {
   .desk-sheet {
-    margin-inline: 16px;
-    border-inline: 1px solid var(--color-line);
-    border-start-start-radius: var(--radius-md);
-    border-start-end-radius: var(--radius-md);
+    margin-inline: 12px;
+    border-start-start-radius: var(--radius-lg);
+    border-start-end-radius: var(--radius-lg);
   }
 }
 
+/* A panel on the sheet: the app's list and card surface. */
 .paper-surface {
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
+  background: var(--color-raised);
+  box-shadow: 0 0 0 1px var(--color-line);
   border-radius: var(--radius-md);
+}
+
+/* Menus, dialogs and the command palette float, so they are frosted. */
+.frost {
+  background: var(--frost);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--pop-shadow);
 }
 
 .display {
@@ -244,7 +237,7 @@ summary:focus-visible {
   gap: 2px;
   padding: 2px;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+  background: var(--hover);
 }
 
 .seg-btn {
@@ -253,8 +246,8 @@ summary:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 5px;
-  border: 1px solid transparent;
+  /* Concentric with the 8px track around a 2px inset. */
+  border-radius: 6px;
   padding: 4px 12px;
   font-size: 13px;
   font-weight: 500;
@@ -270,7 +263,7 @@ summary:focus-visible {
 
 .seg-btn[aria-pressed="true"] {
   background: var(--color-raised);
-  border-color: var(--color-line);
+  box-shadow: 0 0 0 1px var(--color-line);
   color: var(--color-ink);
   font-weight: 600;
 }
@@ -345,87 +338,37 @@ summary:focus-visible {
   transition-delay: var(--reveal-delay, 0ms);
 }
 
-/* ---- Sticky notes ------------------------------------------------------- */
-.note {
+/* ---- Feature cards --------------------------------------------------------
+   The Home library's card, without the miniature: raised paper, a hairline,
+   the 20px card radius. Hover firms the hairline and nothing else. */
+.feature-card {
   position: relative;
-  /* Paper is light in both themes, so ink is fixed rather than inherited. */
-  color: var(--color-note-ink);
-  border-radius: var(--radius-sm);
-  transform: rotate(var(--note-tilt, 0deg)) translate3d(var(--note-dx, 0px), var(--note-dy, 0px), 0);
+  background: var(--color-raised);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px var(--color-line);
+  transition: box-shadow 140ms ease;
+}
+
+.feature-card:hover {
+  box-shadow: 0 0 0 1px var(--color-line-strong);
+}
+
+.feature-card[data-lit] {
   box-shadow:
-    0 1px 1px rgb(28 27 24 / 0.06),
-    0 6px 14px -8px rgb(28 27 24 / 0.28);
-  opacity: 0;
-  translate: 0 18px;
+    0 0 0 1px var(--color-accent),
+    0 0 0 4px var(--color-accent-dim);
 }
 
-/* The turned-up bottom corner, drawn with a gradient rather than an element. */
-.note::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 26px;
-  height: 26px;
-  border-bottom-right-radius: var(--radius-sm);
-  background: linear-gradient(135deg, transparent 0 50%, rgb(28 27 24 / 0.07) 50% 100%);
-  transition:
-    width 320ms cubic-bezier(0.2, 0.9, 0.25, 1),
-    height 320ms cubic-bezier(0.2, 0.9, 0.25, 1);
-}
-
-.note[data-revealed] {
-  opacity: 1;
-  translate: none;
-  transition:
-    opacity 520ms ease,
-    translate 620ms cubic-bezier(0.2, 0.9, 0.25, 1),
-    transform 320ms cubic-bezier(0.2, 0.9, 0.25, 1),
-    box-shadow 320ms cubic-bezier(0.2, 0.9, 0.25, 1);
-  transition-delay: var(--note-delay, 0ms);
-}
-
-/* Hover straightens the note and lifts it off the board. */
-@media (hover: hover) and (pointer: fine) {
-  .note:hover,
-  .note:focus-within {
-    transform: rotate(0deg) translate3d(var(--note-dx, 0px), calc(var(--note-dy, 0px) - 6px), 0)
-      scale(1.015);
-    box-shadow:
-      0 2px 2px rgb(28 27 24 / 0.05),
-      0 18px 34px -12px rgb(28 27 24 / 0.34);
-    z-index: 5;
-  }
-
-  .note:hover::after,
-  .note:focus-within::after {
-    width: 34px;
-    height: 34px;
-  }
-}
-
-.note[data-dragging="true"] {
-  /* No position transition while the pointer owns it, or it lags the cursor. */
-  transition: box-shadow 200ms ease;
-  transform: rotate(0deg) translate3d(var(--note-dx, 0px), var(--note-dy, 0px), 0) scale(1.03);
-  box-shadow:
-    0 3px 3px rgb(28 27 24 / 0.06),
-    0 26px 46px -14px rgb(28 27 24 / 0.4);
-  z-index: 20;
-}
-
-/* .kicker keys off --color-ink; inside a note it has to key off the paper ink. */
-.note .kicker {
-  color: color-mix(in srgb, var(--color-note-ink) 70%, transparent);
-}
-
-.note-grip {
-  cursor: grab;
-  touch-action: pan-y;
-}
-
-.note[data-dragging="true"] .note-grip {
-  cursor: grabbing;
+/* The mono badge the app sets beside an HTML document's name. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font: 500 10.5px/1 var(--font-mono);
+  letter-spacing: 0.02em;
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: var(--color-ink-soft);
+  box-shadow: inset 0 0 0 1px var(--color-line-strong);
 }
 
 /* Tailwind's list-none clears the marker in Chrome and Firefox; Safari draws its
@@ -440,16 +383,9 @@ summary:focus-visible {
     animation: none;
   }
 
-  .note,
   .reveal {
     opacity: 1;
     translate: none;
-  }
-
-  .note,
-  .note:hover,
-  .note:focus-within {
-    transform: none;
   }
 }
 
@@ -463,7 +399,7 @@ summary:focus-visible {
   --note-font: var(--font-sans);
   --note-heading: var(--font-sans);
   --note-size: 16px;
-  box-shadow: var(--float);
+  box-shadow: var(--pop-shadow);
 }
 
 /* Newsreader sets small for its size, so it reads a step larger, as in the app. */
@@ -619,6 +555,149 @@ summary:focus-visible {
   cursor: default;
 }
 
+/* ---- Mockup Home --------------------------------------------------------
+   The app's library, at mockup scale. A card is the document itself in
+   miniature; a folder is a tabbed back plate with its first notes peeking out
+   of a frosted pocket. Hover never lifts a card: the hairline firms up, and in
+   a folder the sheets inside rise a little. */
+.mk-card {
+  display: flex;
+  flex-direction: column;
+  text-align: start;
+  border-radius: var(--radius-lg);
+  background: var(--app-raised);
+  box-shadow: 0 0 0 1px var(--app-border);
+  overflow: hidden;
+  transition: box-shadow 140ms ease;
+}
+
+.mk-card:hover {
+  box-shadow: 0 0 0 1px var(--app-border-strong);
+}
+
+.mk-mini {
+  height: 112px;
+  padding: 14px 14px 0;
+  overflow: hidden;
+  font-size: 5.6px;
+  line-height: 1.6;
+  color: var(--app-text-2);
+  font-family: var(--note-font);
+  text-align: start;
+}
+
+.mk-mini-bare {
+  height: auto;
+  padding: 0;
+}
+
+.mk-mini b {
+  display: block;
+  font-family: var(--note-heading);
+  font-size: 2.3em;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--app-text);
+  font-weight: 700;
+  margin-bottom: 0.5em;
+}
+
+.mk-mini p {
+  margin: 0 0 0.7em;
+}
+
+.mk-mini .lnk {
+  color: var(--color-accent);
+}
+
+.mk-mini .task {
+  display: flex;
+  gap: 0.6em;
+  align-items: center;
+}
+
+.mk-mini .task::before {
+  content: "";
+  width: 1.3em;
+  height: 1.3em;
+  flex: none;
+  border-radius: 0.3em;
+  box-shadow: inset 0 0 0 0.15em var(--app-border-strong);
+}
+
+.mk-mini .task.done::before {
+  background: var(--color-accent);
+  box-shadow: none;
+}
+
+.mk-folder {
+  position: relative;
+  min-height: 164px;
+  text-align: start;
+  border-radius: var(--radius-lg);
+}
+
+.mk-folder::before,
+.mk-folder::after {
+  content: "";
+  position: absolute;
+  background: var(--app-folder);
+}
+
+/* The back plate, and the tab on its top-left edge. */
+.mk-folder::before {
+  inset: 14px 0 0;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) var(--radius-lg);
+}
+
+.mk-folder::after {
+  top: 0;
+  inset-inline-start: 0;
+  width: 44%;
+  height: 28px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.mk-fsheet {
+  position: absolute;
+  z-index: 1;
+  inset: 26px 12px 0;
+  padding: 10px 12px 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--app-raised);
+  box-shadow: 0 0 0 1px var(--app-border);
+  transition: transform 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.mk-fsheet.back {
+  inset: 20px 20px 0;
+  opacity: 0.7;
+}
+
+.mk-folder:hover .mk-fsheet {
+  transform: translateY(-4px);
+}
+
+.mk-folder:hover .mk-fsheet.back {
+  transform: translateY(-7px);
+}
+
+.mk-pocket {
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 0;
+  height: 72px;
+  padding: 0 14px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: var(--radius-md) var(--radius-md) var(--radius-lg) var(--radius-lg);
+  background: color-mix(in oklab, var(--app-folder) 58%, transparent);
+  -webkit-backdrop-filter: blur(9px) saturate(1.4);
+  backdrop-filter: blur(9px) saturate(1.4);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--app-raised) 60%, transparent);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -755,14 +834,11 @@ summary:focus-visible {
   }
 }
 
-/* Screenshots are square-cornered in the asset, and rounded and edged here. */
+/* Screenshots carry the window's own rounded corners; the radius here clips a
+   touch wider than those at every width, and the ring edges a dark window
+   against the dark desk. */
 .shot {
   display: block;
-  border-radius: var(--radius-md);
-  outline: 1px solid rgb(0 0 0 / 0.1);
-  outline-offset: -1px;
-}
-
-[data-theme="dark"] .shot {
-  outline-color: rgb(255 255 255 / 0.1);
+  border-radius: clamp(8px, 1.6vw, 20px);
+  box-shadow: 0 0 0 1px var(--color-line-strong);
 }

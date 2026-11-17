@@ -13,6 +13,8 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "decorations": false,
+        "transparent": false,
+        "visible": false,
         "dragDropEnabled": true
       }
     ]

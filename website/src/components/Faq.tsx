@@ -40,8 +40,7 @@ export default function Faq() {
         </p>
       </div>
 
-      {/* A solid panel: hairline dividers laid straight onto the ruled paper
-          collide with the ruling. */}
+      {/* The app's list surface: raised paper, hairline rows. */}
       <div ref={listRef} className="reveal paper-surface mt-10 px-5 md:mt-14 md:px-8">
         {FAQ.map(({ q, a }) => (
           <details key={q} className="faq-item group border-b border-line last:border-b-0">

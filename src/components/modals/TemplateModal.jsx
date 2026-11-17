@@ -10,6 +10,7 @@ import {
 import { exportTemplatesAsJson, importTemplatesFromJson } from "../../utils/backup";
 import useModalAccessibility from "../../hooks/useModalAccessibility";
 import { TemplateGlyph } from "../icons";
+import { BusyButton } from "../ui/Loading";
 
 const TemplateModal = ({
   isOpen,
@@ -167,51 +168,37 @@ const TemplateModal = ({
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-50 animate-fadeIn bg-[rgba(30,25,15,0.38)] backdrop-blur-[3px]"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="modal-scrim z-50 animate-fade-in" onClick={onClose} aria-hidden="true" />
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
           ref={dialogRef}
-          className="bg-bg-editor border border-border rounded-2xl shadow-2xl w-full max-w-4xl max-h-[88vh] flex flex-col pointer-events-auto animate-slideUp overflow-hidden"
+          className="glass-panel modal-panel w-full max-w-4xl max-h-[88vh] flex flex-col pointer-events-auto animate-fade-in"
           onClick={(event) => event.stopPropagation()}
           role="dialog"
           aria-modal="true"
           aria-labelledby="template-modal-title"
           tabIndex={-1}
         >
-          <div className="border-b border-border px-7 py-5 flex items-start justify-between">
-            <div>
-              <h2
-                id="template-modal-title"
-                className="text-2xl font-semibold tracking-[-0.015em] text-text-primary"
-              >
-                New page
+          <div className="modal-header shrink-0 pb-4">
+            <div className="min-w-0 flex-1">
+              <h2 id="template-modal-title" className="modal-title">
+                New note
               </h2>
-              <p className="text-sm text-text-muted mt-1">
-                Start from a template — or set it to repeat on a schedule.
+              <p className="modal-subtitle">
+                Start from a template, or set one to repeat on a schedule.
               </p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-overlay-light rounded-lg transition-colors"
-              title="Close"
-            >
+            <button type="button" onClick={onClose} className="icon-btn" aria-label="Close">
               <svg
-                className="w-5 h-5 text-text-secondary"
+                viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                viewBox="0 0 24 24"
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                aria-hidden="true"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
+                <path d="m6 6 12 12M18 6 6 18" />
               </svg>
             </button>
           </div>
@@ -220,58 +207,50 @@ const TemplateModal = ({
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
               <div className="max-w-2xl mx-auto space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Template Name
-                  </label>
+                  <label className="field-label">Name</label>
                   <input
                     type="text"
                     value={newTemplate.name}
                     onChange={(event) =>
                       setNewTemplate({ ...newTemplate, name: event.target.value })
                     }
-                    className="w-full px-3 py-2 bg-bg-base border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
-                    placeholder="My Custom Template"
+                    className="field"
+                    placeholder="My template"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Icon (emoji)
-                  </label>
+                  <label className="field-label">Icon</label>
                   <input
                     type="text"
                     value={newTemplate.icon}
                     onChange={(event) =>
                       setNewTemplate({ ...newTemplate, icon: event.target.value })
                     }
-                    className="w-full px-3 py-2 bg-bg-base border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                    className="field"
                     placeholder="note"
                     maxLength={2}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Description
-                  </label>
+                  <label className="field-label">Description</label>
                   <input
                     type="text"
                     value={newTemplate.description}
                     onChange={(event) =>
                       setNewTemplate({ ...newTemplate, description: event.target.value })
                     }
-                    className="w-full px-3 py-2 bg-bg-base border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                    className="field"
                     placeholder="Brief description of this template"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Template Content
-                  </label>
+                  <label className="field-label">Content</label>
                   <textarea
                     value={newTemplate.content}
                     onChange={(event) =>
                       setNewTemplate({ ...newTemplate, content: event.target.value })
                     }
-                    className="w-full h-48 px-3 py-2 bg-bg-base border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent font-mono text-sm resize-none"
+                    className="field h-48 font-mono text-[13px]"
                     placeholder="# Template Title\n\nYour template content here..."
                   />
                 </div>
@@ -281,20 +260,16 @@ const TemplateModal = ({
                       setShowCreateForm(false);
                       setNewTemplate({ name: "", icon: "note", description: "", content: "" });
                     }}
-                    className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-light rounded-lg transition-colors"
+                    className="btn"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleCreateCustom}
                     disabled={!newTemplate.name || !newTemplate.content}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      newTemplate.name && newTemplate.content
-                        ? "bg-accent text-white hover:bg-accent/90"
-                        : "bg-overlay-light text-text-muted cursor-not-allowed"
-                    }`}
+                    className="btn btn-primary"
                   >
-                    Save Template
+                    Save template
                   </button>
                 </div>
               </div>
@@ -304,31 +279,28 @@ const TemplateModal = ({
               {/* Left: template grid */}
               <div className="flex-[1.4] overflow-y-auto p-6 custom-scrollbar">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-                    Templates
-                  </h3>
+                  <h3 className="side-label">Templates</h3>
                   <div className="flex items-center gap-1.5">
-                    <button
+                    <BusyButton
                       onClick={handleImportTemplates}
-                      disabled={isImportingTemplates || isExportingTemplates}
-                      className="px-2.5 py-1 text-xs border border-border text-text-secondary hover:bg-overlay-subtle rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      busy={isImportingTemplates}
+                      disabled={isExportingTemplates}
+                      className="btn btn-sm"
                       title="Import templates from JSON"
                     >
-                      {isImportingTemplates ? "Importing…" : "Import"}
-                    </button>
-                    <button
+                      Import
+                    </BusyButton>
+                    <BusyButton
                       onClick={handleExportTemplates}
-                      disabled={isExportingTemplates || isImportingTemplates}
-                      className="px-2.5 py-1 text-xs border border-border text-text-secondary hover:bg-overlay-subtle rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      busy={isExportingTemplates}
+                      disabled={isImportingTemplates}
+                      className="btn btn-sm"
                       title="Export custom templates to JSON"
                     >
-                      {isExportingTemplates ? "Exporting…" : "Export"}
-                    </button>
-                    <button
-                      onClick={() => setShowCreateForm(true)}
-                      className="px-2.5 py-1 text-xs bg-accent text-white hover:bg-accent/90 rounded-lg transition-colors"
-                    >
-                      + Custom
+                      Export
+                    </BusyButton>
+                    <button onClick={() => setShowCreateForm(true)} className="btn btn-sm">
+                      New template
                     </button>
                   </div>
                 </div>
@@ -339,14 +311,16 @@ const TemplateModal = ({
                       <button
                         key={template.id}
                         onClick={() => handleTemplateClick(template)}
-                        className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-colors group ${
+                        className={`group flex items-start gap-3 rounded-card p-3.5 text-start transition-[background-color,box-shadow] duration-150 ${
                           isSelected
-                            ? "border-accent bg-accent-dim"
-                            : "border-border bg-bg-base hover:bg-overlay-subtle"
+                            ? "bg-accent-dim shadow-[0_0_0_1.5px_var(--color-accent)]"
+                            : "shadow-[0_0_0_1px_var(--color-border)] hover:bg-item-hover"
                         }`}
                         title={template.name}
                       >
-                        <span className="shrink-0 text-text-muted">
+                        <span
+                          className={`shrink-0 ${isSelected ? "text-accent" : "text-text-muted"}`}
+                        >
                           <TemplateGlyph icon={template.icon} className="h-5 w-5" />
                         </span>
                         <span className="min-w-0 flex-1">
@@ -360,7 +334,7 @@ const TemplateModal = ({
                         {template.type === "custom" && (
                           <button
                             onClick={(event) => handleDeleteCustom(event, template.id)}
-                            className="p-1 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-400 transition-all shrink-0"
+                            className="grid h-6 w-6 shrink-0 place-items-center rounded-control text-text-muted opacity-0 transition-[opacity,background-color,color] group-hover:opacity-100 focus-visible:opacity-100 hover:bg-danger/10 hover:text-danger"
                             title="Delete custom template"
                           >
                             <svg
@@ -385,7 +359,7 @@ const TemplateModal = ({
               </div>
 
               {/* Right: recurring panel */}
-              <div className="w-78 shrink-0 border-l border-border p-6 flex flex-col bg-bg-base">
+              <div className="w-78 shrink-0 border-s border-border p-6 flex flex-col">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-sm font-semibold text-text-primary flex items-center gap-2">
                     <svg
@@ -409,47 +383,33 @@ const TemplateModal = ({
                     role="switch"
                     aria-checked={scheduleOn}
                     aria-label="Make this template recurring"
-                    className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${
-                      scheduleOn ? "bg-accent" : "bg-overlay-light"
-                    } ${!onScheduleTemplate ? "opacity-40 cursor-not-allowed" : ""}`}
-                  >
-                    <span
-                      className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                        scheduleOn ? "translate-x-4" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
+                    className="switch"
+                  />
                 </div>
-                <p className="text-xs text-text-muted mb-5 leading-relaxed">
+                <p className="mb-5 text-[12.5px] leading-relaxed text-text-muted">
                   Marky will create this template in a folder on a set rhythm.
                 </p>
 
                 {scheduleOn ? (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-xs font-semibold text-text-secondary mb-2">
-                        Repeat
-                      </label>
-                      <div className="flex gap-1 bg-bg-editor border border-border rounded-lg p-1">
+                      <p className="field-label">Repeat</p>
+                      <div className="seg flex w-full" role="group" aria-label="Repeat">
                         {["daily", "weekly", "monthly"].map((freq) => (
                           <button
                             key={freq}
+                            type="button"
                             onClick={() => setScheduleFreq(freq)}
-                            className={`flex-1 capitalize text-xs py-1.5 rounded-md transition-colors ${
-                              scheduleFreq === freq
-                                ? "bg-accent text-white font-semibold"
-                                : "text-text-secondary hover:text-text-primary"
-                            }`}
+                            aria-pressed={scheduleFreq === freq}
+                            className="flex-1 capitalize"
                           >
                             {freq}
                           </button>
                         ))}
                       </div>
                     </div>
-                    <div className="rounded-[10px] bg-accent-dim p-3">
-                      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-accent">
-                        Next file
-                      </div>
+                    <div className="rounded-card bg-accent-dim p-3">
+                      <div className="mb-1 text-[12px] font-semibold text-accent">Next file</div>
                       <div className="font-mono text-[12.5px] leading-relaxed text-text-primary">
                         {schedulePreview}
                       </div>
@@ -486,31 +446,20 @@ const TemplateModal = ({
                     <button
                       onClick={handleSchedule}
                       disabled={!selectedTemplate}
-                      className={`w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                        selectedTemplate
-                          ? "bg-accent text-white hover:bg-accent/90"
-                          : "bg-overlay-light text-text-muted cursor-not-allowed"
-                      }`}
+                      className="btn btn-primary w-full"
                     >
-                      Create schedule →
+                      Create schedule
                     </button>
                   ) : (
                     <button
                       onClick={handleSelect}
                       disabled={!selectedTemplate}
-                      className={`w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                        selectedTemplate
-                          ? "bg-accent text-white hover:bg-accent/90"
-                          : "bg-overlay-light text-text-muted cursor-not-allowed"
-                      }`}
+                      className="btn btn-primary w-full"
                     >
                       Use template
                     </button>
                   )}
-                  <button
-                    onClick={onClose}
-                    className="w-full mt-2 px-4 py-2 text-sm text-text-muted hover:text-text-primary hover:bg-overlay-subtle rounded-lg transition-colors"
-                  >
+                  <button onClick={onClose} className="btn mt-2 w-full">
                     Cancel
                   </button>
                 </div>
@@ -519,32 +468,9 @@ const TemplateModal = ({
           )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-        .animate-slideUp {
-          animation: slideUp 0.3s ease-out;
-        }
-      `}</style>
       <ConfirmDialog
         isOpen={Boolean(pendingDeleteTemplateId)}
-        title="Delete Template"
+        title="Delete template"
         message="Delete this custom template? This action cannot be undone."
         confirmLabel="Delete"
         cancelLabel="Cancel"

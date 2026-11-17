@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import EmptyState from "../ui/EmptyState";
 import Fuse from "fuse.js";
+import { documentText } from "../../utils/documentText";
+import { isHtmlDocument } from "../../utils/documentKind";
 import useNotesStore from "../../store/notesStore";
 import useModalAccessibility from "../../hooks/useModalAccessibility";
 import { scrollItemIntoView } from "../../utils/scrollItemIntoView";
@@ -151,82 +154,58 @@ const ResultRow = ({
   resultId,
 }) => (
   <button
+    type="button"
     id={resultId}
     onClick={onClick}
     tabIndex={-1}
     role="option"
     aria-selected={isSelected}
-    className={`w-full text-left px-4 py-3 border-b border-overlay-subtle hover:bg-overlay-light transition-colors ${
-      isSelected ? "bg-overlay-light border-l-2 border-l-accent" : ""
-    }`}
+    className={`palette-row items-start py-2.5 ${isSelected ? "is-selected" : ""}`}
   >
-    <div className="flex items-start gap-3">
-      <svg
-        className="w-5 h-5 text-text-muted shrink-0 mt-0.5"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-        />
-      </svg>
-      <div className="flex-1 min-w-0">
-        <div className="font-medium text-text-primary mb-1">
-          {Array.isArray(titleParts)
-            ? titleParts.map((part, i) => (
-                <span key={i} className={part.highlight ? "bg-accent/30 text-accent" : ""}>
-                  {part.text}
-                </span>
-              ))
-            : result.item.name}
-        </div>
-        <p className="text-xs text-text-muted line-clamp-2">{preview}</p>
-        {matchedFields.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {matchedFields.map((field) => (
-              <span
-                key={field}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-overlay-subtle border border-overlay-subtle text-text-muted"
-              >
-                {field}
+    <svg
+      className="mt-0.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path
+        d={
+          isHtmlDocument(result.item)
+            ? "M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8zM14 3.5V8h4.5M10.5 12 8.5 14.2l2 2.3M13.5 12l2 2.2-2 2.3"
+            : "M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8zM14 3.5V8h4.5M9 12.5h6M9 16h4"
+        }
+      />
+    </svg>
+    <span className="min-w-0 flex-1">
+      <span className="block truncate text-text-primary" dir="auto">
+        {Array.isArray(titleParts)
+          ? titleParts.map((part, i) => (
+              <span key={i} className={part.highlight ? "bg-accent-dim text-accent" : ""}>
+                {part.text}
               </span>
-            ))}
-          </div>
-        )}
-        {result.score !== undefined && (
-          <div className="mt-2 flex items-center gap-2">
-            <div className="flex-1 h-1 bg-overlay-subtle rounded-full overflow-hidden max-w-[100px]">
-              <div
-                className="h-full bg-accent rounded-full transition-all"
-                style={{ width: `${Math.max(10, (1 - result.score) * 100)}%` }}
-              />
-            </div>
-            <span className="text-[10px] text-text-muted">
-              {Math.round((1 - result.score) * 100)}% match
-            </span>
-          </div>
-        )}
-      </div>
-      {isSelected && (
-        <svg
-          className="w-5 h-5 text-accent shrink-0 mt-0.5"
-          fill="currentColor"
-          viewBox="0 0 20 20"
-          aria-hidden="true"
+            ))
+          : result.item.name}
+      </span>
+      {preview && (
+        <span
+          className="mt-0.5 block text-[12.5px] font-normal leading-snug text-text-muted line-clamp-2"
+          dir="auto"
         >
-          <path
-            fillRule="evenodd"
-            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-            clipRule="evenodd"
-          />
-        </svg>
+          {preview}
+        </span>
       )}
-    </div>
+      {(matchedFields.length > 0 || result.score !== undefined) && (
+        <span className="mt-1 block text-[11.5px] font-normal text-text-muted">
+          {matchedFields.join(" · ")}
+          {matchedFields.length > 0 && result.score !== undefined ? " · " : ""}
+          {result.score !== undefined && `${Math.round((1 - result.score) * 100)}% match`}
+        </span>
+      )}
+    </span>
   </button>
 );
 
@@ -252,6 +231,10 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
     () =>
       notes.map((note) => ({
         ...note,
+        // Search reads an HTML document's visible text: what the page says,
+        // not its tags, scripts and styles. Matches and previews index into
+        // this text, so they line up with what is shown.
+        content: documentText(note),
         tagsText: Array.isArray(note.tags) ? note.tags.join(" ") : "",
       })),
     [notes]
@@ -383,7 +366,7 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
   useEffect(() => {
     if (searchResults.length === 0) return;
     const container = resultsContainerRef.current;
-    scrollItemIntoView(container, container?.children[selectedIndex]);
+    scrollItemIntoView(container, container?.querySelector(`#search-result-${selectedIndex}`));
   }, [selectedIndex, searchResults.length]);
 
   const updateSearchOption = (key) => {
@@ -513,379 +496,218 @@ const SearchModal = ({ isOpen, onClose, onSelectResult }) => {
 
   if (!isOpen) return null;
 
+  const filterChip = (key, label, enabled, onClick) => (
+    <button
+      key={key}
+      type="button"
+      onClick={onClick}
+      aria-pressed={enabled}
+      className="chip h-7 px-2.5 text-[12.5px]"
+    >
+      {label}
+    </button>
+  );
+
+  const renderRow = (result, index) => (
+    <ResultRow
+      key={result.item.id}
+      result={result}
+      titleParts={highlightMatches(result.item.name, result.matches, "name")}
+      preview={getPreviewText(result)}
+      isSelected={index === selectedIndex}
+      matchedFields={getMatchedFieldLabels(result.matches)}
+      resultId={`search-result-${index}`}
+      onClick={() => handleSelectNote(result.item)}
+    />
+  );
+
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="modal-scrim z-50 animate-fade-in" onClick={onClose} aria-hidden="true" />
 
-      {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] p-4 pointer-events-none">
+      <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[14vh] pb-4 pointer-events-none">
         <div
           ref={dialogRef}
-          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-2xl pointer-events-auto animate-slideUp overflow-hidden"
+          className="glass-panel modal-panel w-full max-w-[640px] max-h-[min(640px,100%)] flex flex-col pointer-events-auto animate-fade-in"
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
           aria-labelledby="search-modal-title"
           tabIndex={-1}
         >
-          {/* Search Input */}
-          <div className="border-b border-glass-border p-4">
-            <h2 id="search-modal-title" className="sr-only">
-              Search notes
-            </h2>
-            <div className="relative">
-              <svg
-                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search notes by title or content..."
-                role="combobox"
-                aria-autocomplete="list"
-                aria-expanded={searchResults.length > 0}
-                aria-label="Search notes"
-                aria-controls={resultsListboxId}
-                aria-activedescendant={activeResultId}
-                aria-describedby="search-results-status"
-                className="w-full pl-10 pr-4 py-3 bg-overlay-subtle border border-overlay-subtle rounded-lg text-sm text-text-primary placeholder-text-muted outline-none focus:bg-overlay-subtle focus:border-accent/50 transition-all"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-overlay-light rounded text-text-muted hover:text-text-primary transition-colors"
-                  title="Clear search"
-                  aria-label="Clear search"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              )}
-            </div>
-
-            {/* Result count */}
+          <h2 id="search-modal-title" className="sr-only">
+            Search notes
+          </h2>
+          <div className="modal-query">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="m16 16 4 4" />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search notes by title or content"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={searchResults.length > 0}
+              aria-label="Search notes"
+              aria-controls={resultsListboxId}
+              aria-activedescendant={activeResultId}
+              aria-describedby="search-results-status"
+              dir="auto"
+            />
             {searchQuery && (
-              <div
-                id="search-results-status"
-                className="mt-2 text-xs text-text-muted px-1"
-                role="status"
-                aria-live="polite"
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="icon-btn"
+                title="Clear search"
+                aria-label="Clear search"
               >
-                {searchResults.length > 0
-                  ? `Found ${searchResults.length} note${searchResults.length !== 1 ? "s" : ""}`
-                  : searchError || "No results found"}
-              </div>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
             )}
-
-            {/* Filters / toggles */}
-            <div className="mt-3 space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wide text-text-muted">Scopes</span>
-                {scopeButtons.map((btn) => {
-                  const enabled = searchOptions[btn.key];
-                  return (
-                    <button
-                      key={btn.key}
-                      type="button"
-                      onClick={() => updateSearchOption(btn.key)}
-                      aria-pressed={enabled}
-                      className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
-                        enabled
-                          ? "border-accent/40 bg-accent/10 text-accent"
-                          : "border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light"
-                      }`}
-                    >
-                      {btn.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wide text-text-muted">Mode</span>
-                {modeButtons.map((btn) => {
-                  const enabled = searchOptions[btn.key];
-                  return (
-                    <button
-                      key={btn.key}
-                      type="button"
-                      onClick={() => updateSearchOption(btn.key)}
-                      aria-pressed={enabled}
-                      className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
-                        enabled
-                          ? "border-accent/40 bg-accent/10 text-accent"
-                          : "border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light"
-                      }`}
-                    >
-                      {btn.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {searchResults.length > 0 && (
-                <div className="flex items-center gap-2 pt-1">
-                  <span className="text-[10px] uppercase tracking-wide text-text-muted">View</span>
-                  <button
-                    type="button"
-                    onClick={() => setGroupByFolder((v) => !v)}
-                    aria-pressed={groupByFolder}
-                    className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
-                      groupByFolder
-                        ? "border-accent/40 bg-accent/10 text-accent"
-                        : "border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light"
-                    }`}
-                  >
-                    Group by folder
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* Search Results */}
+          {/* Filters: what to search in, how to match, how to list. */}
+          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-border px-4 py-2">
+            <div className="flex items-center gap-1" role="group" aria-label="Search in">
+              <span className="me-1 text-[12px] font-semibold text-text-muted">In</span>
+              {scopeButtons.map((btn) =>
+                filterChip(btn.key, btn.label, searchOptions[btn.key], () =>
+                  updateSearchOption(btn.key)
+                )
+              )}
+            </div>
+            <div className="flex items-center gap-1" role="group" aria-label="Match">
+              <span className="me-1 text-[12px] font-semibold text-text-muted">Match</span>
+              {modeButtons.map((btn) =>
+                filterChip(btn.key, btn.label, searchOptions[btn.key], () =>
+                  updateSearchOption(btn.key)
+                )
+              )}
+            </div>
+            {searchResults.length > 0 &&
+              filterChip("group", "Group by folder", groupByFolder, () =>
+                setGroupByFolder((v) => !v)
+              )}
+          </div>
+
+          {searchQuery && (
+            <div
+              id="search-results-status"
+              className="px-5 pt-2 text-[12px] text-text-muted"
+              role="status"
+              aria-live="polite"
+            >
+              {searchResults.length > 0
+                ? `${searchResults.length} note${searchResults.length !== 1 ? "s" : ""}`
+                : searchError || "No results"}
+            </div>
+          )}
+
           <div
             ref={resultsContainerRef}
             id={resultsListboxId}
             role="listbox"
             aria-label="Search results"
-            className="max-h-[60vh] overflow-y-auto overscroll-contain custom-scrollbar"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2"
           >
-            {searchResults.length === 0 && searchQuery.trim() !== "" && (
-              <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                <svg
-                  className="w-16 h-16 text-text-muted opacity-50 mb-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                <p className="text-text-secondary font-medium">No notes found</p>
-                <p className="text-sm text-text-muted mt-1">Try a different search term</p>
-              </div>
-            )}
+            {searchResults.length === 0 &&
+              searchQuery.trim() !== "" &&
+              (searchError ? (
+                <EmptyState icon="filter" title="Nothing to search with" body={searchError} />
+              ) : (
+                <EmptyState
+                  icon="search"
+                  title="No notes found"
+                  body={`Nothing matches “${searchQuery.trim()}”. Try another word, or match on more than titles.`}
+                />
+              ))}
 
             {searchResults.length === 0 &&
               searchQuery.trim() === "" &&
               (recentSearches.length > 0 ? (
-                <div className="px-4 py-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] uppercase tracking-wide text-text-muted">
-                      Recent searches
-                    </span>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="palette-group">Recent searches</span>
                     <button
+                      type="button"
                       onClick={() => {
                         clearRecentSearches();
                         setRecentSearches([]);
                       }}
-                      className="text-[10px] text-text-muted hover:text-text-secondary transition-colors"
+                      className="btn btn-sm h-7 text-[12px]"
                     >
                       Clear
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {recentSearches.map((q) => (
-                      <button
-                        key={q}
-                        onClick={() => setSearchQuery(q)}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-full bg-overlay-subtle border border-overlay-subtle text-text-secondary hover:text-text-primary hover:border-overlay-light transition-colors"
+                  {recentSearches.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => setSearchQuery(q)}
+                      className="palette-row"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.6}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
                       >
-                        <svg
-                          className="w-3 h-3 text-text-muted shrink-0"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
+                        <path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 7.5V12l3 2" />
+                      </svg>
+                      <span className="truncate" dir="auto">
                         {q}
-                      </button>
-                    ))}
-                  </div>
+                      </span>
+                    </button>
+                  ))}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                  <svg
-                    className="w-16 h-16 text-accent opacity-50 mb-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-                  <p className="text-text-secondary font-medium">Search your notes</p>
-                  <p className="text-sm text-text-muted mt-1">Type to search by title or content</p>
-                </div>
+                <EmptyState
+                  icon="search"
+                  title="Search your notes"
+                  body="Type to search titles and contents."
+                />
               ))}
 
-            {/* Render results: flat or grouped */}
             {groupedResults
               ? groupedResults.map((group) => (
                   <div key={group.folderPath}>
-                    <div className="px-4 py-1.5 flex items-center gap-1.5 bg-overlay-subtle/60 border-b border-overlay-subtle sticky top-0 z-10">
-                      <svg
-                        className="w-3.5 h-3.5 text-text-muted shrink-0"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"
-                        />
-                      </svg>
-                      <span
-                        className="text-[11px] text-text-muted font-medium truncate"
-                        title={group.folderPath}
-                      >
+                    <div className="palette-group flex items-center gap-2" title={group.folderPath}>
+                      <span className="truncate" dir="auto">
                         {group.folderName}
                       </span>
-                      <span className="text-[10px] text-text-muted ml-auto shrink-0">
-                        {group.results.length}
-                      </span>
+                      <span className="ms-auto font-medium">{group.results.length}</span>
                     </div>
-                    {group.results.map((result) => {
-                      const index = flatResults.indexOf(result);
-                      const titleParts = highlightMatches(result.item.name, result.matches, "name");
-                      const preview = getPreviewText(result);
-                      const isSelected = index === selectedIndex;
-                      const matchedFields = getMatchedFieldLabels(result.matches);
-                      return (
-                        <ResultRow
-                          key={result.item.id}
-                          result={result}
-                          titleParts={titleParts}
-                          preview={preview}
-                          isSelected={isSelected}
-                          matchedFields={matchedFields}
-                          resultId={`search-result-${index}`}
-                          onClick={() => handleSelectNote(result.item)}
-                        />
-                      );
-                    })}
+                    {group.results.map((result) => renderRow(result, flatResults.indexOf(result)))}
                   </div>
                 ))
-              : searchResults.map((result, index) => {
-                  const titleParts = highlightMatches(result.item.name, result.matches, "name");
-                  const preview = getPreviewText(result);
-                  const isSelected = index === selectedIndex;
-                  const matchedFields = getMatchedFieldLabels(result.matches);
-                  return (
-                    <ResultRow
-                      key={result.item.id}
-                      result={result}
-                      titleParts={titleParts}
-                      preview={preview}
-                      isSelected={isSelected}
-                      matchedFields={matchedFields}
-                      resultId={`search-result-${index}`}
-                      onClick={() => handleSelectNote(result.item)}
-                    />
-                  );
-                })}
+              : searchResults.map((result, index) => renderRow(result, index))}
           </div>
-
-          {/* Footer with keyboard hints */}
-          {searchResults.length > 0 && (
-            <div className="border-t border-glass-border px-4 py-2 bg-overlay-subtle/50">
-              <div className="flex items-center justify-between text-[10px] text-text-muted">
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
-                      ↑
-                    </kbd>
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
-                      ↓
-                    </kbd>
-                    Navigate
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
-                      Enter
-                    </kbd>
-                    Select
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-overlay-light rounded text-[9px] border border-overlay-subtle">
-                      Esc
-                    </kbd>
-                    Close
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-        .animate-slideUp {
-          animation: slideUp 0.3s ease-out;
-        }
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-      `}</style>
     </>
   );
 };

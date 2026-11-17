@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#ecebf1" />
     <title>Marky - Beautiful Markdown Notes</title>
     <script>
       (() => {
@@ -12,23 +12,36 @@
         const themes = {
           vault: {
             type: "light",
-            bgBase: "#ffffff",
-            bgSidebar: "#f7f7f5",
-            bgEditor: "#ffffff",
-            textPrimary: "#2f2f2b",
-            textSecondary: "#73726e",
-            textMuted: "#9f9e9a",
-            border: "rgba(35, 35, 32, 0.09)",
+            bgBase: "#fdfdfc",
+            bgSidebar: "#ecebf1",
+            bgEditor: "#fdfdfc",
+            textPrimary: "#1b1a21",
+            textSecondary: "#5d5c69",
+            textMuted: "#9795a2",
+            border: "rgba(24, 20, 48, 0.08)",
           },
           "vault-dark": {
             type: "dark",
-            bgBase: "#1e1e1c",
-            bgSidebar: "#191918",
-            bgEditor: "#242422",
-            textPrimary: "#e7e6e2",
-            textSecondary: "#a3a29d",
-            textMuted: "#71706b",
-            border: "rgba(240, 240, 235, 0.09)",
+            bgBase: "#1b1a20",
+            bgSidebar: "#131217",
+            bgEditor: "#1b1a20",
+            textPrimary: "#edecf3",
+            textSecondary: "#a5a3b1",
+            textMuted: "#6d6b79",
+            border: "rgba(236, 232, 255, 0.08)",
+          },
+          black: {
+            type: "dark",
+            bgBase: "#000000",
+            bgSidebar: "#000000",
+            bgEditor: "#000000",
+            textPrimary: "#f2f2f4",
+            textSecondary: "#a1a1a8",
+            textMuted: "#6b6b72",
+            border: "rgba(255, 255, 255, 0.10)",
+            // Desk and sheet are both black: the skeleton sheet needs the
+            // theme's strong ring (its `sheetRing` override) to show at all.
+            sheetRing: "rgba(255, 255, 255, 0.17)",
           },
           paper: {
             type: "light",
@@ -195,11 +208,17 @@
           // a stale top-level never flashes the wrong vault theme.
           let themeId = state.themeId;
           let accentId = state.accentColorId;
+          let translucent = state.translucentWindow;
+          let translucency = state.translucencyAmount;
           const active = normalizePath(state.activeWorkspacePath);
           if (active && state.workspaceProfiles && state.workspaceProfiles[active]) {
             const profile = state.workspaceProfiles[active];
             if (profile?.themeId) themeId = profile.themeId;
             if (profile?.accentColorId) accentId = profile.accentColorId;
+            if (typeof profile?.translucentWindow === "boolean")
+              translucent = profile.translucentWindow;
+            if (typeof profile?.translucencyAmount === "number")
+              translucency = profile.translucencyAmount;
           } else if (state.sharedSettings) {
             // Fresh install before top-level migrated still has values under sharedSettings
             if (!themeId && state.sharedSettings.themeId) themeId = state.sharedSettings.themeId;
@@ -214,8 +233,9 @@
 
           const root = document.documentElement;
           root.setAttribute("data-theme", theme.type);
-          // CSS variables for the full app; also paint html directly so the first
-          // frame before the stylesheet loads is already themed (no var() indirection).
+          // CSS variables only — the stylesheet below paints html/body/#root
+          // from them. No inline backgrounds: a translucent window needs those
+          // three transparent, and an inline style would outrank that.
           root.style.setProperty("--color-bg-base", theme.bgBase);
           root.style.setProperty("--color-bg-sidebar", theme.bgSidebar);
           root.style.setProperty("--color-bg-editor", theme.bgEditor);
@@ -223,130 +243,101 @@
           root.style.setProperty("--color-text-secondary", theme.textSecondary);
           root.style.setProperty("--color-text-muted", theme.textMuted);
           root.style.setProperty("--color-border", theme.border);
+          // The skeleton's sheet outline; the soft border for every theme
+          // that has no ring of its own.
+          root.style.setProperty("--color-sheet-ring", theme.sheetRing || theme.border);
           root.style.setProperty("--color-accent", accent.value);
           root.style.setProperty("--color-accent-hover", accent.hover);
-          root.style.setProperty("--color-accent-dim", accent.value + "24");
-          root.style.backgroundColor = theme.bgBase;
+          root.style.setProperty("--color-accent-dim", accent.value + "21");
           root.style.color = theme.textPrimary;
-          document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme.bgBase);
-          // Paint body early too (DOM may not exist yet when this runs in head)
-          const applyBody = () => {
-            if (document.body) document.body.style.backgroundColor = theme.bgBase;
-            const r = document.getElementById("root");
-            if (r) r.style.backgroundColor = theme.bgBase;
-          };
-          if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", applyBody, { once: true });
-          } else {
-            applyBody();
-          }
+          document
+            .querySelector('meta[name="theme-color"]')
+            ?.setAttribute("content", theme.bgSidebar);
+
+          // Translucent window — keep in step with src/utils/windowTranslucency.js
+          // (macOS and Windows only; off unless the setting says otherwise).
+          const ua = navigator.userAgent.toLowerCase();
+          const isMac = ua.includes("mac");
+          const isWindows = ua.includes("win");
+          if (typeof translucent !== "boolean") translucent = false;
+          if (translucent && (isMac || isWindows)) root.setAttribute("data-translucent", "");
+          // The desk tint for the Translucency amount — keep in step with
+          // deskAlphaFor / clampTranslucency in windowTranslucency.js.
+          if (typeof translucency !== "number" || !isFinite(translucency)) translucency = 50;
+          translucency = Math.min(100, Math.max(0, Math.round(translucency / 5) * 5));
+          const floor = theme.type === "dark" ? 32 : 44;
+          const alpha = Math.round((100 - (translucency / 100) * (100 - floor)) * 10) / 10;
+          root.style.setProperty("--desk-alpha", alpha + "%");
         } catch (error) {
           document.documentElement.setAttribute("data-theme", "light");
         }
       })();
     </script>
     <style>
-      /* Prevent flash — vault light default, overwritten synchronously by the script above */
+      /* Prevent flash — the Vault light desk, overwritten synchronously by the
+         script above. Transparent instead when the window is translucent, so
+         the native material is what shows before React mounts. */
       html,
       body {
         margin: 0;
         padding: 0;
-        background: var(--color-bg-base, #ffffff);
+        background: var(--color-bg-sidebar, #ecebf1);
         overflow: hidden;
       }
       #root {
         width: 100%;
         height: 100%;
         min-height: 100vh;
-        background: var(--color-bg-base, #ffffff);
+        background: var(--color-bg-sidebar, #ecebf1);
+      }
+      :root[data-translucent],
+      :root[data-translucent] body,
+      :root[data-translucent] #root {
+        background: transparent;
       }
       /* Skeleton keeps the first frame themed even before React mounts — avoids
          a white/blank rect when the window is already visible (Tauri dev) */
-      #root:empty::before {
+      :root:not([data-translucent]) #root:empty::before {
         content: "";
         position: fixed;
         inset: 0;
-        background: var(--color-bg-base, #ffffff);
+        background: var(--color-bg-sidebar, #ecebf1);
+      }
+      #app-skeleton {
+        background: var(--color-bg-sidebar, #ecebf1);
+      }
+      :root[data-translucent] #app-skeleton {
+        background: color-mix(
+          in srgb,
+          var(--color-bg-sidebar, #ecebf1) var(--desk-alpha, 72%),
+          transparent
+        );
       }
     </style>
   </head>
   <body>
     <div id="root">
-      <!-- Instant skeleton — themed by the script above, visible before React mounts.
-           Mirrors App's real layout (32px titlebar + 280px sidebar + editor) so
-           there is no layout shift when React hydrates. No waiting, no white. -->
+      <!-- Instant skeleton — themed by the script above, visible before React
+           mounts. Mirrors App's real layout (48px title bar, 280px sidebar, and
+           the sheet floating on the desk with an 8px gap) so nothing shifts
+           when React takes over. -->
       <div
         id="app-skeleton"
-        style="
-          height: 100vh;
-          display: flex;
-          flex-direction: column;
-          background: var(--color-bg-base, #ffffff);
-          color: var(--color-text-primary, #2f2f2b);
-          overflow: hidden;
-        "
+        style="height: 100vh; display: flex; flex-direction: column; overflow: hidden"
       >
-        <div
-          style="
-            height: 32px;
-            display: flex;
-            align-items: center;
-            flex-shrink: 0;
-            background: var(--color-bg-sidebar, #f7f7f5);
-            border-bottom: 1px solid var(--color-border, rgba(35, 35, 32, 0.09));
-          "
-        >
-          <!-- traffic lights spacer on macOS (80px) is added by CSS at runtime;
-               here we just keep the titlebar visually occupied -->
+        <div style="height: 48px; flex-shrink: 0"></div>
+        <div style="flex: 1; display: flex; min-height: 0">
+          <div style="width: 280px; flex-shrink: 0"></div>
           <div
             style="
-              width: 280px;
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              padding: 0 12px;
-              border-right: 1px solid var(--color-border, rgba(35, 35, 32, 0.09));
-              height: 100%;
-              box-sizing: border-box;
-            "
-          >
-            <div
-              style="
-                font-family:
-                  &quot;Hanken Grotesk&quot;,
-                  -apple-system,
-                  BlinkMacSystemFont,
-                  sans-serif;
-                font-weight: 600;
-                font-size: 13px;
-                color: var(--color-text-primary, #2f2f2b);
-                letter-spacing: -0.01em;
-              "
-            >
-              Marky
-            </div>
-            <div
-              style="
-                width: 14px;
-                height: 14px;
-                border-radius: 4px;
-                background: var(--color-border, rgba(35, 35, 32, 0.09));
-                opacity: 0.6;
-              "
-            ></div>
-          </div>
-          <div style="flex: 1"></div>
-        </div>
-        <div style="flex: 1; display: flex; overflow: hidden; min-height: 0">
-          <div
-            style="
-              width: 280px;
-              flex-shrink: 0;
-              background: var(--color-bg-sidebar, #f7f7f5);
-              border-right: 1px solid var(--color-border, rgba(35, 35, 32, 0.09));
+              flex: 1;
+              min-width: 0;
+              margin: 0 8px 8px 0;
+              border-radius: 14px;
+              background: var(--color-bg-editor, #fdfdfc);
+              box-shadow: 0 0 0 1px var(--color-sheet-ring, rgba(24, 20, 48, 0.08));
             "
           ></div>
-          <div style="flex: 1; background: var(--color-bg-editor, #ffffff); min-width: 0"></div>
         </div>
       </div>
     </div>

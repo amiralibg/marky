@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import ConfirmDialog from "../modals/ConfirmDialog";
+import EmptyState from "../ui/EmptyState";
 import useNotesStore from "../../store/notesStore";
 import { TemplateGlyph } from "../icons";
 
@@ -112,11 +113,12 @@ const ScheduledNotesManager = () => {
 
   if (!scheduledNotes || scheduledNotes.length === 0) {
     return (
-      <div className="border border-border rounded-xl bg-bg-sidebar/40 px-6 py-10 text-center text-text-muted">
-        <p className="text-lg font-semibold text-text-primary mb-2">No scheduled notes yet</p>
-        <p className="text-sm">
-          Create a schedule from the template picker to have Marky create notes automatically.
-        </p>
+      <div className="rounded-card bg-item-hover">
+        <EmptyState
+          icon="calendar"
+          title="No scheduled notes yet"
+          body="Create a schedule from the template picker and Marky makes the notes for you."
+        />
       </div>
     );
   }
@@ -132,7 +134,7 @@ const ScheduledNotesManager = () => {
         return (
           <div
             key={schedule.id}
-            className="border border-overlay-light bg-bg-sidebar/60 rounded-xl px-5 py-4 flex flex-col gap-3"
+            className="flex flex-col gap-3 rounded-card bg-item-hover px-5 py-4"
           >
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div className="flex items-start gap-3">
@@ -169,18 +171,14 @@ const ScheduledNotesManager = () => {
                 <button
                   type="button"
                   onClick={() => setScheduledNoteEnabled(schedule.id, !schedule.enabled)}
-                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors border ${
-                    schedule.enabled
-                      ? "border-overlay-medium text-text-primary hover:bg-overlay-light"
-                      : "border-accent text-accent hover:bg-accent/10"
-                  }`}
+                  className="btn btn-sm"
                 >
                   {schedule.enabled ? "Disable" : "Enable"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setPendingDeleteId(schedule.id)}
-                  className="px-3 py-1.5 text-sm rounded-lg transition-colors border border-red-500/40 text-red-300 hover:bg-red-500/10"
+                  className="btn btn-sm btn-danger"
                 >
                   Delete
                 </button>
@@ -191,7 +189,7 @@ const ScheduledNotesManager = () => {
       })}
       <ConfirmDialog
         isOpen={Boolean(pendingDeleteId)}
-        title="Delete Scheduled Note"
+        title="Delete scheduled note"
         message="Delete this scheduled note? This action cannot be undone."
         confirmLabel="Delete"
         cancelLabel="Cancel"

@@ -133,55 +133,55 @@ export default function Download({ release, platform }: Props) {
               without tabpanels or arrow-key roving is announced as broken. */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="seg" role="group" aria-label="Operating system">
-            {PLATFORMS.map((id) => {
-              const Icon = ICONS[id];
-              const selected = os === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => {
-                    touched.current = true;
-                    setOs(id);
-                    setArch(
-                      id === platform.os ? platform.arch : id === "macos" ? "arm64" : "amd64"
-                    );
-                  }}
-                  className="seg-btn"
-                >
-                  <Icon />
-                  {osLabel(id)}
-                </button>
-              );
-            })}
+              {PLATFORMS.map((id) => {
+                const Icon = ICONS[id];
+                const selected = os === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => {
+                      touched.current = true;
+                      setOs(id);
+                      setArch(
+                        id === platform.os ? platform.arch : id === "macos" ? "arm64" : "amd64"
+                      );
+                    }}
+                    className="seg-btn"
+                  >
+                    <Icon />
+                    {osLabel(id)}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="seg" role="group" aria-label="Architecture">
-            {ARCHES.map((id) => {
-              const selected = arch === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => {
-                    touched.current = true;
-                    setArch(id);
-                  }}
-                  className="seg-btn"
-                >
-                  {archLabel(os, id)}
-                </button>
-              );
-            })}
+              {ARCHES.map((id) => {
+                const selected = arch === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => {
+                      touched.current = true;
+                      setArch(id);
+                    }}
+                    className="seg-btn"
+                  >
+                    {archLabel(os, id)}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {primary ? (
             <a
               href={primary.url}
-              className="btn-accent mt-6 flex min-h-14 flex-col items-start justify-center gap-1 rounded-sm px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+              className="btn-accent mt-6 flex min-h-14 flex-col items-start justify-center gap-1 rounded-md px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
             >
               <span className="text-[15px] font-medium">
                 Download {osLabel(os)} · {archLabel(os, arch)}
@@ -222,9 +222,7 @@ export default function Download({ release, platform }: Props) {
 
           {list.length > 0 && (
             <div className="mt-6">
-              <p className="kicker">
-                Also available
-              </p>
+              <p className="kicker">Also available</p>
               <ul className="mt-1 divide-y divide-line">
                 {list.map((asset) => (
                   <li key={asset.name}>

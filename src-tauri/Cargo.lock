@@ -1975,11 +1975,13 @@ dependencies = [
 
 [[package]]
 name = "marky"
-version = "1.9.2"
+version = "1.10.0"
 dependencies = [
  "ignore",
  "notify",
  "notify-debouncer-full",
+ "objc2",
+ "objc2-app-kit",
  "serde",
  "serde_json",
  "tauri",
@@ -1990,6 +1992,7 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-updater",
  "tempfile",
+ "window-vibrancy",
 ]
 
 [[package]]

@@ -43,7 +43,7 @@ export default function Hero({ release, platform, loading, error }: Props) {
             <div className="mt-7 flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <a
                 href={href}
-                className="btn-accent group inline-flex min-h-11 items-center justify-center gap-2.5 rounded-sm px-4 py-2.5 text-[15px] font-medium"
+                className="btn-accent group inline-flex min-h-11 items-center justify-center gap-2.5 rounded-pill px-4 py-2.5 text-[15px] font-medium"
               >
                 <span>
                   {loading

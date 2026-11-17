@@ -6,8 +6,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App.jsx";
 import NoteWindow from "./components/NoteWindow.jsx";
 import { applyPlatformAttribute } from "./utils/platform.js";
-import { installQuietScrollbars } from "./utils/quietScrollbars.js";
 import useSettingsStore, { applyReadingFont } from "./store/settingsStore.js";
+import { applyWindowTranslucency } from "./utils/windowTranslucency.js";
 import { renderAndRevealWindow } from "./utils/windowStartup.js";
 import "./index.css";
 
@@ -17,7 +17,12 @@ const platform = applyPlatformAttribute();
 // Same reason: notes should paint in the chosen typeface on the first frame.
 // The store rehydrates from localStorage synchronously, so this is the saved value.
 applyReadingFont(useSettingsStore.getState().readingFont);
-installQuietScrollbars();
+// And the desk is see-through from the first frame when the window is
+// translucent, rather than flashing opaque until settings initialise.
+applyWindowTranslucency(
+  useSettingsStore.getState().translucentWindow,
+  useSettingsStore.getState().translucencyAmount
+);
 
 // GTK packs the app menu bar inside the window, over Marky's own title bar.
 // The main window is dealt with in Rust at startup; every window created after
@@ -56,8 +61,11 @@ const root = createRoot(document.getElementById("root"));
 const Root = noteParam ? <NoteWindow filePath={noteParam} /> : <App />;
 const initialUI = import.meta.env.DEV ? <React.StrictMode>{Root}</React.StrictMode> : Root;
 
-// A hidden WebView may throttle requestAnimationFrame, so waiting for a frame
-// before calling `show()` can leave the app permanently invisible. Commit the
-// initial React tree synchronously, then reveal immediately: the first native
-// frame already contains usable UI without adding a timer or loading screen.
+// Every window is created hidden. Rust has already put the remembered
+// material (or the opaque desk colour) on it as this page started loading
+// (`dress_window` in main.rs), so whatever the first native frame holds, the
+// desktop never shows through it unblurred. A hidden WebView may throttle
+// requestAnimationFrame, so waiting for a frame before calling `show()` can
+// leave the app invisible; commit the initial React tree synchronously, then
+// reveal immediately. Rust shows the window anyway if this never runs.
 renderAndRevealWindow(root, initialUI, appWindow, flushSync);

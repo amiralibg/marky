@@ -17,6 +17,14 @@ import {
 
 const LEADING_CHECKBOX = /^(<input\b[^>]*type="checkbox"[^>]*>)\s+/;
 
+// Set only for the duration of a synchronous `renderMarkdownMiniature` call.
+// Home's document cards render a note's opening through this same pipeline,
+// many at a time, so the expensive or remote parts are left out there: no
+// syntax highlighting, no KaTeX, no mermaid, and no image is loaded — each
+// leaves a tinted block in its place instead.
+let miniatureMode = false;
+const MINIATURE_MEDIA = '<span class="mini-media"></span>';
+
 const escapeHtml = (value = "") =>
   value.replace(/[&<>"']/g, (char) => {
     switch (char) {
@@ -120,6 +128,7 @@ const isUnsafeUrl = (value) => /^\s*(javascript|vbscript|data:text\/html)/i.test
 
 const buildImageTag = (target, alt = "", title = "") => {
   if (isUnsafeUrl(target)) return escapeHtml(alt);
+  if (miniatureMode) return MINIATURE_MEDIA;
 
   const src = resolveMediaSrc(target);
   const size = parseEmbedSize(target);
@@ -258,6 +267,12 @@ if (!extensionsRegistered) {
         const text = typeof code === "object" ? code.text : code;
         const lang = typeof code === "object" ? code.lang : language;
 
+        if (miniatureMode) {
+          return lang === "mermaid"
+            ? MINIATURE_MEDIA
+            : `<pre><code>${escapeHtml(text)}</code></pre>`;
+        }
+
         // Mermaid diagrams: render as placeholder for post-processing
         if (lang === "mermaid") {
           return `<div class="mermaid-wrapper"><div class="mermaid">${escapeHtml(text)}</div></div>`;
@@ -295,6 +310,20 @@ if (!extensionsRegistered) {
         );
       },
     },
+  });
+  // Renderer-only overrides for the KaTeX extension's tokens. marked chains a
+  // renderer registered under an existing extension name in front of the old
+  // one and falls through to it on `false`, so outside a miniature KaTeX
+  // renders exactly as before.
+  marked.use({
+    extensions: ["inlineKatex", "blockKatex"].map((name) => ({
+      name,
+      renderer(token) {
+        if (!miniatureMode) return false;
+        const math = `<span class="mini-math">${escapeHtml(token.text || "")}</span>`;
+        return name === "blockKatex" ? `<p>${math}</p>` : math;
+      },
+    })),
   });
   extensionsRegistered = true;
 }
@@ -341,10 +370,7 @@ export const renderFrontmatterCard = (attributes = {}) => {
   );
 };
 
-export const renderMarkdownPreview = (markdown) => {
-  const parsed = parseFrontmatter(markdown);
-  const frontmatterHtml = parsed.hasFrontmatter ? renderFrontmatterCard(parsed.attributes) : "";
-  const previewMarkdown = parsed.body;
+const renderBody = (previewMarkdown) => {
   const tokens = marked.lexer(previewMarkdown);
 
   // The footnote extension emits its section as the first token and relies on
@@ -370,5 +396,27 @@ export const renderMarkdownPreview = (markdown) => {
     marked.walkTokens(tokensWithBlankLines, marked.defaults.walkTokens);
   }
 
-  return frontmatterHtml + marked.parser(tokensWithBlankLines);
+  return marked.parser(tokensWithBlankLines);
+};
+
+export const renderMarkdownPreview = (markdown) => {
+  const parsed = parseFrontmatter(markdown);
+  const frontmatterHtml = parsed.hasFrontmatter ? renderFrontmatterCard(parsed.attributes) : "";
+  return frontmatterHtml + renderBody(parsed.body);
+};
+
+/**
+ * Read mode's HTML for a miniature: the same renderer, with code left plain,
+ * math as text, and images and diagrams as placeholders (see `miniatureMode`).
+ * Takes markdown already trimmed by `miniatureSource`, which has removed the
+ * front matter — so a body that happens to open with a `---` rule is not
+ * mistaken for a second block of it.
+ */
+export const renderMarkdownMiniature = (markdown) => {
+  miniatureMode = true;
+  try {
+    return renderBody(markdown || "");
+  } finally {
+    miniatureMode = false;
+  }
 };

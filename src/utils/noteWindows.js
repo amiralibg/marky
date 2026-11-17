@@ -1,5 +1,6 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { detectPlatform } from "./platform";
+import { supportsWindowTranslucency } from "./windowTranslucency";
 import { hashPath } from "./windowVault";
 
 /**
@@ -41,7 +42,15 @@ export async function openNoteInNewWindow(filePath) {
     minHeight: 320,
     titleBarStyle: "Overlay",
     hiddenTitle: true,
+    // Traffic lights placed natively by the empty toolbar main.rs installs.
     decorations: !isLinux,
+    // Translucent window support; see the same flag in vaultWindows.js.
+    transparent: supportsWindowTranslucency(),
+    // Hidden until its page shows it: Rust puts the remembered material or
+    // desk colour on as the page starts loading, and the page shows the window
+    // once its first UI is committed (see windowStartup.js), so the desktop
+    // never shows through unblurred. Rust shows it anyway after a timeout.
+    visible: false,
     dragDropEnabled: true,
   });
 

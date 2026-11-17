@@ -48,11 +48,14 @@ describe("openNoteInNewWindow", () => {
     expect(constructed[0].options.url).toBe("index.html?note=%2Fvault%2FMy%20Note.md");
   });
 
-  it("creates the window visible so startup cannot strand it off-screen", async () => {
+  // Hidden until its page has committed its first UI and shows itself, so no
+  // frame is drawn before the native material is on; Rust's reveal fallback
+  // (REVEAL_FALLBACK in main.rs) keeps a failed boot from stranding it.
+  it("creates the window hidden, for its page to show", async () => {
     const { openNoteInNewWindow } = await loadModule();
     await openNoteInNewWindow("/vault/A.md");
 
-    expect(constructed[0].options.visible).not.toBe(false);
+    expect(constructed[0].options.visible).toBe(false);
   });
 
   it("removes native decorations when creating a Linux window", async () => {

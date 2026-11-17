@@ -2,21 +2,24 @@
 # Compose the README artwork from the raw macOS window captures.
 #
 # ImageMagick here is built without Freetype, so nothing can be typeset into
-# these images — they are pure composition: crop, round, shadow, gradient mat.
+# these images — they are pure composition: scale, round, shadow, flat mat.
 # All wording lives in the README markdown beside them.
 #
-# Captures are 2880x1800 (1440x900 @2x) shots of the app itself, with no OS
-# window chrome, so a panel W wide is 0.625*W tall. Every canvas below is sized
-# from that so nothing is clipped and the gaps clear the drop shadow. Set CROP
-# (e.g. "3390x2114+111+75") to cut a window out of a raw macOS window capture.
+# Captures are 16:10 Retina shots of the app window (`screencapture -o -l`), so
+# a panel W wide is 0.625*W tall. Every canvas below is sized from that so
+# nothing is clipped and the gaps clear the drop shadow. Set CROP (e.g.
+# "3390x2114+111+75") to cut a window out of a capture that has a margin.
+# Scene names match scripts/build-screenshots.sh.
 set -euo pipefail
 
 RAW="${RAW:-$HOME/Documents/Marky-Screenshots-Source}"
 OUT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/docs/images"
 TMP=/tmp/readme-art
 CROP="${CROP:-}"
-LIGHT="gradient:#f6f2e9-#eae4d6"
-DARK="gradient:#24241f-#151514"
+# The Soft Light desk colours, flat: the app has no gradients, so neither does
+# the art around it.
+LIGHT="xc:#ecebf1"
+DARK="xc:#131217"
 
 # The drop shadow (sigma 26, offset +0+14) pads every panel image by 2*26 = 52
 # on each side, shifted 14 down: 52 left/right, 38 top, 66 bottom. Placement
@@ -44,18 +47,17 @@ panel() {
     "$dest"
 }
 
-# ---- 1. Hero: the graph, matted on the site's warm canvas --------------------
+# ---- 1. Hero: live editing, matted on the light desk -------------------------
 # 1900 wide -> 1188 tall, 156 margin top and bottom.
-panel note-graph 1900 16 "$TMP/hero.png"
+panel live 1900 16 "$TMP/hero.png"
 magick -size 2400x1500 "$LIGHT" \
-  \( -size 2400x1500 radial-gradient:'#6d5ce033-none' \) -compose over -composite \
   "$TMP/hero.png" -gravity center -compose over -composite \
   -strip "$OUT/hero.png"
 
 # ---- 2. Source vs reading, the same note side by side ------------------------
 # 1080 wide -> 675 tall. 80 margin + 1080 + 80 gap + 1080 + 80 margin = 2400.
-panel graphnote-source 1080 14 "$TMP/m-a.png"
-panel graphnote-read 1080 14 "$TMP/m-b.png"
+panel source 1080 14 "$TMP/m-a.png"
+panel math 1080 14 "$TMP/m-b.png"
 magick -size 2400x860 "$LIGHT" \
   "$TMP/m-a.png" -gravity west -geometry +$PX+0 -compose over -composite \
   "$TMP/m-b.png" -gravity east -geometry +$PX+0 -compose over -composite \
@@ -63,10 +65,10 @@ magick -size 2400x860 "$LIGHT" \
 
 # ---- 3. Feature grid: four views on a dark board -----------------------------
 # 1080 wide -> 675 tall. 80 + 675 + 84 gap + 675 + 80 = 1594.
-panel daily-note 1080 14 "$TMP/g-tl.png"
-panel settings-appearance 1080 14 "$TMP/g-tr.png"
-panel architecture-read 1080 14 "$TMP/g-bl.png"
-panel note-graph 1080 14 "$TMP/g-br.png"
+panel daily 1080 14 "$TMP/g-tl.png"
+panel themes 1080 14 "$TMP/g-tr.png"
+panel read 1080 14 "$TMP/g-bl.png"
+panel graph 1080 14 "$TMP/g-br.png"
 magick -size 2400x1594 "$DARK" \
   "$TMP/g-tl.png" -gravity northwest -geometry +$PX+$PT -compose over -composite \
   "$TMP/g-tr.png" -gravity northeast -geometry +$PX+$PT -compose over -composite \

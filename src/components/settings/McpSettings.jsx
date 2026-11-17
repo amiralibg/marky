@@ -149,20 +149,16 @@ const McpSettings = () => {
       </div>
 
       {/* Active Vault Path Badge */}
-      <div className="flex items-center justify-between p-3.5 rounded-lg bg-bg-base border border-border">
+      <div className="flex items-center justify-between rounded-card bg-item-hover p-3.5">
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
-            Active Workspace Path
-          </span>
+          <span className="text-xs font-medium text-text-muted">Active Workspace Path</span>
           <span className="text-xs font-mono text-text-primary truncate max-w-md">
             {rootFolderPath || "No workspace opened yet"}
           </span>
         </div>
         <span
-          className={`text-[11px] px-2 py-0.5 rounded font-medium shrink-0 ${
-            rootFolderPath
-              ? "bg-accent-dim text-accent"
-              : "bg-bg-sidebar text-text-muted border border-border"
+          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            rootFolderPath ? "bg-accent-dim text-accent" : "bg-item-hover text-text-muted"
           }`}
         >
           {rootFolderPath ? "Ready for MCP" : "No workspace"}
@@ -172,26 +168,20 @@ const McpSettings = () => {
       {/* Client Selector & Snippet */}
       <div className="space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex flex-wrap rounded-lg bg-bg-base p-1 border border-border gap-1">
+          <div className="seg flex-wrap" role="group" aria-label="Client">
             {CLIENTS.map((client) => (
               <button
                 key={client.id}
                 onClick={() => setSelectedClient(client.id)}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                  selectedClient === client.id
-                    ? "bg-accent text-accent-contrast shadow-sm"
-                    : "text-text-secondary hover:text-text-primary"
-                }`}
+                type="button"
+                aria-pressed={selectedClient === client.id}
               >
                 {client.label}
               </button>
             ))}
           </div>
 
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-accent text-accent-contrast hover:opacity-90 transition-opacity shrink-0"
-          >
+          <button onClick={handleCopy} className="btn btn-sm btn-primary">
             {copied ? (
               <>
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -221,7 +211,7 @@ const McpSettings = () => {
         </div>
 
         {/* Code Snippet Box */}
-        <div className="relative rounded-lg bg-bg-base border border-border p-4 font-mono text-xs text-text-secondary overflow-x-auto custom-scrollbar">
+        <div className="relative overflow-x-auto rounded-card bg-item-hover p-4 font-mono text-xs text-text-secondary">
           <pre>{getActiveSnippet()}</pre>
         </div>
 
@@ -273,12 +263,12 @@ const McpSettings = () => {
 
       {/* Available Tools Grid */}
       <div className="space-y-3 pt-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+        <h3 className="text-xs font-semibold text-text-muted">
           Available AI Capabilities Across All Clients
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
           {CAPABILITIES.map(({ id, Icon, title, body }) => (
-            <div key={id} className="p-3 rounded-lg bg-bg-base border border-border">
+            <div key={id} className="rounded-card bg-item-hover p-3">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-text-primary mb-0.5">
                 <Icon className="w-3.5 h-3.5 shrink-0 text-accent" />
                 {title}

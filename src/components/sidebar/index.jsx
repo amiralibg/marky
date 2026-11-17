@@ -10,7 +10,11 @@ import {
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { editorAcceptsDrop, toLogicalPosition } from "../../utils/externalDrop";
 import useNotesStore from "../../store/notesStore";
-import useSettingsStore, { THEMES, normalizeSaveMode } from "../../store/settingsStore";
+import useSettingsStore, {
+  THEMES,
+  formatShortcutHint,
+  normalizeSaveMode,
+} from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
 import { checkForAppUpdate, installAppUpdate, restartApp } from "../../utils/appUpdater";
 import { openEmptyWindow, openVaultInNewWindow } from "../../utils/vaultWindows";
@@ -39,12 +43,16 @@ import {
 import { sortSidebarItems } from "../../utils/sidebarSort";
 import { UpdateIcon } from "../icons/AppUpdateIcon";
 import { WindowIcon } from "../icons";
+import EmptyState from "../ui/EmptyState";
+import { LoadingState, SkeletonRows } from "../ui/Loading";
 
 const VIRTUAL_TREE_THRESHOLD = 250;
+// Row height plus the 1px gap between rows — keep in step with
+// `rowDensityClass` in TreeItem.jsx.
 const TREE_ROW_HEIGHTS = {
-  compact: 28,
-  comfortable: 36,
-  spacious: 44,
+  compact: 29,
+  comfortable: 33,
+  spacious: 41,
 };
 const VIRTUAL_TREE_OVERSCAN = 8;
 
@@ -117,16 +125,23 @@ const Sidebar = forwardRef(
       clearReveal,
       pinnedNotes,
       scheduledNotes,
+      clearTagFilters,
     } = useNotesStore();
     const sidebarDensity = useSettingsStore((state) => state.sidebarDensity);
     const themeId = useSettingsStore((state) => state.themeId);
     const isAutoSave = useSettingsStore((state) => normalizeSaveMode(state.saveMode) === "auto");
     const toggleColorScheme = useSettingsStore((state) => state.toggleColorScheme);
+    // The field filters the tree; the hint names the shortcut that searches
+    // the whole vault (note contents too), so the faster path is in view.
+    const searchKeymap = useSettingsStore((state) => state.keymaps?.search);
+    const searchShortcut = useMemo(() => formatShortcutHint(searchKeymap), [searchKeymap]);
     const { addNotification, setShowWorkspaceModal, appUpdate } = useUIStore();
     const [contextMenu, setContextMenu] = useState(null);
     // Right-click on the empty space below the tree: paste and create live
     // here, at the workspace root. A trimmed-down cousin of the row menu.
     const [emptyMenu, setEmptyMenu] = useState(null);
+    // The Files header's "+": what to create (note, HTML document, folder).
+    const [newMenu, setNewMenu] = useState(null);
     const [draggedItem, setDraggedItem] = useState(null);
     const [dragPosition, setDragPosition] = useState(null);
     // Single shared "drop into this folder" target for internal drags (one highlight at a time)
@@ -677,6 +692,23 @@ const Sidebar = forwardRef(
       }
     }, [onOpenTemplate, rootFolderPath, createScratchNote]);
 
+    // A minimal page beside the notes, in the root or in `parentId`.
+    const handleNewHtmlDocument = useCallback(
+      async (parentId = null) => {
+        if (!rootFolderPath) {
+          setShowWorkspaceModal(true);
+          return;
+        }
+        try {
+          await useNotesStore.getState().createHtmlDocument(parentId);
+        } catch (error) {
+          console.error("Failed to create HTML document:", error);
+          addNotification("Failed to create document: " + error.message, "error");
+        }
+      },
+      [rootFolderPath, setShowWorkspaceModal, addNotification]
+    );
+
     const handleNewFolder = useCallback(async () => {
       try {
         await createFolder(null);
@@ -762,6 +794,7 @@ const Sidebar = forwardRef(
       ref,
       () => ({
         handleNewNote,
+        handleNewHtmlDocument,
         handleNewFolder,
         handleOpenFolder,
         handleOpenFolderInNewWindow,
@@ -769,6 +802,7 @@ const Sidebar = forwardRef(
       }),
       [
         handleNewNote,
+        handleNewHtmlDocument,
         handleNewFolder,
         handleOpenFolder,
         handleOpenFolderInNewWindow,
@@ -1460,69 +1494,59 @@ const Sidebar = forwardRef(
     }, [rootFolderPath, refreshRootFromDisk, addNotification, selectNote]);
 
     return (
-      <aside className="w-full bg-bg-sidebar flex flex-col h-full" aria-label="Workspace sidebar">
-        {/* Workspace Switcher */}
-        <div className="px-2.5 pt-2 pb-1 shrink-0 relative">
+      // No fill of its own: the sidebar is part of the desk, which the app shell
+      // paints (and makes see-through when the window is translucent).
+      <aside className="w-full flex flex-col h-full" aria-label="Workspace sidebar">
+        {/* Workspace Switcher — the vault's name beside an accent monogram */}
+        <div className="px-3 pt-1 shrink-0 relative">
           <button
             onClick={() => setShowWorkspaceSwitcher((v) => !v)}
-            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-overlay-subtle transition-colors text-text-primary"
+            className="w-full flex items-center gap-3 p-2 rounded-card hover:bg-item-hover transition-colors text-text-primary"
             title="Switch workspace"
             aria-expanded={showWorkspaceSwitcher}
           >
-            <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] bg-overlay-subtle border border-border text-text-secondary">
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-              </svg>
+            <span
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-control bg-accent text-[15px] font-bold leading-none text-white"
+              aria-hidden="true"
+            >
+              {(workspaceName || "Marky").trim().charAt(0).toUpperCase()}
             </span>
-            <span className="flex-1 min-w-0 flex flex-col text-left">
-              <span className="text-[13.5px] font-semibold tracking-[-0.01em] truncate">
+            <span className="flex-1 min-w-0 flex flex-col text-start">
+              <span className="text-[14px] font-[650] leading-tight tracking-[-0.01em] truncate">
                 {workspaceName || "Marky"}
               </span>
               {displayWorkspacePath && (
-                <span className="text-[10.5px] text-text-muted font-mono truncate">
+                <span className="text-[12px] leading-tight text-text-muted truncate">
                   {displayWorkspacePath}
                 </span>
               )}
             </span>
             <svg
-              className={`w-3 h-3 shrink-0 text-text-muted transition-transform ${showWorkspaceSwitcher ? "rotate-180" : ""}`}
+              className={`w-4 h-4 shrink-0 text-text-muted motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-soft ${showWorkspaceSwitcher ? "rotate-180" : ""}`}
               fill="none"
               stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               viewBox="0 0 24 24"
               aria-hidden="true"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
+              <path d="m6 9 6 6 6-6" />
             </svg>
           </button>
           {showWorkspaceSwitcher && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowWorkspaceSwitcher(false)} />
-              <div className="absolute left-2.5 right-2.5 z-20 mt-1 bg-bg-sidebar border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+              <div className="glass-panel absolute inset-x-3 z-20 mt-1 rounded-card p-1.5 animate-fade-in">
                 {recentWorkspaces.filter((ws) => ws.path !== rootFolderPath).length > 0 && (
                   <>
-                    <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-                      Recent
-                    </p>
+                    <p className="side-label px-2.5 pt-1.5 pb-1">Recent</p>
                     {recentWorkspaces
                       .filter((ws) => ws.path !== rootFolderPath)
                       .map((ws) => (
                         <div
                           key={ws.path}
-                          className="group flex items-stretch text-text-secondary hover:bg-overlay-light"
+                          className="group flex items-stretch rounded-control text-text-secondary transition-colors hover:bg-item-hover"
                         >
                           <button
                             onClick={async () => {
@@ -1541,7 +1565,7 @@ const Sidebar = forwardRef(
                                 );
                               }
                             }}
-                            className="flex-1 min-w-0 flex items-center gap-2 pl-3 pr-1 py-2 text-left text-xs hover:text-text-primary transition-colors"
+                            className="flex-1 min-w-0 flex min-h-8 items-center gap-2 ps-2.5 pe-1 text-start text-[13px] font-medium hover:text-text-primary transition-colors"
                           >
                             <span className="truncate" title={ws.path || ws.name}>
                               {ws.name}
@@ -1555,7 +1579,7 @@ const Sidebar = forwardRef(
                               setShowWorkspaceSwitcher(false);
                               handleOpenInNewWindow(ws.path, ws.name);
                             }}
-                            className="shrink-0 px-2.5 flex items-center text-text-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-accent transition-opacity"
+                            className="shrink-0 px-2.5 flex items-center text-text-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-text-primary transition-[opacity,color]"
                             title="Open in a new window"
                             aria-label={`Open ${ws.name} in a new window`}
                           >
@@ -1563,7 +1587,7 @@ const Sidebar = forwardRef(
                           </button>
                         </div>
                       ))}
-                    <div className="mx-3 my-1 border-t border-border" />
+                    <div className="menu-separator" />
                   </>
                 )}
                 <button
@@ -1571,21 +1595,18 @@ const Sidebar = forwardRef(
                     setShowWorkspaceSwitcher(false);
                     handleOpenFolder();
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-accent hover:bg-accent/10 transition-colors"
+                  className="menu-item"
                 >
                   <svg
-                    className="w-3.5 h-3.5 shrink-0"
                     fill="none"
                     stroke="currentColor"
+                    strokeWidth={1.6}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                     viewBox="0 0 24 24"
                     aria-hidden="true"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
+                    <path d="M12 5v14M5 12h14" />
                   </svg>
                   Open another folder…
                 </button>
@@ -1594,9 +1615,9 @@ const Sidebar = forwardRef(
                     setShowWorkspaceSwitcher(false);
                     handleNewWindow();
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+                  className="menu-item"
                 >
-                  <WindowIcon className="w-3.5 h-3.5 shrink-0" />
+                  <WindowIcon />
                   New empty window
                 </button>
                 <button
@@ -1604,9 +1625,9 @@ const Sidebar = forwardRef(
                     setShowWorkspaceSwitcher(false);
                     handleOpenFolderInNewWindow();
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+                  className="menu-item"
                 >
-                  <WindowIcon className="w-3.5 h-3.5 shrink-0" />
+                  <WindowIcon />
                   Open a folder in a new window…
                 </button>
               </div>
@@ -1614,22 +1635,21 @@ const Sidebar = forwardRef(
           )}
         </div>
 
-        {/* Search */}
-        <div className="px-2.5 pb-1 shrink-0">
+        {/* Search — a 36px full pill, fill only */}
+        <div className="px-3 pt-2 pb-3 shrink-0">
           <div className="relative group">
             <svg
-              className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+              className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
               fill="none"
               stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               viewBox="0 0 24 24"
               aria-hidden="true"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="m16 16 4 4" />
             </svg>
             <input
               type="text"
@@ -1637,30 +1657,34 @@ const Sidebar = forwardRef(
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search"
               aria-label="Search notes and folders in sidebar"
-              className="w-full pl-8 pr-10 py-[7px] bg-bg-base border border-border rounded-lg text-[13px] text-text-primary placeholder-text-muted outline-none focus:border-accent/50 transition-all"
+              className="w-full h-9 ps-9 pe-12 bg-pill rounded-full text-[13.5px] text-text-primary placeholder-text-muted outline-none transition-shadow focus:shadow-[0_0_0_2px_var(--color-accent-dim)]"
             />
-            {!searchQuery && (
-              <span
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-text-muted font-mono pointer-events-none"
+            {!searchQuery && searchShortcut && (
+              <kbd
+                className="absolute end-3.5 top-1/2 -translate-y-1/2 text-[11px] font-medium text-text-muted font-mono pointer-events-none"
                 aria-hidden="true"
               >
-                Filter
-              </span>
+                {searchShortcut}
+              </kbd>
             )}
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-overlay-light rounded text-text-muted hover:text-text-primary transition-colors"
+                className="absolute end-1.5 top-1/2 -translate-y-1/2 grid h-6 w-6 place-items-center rounded-full text-text-muted hover:bg-item-hover hover:text-text-primary transition-colors"
                 title="Clear search"
                 aria-label="Clear sidebar search"
               >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
+                <svg
+                  className="w-3 h-3"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="m6 6 12 12M18 6 6 18" />
                 </svg>
               </button>
             )}
@@ -1669,37 +1693,29 @@ const Sidebar = forwardRef(
 
         {/* Quick Nav */}
         {!searchQuery && (
-          <nav className="px-2 pb-1 flex flex-col gap-px shrink-0">
+          <nav className="px-3 flex flex-col gap-px shrink-0">
             <button
               onClick={() => selectNote(null)}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
-                !currentNote
-                  ? "bg-accent-dim text-accent"
-                  : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
-              }`}
+              aria-current={!currentNote ? "page" : undefined}
+              className={`side-row ${!currentNote ? "is-active" : ""}`}
             >
               <svg
-                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.8"
+                strokeWidth="1.6"
                 viewBox="0 0 24 24"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <path d="M3 11l9-8 9 8M5 10v10h14V10" />
+                <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z" />
               </svg>
               Home
             </button>
-            <button
-              onClick={onOpenGraph}
-              className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-subtle hover:text-text-primary transition-colors"
-            >
+            <button onClick={onOpenGraph} className="side-row">
               <svg
-                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.8"
+                strokeWidth="1.6"
                 viewBox="0 0 24 24"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -1712,15 +1728,11 @@ const Sidebar = forwardRef(
               Graph
             </button>
             {scheduledNotes.length > 0 && (
-              <button
-                onClick={onOpenScheduled}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-text-secondary hover:bg-overlay-subtle hover:text-text-primary transition-colors"
-              >
+              <button onClick={onOpenScheduled} className="side-row">
                 <svg
-                  className="w-4 h-4"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.8"
+                  strokeWidth="1.6"
                   viewBox="0 0 24 24"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1728,8 +1740,8 @@ const Sidebar = forwardRef(
                   <rect x="3" y="5" width="18" height="16" rx="2" />
                   <path d="M3 9h18M8 3v4M16 3v4" />
                 </svg>
-                Scheduled
-                <span className="ml-auto text-[11px] tabular-nums text-text-muted">
+                <span className="flex-1 truncate">Scheduled</span>
+                <span className="text-[11.5px] font-medium tabular-nums text-text-muted">
                   {scheduledNotes.length}
                 </span>
               </button>
@@ -1739,29 +1751,24 @@ const Sidebar = forwardRef(
                 <button
                   onClick={() => setPinnedOpen((prev) => !prev)}
                   aria-expanded={pinnedOpen}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors ${
-                    pinnedOpen
-                      ? "text-text-primary"
-                      : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
-                  }`}
+                  className={`side-row ${pinnedOpen ? "text-text-primary" : ""}`}
                 >
                   <svg
-                    className="w-4 h-4"
                     fill="none"
                     stroke="currentColor"
-                    strokeWidth="1.8"
+                    strokeWidth="1.6"
                     viewBox="0 0 24 24"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <path d="M12 17v5M9 3h6l-1 7 3 3H7l3-3-1-7z" />
+                    <path d="M9 4h6l-.8 6 3 3.2H6.8l3-3.2zM12 13.5V20" />
                   </svg>
-                  Pinned
-                  <span className="ml-auto text-[11px] tabular-nums text-text-muted">
+                  <span className="flex-1 truncate">Pinned</span>
+                  <span className="text-[11.5px] font-medium tabular-nums text-text-muted">
                     {pinnedItems.length}
                   </span>
                   <svg
-                    className={`w-3 h-3 shrink-0 transition-transform ${pinnedOpen ? "rotate-90" : ""}`}
+                    className={`w-3! h-3! shrink-0 text-text-muted motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-soft ${pinnedOpen ? "rotate-90" : ""}`}
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
@@ -1773,17 +1780,14 @@ const Sidebar = forwardRef(
                   </svg>
                 </button>
                 {pinnedOpen && (
-                  <div className="flex flex-col gap-px pl-4">
+                  <div className="flex flex-col gap-px ps-[26px]">
                     {pinnedItems.map((note) => (
                       <button
                         key={note.id}
                         onClick={() => selectNote(note.id)}
                         title={note.name}
-                        className={`w-full flex items-center gap-2 px-2.5 py-1 rounded-lg text-[13px] truncate transition-colors ${
-                          note.id === currentNoteId
-                            ? "bg-accent-dim text-accent"
-                            : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
-                        }`}
+                        aria-current={note.id === currentNoteId ? "page" : undefined}
+                        className={`side-row ${note.id === currentNoteId ? "is-active" : ""}`}
                       >
                         <span className="truncate">{note.name}</span>
                       </button>
@@ -1804,16 +1808,16 @@ const Sidebar = forwardRef(
               type="button"
               onClick={() => setLooseFilesOpen((prev) => !prev)}
               aria-expanded={looseFilesOpen}
-              className="group/open shrink-0 px-3.5 pt-3 pb-1 flex items-center gap-1.5 text-left"
+              className="group/open shrink-0 mx-3 px-2.5 pt-5 pb-1.5 flex items-center gap-1.5 text-start"
             >
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted group-hover/open:text-text-secondary transition-colors">
+              <span className="side-label group-hover/open:text-text-secondary transition-colors">
                 Open
               </span>
-              <span className="text-[11px] tabular-nums text-text-muted">
+              <span className="text-[12px] font-medium tabular-nums text-text-muted">
                 {looseOpenFiles.length}
               </span>
               <svg
-                className={`ml-auto w-3 h-3 shrink-0 text-text-muted transition-transform ${looseFilesOpen ? "rotate-90" : ""}`}
+                className={`ms-auto w-3 h-3 shrink-0 text-text-muted motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-soft ${looseFilesOpen ? "rotate-90" : ""}`}
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -1826,7 +1830,7 @@ const Sidebar = forwardRef(
               </svg>
             </button>
             {looseFilesOpen && (
-              <div className="min-h-0 overflow-y-auto px-2 pb-1 flex flex-col gap-px">
+              <div className="min-h-0 overflow-y-auto px-3 pb-1 flex flex-col gap-px">
                 {looseOpenFiles.map((file) => {
                   const isActive = file.id === currentNoteId;
                   const isDirty = !isAutoSave && dirtyNoteIds.includes(file.id);
@@ -1842,11 +1846,7 @@ const Sidebar = forwardRef(
                       key={file.id}
                       onClick={() => selectNote(file.id)}
                       title={file.filePath || file.name}
-                      className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] cursor-pointer transition-colors ${
-                        isActive
-                          ? "bg-accent-dim text-accent"
-                          : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
-                      }`}
+                      className={`group side-row cursor-pointer ${isActive ? "is-active" : ""}`}
                     >
                       {isDirty ? (
                         <span
@@ -1855,21 +1855,21 @@ const Sidebar = forwardRef(
                         />
                       ) : (
                         <svg
-                          className="w-4 h-4 shrink-0"
                           fill="none"
                           stroke="currentColor"
-                          strokeWidth="1.8"
+                          strokeWidth="1.6"
                           viewBox="0 0 24 24"
                           strokeLinecap="round"
                           strokeLinejoin="round"
+                          aria-hidden="true"
                         >
-                          <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
-                          <path d="M14 3v5h5" />
+                          <path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z" />
+                          <path d="M14 3.5V8h4.5M9 12.5h6M9 16h4" />
                         </svg>
                       )}
                       <span className="min-w-0 flex-1 truncate">{file.name}</span>
                       {locationHint && (
-                        <span className="shrink-0 max-w-[7rem] truncate text-[10px] text-text-muted group-hover:hidden">
+                        <span className="shrink-0 max-w-[7rem] truncate text-[11px] font-normal text-text-muted group-hover:hidden">
                           {locationHint}
                         </span>
                       )}
@@ -1878,12 +1878,12 @@ const Sidebar = forwardRef(
                           event.stopPropagation();
                           closeNote(file.id);
                         }}
-                        className="shrink-0 opacity-0 group-hover:opacity-100 text-text-muted hover:text-text-primary transition-opacity p-0.5 -m-0.5 rounded"
+                        className="grid h-6 w-6 -me-1.5 shrink-0 place-items-center rounded-control opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-text-muted hover:bg-item-hover hover:text-text-primary transition-[opacity,background-color,color]"
                         title="Close"
                         aria-label={`Close ${file.name}`}
                       >
                         <svg
-                          className="w-3.5 h-3.5"
+                          className="w-3 h-3"
                           fill="none"
                           stroke="currentColor"
                           strokeWidth="2"
@@ -1903,8 +1903,8 @@ const Sidebar = forwardRef(
         )}
 
         {/* Section header */}
-        <div className="px-3.5 pt-3 pb-1 flex items-center justify-between shrink-0">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+        <div className="mx-3 ps-2.5 pe-1 pt-5 pb-1.5 flex items-center justify-between shrink-0">
+          <span className="side-label">
             {searchQuery
               ? `${filteredItems.filter((i) => i.type === "note").length} results`
               : rootFolderPath
@@ -1913,12 +1913,33 @@ const Sidebar = forwardRef(
           </span>
           {!searchQuery && (
             <button
-              onClick={handleNewNote}
-              className="text-text-muted hover:text-text-primary text-base leading-none p-1 -m-1 transition-colors"
-              title="New note"
-              aria-label="New note"
+              onClick={(event) => {
+                // Without a vault there is only one thing to make: a scratch note.
+                if (!rootFolderPath) {
+                  handleNewNote();
+                  return;
+                }
+                const rect = event.currentTarget.getBoundingClientRect();
+                setNewMenu({ x: rect.left, y: rect.bottom + 6 });
+              }}
+              className="icon-btn -my-1 h-6! w-6!"
+              title="New"
+              aria-label="New"
+              aria-haspopup={rootFolderPath ? "menu" : undefined}
+              aria-expanded={rootFolderPath ? Boolean(newMenu) : undefined}
             >
-              +
+              <svg
+                className="w-3.5! h-3.5!"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
             </button>
           )}
         </div>
@@ -1929,9 +1950,8 @@ const Sidebar = forwardRef(
           data-sidebar-tree-root="true"
           role="tree"
           aria-label="Workspace notes and folders"
-          className={`flex-1 overflow-y-auto px-3 py-2 space-y-0.5 custom-scrollbar bg-transparent relative rounded-lg transition-colors duration-150
-            ${isRootDropActive ? "bg-accent/8 ring-2 ring-accent/50 ring-inset" : ""}
-            ${isExternalDragging && !dropTargetFolder ? "ring-2 ring-accent/50 ring-inset bg-accent/8" : ""}
+          className={`flex-1 overflow-y-auto mx-1.5 px-1.5 pb-2 custom-scrollbar relative rounded-card transition-colors duration-150
+            ${isRootDropActive || (isExternalDragging && !dropTargetFolder) ? "bg-accent-dim" : "bg-transparent"}
           `}
           onScroll={
             useVirtualizedTree
@@ -1959,110 +1979,60 @@ const Sidebar = forwardRef(
           onMouseUp={draggedItem ? handleDropToRoot : undefined}
         >
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-full text-text-muted px-4">
-              <svg
-                className="w-8 h-8 animate-spin text-accent mb-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              {loadingProgress ? (
-                <div className="w-full max-w-50 space-y-2">
-                  <p className="text-sm text-center">{loadingProgress.phase}</p>
-                  <div className="w-full h-1.5 bg-overlay-subtle rounded-full overflow-hidden">
+            <LoadingState label="Loading the vault" className="pt-1">
+              <SkeletonRows count={9} rowHeight={virtualTreeRowHeight} />
+              {loadingProgress && loadingProgress.total > 0 && (
+                <div className="px-2.5 pt-4">
+                  <p className="text-[12px] text-text-muted tabular-nums">
+                    {loadingProgress.phase} · {loadingProgress.current} of {loadingProgress.total}
+                  </p>
+                  <div className="mt-2 h-1 rounded-full bg-overlay-light overflow-hidden">
                     <div
-                      className="h-full bg-accent rounded-full transition-all duration-200"
+                      className="h-full rounded-full bg-text-muted transition-[width] duration-200"
                       style={{
                         width: `${Math.round((loadingProgress.current / loadingProgress.total) * 100)}%`,
                       }}
                     />
                   </div>
-                  <p className="text-xs text-center text-text-muted">
-                    {loadingProgress.current} / {loadingProgress.total}
-                  </p>
                 </div>
-              ) : (
-                <p className="text-sm animate-pulse">Scanning folder...</p>
               )}
-            </div>
+            </LoadingState>
           ) : rootItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-text-muted px-4 animate-in fade-in duration-700">
-              <div className="mb-6 relative">
-                <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full" />
-                <div className="relative w-16 h-16 bg-overlay-subtle border border-overlay-light rounded-2xl flex items-center justify-center">
-                  <svg
-                    className="w-8 h-8 text-text-secondary opacity-60"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                    />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="text-center space-y-4">
-                <div>
-                  <p className="font-semibold text-text-primary text-sm">Workspace is empty</p>
-                  <p className="text-[11px] mt-1 text-text-muted leading-relaxed">
-                    Open a folder to see your markdown notes or create a new one to start writing.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-2 pt-2">
-                  <button
-                    onClick={handleNewNote}
-                    className="w-full py-2 bg-accent/10 hover:bg-accent/20 text-accent text-xs font-semibold rounded-lg border border-accent/20 transition-all flex items-center justify-center gap-2"
-                  >
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4v16m8-8H4"
-                      />
-                    </svg>
-                    New Note
-                  </button>
-                  <button
-                    onClick={handleOpenFolder}
-                    className="w-full py-2 bg-overlay-subtle hover:bg-overlay-light text-text-secondary text-xs font-semibold rounded-lg border border-overlay-subtle transition-all flex items-center justify-center gap-2"
-                  >
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                      />
-                    </svg>
-                    Open Workspace
-                  </button>
-                </div>
-              </div>
-            </div>
+            isTreeFiltered && items.length > 0 ? (
+              <EmptyState
+                compact
+                icon="filter"
+                title="No notes match"
+                body={
+                  searchQuery
+                    ? `Nothing in this vault matches “${searchQuery}”${selectedTags.length ? " with those tags" : ""}.`
+                    : "No notes carry all of the selected tags."
+                }
+                action={{
+                  label: "Clear filter",
+                  onClick: () => {
+                    setSearchQuery("");
+                    clearTagFilters();
+                  },
+                }}
+              />
+            ) : rootFolderPath ? (
+              <EmptyState
+                compact
+                icon="doc"
+                title="This vault is empty"
+                body="Notes and folders you create here show up in this list."
+                action={{ label: "New note", onClick: handleNewNote }}
+              />
+            ) : (
+              <EmptyState
+                compact
+                icon="vault"
+                title="No vault open"
+                body="Pick a folder of notes to work in, or start a scratch note."
+                action={{ label: "Open a folder", onClick: handleOpenFolder }}
+              />
+            )
           ) : useVirtualizedTree ? (
             <div
               className="relative"
@@ -2163,13 +2133,15 @@ const Sidebar = forwardRef(
         </div>
 
         {/* Bottom Actions (Settings) */}
-        <div className="mt-auto border-t border-border bg-bg-base/30 backdrop-blur-sm p-2 shrink-0">
+        {/* Footer — no rule and no fill: the save state and the app-level
+            actions sit straight on the desk. */}
+        <div className="mt-auto px-3 pt-2 pb-2 shrink-0">
           {["available", "downloading", "installing", "installed", "error"].includes(
             appUpdate.status
           ) && (
-            <div className="mb-2 rounded-xl border border-accent/20 bg-accent/[0.08] p-3 shadow-sm">
+            <div className="mb-2 rounded-card bg-accent-dim p-3">
               <div className="flex items-start gap-2">
-                <div className="mt-0.5 p-1.5 rounded-lg bg-accent/15 text-accent shrink-0">
+                <div className="mt-0.5 p-1.5 rounded-control bg-accent/15 text-accent shrink-0">
                   <UpdateIcon className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -2200,11 +2172,11 @@ const Sidebar = forwardRef(
                 <div className="mt-3">
                   <div className="h-1.5 rounded-full bg-overlay-light overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-accent transition-all duration-300"
+                      className="h-full rounded-full bg-accent transition-[width] duration-300"
                       style={{ width: `${Math.max(0, Math.min(100, appUpdate.progress))}%` }}
                     />
                   </div>
-                  <div className="mt-1 text-[10px] text-text-muted text-right">
+                  <div className="mt-1 text-[11px] text-text-muted text-end">
                     {Math.round(appUpdate.progress)}%
                   </div>
                 </div>
@@ -2213,7 +2185,7 @@ const Sidebar = forwardRef(
               {appUpdate.status === "available" && (
                 <button
                   onClick={() => installAppUpdate()}
-                  className="mt-3 w-full py-1.5 rounded-lg bg-accent text-bg-base text-xs font-semibold hover:opacity-90 transition-opacity"
+                  className="mt-3 w-full h-8 rounded-full bg-accent text-white text-[12.5px] font-semibold hover:bg-accent-hover transition-colors"
                 >
                   Download & Install
                 </button>
@@ -2222,7 +2194,7 @@ const Sidebar = forwardRef(
               {appUpdate.status === "installed" && (
                 <button
                   onClick={restartApp}
-                  className="mt-3 w-full py-1.5 rounded-lg bg-accent text-bg-base text-xs font-semibold hover:opacity-90 transition-opacity"
+                  className="mt-3 w-full h-8 rounded-full bg-accent text-white text-[12.5px] font-semibold hover:bg-accent-hover transition-colors"
                 >
                   Restart Marky
                 </button>
@@ -2231,7 +2203,7 @@ const Sidebar = forwardRef(
               {appUpdate.status === "error" && (
                 <button
                   onClick={() => checkForAppUpdate({ silent: false })}
-                  className="mt-3 w-full py-1.5 rounded-lg bg-overlay-subtle text-text-secondary text-xs font-semibold hover:bg-overlay-light transition-colors"
+                  className="mt-3 w-full h-8 rounded-full bg-item-hover text-text-secondary text-[12.5px] font-semibold hover:bg-press transition-colors"
                 >
                   Try Again
                 </button>
@@ -2242,9 +2214,9 @@ const Sidebar = forwardRef(
           {/* One quiet row instead of five: save state on the leading edge, the
               app-level actions as icons on the trailing one. Every action
               keeps its label as a tooltip and an accessible name. */}
-          <div className="flex items-center gap-1 px-1.5 pt-1">
+          <div className="flex items-center gap-1 px-1">
             <span
-              className="flex min-w-0 flex-1 items-center gap-2 px-1 text-[11.5px] text-text-muted"
+              className="flex min-w-0 flex-1 items-center gap-2 ps-1.5 text-[12px] text-text-muted"
               title={
                 dirtyCount > 0
                   ? `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`
@@ -2252,8 +2224,8 @@ const Sidebar = forwardRef(
               }
             >
               <span
-                className={`h-[7px] w-[7px] shrink-0 rounded-full ${
-                  dirtyCount > 0 ? "bg-amber-500" : "bg-[#3f9d63]"
+                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                  dirtyCount > 0 ? "bg-amber-500" : "bg-[#35a36b]"
                 }`}
                 aria-hidden="true"
               />
@@ -2262,15 +2234,14 @@ const Sidebar = forwardRef(
 
             <button
               onClick={onOpenCommandPalette}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+              className="icon-btn"
               title="Command palette (⌘K)"
               aria-label="Command palette"
             >
               <svg
-                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.8"
+                strokeWidth="1.6"
                 viewBox="0 0 24 24"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -2281,15 +2252,14 @@ const Sidebar = forwardRef(
             </button>
             <button
               onClick={() => onOpenTemplate(null)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+              className="icon-btn"
               title="Templates"
               aria-label="Templates"
             >
               <svg
-                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.8"
+                strokeWidth="1.6"
                 viewBox="0 0 24 24"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -2301,16 +2271,15 @@ const Sidebar = forwardRef(
             </button>
             <button
               onClick={toggleColorScheme}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+              className="icon-btn"
               title={isDarkTheme ? "Switch to light mode" : "Switch to dark mode"}
               aria-label={isDarkTheme ? "Switch to light mode" : "Switch to dark mode"}
             >
               {isDarkTheme ? (
                 <svg
-                  className="w-4 h-4"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.8"
+                  strokeWidth="1.6"
                   viewBox="0 0 24 24"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -2321,10 +2290,9 @@ const Sidebar = forwardRef(
                 </svg>
               ) : (
                 <svg
-                  className="w-4 h-4"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.8"
+                  strokeWidth="1.6"
                   viewBox="0 0 24 24"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -2336,15 +2304,14 @@ const Sidebar = forwardRef(
             </button>
             <button
               onClick={onSettingsClick}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-overlay-light hover:text-text-primary transition-colors"
+              className="icon-btn"
               title="Settings"
               aria-label="Settings"
             >
               <svg
-                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.8"
+                strokeWidth="1.6"
                 viewBox="0 0 24 24"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -2360,14 +2327,11 @@ const Sidebar = forwardRef(
         {/* Drag Ghost */}
         {draggedItem && dragPosition && (
           <div
-            className={`fixed left-0 top-0 z-50 pointer-events-none flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm max-w-60 will-change-transform transition-colors duration-100 ${
-              isRootDropActive
-                ? "bg-accent-dim border border-accent/40 text-accent"
-                : "bg-bg-editor border border-border text-text-primary"
+            className={`glass-panel fixed left-0 top-0 z-50 pointer-events-none flex items-center gap-2 h-8 px-3 rounded-control text-[13px] font-medium max-w-60 will-change-transform transition-colors duration-100 ${
+              isRootDropActive ? "text-accent" : "text-text-primary"
             }`}
             style={{
               transform: `translate3d(${dragPosition.x + 12}px, ${dragPosition.y - 12}px, 0) rotate(-3deg) scale(1.03)`,
-              boxShadow: "0 10px 26px rgba(25,25,22,.22)",
             }}
           >
             {draggedItem.type === "folder" ? (
@@ -2423,7 +2387,94 @@ const Sidebar = forwardRef(
             onShowTemplate={(parentId) => {
               onOpenTemplate(parentId);
             }}
+            onNewHtmlDocument={handleNewHtmlDocument}
           />
+        )}
+        {/* The Files header's "+" menu */}
+        {newMenu && (
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setNewMenu(null)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setNewMenu(null);
+              }}
+            />
+            <div
+              role="menu"
+              aria-label="New"
+              className="fixed z-50 glass-panel rounded-card p-1.5 min-w-[208px] animate-fade-in"
+              style={{ left: newMenu.x, top: newMenu.y }}
+            >
+              <button
+                role="menuitem"
+                className="menu-item"
+                onClick={() => {
+                  setNewMenu(null);
+                  handleNewNote();
+                }}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8zM14 3.5V8h4.5M9 12.5h6M9 16h4" />
+                </svg>
+                New note
+              </button>
+              <button
+                role="menuitem"
+                className="menu-item"
+                onClick={() => {
+                  setNewMenu(null);
+                  handleNewHtmlDocument(null);
+                }}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8zM14 3.5V8h4.5M10.5 12 8.5 14.2l2 2.3M13.5 12l2 2.2-2 2.3" />
+                </svg>
+                New HTML document
+              </button>
+              <button
+                role="menuitem"
+                className="menu-item"
+                onClick={() => {
+                  setNewMenu(null);
+                  handleNewFolder();
+                }}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2zM12 10.5v5M9.5 13h5" />
+                </svg>
+                New folder
+              </button>
+            </div>
+          </>
         )}
         {/* Empty-space menu (workspace root): paste, create */}
         {emptyMenu && (
@@ -2437,16 +2488,12 @@ const Sidebar = forwardRef(
               }}
             />
             <div
-              className="fixed z-50 glass-panel rounded-lg shadow-2xl py-1 min-w-[180px] animate-in fade-in zoom-in-95 duration-100"
+              className="fixed z-50 glass-panel rounded-card p-1.5 min-w-[208px] animate-fade-in"
               style={{ left: emptyMenu.x, top: emptyMenu.y }}
             >
               <button
                 disabled={!clipboard?.items?.length}
-                className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
-                  clipboard?.items?.length
-                    ? "text-text-primary hover:bg-overlay-light"
-                    : "text-text-muted cursor-default"
-                }`}
+                className="menu-item"
                 onClick={() => {
                   handleTreePaste(null);
                   setEmptyMenu(null);
@@ -2461,11 +2508,11 @@ const Sidebar = forwardRef(
                   />
                 </svg>
                 Paste at root
-                <span className="ml-auto text-[11px] font-mono text-text-muted">⌘V</span>
+                <span className="ms-auto text-[11px] font-mono text-text-muted">⌘V</span>
               </button>
-              <div className="my-1 border-t border-glass-border" />
+              <div className="menu-separator" />
               <button
-                className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
+                className="menu-item"
                 onClick={() => {
                   handleNewNote();
                   setEmptyMenu(null);
@@ -2482,7 +2529,28 @@ const Sidebar = forwardRef(
                 New Note
               </button>
               <button
-                className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
+                className="menu-item"
+                onClick={() => {
+                  handleNewHtmlDocument(null);
+                  setEmptyMenu(null);
+                }}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8zM14 3.5V8h4.5M10.5 12 8.5 14.2l2 2.3M13.5 12l2 2.2-2 2.3" />
+                </svg>
+                New HTML document
+              </button>
+              <button
+                className="menu-item"
                 onClick={() => {
                   handleNewFolder();
                   setEmptyMenu(null);
@@ -2506,8 +2574,8 @@ const Sidebar = forwardRef(
           isOpen={pendingDeleteItems.length > 0}
           title={
             pendingDeleteItems.length > 1
-              ? `Delete ${pendingDeleteItems.length} Items`
-              : `Delete ${pendingDeleteItems[0]?.type === "folder" ? "Folder" : "Note"}`
+              ? `Delete ${pendingDeleteItems.length} items`
+              : `Delete ${pendingDeleteItems[0]?.type === "folder" ? "folder" : "note"}`
           }
           message={getDeleteMessage(pendingDeleteItems)}
           confirmLabel="Delete"

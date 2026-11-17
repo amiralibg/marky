@@ -2,8 +2,10 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { parseHeadings, activeHeadingIndex, activeHeadingPath } from "../../utils/headings";
 
 // Tick length per heading level. The rail reads as a miniature of the
-// document's shape, so deeper headings get shorter marks.
-const TICK_WIDTH = [22, 18, 14, 11, 9, 8];
+// document's shape, so deeper headings get shorter marks; the heading you are
+// in grows by ACTIVE_GROWTH and takes the accent.
+const TICK_WIDTH = [14, 11, 9, 8, 7, 6];
+const ACTIVE_GROWTH = 6;
 const tickWidth = (level) => TICK_WIDTH[Math.min(level, TICK_WIDTH.length) - 1];
 
 // Indent of each entry in the expanded panel, by heading level — the tree
@@ -69,7 +71,7 @@ const OutlineRail = ({ markdown, activeLine = 0, onSelect }) => {
         // Colour and weight do all the work, so the panel reads as a list of
         // headings rather than a stack of buttons.
         <nav
-          className="pointer-events-auto mr-1 max-h-[70vh] w-64 overflow-y-auto no-scrollbar rounded-xl border border-border bg-bg-sidebar/95 px-2.5 py-2 shadow-2xl backdrop-blur-md animate-fade-in"
+          className="glass-panel pointer-events-auto me-1 max-h-[70vh] w-64 overflow-y-auto no-scrollbar rounded-card px-3 py-2.5 animate-fade-in"
           onMouseEnter={show}
           onMouseLeave={hide}
           aria-label="Document outline"
@@ -95,7 +97,7 @@ const OutlineRail = ({ markdown, activeLine = 0, onSelect }) => {
       )}
 
       <div
-        className="pointer-events-auto flex flex-col items-end gap-[5px] py-3 ps-4"
+        className="pointer-events-auto flex flex-col items-end gap-[7px] py-3 ps-4"
         onMouseEnter={show}
         onMouseLeave={hide}
         aria-label="Document outline"
@@ -113,12 +115,14 @@ const OutlineRail = ({ markdown, activeLine = 0, onSelect }) => {
               onClick={() => select(heading)}
               onContextMenu={(event) => copyLink(event, heading)}
               aria-label={`Go to ${heading.text}`}
-              className="block rounded-full transition-all duration-150"
+              className="block h-[2px] rounded-full motion-safe:transition-[width,background-color] motion-safe:duration-140"
               style={{
-                width: `${tickWidth(heading.level)}px`,
-                height: isActive ? "2px" : "1px",
-                background: isActive ? "var(--color-accent)" : "var(--color-text-muted)",
-                opacity: isActive ? 1 : onPath ? 0.8 : 0.45,
+                width: `${tickWidth(heading.level) + (isActive ? ACTIVE_GROWTH : 0)}px`,
+                background: isActive
+                  ? "var(--color-accent)"
+                  : onPath
+                    ? "var(--color-text-muted)"
+                    : "var(--color-border-light)",
               }}
             />
           );

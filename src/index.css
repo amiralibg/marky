@@ -95,40 +95,75 @@
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* Soft Light tokens. This static block is the "Vault" light theme and must stay
+   identical to `defineTheme("vault", …)` in settingsStore.js: it is what paints
+   before `applyTheme` runs, so any drift shows as a flash on launch. Every
+   theme gets the same set at runtime, the derived ones (pill, press, frost,
+   folder, pop shadow) computed from its base colours by `defineTheme`. */
 :root {
-  /* "Vault" — clean, quiet, Notion-like default (light) */
-  --color-bg-base: #fcfbf9;
-  --color-bg-sidebar: #f3f1ec;
-  --color-bg-editor: #fcfbf9;
+  /* The desk is the window chrome (title bar + sidebar, one flat surface);
+     the sheet is the content area floating on it; raised is anything that
+     sits on the sheet (menus, segmented-control thumbs). */
+  --color-bg-base: #fdfdfc;
+  --color-bg-sidebar: #ecebf1;
+  --color-bg-editor: #fdfdfc;
 
   /* Panels & Overlays */
-  --color-overlay-bg: rgba(30, 25, 15, 0.38);
-  --color-glass-border: rgba(35, 35, 32, 0.09);
-  --color-glass-highlight: rgba(35, 35, 32, 0.045);
+  --color-overlay-bg: rgba(24, 20, 48, 0.32);
+  --color-glass-border: rgba(24, 20, 48, 0.08);
+  --color-glass-highlight: rgba(24, 20, 48, 0.05);
+  --color-glass-panel-bg: #ffffff;
 
   /* Text Colors */
-  --color-text-primary: #2f2f2b;
-  --color-text-secondary: #73726e;
-  --color-text-muted: #9f9e9a;
+  --color-text-primary: #1b1a21;
+  --color-text-secondary: #5d5c69;
+  --color-text-muted: #9795a2;
 
   /* Accents */
   --color-accent: #6d5ce0;
   --color-accent-hover: #5b4ad0;
-  --color-accent-dim: rgba(109, 92, 224, 0.16);
+  --color-accent-dim: rgba(109, 92, 224, 0.13);
 
   /* UI Elements */
-  --color-border: rgba(35, 35, 32, 0.09);
-  --color-border-light: rgba(35, 35, 32, 0.16);
-  --color-item-hover: rgba(35, 35, 32, 0.045);
+  --color-border: rgba(24, 20, 48, 0.08);
+  --color-border-light: rgba(24, 20, 48, 0.14);
+  --color-item-hover: rgba(24, 20, 48, 0.05);
   --color-item-active: #ffffff;
-  --color-titlebar-bg: #f3f1ec;
-  --color-bar: #e6e5e1;
+  --color-titlebar-bg: #ecebf1;
+  --color-bar: #dddce4;
+
+  /* The sheet's 1px outline. Drawn inside the sheet (see `.sheet::after`), so
+     it has to be darker than the desk it borders, not just the sheet: on light
+     themes that takes the strong hairline, on dark ones the soft one already
+     reads. Light ≈ the mockup's outer ring over the desk, to within a level. */
+  --color-sheet-ring: rgba(24, 20, 48, 0.14);
+
+  /* Selected rows and tabs: a translucent fill, never a ring. */
+  --color-pill: rgba(255, 255, 255, 0.74);
+  --color-press: rgba(24, 20, 48, 0.09);
+  /* Floating surfaces: the raised colour at 70%, blurred behind (see
+     `.glass-panel`). */
+  --color-frost: rgba(255, 255, 255, 0.7);
+  --color-folder: color-mix(in oklab, var(--color-accent) 6%, #ecebf1);
+  /* The only shadow in the app, under things that float above the sheet. The
+     sheet itself is held by a hairline ring alone. */
+  --pop-shadow: 0 0 0 1px rgba(24, 20, 48, 0.08), 0 16px 48px -12px rgba(24, 20, 48, 0.28);
+
+  /* How opaque the desk is painted over native window vibrancy when the
+     Translucent window setting is on. Light and dark differ because the
+     native material behind is light or dark to match (the window's appearance
+     follows the theme, see `applyWindowTranslucency`). */
+  --desk-alpha: 72%;
+
+  /* Destructive actions: text buttons, menu rows, and the fill of a
+     destructive confirm. One value per scheme, not per theme. */
+  --color-danger: #c93a3a;
 
   /* Theme-aware overlay colors (light defaults) */
-  --color-overlay-subtle: rgba(35, 35, 32, 0.04);
-  --color-overlay-light: rgba(35, 35, 32, 0.07);
-  --color-overlay-medium: rgba(35, 35, 32, 0.11);
-  --color-overlay-strong: rgba(35, 35, 32, 0.16);
+  --color-overlay-subtle: rgba(24, 20, 48, 0.04);
+  --color-overlay-light: rgba(24, 20, 48, 0.07);
+  --color-overlay-medium: rgba(24, 20, 48, 0.11);
+  --color-overlay-strong: rgba(24, 20, 48, 0.16);
 }
 
 /* Reading typeface — the face notes are set in, Live and Read alike (Source is
@@ -158,6 +193,8 @@
   --color-overlay-light: rgba(255, 255, 255, 0.1);
   --color-overlay-medium: rgba(255, 255, 255, 0.15);
   --color-overlay-strong: rgba(255, 255, 255, 0.2);
+  --desk-alpha: 66%;
+  --color-danger: #f07272;
 }
 
 @theme {
@@ -186,6 +223,26 @@
   --color-overlay-light: var(--color-overlay-light);
   --color-overlay-medium: var(--color-overlay-medium);
   --color-overlay-strong: var(--color-overlay-strong);
+
+  /* Soft Light surfaces (set per theme by applyTheme) */
+  --color-pill: var(--color-pill);
+  --color-press: var(--color-press);
+  --color-frost: var(--color-frost);
+  --color-folder: var(--color-folder);
+  --color-sheet-ring: var(--color-sheet-ring);
+  --color-danger: var(--color-danger);
+
+  /* Radius vocabulary: 8 (controls, rows, tabs, inputs), 14 (sheet, menus,
+     code blocks, list containers), 20 (cards, modals, palette), and the full
+     pill. Named rather than numbered so `rounded-lg` and friends keep their
+     stock Tailwind values in the files this redesign hasn't reached yet. */
+  --radius-control: 8px;
+  --radius-card: 14px;
+  --radius-sheet: 14px;
+  --radius-panel: 20px;
+
+  /* Transforms ease out on this curve; colour changes are plain 140ms. */
+  --ease-soft: cubic-bezier(0.2, 0, 0, 1);
 
   /* Fonts — Hanken Grotesk UI, Newsreader serif headings/reading, JetBrains mono.
      Self-hosted as subsetted woff2 (@font-face above); the system stack is the
@@ -285,16 +342,25 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: var(--color-bg-base);
+    /* The desk: whatever shows around the floating sheet. */
+    background: var(--color-bg-sidebar);
     color: var(--color-text-primary);
+  }
+
+  /* Translucent window (macOS vibrancy / Windows Mica or Acrylic): the native
+     material behind the webview is the real backdrop, so nothing on the way to
+     the app shell may paint over it. The shell paints the desk itself, part
+     transparent; the sheet stays opaque. */
+  :root[data-translucent],
+  :root[data-translucent] body,
+  :root[data-translucent] #root {
+    background: transparent;
   }
 
   body {
     font-family: var(--font-family-sans);
     line-height: 1.6;
   }
-
-  /* ponytail: calm flat surface — no ambient glow (Notion-like). */
 
   input,
   textarea,
@@ -307,94 +373,231 @@
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
+}
 
-  /* Quiet scrollbars, everywhere: no bar at rest, a thin thumb while the pane
-     is scrolling. `data-scrolling` is set by utils/quietScrollbars.js on
-     whichever element just scrolled, so a nested pane never lights up its
-     ancestors. Pointing straight at the thumb reveals it too, so it can still
-     be found and dragged.
+/* No scrollbars, anywhere in the app. Every pane still scrolls by wheel,
+   trackpad and keyboard; the bar itself is never drawn. One rule for every
+   scroller (sidebar, Home, modals, palette, CodeMirror, menus), unlayered and
+   important so no component style can bring a bar back.
 
-     Engines that know `::-webkit-scrollbar` (WKWebView on macOS, GTK WebKit,
-     WebView2) are styled only through the pseudo-elements below. Setting
-     `scrollbar-width` there switches the custom bar off: current WKWebView
-     then draws the native classic scrollbar, a white track with a grey thumb
-     that never hides. The standard properties are for engines without the
-     pseudo-elements (Firefox). Base layer, so `.no-scrollbar` and the
-     editor's own `scrollbar-width: none` (utilities) still win. */
-  @supports not selector(::-webkit-scrollbar) {
-    * {
-      scrollbar-width: thin;
-      scrollbar-color: transparent transparent;
-    }
+   Both halves are needed. `scrollbar-width: none` is what WebKit with the
+   standard property (current WKWebView, WebView2) obeys; the pseudo-element
+   is for the WebKit builds without it (older macOS, WebKitGTK). `none` is
+   the one value that is safe to set in WKWebView: `thin` or `auto` there
+   bring back the classic white native bar. HTML documents get the same pair
+   injected into their frames (see `HIDE_SCROLLBARS` in utils/htmlFrame.js). */
+* {
+  scrollbar-width: none !important;
+}
 
-    [data-scrolling] {
-      scrollbar-color: var(--color-overlay-strong) transparent;
-    }
-  }
-
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-track,
-  ::-webkit-scrollbar-track-piece,
-  ::-webkit-scrollbar-corner {
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: transparent;
-    border: 2px solid transparent;
-    border-radius: 999px;
-    background-clip: padding-box;
-    min-height: 36px;
-  }
-
-  [data-scrolling]::-webkit-scrollbar-thumb {
-    background: var(--color-overlay-strong);
-    background-clip: padding-box;
-  }
-
-  ::-webkit-scrollbar-thumb:hover,
-  ::-webkit-scrollbar-thumb:active {
-    background: var(--color-text-muted);
-    background-clip: padding-box;
-  }
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 @layer utilities {
+  /* The desk: title bar and sidebar are one flat surface in the theme's
+     sidebar colour. No gradient, ever. */
   .app-shell {
     position: relative;
     isolation: isolate;
+    background: var(--color-bg-sidebar);
+  }
+
+  /* Over native vibrancy the desk is painted part-transparent, so the blurred
+     desktop shows through it. The sheet is not: it stays fully opaque. */
+  :root[data-translucent] .app-shell {
+    background: color-mix(in srgb, var(--color-bg-sidebar) var(--desk-alpha), transparent);
+  }
+
+  /* The sheet: the content area, floating on the desk with an 8px gap to the
+     window's trailing and bottom edges (App.jsx sets the margins). Held by a
+     hairline ring alone; the only shadow in the app is `--pop-shadow`, and
+     that belongs to things that float above the sheet. */
+  .sheet {
+    position: relative;
+    background: var(--color-bg-editor);
+    border-radius: var(--radius-sheet);
+  }
+
+  /* The ring is drawn inside the sheet, on a layer just above its content,
+     rather than as an outer box-shadow. Outside, it was at the mercy of what
+     sat next to it: the sidebar column is positioned and so paints over a
+     non-positioned sibling, which cut the leading edge out of the outline, and
+     child fills could cover the inner side of a corner. Inset, at z-index 1,
+     it is one even 1px line all the way round, while menus, toasts, modals and
+     the selection toolbar (all z-20 and up) still float over it. */
+  .sheet::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px var(--color-sheet-ring);
+    pointer-events: none;
   }
 
   .glass {
     background: var(--color-glass-highlight);
+    -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     border: 1px solid var(--color-glass-border);
   }
 
+  /* Frost: the one treatment for everything that floats above the sheet —
+     menus, popovers, toasts, the selection toolbar (and, later, modals and the
+     palette). The raised colour at 70% with the content blurred and saturated
+     behind it, a hairline, and the pop shadow. The hairline is the first layer
+     of `--pop-shadow`, so the panel needs no border of its own. */
   .glass-panel {
-    background: var(--color-glass-panel-bg, rgba(18, 18, 21, 0.7));
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--color-glass-border);
-    box-shadow:
-      0 24px 70px -34px rgba(40, 33, 20, 0.28),
-      0 10px 28px -18px rgba(20, 16, 10, 0.18);
+    background: var(--color-frost);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    backdrop-filter: blur(24px) saturate(1.6);
+    box-shadow: var(--pop-shadow);
+  }
+
+  /* No backdrop blur (older WebKitGTK builds, or ones where it is switched
+     off because it renders badly): 70% raised over unblurred text is noise,
+     so the panel goes fully opaque instead. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-panel {
+      background: var(--color-glass-panel-bg);
+    }
+  }
+
+  /* Rows inside a frosted menu. 32px tall, radius 8, a tint on hover and
+     nothing else — no shadow, no movement. */
+  .menu-item {
+    display: flex;
+    width: 100%;
+    min-height: 32px;
+    align-items: center;
+    gap: 10px;
+    padding-inline: 10px;
+    border-radius: var(--radius-control);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: start;
+    color: var(--color-text-primary);
+    transition:
+      background-color 140ms ease,
+      color 140ms ease;
+  }
+
+  .menu-item:hover:not(:disabled) {
+    background: var(--color-item-hover);
+  }
+
+  .menu-item:disabled {
+    color: var(--color-text-muted);
+    cursor: default;
+  }
+
+  .menu-item > svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    color: var(--color-text-secondary);
+  }
+
+  /* A sidebar row: 32px, radius 8, 13.5px/500. Hover tints; the selected row
+     takes the translucent pill fill and weight 600, and its leading icon the
+     accent — no ring. */
+  .side-row {
+    display: flex;
+    width: 100%;
+    min-height: 32px;
+    align-items: center;
+    gap: 10px;
+    padding-inline: 10px;
+    border-radius: var(--radius-control);
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 1.3;
+    text-align: start;
+    color: var(--color-text-secondary);
+    transition:
+      background-color 140ms ease,
+      color 140ms ease;
+  }
+
+  .side-row:hover {
+    background: var(--color-item-hover);
+    color: var(--color-text-primary);
+  }
+
+  .side-row.is-active {
+    background: var(--color-pill);
+    color: var(--color-text-primary);
+    font-weight: 600;
+  }
+
+  .side-row > svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+
+  .side-row.is-active > svg:first-child {
+    color: var(--color-accent);
+  }
+
+  /* Section labels in the sidebar: sentence case, 12px/600, muted. No
+     uppercase tracked labels anywhere. */
+  .side-label {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--color-text-muted);
+  }
+
+  /* A 28px icon button on the desk or the sheet: a tint on hover, a firmer
+     tint while pressed, never a shadow or a lift. 16px glyphs at a 1.6 stroke
+     are set by the caller's SVG. */
+  .icon-btn {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    place-items: center;
+    border-radius: var(--radius-control);
+    color: var(--color-text-secondary);
+    transition:
+      background-color 140ms ease,
+      color 140ms ease;
+  }
+
+  .icon-btn:hover {
+    background: var(--color-item-hover);
+    color: var(--color-text-primary);
+  }
+
+  .icon-btn:active,
+  .icon-btn[aria-haspopup][aria-expanded="true"] {
+    background: var(--color-press);
+    color: var(--color-text-primary);
+  }
+
+  .icon-btn > svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .menu-separator {
+    height: 1px;
+    margin: 4px 10px;
+    background: var(--color-border);
   }
 
   /* Linux window edge.
 
      macOS and Windows both frame an app for you — a rounded corner, a hairline,
      a shadow — but a GTK window with its decorations removed gets none of that,
-     so Marky's dark chrome ran straight into the desktop wallpaper with nothing
-     marking where the window stopped. This hairline is that edge. It is drawn
-     over the content rather than laid out with it, so the panes underneath keep
-     every pixel they had. */
+     so the desk ran straight into the desktop wallpaper with nothing marking
+     where the window stopped. This hairline is that edge. It is drawn over the
+     content rather than laid out with it, so the desk and the sheet's 8px gap
+     underneath keep every pixel they had. */
   [data-platform="linux"] .app-shell::after {
     content: "";
     position: fixed;
@@ -410,11 +613,12 @@
     z-index: 10000;
   }
 
-  /* One flat surface with the sidebar — the note's sheet below is the only
-     thing that lifts off it. */
+  /* Part of the desk: transparent, so it is the same surface as the sidebar
+     below it (and the native material shows through it when the window is
+     translucent). */
   .custom-titlebar {
     -webkit-app-region: drag;
-    background: var(--color-titlebar-bg);
+    background: transparent;
   }
 
   .custom-titlebar button,
@@ -494,26 +698,1204 @@
     }
   }
 
-  /* Hide scrollbar utility */
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  /* Entrances are decoration. With reduced motion asked for, menus, toasts
+     and panels simply appear. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in,
+    .animate-slide-up,
+    .animate-slide-in-right,
+    .animate-slide-in-left {
+      animation: none;
+    }
   }
 
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
+  /* `.no-scrollbar` (still on a few call sites) and the editor's
+     `.cm-scroller` need nothing of their own any more: the rule after the
+     base layer hides every bar in the app. */
+}
+
+/* Phase 2 components: overlays, buttons, fields, chips, grouped rows, Home's
+   cards and miniatures. In the components layer, below utilities, so a
+   Tailwind class at the call site (`h-7`, `self-start`) can still adjust one. */
+@layer components {
+  /* ── Overlays ─────────────────────────────────────────────────────────
+     One system for every modal, dialog, the search and the palette. The
+     scrim is the desk colour at 35%: it quiets the app behind without
+     blacking it out. The panel is `.glass-panel` (frost, blur, pop shadow)
+     at radius 20; `.modal-panel` adds only the shape. */
+  .modal-scrim {
+    position: fixed;
+    inset: 0;
+    background: color-mix(in srgb, var(--color-bg-sidebar) 35%, transparent);
   }
 
-  /* The editor's own scroller — the one CodeMirror owns in focus mode, where
-     the outer `EditorScrollFade` steps aside. Scrolls, never draws a bar, same
-     as every other editor/preview/live surface. */
-  .cm-scroller {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  .modal-panel {
+    border-radius: var(--radius-panel);
+    color: var(--color-text-primary);
+    overflow: hidden;
   }
 
-  .cm-scroller::-webkit-scrollbar {
-    display: none;
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-block: 20px 4px;
+    padding-inline: 24px 16px;
+  }
+
+  .modal-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 17px;
+    font-weight: 650;
+    line-height: 1.3;
+    letter-spacing: -0.012em;
+    color: var(--color-text-primary);
+  }
+
+  .modal-subtitle {
+    margin-top: 2px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--color-text-secondary);
+  }
+
+  .modal-body {
+    padding: 16px 24px;
+  }
+
+  .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 20px 20px;
+  }
+
+  /* The 56px query row at the top of the palette and the search: a bare
+     input on the panel, a hairline under it. The caret is its focus mark. */
+  .modal-query {
+    display: flex;
+    height: 56px;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    padding-inline: 20px 12px;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+  }
+
+  .modal-query > svg {
+    width: 18px;
+    height: 18px;
+    flex: none;
+  }
+
+  .modal-query input {
+    min-width: 0;
+    height: 100%;
+    flex: 1;
+    border: 0;
+    background: transparent;
+    font-size: 16px;
+    color: var(--color-text-primary);
+  }
+
+  .modal-query input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .modal-query input:focus-visible {
+    outline: none;
+  }
+
+  /* Rows in the palette, search results and pickers: 40px, radius 8. Hover
+     and the keyboard selection share the tint; the selection also turns the
+     leading icon to the accent. */
+  .palette-row {
+    display: flex;
+    width: 100%;
+    min-height: 40px;
+    align-items: center;
+    gap: 12px;
+    padding-inline: 12px;
+    border-radius: var(--radius-control);
+    font-size: 14px;
+    font-weight: 500;
+    text-align: start;
+    color: var(--color-text-secondary);
+    transition:
+      background-color 140ms ease,
+      color 140ms ease;
+  }
+
+  .palette-row:hover,
+  .palette-row.is-selected {
+    background: var(--color-item-hover);
+    color: var(--color-text-primary);
+  }
+
+  .palette-row > svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+
+  .palette-row.is-selected > svg:first-child {
+    color: var(--color-accent);
+  }
+
+  .palette-group {
+    padding: 8px 12px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--color-text-muted);
+  }
+
+  /* Shortcut hints: the mono face, small and muted, never boxed. */
+  .kbd-hint {
+    font-family: var(--font-family-mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────────────
+     A pill, 36px. The default is a quiet text button that tints on hover;
+     `.btn-primary` is the one filled accent action in a view, and
+     `.btn-danger` a destructive action in the danger colour — filled
+     (`.btn-danger-solid`) only as the confirm of a destructive dialog. */
+  .btn {
+    display: inline-flex;
+    height: 36px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding-inline: 14px;
+    border-radius: 999px;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--color-text-secondary);
+    transition:
+      background-color 140ms ease,
+      color 140ms ease,
+      transform 140ms var(--ease-soft);
+  }
+
+  .btn:hover:not(:disabled) {
+    background: var(--color-item-hover);
+    color: var(--color-text-primary);
+  }
+
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .btn > svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+
+  .btn-sm {
+    height: 30px;
+    padding-inline: 12px;
+    font-size: 12.5px;
+  }
+
+  .btn-primary,
+  .btn-primary:hover:not(:disabled) {
+    color: #ffffff;
+  }
+
+  .btn-primary {
+    background: var(--color-accent);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+  }
+
+  .btn-danger,
+  .btn-danger:hover:not(:disabled) {
+    color: var(--color-danger);
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  }
+
+  .btn-danger-solid,
+  .btn-danger-solid:hover:not(:disabled) {
+    color: #ffffff;
+  }
+
+  /* The fill is the light scheme's danger red in both schemes: the dark
+     scheme's lighter red is for text on a dark sheet, and white on it would
+     fall short of 4.5:1. */
+  .btn-danger-solid {
+    background: #c93a3a;
+  }
+
+  .btn-danger-solid:hover:not(:disabled) {
+    background: #b03232;
+  }
+
+  /* ── Fields ───────────────────────────────────────────────────────────
+     38px, radius 8, filled with the hover tint rather than outlined; focus
+     draws the accent ring. */
+  .field {
+    width: 100%;
+    height: 38px;
+    padding-inline: 12px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: var(--color-item-hover);
+    font-size: 13.5px;
+    color: var(--color-text-primary);
+    transition:
+      background-color 140ms ease,
+      box-shadow 140ms ease;
+  }
+
+  .field::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .field:hover:not(:disabled) {
+    background: var(--color-press);
+  }
+
+  .field:focus,
+  .field:focus-visible {
+    outline: none;
+    background: var(--color-item-hover);
+    box-shadow:
+      inset 0 0 0 1.5px var(--color-accent),
+      0 0 0 3px var(--color-accent-dim);
+  }
+
+  .field:disabled {
+    opacity: 0.55;
+  }
+
+  textarea.field {
+    height: auto;
+    min-height: 76px;
+    padding-block: 9px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  /* The chevron is a mid grey that reads on light and dark alike. */
+  select.field {
+    appearance: none;
+    padding-inline-end: 32px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239795a2' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+    cursor: pointer;
+  }
+
+  select.field:dir(rtl) {
+    background-position: left 10px center;
+  }
+
+  .field-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+  }
+
+  /* ── Chips, segmented controls, switches ──────────────────────────── */
+  .chip {
+    display: inline-flex;
+    height: 32px;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding-inline: 12px;
+    border-radius: 999px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    transition:
+      background-color 140ms ease,
+      color 140ms ease;
+  }
+
+  .chip:hover {
+    background: var(--color-item-hover);
+    color: var(--color-text-primary);
+  }
+
+  .chip[aria-pressed="true"],
+  .chip[aria-selected="true"],
+  .chip.is-active {
+    background: var(--color-item-hover);
+    color: var(--color-text-primary);
+    font-weight: 600;
+  }
+
+  .chip > small {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+  }
+
+  /* The same control as the editor's Source / Live / Read switch: a 2px
+     inset track in the hover tint, the active segment raised with a
+     hairline. Inner radius = track radius − inset, so the curves nest. */
+  .seg {
+    display: inline-flex;
+    flex: none;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--radius-control);
+    background: var(--color-item-hover);
+  }
+
+  .seg > button {
+    display: inline-flex;
+    height: 28px;
+    min-width: 28px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding-inline: 10px;
+    border-radius: calc(var(--radius-control) - 2px);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    transition:
+      background-color 140ms ease,
+      color 140ms ease;
+  }
+
+  .seg > button:hover {
+    color: var(--color-text-primary);
+  }
+
+  .seg > button[aria-pressed="true"],
+  .seg > button[aria-checked="true"],
+  .seg > button[aria-selected="true"] {
+    background: var(--color-item-active);
+    color: var(--color-text-primary);
+    font-weight: 600;
+    box-shadow: 0 0 0 1px var(--color-border);
+  }
+
+  .seg > button > svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+  }
+
+  /* The document-kind marker: "HTML" in a tab pill and on a Home card (the
+     mockup's `.tab .kind` and `.badge`). Mono, a hairline ring, no fill.
+     It sits inside a control, so its corners are half the control radius,
+     the way a segment's thumb is the track's minus its inset. */
+  .kind-tag {
+    flex: none;
+    padding: 3px 4px;
+    border-radius: calc(var(--radius-control) / 2);
+    font: 500 9.5px/1 var(--font-family-mono);
+    letter-spacing: 0.02em;
+    color: var(--color-text-muted);
+    box-shadow: inset 0 0 0 1px var(--color-border-light);
+  }
+
+  .kind-tag.is-badge {
+    padding: 4px 5px;
+    color: var(--color-text-secondary);
+  }
+
+  /* An on/off switch: a 36×20 track in a 24px-tall hit area. */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 24px;
+    flex: none;
+    border-radius: 999px;
+  }
+
+  .switch::before,
+  .switch::after {
+    content: "";
+    position: absolute;
+    border-radius: 999px;
+  }
+
+  .switch::before {
+    inset: 2px 0;
+    background: var(--color-overlay-strong);
+    transition: background-color 140ms ease;
+  }
+
+  .switch::after {
+    top: 4px;
+    inset-inline-start: 2px;
+    width: 16px;
+    height: 16px;
+    background: #ffffff;
+    transition: transform 200ms var(--ease-soft);
+  }
+
+  .switch[aria-checked="true"]::before {
+    background: var(--color-accent);
+  }
+
+  .switch[aria-checked="true"]::after {
+    transform: translateX(16px);
+  }
+
+  .switch[aria-checked="true"]:dir(rtl)::after {
+    transform: translateX(-16px);
+  }
+
+  .switch:disabled {
+    opacity: 0.5;
+  }
+
+  /* A range slider (components/ui/RangeSlider.jsx): a flat 4px track in the
+     strong overlay, the part up to the thumb filled with the accent, and a
+     16px round thumb — the raised colour ringed in the accent, no shadow.
+     The fill is a real element-width (`--range-fill`, 0–1, set by the
+     component), never a gradient. It runs to the thumb's centre, which
+     travels 8px in from each end. Focus draws the field's accent ring on the
+     thumb. */
+  .range {
+    position: relative;
+    display: flex;
+    height: 24px;
+    min-width: 9rem;
+    align-items: center;
+  }
+
+  .range::before,
+  .range::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    height: 4px;
+    margin-top: -2px;
+    border-radius: 999px;
+    pointer-events: none;
+  }
+
+  .range::before {
+    inset-inline: 0;
+    background: var(--color-overlay-strong);
+  }
+
+  .range::after {
+    inset-inline-start: 0;
+    width: calc(8px + (100% - 16px) * var(--range-fill, 0));
+    background: var(--color-accent);
+  }
+
+  .range-input {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 24px;
+    margin: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .range-input:focus-visible {
+    outline: none;
+  }
+
+  .range-input::-webkit-slider-runnable-track {
+    height: 24px;
+    background: transparent;
+  }
+
+  .range-input::-webkit-slider-thumb {
+    width: 16px;
+    height: 16px;
+    margin-top: 4px;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 2px solid var(--color-accent);
+    border-radius: 999px;
+    background: var(--color-item-active);
+    transition: box-shadow 140ms ease;
+  }
+
+  .range-input::-moz-range-track {
+    height: 4px;
+    background: transparent;
+  }
+
+  .range-input::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--color-accent);
+    border-radius: 999px;
+    background: var(--color-item-active);
+  }
+
+  .range-input:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px var(--color-accent-dim);
+  }
+
+  .range-input:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 3px var(--color-accent-dim);
+  }
+
+  .range:has(.range-input:disabled) {
+    opacity: 0.5;
+  }
+
+  /* ── Loading and empty states ─────────────────────────────────────────
+     Shared by components/ui/Loading.jsx and EmptyState.jsx. Quiet and
+     short: no gradient, no shadow, no bounce, no lift. Under reduced motion
+     (the media query, or `data-motion="none"` that the components set from
+     the same query) nothing pulses or draws in; it simply appears. */
+
+  /* A skeleton block: flat, in the pill fill on the desk. On the sheet and
+     on frosted panels the pill is near-white on near-white, so it takes the
+     pressed tint there instead. Pulses in opacity only. */
+  .skeleton {
+    display: block;
+    border-radius: var(--radius-control);
+    background: var(--color-pill);
+    animation: skeleton-pulse 1.4s ease-in-out infinite alternate;
+  }
+
+  .sheet .skeleton,
+  .glass-panel .skeleton,
+  .row-group .skeleton {
+    background: var(--color-press);
+  }
+
+  .skeleton.rounded-panel {
+    border-radius: var(--radius-panel);
+  }
+
+  @keyframes skeleton-pulse {
+    from {
+      opacity: 1;
+    }
+
+    to {
+      opacity: 0.45;
+    }
+  }
+
+  /* Three dots in whatever ink surrounds them — never the accent fill. */
+  .busy-dots {
+    display: inline-flex;
+    height: 16px;
+    align-items: center;
+    gap: 3px;
+    vertical-align: middle;
+  }
+
+  .busy-dots > i {
+    width: 4px;
+    height: 4px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.3;
+    animation: busy-dot 900ms ease-in-out infinite;
+  }
+
+  .busy-dots > i:nth-child(2) {
+    animation-delay: 150ms;
+  }
+
+  .busy-dots > i:nth-child(3) {
+    animation-delay: 300ms;
+  }
+
+  @keyframes busy-dot {
+    0%,
+    70%,
+    100% {
+      opacity: 0.3;
+    }
+
+    35% {
+      opacity: 1;
+    }
+  }
+
+  /* A button doing slow work: the dots replace its icon in the same 16px box,
+     or sit over the label (kept, invisible) when it has none, so the button
+     keeps its width. Disabled while busy, but not faded: it is working, not
+     unavailable. */
+  .busy-button {
+    position: relative;
+  }
+
+  .busy-button[aria-busy="true"]:disabled {
+    opacity: 1;
+    cursor: progress;
+  }
+
+  .busy-icon {
+    display: inline-grid;
+    width: 16px;
+    height: 16px;
+    flex: none;
+    place-items: center;
+  }
+
+  .busy-icon > svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .busy-button[data-busy]:not(:has(.busy-icon)) .busy-label {
+    visibility: hidden;
+  }
+
+  .busy-overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+  }
+
+  /* The empty state: a 40px line drawing in muted ink, a title, one line of
+     help, at most one action. One entrance — the strokes draw in over 600ms,
+     the text rises 4px into place — then nothing moves. */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 24px;
+    text-align: center;
+  }
+
+  .empty-state.is-compact {
+    padding: 32px 12px;
+  }
+
+  .empty-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 16px;
+    color: var(--color-text-muted);
+  }
+
+  .empty-icon > path {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: empty-draw 600ms var(--ease-soft) forwards;
+  }
+
+  .empty-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: empty-rise 240ms ease-out 120ms both;
+  }
+
+  .empty-title {
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+  }
+
+  .empty-state.is-compact .empty-title {
+    font-size: 13.5px;
+  }
+
+  .empty-body {
+    max-width: 22rem;
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+  }
+
+  .empty-state.is-compact .empty-body {
+    font-size: 12.5px;
+    color: var(--color-text-muted);
+  }
+
+  .empty-action {
+    margin-top: 16px;
+  }
+
+  @keyframes empty-draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes empty-rise {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  [data-motion="none"] .skeleton,
+  .skeleton[data-motion="none"],
+  [data-motion="none"] .busy-dots > i,
+  .busy-dots[data-motion="none"] > i,
+  [data-motion="none"] .empty-text,
+  [data-motion="none"].empty-state .empty-text {
+    animation: none;
+  }
+
+  [data-motion="none"].empty-state .empty-icon > path {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+
+  .busy-dots[data-motion="none"] > i {
+    opacity: 0.6;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton,
+    .busy-dots > i,
+    .empty-text {
+      animation: none;
+    }
+
+    .busy-dots > i {
+      opacity: 0.6;
+    }
+
+    .empty-icon > path {
+      animation: none;
+      stroke-dasharray: none;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* ── Grouped rows ─────────────────────────────────────────────────────
+     A rounded-card container on the sheet with hairline-separated rows:
+     settings groups, Home's list layout, the upcoming list. Never nested. */
+  .row-group {
+    border-radius: var(--radius-card);
+    background: var(--color-item-active);
+    box-shadow: 0 0 0 1px var(--color-border);
+  }
+
+  .row-group > * + * {
+    border-top: 1px solid var(--color-border);
+  }
+
+  /* A 48px row in Home's list layout: icon, name, folder, date. */
+  .list-row {
+    display: flex;
+    width: 100%;
+    height: 48px;
+    align-items: center;
+    gap: 12px;
+    padding-inline: 16px;
+    font-size: 13.5px;
+    text-align: start;
+    transition: background-color 140ms ease;
+  }
+
+  .list-row:hover {
+    background: var(--color-item-hover);
+  }
+
+  /* The group clips its rows to its corners, so the ring goes inside. */
+  .list-row:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .group-row {
+    display: flex;
+    min-height: 52px;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 16px;
+  }
+
+  .group-row-title {
+    font-size: 13.5px;
+    font-weight: 550;
+    color: var(--color-text-primary);
+  }
+
+  .group-row-hint {
+    margin-top: 2px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--color-text-muted);
+  }
+
+  .section-heading {
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--color-text-primary);
+  }
+
+  /* ── Home ─────────────────────────────────────────────────────────────
+     The signature: a card is the document itself, in miniature. Radius 20,
+     raised, a hairline. Hover never lifts and never casts a shadow: the
+     hairline firms up. */
+  .doc-card {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: var(--radius-panel);
+    background: var(--color-item-active);
+    box-shadow: 0 0 0 1px var(--color-border);
+    text-align: start;
+    transition: box-shadow 140ms ease;
+  }
+
+  .doc-card:hover {
+    box-shadow: 0 0 0 1px var(--color-border-light);
+  }
+
+  .doc-card-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px 14px;
+  }
+
+  .doc-card-name {
+    display: block;
+    overflow: hidden;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .doc-card-meta {
+    display: block;
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--color-text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The folder: a tabbed back plate, two sheets peeking out of it (the
+     front one a real miniature of the folder's newest document), and a
+     frosted pocket in front carrying the name. Hover slides the sheets up. */
+  .folder-card {
+    position: relative;
+    min-width: 0;
+    min-height: 250px;
+    border-radius: var(--radius-panel);
+    text-align: start;
+  }
+
+  .folder-card::before,
+  .folder-card::after {
+    content: "";
+    position: absolute;
+    background: var(--color-folder);
+  }
+
+  .folder-card::before {
+    inset: 20px 0 0;
+    border-radius: 0 var(--radius-panel) var(--radius-panel) var(--radius-panel);
+  }
+
+  .folder-card:dir(rtl)::before {
+    border-radius: var(--radius-panel) 0 var(--radius-panel) var(--radius-panel);
+  }
+
+  .folder-card::after {
+    top: 0;
+    inset-inline-start: 0;
+    width: 44%;
+    height: 40px;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+  }
+
+  .folder-sheet {
+    position: absolute;
+    z-index: 1;
+    inset: 36px 16px 0;
+    overflow: hidden;
+    border-radius: var(--radius-control) var(--radius-control) 0 0;
+    background: var(--color-item-active);
+    box-shadow: 0 0 0 1px var(--color-border);
+    transition: transform 240ms var(--ease-soft);
+  }
+
+  .folder-sheet.is-back {
+    inset: 28px 26px 0;
+    opacity: 0.7;
+  }
+
+  .folder-card:hover .folder-sheet {
+    transform: translateY(-6px);
+  }
+
+  .folder-card:hover .folder-sheet.is-back {
+    transform: translateY(-10px);
+  }
+
+  .folder-pocket {
+    position: absolute;
+    z-index: 2;
+    inset: auto 0 0;
+    display: flex;
+    height: 104px;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 20px 18px;
+    border-radius: var(--radius-card) var(--radius-card) var(--radius-panel) var(--radius-panel);
+    /* The folder's own colour, frosted: no saturate, which would push the
+       accent in the plate and sheets behind back up past the folder's 6%. */
+    background: color-mix(in oklab, var(--color-folder) 58%, transparent);
+    -webkit-backdrop-filter: blur(9px);
+    backdrop-filter: blur(9px);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-item-active) 60%, transparent);
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .folder-pocket {
+      background: var(--color-folder);
+    }
+  }
+
+  .folder-pocket-name {
+    overflow: hidden;
+    font-size: 16px;
+    font-weight: 650;
+    letter-spacing: -0.012em;
+    line-height: 1.3;
+    color: var(--color-text-primary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .folder-pocket-meta {
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--color-text-secondary);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .folder-sheet {
+      transition: none;
+    }
+  }
+
+  /* ── Miniatures ───────────────────────────────────────────────────────
+     A note's real Read-mode HTML at 6.4px. Everything is in em so the whole
+     page scales from that one size; nothing in here is interactive. */
+  .mini {
+    position: relative;
+    height: 188px;
+    overflow: hidden;
+    padding: 20px 20px 0;
+    font-size: 6.4px;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .folder-sheet .mini {
+    height: 100%;
+    padding: 14px 16px 0;
+  }
+
+  .mini > :first-child {
+    margin-top: 0;
+  }
+
+  .mini h1,
+  .mini h2 {
+    margin: 0.8em 0 0.5em;
+    font-size: 2.3em;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: var(--color-text-primary);
+  }
+
+  .mini h2 {
+    font-size: 1.8em;
+  }
+
+  .mini h3,
+  .mini h4,
+  .mini h5,
+  .mini h6 {
+    margin: 1em 0 0.3em;
+    font-size: 1.45em;
+    font-weight: 650;
+    line-height: 1.3;
+    color: var(--color-text-primary);
+  }
+
+  .mini p,
+  .mini ul,
+  .mini ol,
+  .mini blockquote,
+  .mini pre,
+  .mini table {
+    margin: 0 0 0.7em;
+  }
+
+  .mini ul,
+  .mini ol {
+    padding-inline-start: 1.4em;
+  }
+
+  /* Preflight strips list markers; a miniature wants them back. */
+  .mini ul {
+    list-style: disc;
+  }
+
+  .mini ol {
+    list-style: decimal;
+  }
+
+  .mini li:has(> input[type="checkbox"]) {
+    list-style: none;
+  }
+
+  .mini input[type="checkbox"] {
+    width: 1.2em;
+    height: 1.2em;
+    margin: 0 0.4em 0 -1.4em;
+    vertical-align: -0.2em;
+    accent-color: var(--color-accent);
+  }
+
+  .mini a {
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+
+  .mini strong {
+    font-weight: 650;
+    color: var(--color-text-primary);
+  }
+
+  .mini blockquote {
+    padding-inline-start: 1em;
+    border-inline-start: 2px solid var(--color-accent);
+    font-style: italic;
+  }
+
+  .mini blockquote p {
+    margin: 0;
+  }
+
+  /* Miniatures sit at 6.4px, so 4px corners read as the 14px of the real
+     code block — the scale, not a new radius. */
+  .mini pre {
+    overflow: hidden;
+    padding: 1em;
+    border-radius: 4px;
+    background: var(--color-item-hover);
+    white-space: pre-wrap;
+  }
+
+  .mini code {
+    font-family: var(--font-family-mono);
+    font-size: 0.9em;
+  }
+
+  .mini table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .mini th,
+  .mini td {
+    padding: 0.3em 0.5em;
+    border: 1px solid var(--color-border);
+    text-align: start;
+  }
+
+  .mini th {
+    font-weight: 650;
+    color: var(--color-text-primary);
+  }
+
+  .mini hr {
+    margin: 1em 0;
+    border: 0;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .mini .markdown-blank-lines {
+    height: calc(min(var(--blank-lines, 1), 3) * 0.8em);
+  }
+
+  /* Images and diagrams are not loaded in a miniature; a tinted block keeps
+     their place on the page. */
+  .mini .mini-media {
+    display: block;
+    height: 7em;
+    margin: 0 0 0.7em;
+    border-radius: 4px;
+    background: var(--color-item-hover);
+  }
+
+  /* An HTML document's miniature is the page itself, laid out at desktop
+     width in a script-less frame and scaled to the card from the top-left.
+     The white is the browser's own page canvas — the document paints its own
+     background over it — not a colour of Marky's. */
+  .mini.mini-page {
+    padding: 0;
+    background: #fff;
+  }
+
+  .mini.mini-page > iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1024px;
+    border: 0;
+    transform-origin: 0 0;
+    pointer-events: none;
+  }
+
+  .mini.mini-page > .mini-media {
+    margin: 20px;
+  }
+
+  .mini .mini-math {
+    font-family: var(--font-family-mono);
+    font-size: 0.9em;
   }
 }
 

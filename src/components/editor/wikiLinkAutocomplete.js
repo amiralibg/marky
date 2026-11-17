@@ -1,4 +1,5 @@
 import { autocompletion } from "@codemirror/autocomplete";
+import { isHtmlDocument } from "../../utils/documentKind";
 
 // "/" slash commands — insert markdown blocks by name, so users who don't know
 // the syntax can still add headings, lists, code, etc. Each row shows an icon,
@@ -190,14 +191,17 @@ export function createWikiLinkAutocomplete(getNotes, getTags = () => []) {
           const textAfter = view.state.sliceDoc(to, to + 2);
           const needsClosing = !textAfter.startsWith("]]");
 
-          const insertText = note.name + (needsClosing ? "]]" : "");
+          // An HTML document is linked by its file name, so the link keeps
+          // naming the page even beside a note with the same name.
+          const target = isHtmlDocument(note) ? `${note.name}.html` : note.name;
+          const insertText = target + (needsClosing ? "]]" : "");
 
           view.dispatch({
             changes: { from, to, insert: insertText },
             selection: { anchor: from + insertText.length },
           });
         },
-        detail: note.filePath ? "Note" : "New",
+        detail: isHtmlDocument(note) ? "HTML" : note.filePath ? "Note" : "New",
         info: note.filePath || "Press Enter to insert",
       }))
       .slice(0, 20); // Limit to 20 results for performance
