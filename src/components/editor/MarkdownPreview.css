@@ -25,7 +25,9 @@
    ═════════════════════════════════════════════════════════════════════════ */
 
 .markdown-preview {
-  /* Surfaces: a raised step and a stronger one, both relative to the page. */
+  /* Surfaces: a raised step and a stronger one, both relative to the page.
+     The first is the theme's hover tint laid on the sheet — the Soft Light
+     fill for code blocks and other blocks set off from the prose. */
   --md-surface: color-mix(in srgb, var(--color-text-primary) 4.5%, var(--color-bg-editor));
   --md-surface-strong: color-mix(in srgb, var(--color-text-primary) 8%, var(--color-bg-editor));
   /* Hairlines: keyed to text, so they survive themes with a near-invisible
@@ -33,7 +35,9 @@
   --md-line: color-mix(in srgb, var(--color-text-primary) 14%, transparent);
   --md-line-soft: color-mix(in srgb, var(--color-text-primary) 9%, transparent);
   --md-accent-soft: color-mix(in srgb, var(--color-accent) 45%, transparent);
-  --md-radius: 10px;
+  /* Blocks (code, tables, diagrams, the properties card) take the 14px card
+     radius from the design's vocabulary. */
+  --md-radius: 14px;
   /* Floor under every block gap, for the rare pair of blocks the author wrote
      with no blank line between them. The spacers pay for the rest, so this
      stays small — at 0.4em it was a second full gap on every fenced block. */
@@ -41,8 +45,8 @@
 
   color: var(--color-text-primary);
   line-height: 1.7;
-  /* 17px at 100%; follows the editor text size the same way Live mode does. */
-  font-size: calc(1.0625rem * var(--marky-editor-font-scale, 1) * var(--font-reading-scale, 1));
+  /* 16.5px at 100%; follows the editor text size the same way Live mode does. */
+  font-size: calc(1.03125rem * var(--marky-editor-font-scale, 1) * var(--font-reading-scale, 1));
   /* The Reading typeface setting (index.css) — the same pair Live mode reads,
      so a note keeps its letterforms across Live ↔ Read. */
   font-family: var(--font-family-body);
@@ -117,18 +121,22 @@
   scroll-margin-top: 1rem;
 }
 
+/* 36px and 24px over the 16.5px body, as the design sets them. */
 .markdown-preview h1 {
-  font-size: 2em;
-  letter-spacing: -0.022em;
+  font-size: 2.1818em;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
 }
 
 .markdown-preview h2 {
-  font-size: 1.55em;
+  font-size: 1.4545em;
+  font-weight: 650;
   letter-spacing: -0.018em;
 }
 
 .markdown-preview h3 {
-  font-size: 1.26em;
+  font-size: 1.2em;
 }
 
 .markdown-preview h4 {
@@ -139,14 +147,14 @@
   font-size: 1em;
 }
 
-/* h6 is a label, not a heading — set it in the UI sans as small caps. */
+/* h6 is a label, not a heading — set it in the UI sans, small and muted.
+   Sentence case like every other label in the app; no tracked capitals. */
 .markdown-preview h6 {
   font-family: var(--font-family-sans);
-  font-size: 0.78em;
+  font-size: 0.82em;
   font-weight: 600;
   color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0;
 }
 
 /* ── Body copy ───────────────────────────────────────────────
@@ -206,13 +214,15 @@
 }
 
 /* ── Links ───────────────────────────────────────────────────
-   Underlined at rest but with a faint rule, so links are scannable without
-   striping the paragraph. Hover brings the underline up to full strength. */
+   Underlined at rest but with a faint rule (the accent at 35%, 3px below the
+   baseline), so links are scannable without striping the paragraph. Hover
+   brings the underline up to full strength. */
 .markdown-preview a {
   color: var(--color-accent);
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--color-accent) 32%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
   text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
   transition:
     color 140ms ease,
     text-decoration-color 140ms ease;
@@ -250,7 +260,9 @@
   background: var(--md-surface-strong);
   color: var(--color-text-primary);
   padding: 0.14em 0.38em;
-  border-radius: 4px;
+  /* An inline run is too short for the card radius; the control radius, at
+     the code's own size, keeps the chip from reading as a pill. */
+  border-radius: 6px;
   font-family: var(--font-family-mono);
   font-size: 0.855em;
   font-variant-ligatures: none;
@@ -259,14 +271,13 @@
 }
 
 /* ── Code blocks ─────────────────────────────────────────────
-   One object: a raised surface with the language sitting in its corner and no
-   internal divider. */
+   One object: the hover tint on the sheet, radius 14, with the language
+   sitting in its corner. No border and no internal divider. */
 .markdown-preview .code-block-wrapper {
   position: relative;
   margin: var(--md-block-space) 0;
   border-radius: var(--md-radius);
   overflow: hidden;
-  border: 1px solid var(--md-line-soft);
   background: var(--md-surface);
 }
 
@@ -275,7 +286,7 @@
   justify-content: space-between;
   align-items: center;
   /* Tight and flush with the code below — no second surface, no divider. */
-  padding: 0.5em 0.7em 0 0.95em;
+  padding: 0.5em 0.7em 0 1.2em;
   background: transparent;
   border: none;
 }
@@ -299,7 +310,7 @@
   padding: 0.32em;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--color-text-muted);
   cursor: pointer;
   opacity: 0;
@@ -319,8 +330,18 @@
   color: var(--color-text-primary);
 }
 
-.markdown-preview .code-copy-btn:active {
-  transform: scale(0.94);
+@media (prefers-reduced-motion: no-preference) {
+  .markdown-preview .code-copy-btn {
+    transition:
+      opacity 140ms ease,
+      background-color 140ms ease,
+      color 140ms ease,
+      transform 140ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .markdown-preview .code-copy-btn:active {
+    transform: scale(0.94);
+  }
 }
 
 .markdown-preview .code-copy-btn .check-icon {
@@ -329,7 +350,7 @@
 
 .markdown-preview .code-block-wrapper pre {
   margin: 0;
-  padding: 0.45em 1.05em 1.05em;
+  padding: 0.45em 1.2em 1em;
   overflow-x: auto;
   background: transparent;
   border: none;
@@ -339,59 +360,14 @@
 /* Bare <pre> (no wrapper) gets the same surface. */
 .markdown-preview pre {
   background: var(--md-surface);
-  border: 1px solid var(--md-line-soft);
-  padding: 1.05em;
+  padding: 1em 1.2em;
   border-radius: var(--md-radius);
   margin: var(--md-block-space) 0;
   overflow-x: auto;
 }
 
-/* Quiet scrollbars: present when needed, invisible when not. The standard
-   properties only go to engines without `::-webkit-scrollbar`; in WKWebView
-   they switch the custom bar below off and bring back the white native one. */
-@supports not selector(::-webkit-scrollbar) {
-  .markdown-preview pre,
-  .markdown-preview .table-wrap,
-  .markdown-preview .mermaid-wrapper,
-  .markdown-preview .katex-display {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-    transition: scrollbar-color 200ms ease;
-  }
-
-  .markdown-preview pre:hover,
-  .markdown-preview .code-block-wrapper:hover pre,
-  .markdown-preview .table-wrap:hover,
-  .markdown-preview .mermaid-wrapper:hover,
-  .markdown-preview .katex-display:hover {
-    scrollbar-color: var(--md-line) transparent;
-  }
-}
-
-.markdown-preview ::-webkit-scrollbar {
-  height: 9px;
-  width: 9px;
-}
-
-.markdown-preview ::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.markdown-preview ::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 6px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  transition: background-color 200ms ease;
-}
-
-.markdown-preview pre:hover::-webkit-scrollbar-thumb,
-.markdown-preview .table-wrap:hover::-webkit-scrollbar-thumb,
-.markdown-preview .mermaid-wrapper:hover::-webkit-scrollbar-thumb,
-.markdown-preview .katex-display:hover::-webkit-scrollbar-thumb {
-  background: var(--md-line);
-  background-clip: padding-box;
-}
+/* Wide code, tables, diagrams and display maths scroll sideways without a
+   bar, like every other pane (the app-wide rule in index.css). */
 
 .markdown-preview pre code {
   background: transparent;
@@ -399,8 +375,9 @@
   padding: 0;
   border: none;
   border-radius: 0;
-  font-size: 0.855em;
-  line-height: 1.62;
+  /* 13.5px over the 16.5px body. */
+  font-size: 0.818em;
+  line-height: 1.65;
   display: block;
   /* Code keeps its own line breaks; only the block scrolls. */
   overflow-wrap: normal;
@@ -412,8 +389,7 @@
    A rule in the margin, no fill. The old filled box read as a grey slab the
    width of the column and buried the quote it was meant to lift. */
 .markdown-preview blockquote {
-  border-inline-start: 3px solid var(--md-accent-soft);
-  border-radius: 1px;
+  border-inline-start: 2px solid var(--md-accent-soft);
   margin: var(--md-block-space) 0;
   padding-inline-start: 1.1em;
   color: var(--color-text-secondary);
@@ -467,8 +443,8 @@
 }
 
 .markdown-preview li {
-  margin: 0.25em 0;
-  padding-inline-start: 0.3em;
+  margin: 0.18em 0;
+  padding-inline-start: 0.45em;
   display: list-item;
 }
 
@@ -480,14 +456,16 @@
   margin-bottom: 0;
 }
 
+/* Markers are quiet ink, not accent: the accent is kept for links and the
+   one primary action, so a bulleted list doesn't speckle the page with it. */
 .markdown-preview ul li::marker {
-  color: var(--color-accent);
-  font-size: 1.05em;
+  color: var(--color-text-muted);
+  font-size: 0.9em;
 }
 
 .markdown-preview ol li::marker {
-  color: var(--color-accent);
-  font-weight: 600;
+  color: var(--color-text-muted);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
@@ -501,13 +479,31 @@
   padding-inline-start: 0;
 }
 
+/* 17px boxes at radius 5: a hairline ring when open, filled accent with a
+   white tick when done. Drawn by hand — the native control can't take the
+   ring or the radius. Live mode's `input.cm-lp-task` mirrors this. */
 .markdown-preview input[type="checkbox"] {
-  width: 1em;
-  height: 1em;
-  margin-inline-end: 0.5em;
-  vertical-align: -0.1em;
-  accent-color: var(--color-accent);
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-block;
+  width: 1.03em;
+  height: 1.03em;
+  margin: 0;
+  margin-inline-end: 0.6em;
+  vertical-align: -0.17em;
+  border-radius: 5px;
+  background: transparent center / 100% 100% no-repeat;
+  box-shadow: inset 0 0 0 1.5px var(--color-border-light);
   cursor: default;
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.markdown-preview input[type="checkbox"]:checked {
+  background-color: var(--color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 17'%3E%3Cpath d='M4.5 8.8l2.6 2.6 5.4-5.8' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  box-shadow: none;
 }
 
 /* A done item recedes without being struck through. */
@@ -602,19 +598,17 @@
 }
 
 /* ── Images ──────────────────────────────────────────────────
-   No frame: a border around every screenshot is chrome the note didn't ask
-   for. Just a radius, centred, with a whisper of lift on light themes. */
+   No frame and no shadow: a border around every screenshot is chrome the note
+   didn't ask for, and the only shadow in the app belongs to floating menus.
+   Just a radius, centred, and a hairline so a white image keeps its edge on
+   a near-white sheet. */
 .markdown-preview img {
   display: block;
   max-width: 100%;
   height: auto;
   margin: var(--md-block-space) auto;
   border-radius: var(--md-radius);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
-}
-
-[data-theme="dark"] .markdown-preview img {
-  box-shadow: none;
+  box-shadow: 0 0 0 1px var(--md-line-soft);
 }
 
 /* An image whose file isn't where the note says it is. Without this the element
@@ -689,7 +683,6 @@
   margin: var(--md-block-space) 0;
   padding: 1.05em;
   background: var(--md-surface);
-  border: 1px solid var(--md-line-soft);
   border-radius: var(--md-radius);
   overflow-x: auto;
 }
@@ -708,7 +701,9 @@
    Display math is a block: centred, and allowed to scroll rather than spill. */
 .markdown-preview .katex {
   color: var(--color-text-primary);
-  font-size: 2.08em;
+  /* Inline math sits in a line of prose: only a touch over the body size, or
+     it towers over the words around it. */
+  font-size: 1.1em;
 }
 
 .markdown-preview .katex-display {
@@ -720,6 +715,7 @@
 
 .markdown-preview .katex-display > .katex {
   text-align: center;
+  font-size: 1.5em;
 }
 
 /* ── Selection ───────────────────────────────────────────────*/
@@ -923,23 +919,22 @@
    styles read correctly in all themes without light/dark forks. */
 .markdown-preview .frontmatter-card {
   background: var(--md-surface);
-  border: 1px solid var(--md-line-soft);
-  border-radius: calc(var(--md-radius) + 2px);
+  border-radius: var(--md-radius);
   padding: 0.35rem 0 0.45rem;
   margin-bottom: 2rem;
 }
 
+/* Sentence case, like every label in the app. */
 .markdown-preview .frontmatter-header {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.45rem 0.9rem;
-  margin-bottom: 0.2rem;
-  border-bottom: 1px solid var(--md-line-soft);
-  font-size: 0.66rem;
+  padding: 0.45rem 1rem 0.2rem;
+  font-family: var(--font-family-sans);
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--color-text-muted);
 }
 
@@ -953,8 +948,7 @@
   padding: 0 0.3rem;
   border-radius: 999px;
   background: var(--md-surface-strong);
-  border: 1px solid var(--md-line-soft);
-  font-size: 0.6rem;
+  font-size: 0.6875rem;
   line-height: 1.5;
   letter-spacing: 0;
   text-align: center;
@@ -971,16 +965,12 @@
   grid-template-columns: minmax(5.5rem, max-content) 1fr;
   gap: 0.9rem;
   align-items: baseline;
-  padding: 0.32rem 0.9rem;
-}
-
-.markdown-preview .frontmatter-row + .frontmatter-row {
-  border-top: 1px solid var(--md-line-soft);
+  padding: 0.32rem 1rem;
 }
 
 .markdown-preview .frontmatter-key {
   font-family: var(--font-family-mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
   overflow-wrap: break-word;
 }
@@ -1002,12 +992,17 @@
   gap: 0.3rem;
 }
 
+/* Tags and other list values: accent-dim pills, 24px tall. */
 .markdown-preview .frontmatter-chip {
-  display: inline-block;
-  padding: 0.06rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 0.625rem;
   border-radius: 999px;
-  background: var(--color-accent-dim, rgba(109, 92, 224, 0.16));
+  background: var(--color-accent-dim, rgba(109, 92, 224, 0.13));
   color: var(--color-accent);
-  font-size: 0.73rem;
-  line-height: 1.6;
+  font-family: var(--font-family-sans);
+  font-size: 0.78125rem;
+  font-weight: 550;
+  line-height: 1.2;
 }

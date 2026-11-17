@@ -56,6 +56,19 @@ export const NoteIcon = (props) => (
   </Icon>
 );
 
+/** An HTML document: a sheet with angle brackets (the mockup's `#code`). */
+export const CodeDocumentIcon = (props) => (
+  <Icon {...props}>
+    <path
+      d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8zM14 3.5V8h4.5M10.5 12 8.5 14.2l2 2.3M13.5 12l2 2.2-2 2.3"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Icon>
+);
+
 export const NotePlusIcon = (props) => (
   <Icon {...props}>
     <path

@@ -21,24 +21,24 @@ import {
 } from "../../utils/backup";
 import { checkForAppUpdate, installAppUpdate, restartApp } from "../../utils/appUpdater";
 import { UpdateIcon } from "../icons/AppUpdateIcon";
+import { BusyButton } from "../ui/Loading";
 
 const BatchExportModal = lazy(() => import("../modals/BatchExportModal"));
 
 const normalizeWorkspacePath = (value) => (value ? value.replace(/\\/g, "/") : "");
 
-const SectionHeader = ({ icon, title, description }) => (
+const SectionHeader = ({ title, description }) => (
   <header>
-    <h2 className="text-xl font-semibold tracking-[-0.01em] text-text-primary flex items-center gap-2">
-      {icon}
+    <h2 className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-text-primary">
       {title}
     </h2>
-    <p className="text-sm text-text-muted mt-1">{description}</p>
+    <p className="mt-1.5 text-[14px] leading-relaxed text-text-secondary">{description}</p>
   </header>
 );
 
 const svg = (d, extra = null) => (
-  <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={d} />
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d={d} />
     {extra}
   </svg>
 );
@@ -61,7 +61,7 @@ const ICONS = {
   sync: svg(
     "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
   ),
-  updates: <UpdateIcon className="w-5 h-5 text-accent" />,
+  updates: <UpdateIcon />,
   backup: svg("M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"),
   batch: svg(
     "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
@@ -213,23 +213,11 @@ const Toggle = ({ checked, onChange, disabled, label }) => (
   <button
     onClick={onChange}
     disabled={disabled}
-    className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
-      disabled
-        ? "bg-overlay-subtle cursor-not-allowed opacity-50"
-        : checked
-          ? "bg-accent shadow-lg shadow-accent/30"
-          : "bg-overlay-light hover:bg-overlay-medium"
-    }`}
     aria-checked={checked}
     aria-label={label}
     role="switch"
-  >
-    <span
-      className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
-        checked ? "translate-x-7" : "translate-x-0"
-      }`}
-    />
-  </button>
+    className="switch"
+  ></button>
 );
 
 function WorkspaceSectionContent() {
@@ -251,10 +239,10 @@ function WorkspaceSectionContent() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-text-secondary">
+          <p className="text-[13.5px] font-semibold text-text-primary">
             Reopen last workspace on startup
           </p>
-          <p className="text-xs text-text-muted mt-0.5">
+          <p className="mt-0.5 text-[12.5px] leading-relaxed text-text-muted">
             Automatically load the most recently used folder when Marky launches.
           </p>
         </div>
@@ -265,12 +253,12 @@ function WorkspaceSectionContent() {
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4 border-t border-overlay-subtle pt-4">
+      <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
         <div>
-          <p className="text-sm font-medium text-text-secondary">
+          <p className="text-[13.5px] font-semibold text-text-primary">
             Workspace-specific settings profile
           </p>
-          <p className="text-xs text-text-muted mt-0.5">
+          <p className="mt-0.5 text-[12.5px] leading-relaxed text-text-muted">
             {rootFolderPath
               ? `Keep theme, editor behavior, and keymaps specific to ${currentWorkspaceName}.`
               : "Open a workspace to create a per-workspace settings profile."}
@@ -297,10 +285,10 @@ function UpdatesSectionContent() {
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="min-w-0">
-        <p className="text-sm text-text-secondary">
+        <p className="text-[13.5px] text-text-primary">
           {appUpdate.message || "Marky checks for updates automatically in production builds."}
         </p>
-        <p className="text-xs text-text-muted mt-1">
+        <p className="mt-1 text-[12.5px] leading-relaxed text-text-muted">
           When an update is available, it also appears as a toast and in the sidebar.
         </p>
         {typeof appUpdate.progress === "number" && (
@@ -311,7 +299,7 @@ function UpdatesSectionContent() {
                 style={{ width: `${Math.max(0, Math.min(100, appUpdate.progress))}%` }}
               />
             </div>
-            <div className="mt-1 text-[10px] text-text-muted text-right">
+            <div className="mt-1 text-end text-[11px] text-text-muted">
               {Math.round(appUpdate.progress)}%
             </div>
           </div>
@@ -319,33 +307,24 @@ function UpdatesSectionContent() {
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {appUpdate.status === "available" && (
-          <button
-            onClick={() => installAppUpdate()}
-            className="px-4 py-2 rounded-lg font-medium text-sm bg-accent hover:bg-accent/80 text-white transition-all flex items-center gap-2"
-          >
-            Download & Install
+          <button onClick={() => installAppUpdate()} className="btn btn-primary">
+            Download and install
           </button>
         )}
         {appUpdate.status === "installed" && (
-          <button
-            onClick={restartApp}
-            className="px-4 py-2 rounded-lg font-medium text-sm bg-accent hover:bg-accent/80 text-white transition-all flex items-center gap-2"
-          >
+          <button onClick={restartApp} className="btn btn-primary">
             Restart Marky
           </button>
         )}
-        <button
+        <BusyButton
           onClick={() => checkForAppUpdate({ silent: false })}
-          disabled={isCheckingForUpdates || isUpdating}
-          className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 border ${
-            isCheckingForUpdates || isUpdating
-              ? "bg-overlay-light text-text-muted cursor-not-allowed border-overlay-subtle"
-              : "bg-overlay-subtle hover:bg-overlay-light text-text-primary border-overlay-subtle"
-          }`}
+          busy={isCheckingForUpdates}
+          disabled={isUpdating}
+          icon={<UpdateIcon className="w-4 h-4" />}
+          className="btn"
         >
-          <UpdateIcon className={`w-4 h-4 ${isCheckingForUpdates ? "animate-spin" : ""}`} />
-          {isCheckingForUpdates ? "Checking..." : "Check for Updates"}
-        </button>
+          Check for updates
+        </BusyButton>
       </div>
     </div>
   );
@@ -434,37 +413,31 @@ function BackupSectionContent() {
     <>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm text-text-secondary">
+          <p className="text-[13.5px] text-text-primary">
             Export all notes and folder structure as a .zip file.
           </p>
-          <p className="text-xs text-text-muted mt-1">
+          <p className="mt-1 text-[12.5px] leading-relaxed text-text-muted">
             Includes settings and workspace metadata. You can also restore a backup into any folder.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button
+          <BusyButton
             onClick={() => setShowRestoreConfirm(true)}
-            disabled={isRestoringBackup || isBackingUp}
-            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 border ${
-              isRestoringBackup || isBackingUp
-                ? "bg-overlay-light text-text-muted cursor-not-allowed border-overlay-subtle"
-                : "bg-overlay-subtle hover:bg-overlay-light text-text-primary border-overlay-subtle"
-            }`}
+            busy={isRestoringBackup}
+            disabled={isBackingUp}
+            className="btn"
           >
-            {isRestoringBackup ? "Restoring..." : "Restore Backup"}
-          </button>
+            Restore backup
+          </BusyButton>
 
-          <button
+          <BusyButton
             onClick={handleBackup}
-            disabled={isBackingUp || isRestoringBackup}
-            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
-              isBackingUp || isRestoringBackup
-                ? "bg-overlay-light text-text-muted cursor-not-allowed"
-                : "bg-accent hover:bg-accent/80 text-white"
-            }`}
+            busy={isBackingUp}
+            disabled={isRestoringBackup}
+            className="btn btn-primary"
           >
-            {isBackingUp ? "Exporting..." : "Export Backup"}
-          </button>
+            Export backup
+          </BusyButton>
         </div>
       </div>
       <ConfirmDialog
@@ -472,7 +445,7 @@ function BackupSectionContent() {
         title="Overwrite existing files?"
         message="Overwrite files if they already exist in the destination folder? Choose Cancel to skip existing files (safer default)."
         confirmLabel="Overwrite"
-        cancelLabel="Skip Existing"
+        cancelLabel="Skip existing"
         variant="warning"
         onConfirm={() => executeRestore(true)}
         onCancel={() => executeRestore(false)}
@@ -488,18 +461,15 @@ function BatchExportSectionContent() {
     <>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm text-text-secondary">
+          <p className="text-[13.5px] text-text-primary">
             Choose a selection of notes (or all notes) and download them as a ZIP.
           </p>
-          <p className="text-xs text-text-muted mt-1">
+          <p className="mt-1 text-[12.5px] leading-relaxed text-text-muted">
             Folder structure is preserved inside the archive.
           </p>
         </div>
-        <button
-          onClick={() => setShowBatchExport(true)}
-          className="px-4 py-2 rounded-lg font-medium text-sm bg-accent hover:bg-accent/80 text-white transition-all shrink-0 flex items-center gap-2"
-        >
-          Batch Export
+        <button onClick={() => setShowBatchExport(true)} className="btn btn-primary">
+          Batch export
         </button>
       </div>
       <Suspense fallback={null}>
@@ -554,36 +524,30 @@ function PortabilitySectionContent() {
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
-        <p className="text-sm text-text-secondary">
+        <p className="text-[13.5px] text-text-primary">
           Save or load theme, editor preferences, and key bindings as a JSON file.
         </p>
-        <p className="text-xs text-text-muted mt-1">
+        <p className="mt-1 text-[12.5px] leading-relaxed text-text-muted">
           Useful for sharing settings between workspaces or machines.
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <button
+        <BusyButton
           onClick={handleImportSettings}
-          disabled={isImportingSettings || isExportingSettings}
-          className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 border ${
-            isImportingSettings || isExportingSettings
-              ? "bg-overlay-light text-text-muted cursor-not-allowed border-overlay-subtle"
-              : "bg-overlay-subtle hover:bg-overlay-light text-text-primary border-overlay-subtle"
-          }`}
+          busy={isImportingSettings}
+          disabled={isExportingSettings}
+          className="btn"
         >
-          {isImportingSettings ? "Importing..." : "Import Settings"}
-        </button>
-        <button
+          Import settings
+        </BusyButton>
+        <BusyButton
           onClick={handleExportSettings}
-          disabled={isExportingSettings || isImportingSettings}
-          className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
-            isExportingSettings || isImportingSettings
-              ? "bg-overlay-light text-text-muted cursor-not-allowed"
-              : "bg-accent hover:bg-accent/80 text-white"
-          }`}
+          busy={isExportingSettings}
+          disabled={isImportingSettings}
+          className="btn btn-primary"
         >
-          {isExportingSettings ? "Exporting..." : "Export Settings"}
-        </button>
+          Export settings
+        </BusyButton>
       </div>
     </div>
   );
@@ -621,18 +585,19 @@ const SettingsPage = ({ onOpenKeymapsModal, initialSection }) => {
   const isPropsAwareContent = active.id === "shortcuts";
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-bg-base animate-in fade-in zoom-in-95 duration-200">
-      <nav className="md:w-53 shrink-0 md:border-r border-b md:border-b-0 border-border px-3 py-3 md:py-8 flex flex-col custom-scrollbar">
-        <div className="px-2.5 pb-3 text-[11px] font-semibold uppercase tracking-wider text-text-muted hidden md:block">
+    <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-bg-editor">
+      <nav className="md:w-60 shrink-0 md:border-e border-b md:border-b-0 border-border px-3 py-3 md:py-8 flex flex-col">
+        <h1 className="hidden px-2.5 pb-3 text-[15px] font-semibold text-text-primary md:block">
           Settings
-        </div>
+        </h1>
         <div className="px-1 pb-3">
           <input
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search settings…"
-            className="w-full px-2.5 py-1.5 rounded-lg bg-overlay-subtle border border-border text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
+            placeholder="Search settings"
+            aria-label="Search settings"
+            className="field h-9"
           />
         </div>
         <div className="flex md:flex-col gap-1 overflow-x-auto md:overflow-x-visible md:overflow-y-auto">
@@ -640,32 +605,36 @@ const SettingsPage = ({ onOpenKeymapsModal, initialSection }) => {
             <button
               key={item.id}
               onClick={() => setActiveSection(item.id)}
-              className={`text-left px-2.5 py-1.5 rounded-lg text-[13px] transition-colors whitespace-nowrap shrink-0 ${
-                activeSection === item.id
-                  ? "bg-accent-dim text-accent font-medium"
-                  : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
+              aria-current={activeSection === item.id ? "page" : undefined}
+              // On the sheet the sidebar's white pill has nothing to stand out
+              // from, so the selected section takes the hover tint instead.
+              className={`side-row w-auto shrink-0 whitespace-nowrap md:w-full ${
+                activeSection === item.id ? "is-active bg-item-hover!" : ""
               }`}
             >
+              {item.icon}
               {item.label}
             </button>
           ))}
           {visibleSections.length === 0 && (
-            <p className="px-2.5 py-2 text-xs text-text-muted">No matching settings.</p>
+            <p className="px-2.5 py-2 text-[12.5px] text-text-muted">No settings match.</p>
           )}
         </div>
       </nav>
 
       <div
         key={active.id}
-        className="flex-1 min-w-0 overflow-y-auto px-4 sm:px-8 md:px-12 py-6 md:py-10 space-y-6 custom-scrollbar animate-in fade-in slide-in-from-bottom-2 duration-150"
+        className="flex-1 min-w-0 overflow-y-auto px-4 sm:px-8 md:px-12 py-6 md:py-12"
       >
-        <SectionHeader icon={active.icon} title={active.label} description={active.description} />
-        <div className="bg-bg-editor rounded-xl border border-border p-6">
-          {isPropsAwareContent ? (
-            <ActiveContent onOpenKeymapsModal={onOpenKeymapsModal} />
-          ) : (
-            <ActiveContent />
-          )}
+        <div className="mx-auto max-w-[760px] space-y-6">
+          <SectionHeader title={active.label} description={active.description} />
+          <div className="rounded-card bg-item-active p-6 shadow-[0_0_0_1px_var(--color-border)]">
+            {isPropsAwareContent ? (
+              <ActiveContent onOpenKeymapsModal={onOpenKeymapsModal} />
+            ) : (
+              <ActiveContent />
+            )}
+          </div>
         </div>
       </div>
     </div>

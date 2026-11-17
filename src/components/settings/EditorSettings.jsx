@@ -14,6 +14,8 @@ const EditorSettings = () => {
     setTypewriterMode,
     showLineNumbers,
     setShowLineNumbers,
+    htmlRunScripts,
+    setHtmlRunScripts,
     editorWidth,
     setEditorWidth,
     ignorePatterns,
@@ -72,14 +74,17 @@ const EditorSettings = () => {
           <h3 id="autosave-setting-title" className="text-sm font-semibold text-text-primary mb-1">
             Save automatically
           </h3>
-          <p id="autosave-setting-description" className="text-xs text-text-muted leading-relaxed">
+          <p
+            id="autosave-setting-description"
+            className="text-[12.5px] leading-relaxed text-text-muted"
+          >
             Notes are written to disk as you type, and whenever you switch note, close a tab, leave
             the window or quit. Turn this off to save with {mod}S instead, with a dot marking notes
             that have changes you have not written yet.
           </p>
           {isAutoSave && (
             <div className="mt-3 flex items-center gap-3">
-              <span className="text-xs text-text-secondary">Save after</span>
+              <span className="text-[12.5px] text-text-secondary">Save after</span>
               <div className="flex gap-1.5 flex-wrap">
                 {delayOptions.map((opt) => (
                   <button
@@ -87,11 +92,7 @@ const EditorSettings = () => {
                     onClick={() => setAutosaveDelay(opt.value)}
                     aria-pressed={autosaveDelay === opt.value}
                     aria-label={`Save ${opt.label} after you stop typing`}
-                    className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
-                      autosaveDelay === opt.value
-                        ? "border-accent/40 bg-accent/10 text-accent"
-                        : "border-overlay-subtle bg-overlay-subtle text-text-muted hover:text-text-primary hover:border-overlay-light"
-                    }`}
+                    className="chip h-7 px-2.5 text-[12.5px]"
                   >
                     {opt.label}
                   </button>
@@ -102,20 +103,12 @@ const EditorSettings = () => {
         </div>
         <button
           onClick={() => setSaveMode(isAutoSave ? "manual" : "auto")}
-          className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
-            isAutoSave
-              ? "bg-accent shadow-lg shadow-accent/30"
-              : "bg-overlay-light hover:bg-overlay-medium"
-          }`}
           aria-checked={isAutoSave}
           aria-labelledby="autosave-setting-title"
           aria-describedby="autosave-setting-description"
           role="switch"
-        >
-          <span
-            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${isAutoSave ? "translate-x-7" : "translate-x-0"}`}
-          />
-        </button>
+          className="switch"
+        ></button>
       </div>
 
       {/* Line Numbers Toggle */}
@@ -125,11 +118,11 @@ const EditorSettings = () => {
             id="line-numbers-setting-title"
             className="text-sm font-semibold text-text-primary mb-1"
           >
-            Line Numbers
+            Line numbers
           </h3>
           <p
             id="line-numbers-setting-description"
-            className="text-xs text-text-muted leading-relaxed"
+            className="text-[12.5px] leading-relaxed text-text-muted"
           >
             Show line numbers, fold arrows, and the active-line highlight in the editor. Off by
             default for a clean, document-style look.
@@ -137,26 +130,41 @@ const EditorSettings = () => {
         </div>
         <button
           onClick={() => setShowLineNumbers(!showLineNumbers)}
-          className={`
-            relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0
-            ${
-              showLineNumbers
-                ? "bg-accent shadow-lg shadow-accent/30"
-                : "bg-overlay-light hover:bg-overlay-medium"
-            }
-          `}
           aria-checked={showLineNumbers}
           aria-labelledby="line-numbers-setting-title"
           aria-describedby="line-numbers-setting-description"
           role="switch"
-        >
-          <span
-            className={`
-              absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200
-              ${showLineNumbers ? "translate-x-7" : "translate-x-0"}
-            `}
-          />
-        </button>
+          className="switch"
+        ></button>
+      </div>
+
+      {/* HTML documents' scripts. Beside line numbers: both decide what an
+          open document shows, rather than how the app behaves. */}
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <h3
+            id="html-scripts-setting-title"
+            className="text-sm font-semibold text-text-primary mb-1"
+          >
+            Run scripts in HTML documents
+          </h3>
+          <p
+            id="html-scripts-setting-description"
+            className="text-[12.5px] leading-relaxed text-text-muted"
+          >
+            Lets an HTML document&rsquo;s own scripts run in Preview, inside a sandbox that cannot
+            reach Marky or your files. Turn this off to show pages as static markup. Scripts are
+            always paused while you edit.
+          </p>
+        </div>
+        <button
+          onClick={() => setHtmlRunScripts(htmlRunScripts === false)}
+          aria-checked={htmlRunScripts !== false}
+          aria-labelledby="html-scripts-setting-title"
+          aria-describedby="html-scripts-setting-description"
+          role="switch"
+          className="switch"
+        ></button>
       </div>
 
       {/* Editor Width — one measure for the editor and the rendered preview, so
@@ -164,13 +172,16 @@ const EditorSettings = () => {
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <h3 id="editor-width-title" className="text-sm font-semibold text-text-primary mb-1">
-            Editor Width
+            Editor width
           </h3>
-          <p id="editor-width-description" className="text-xs text-text-muted leading-relaxed">
+          <p
+            id="editor-width-description"
+            className="text-[12.5px] leading-relaxed text-text-muted"
+          >
             How wide the text column is allowed to grow. Narrow keeps lines at a comfortable reading
             length; wide fills the window. The same measure applies in Source, Live, and Read.
           </p>
-          <div className="mt-3 rounded-2xl border border-overlay-subtle bg-overlay-subtle/40 p-1.5 shadow-inner shadow-black/10">
+          <div className="mt-3 rounded-card bg-item-hover p-1">
             <div
               className="relative grid grid-cols-3 gap-1"
               role="group"
@@ -178,8 +189,10 @@ const EditorSettings = () => {
               aria-describedby="editor-width-description"
             >
               <span
-                className="absolute inset-y-0 left-0 w-1/3 rounded-xl border border-accent/30 bg-accent/10 shadow-sm shadow-accent/10 transition-transform duration-200 ease-out"
-                style={{ transform: `translateX(${selectedWidthIndex * 100}%)` }}
+                className="absolute inset-y-0 w-1/3 rounded-control bg-item-active shadow-[0_0_0_1px_var(--color-border)] transition-[inset-inline-start] duration-200 ease-soft"
+                // Positioned by its logical start so the thumb follows the
+                // segments in a right-to-left layout too.
+                style={{ insetInlineStart: `${(selectedWidthIndex * 100) / 3}%` }}
                 aria-hidden="true"
               />
               {EDITOR_WIDTHS.map((option, index) => {
@@ -193,14 +206,14 @@ const EditorSettings = () => {
                     key={option.id}
                     type="button"
                     onClick={() => setEditorWidth(option.id)}
-                    className={`relative z-10 rounded-xl px-2.5 py-2.5 text-left transition-colors ${
-                      isActive ? "text-accent" : "text-text-muted hover:text-text-primary"
+                    className={`relative z-10 rounded-control px-2.5 py-2.5 text-start transition-colors ${
+                      isActive ? "text-text-primary" : "text-text-muted hover:text-text-primary"
                     }`}
                     aria-pressed={isActive}
                     aria-label={`${option.label} editor width: ${option.description}`}
                   >
                     <span className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 shrink-0 flex-col justify-center gap-1 rounded-lg border border-overlay-subtle bg-bg-sidebar/70 px-1">
+                      <span className="flex h-6 w-6 shrink-0 flex-col justify-center gap-1 rounded-control bg-overlay-subtle px-1">
                         {[0, 1, 2].map((line) => (
                           <span
                             key={line}
@@ -211,7 +224,7 @@ const EditorSettings = () => {
                         ))}
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-xs font-semibold">{option.label}</span>
+                        <span className="block text-[12.5px] font-semibold">{option.label}</span>
                         <span className="block truncate text-[11px] text-text-muted">
                           {option.description}
                         </span>
@@ -229,9 +242,12 @@ const EditorSettings = () => {
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <h3 id="attachment-folder-title" className="text-sm font-semibold text-text-primary mb-1">
-            Attachment Folder
+            Attachment folder
           </h3>
-          <p id="attachment-folder-description" className="text-xs text-text-muted leading-relaxed">
+          <p
+            id="attachment-folder-description"
+            className="text-[12.5px] leading-relaxed text-text-muted"
+          >
             Where images you paste or drop into a note are saved, relative to the workspace root.
             Leave it empty to keep them beside your notes at the top level.
           </p>
@@ -243,7 +259,7 @@ const EditorSettings = () => {
             placeholder="attachments"
             aria-labelledby="attachment-folder-title"
             aria-describedby="attachment-folder-description"
-            className="mt-3 w-full rounded-xl border border-overlay-subtle bg-overlay-subtle/40 px-3 py-2 font-mono text-xs leading-relaxed text-text-primary placeholder:text-text-muted focus:border-accent/50"
+            className="field mt-3 font-mono text-[12.5px]"
           />
         </div>
       </div>
@@ -252,9 +268,12 @@ const EditorSettings = () => {
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <h3 id="ignore-patterns-title" className="text-sm font-semibold text-text-primary mb-1">
-            Excluded Folders
+            Excluded folders
           </h3>
-          <p id="ignore-patterns-description" className="text-xs text-text-muted leading-relaxed">
+          <p
+            id="ignore-patterns-description"
+            className="text-[12.5px] leading-relaxed text-text-muted"
+          >
             Marky already honours <code className="font-mono text-[11px]">.gitignore</code> and
             always skips <code className="font-mono text-[11px]">node_modules</code>. Add anything
             else you don’t want in the sidebar or search — one gitignore-style pattern per line.
@@ -268,7 +287,7 @@ const EditorSettings = () => {
             placeholder={"Archive/\nattachments/\n*.excalidraw.md"}
             aria-labelledby="ignore-patterns-title"
             aria-describedby="ignore-patterns-description"
-            className="mt-3 w-full resize-y rounded-xl border border-overlay-subtle bg-overlay-subtle/40 px-3 py-2 font-mono text-xs leading-relaxed text-text-primary placeholder:text-text-muted focus:border-accent/50"
+            className="field mt-3 font-mono text-[12.5px]"
           />
         </div>
       </div>
@@ -278,13 +297,16 @@ const EditorSettings = () => {
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <h3 id="sidebar-density-title" className="text-sm font-semibold text-text-primary mb-1">
-            Sidebar Density
+            Sidebar density
           </h3>
-          <p id="sidebar-density-description" className="text-xs text-text-muted leading-relaxed">
+          <p
+            id="sidebar-density-description"
+            className="text-[12.5px] leading-relaxed text-text-muted"
+          >
             Tune the note tree spacing for small screens, large workspaces, or a more relaxed
             browsing feel.
           </p>
-          <div className="mt-3 rounded-2xl border border-overlay-subtle bg-overlay-subtle/40 p-1.5 shadow-inner shadow-black/10">
+          <div className="mt-3 rounded-card bg-item-hover p-1">
             <div
               className="relative grid grid-cols-3 gap-1"
               role="group"
@@ -292,8 +314,10 @@ const EditorSettings = () => {
               aria-describedby="sidebar-density-description"
             >
               <span
-                className="absolute inset-y-0 left-0 w-1/3 rounded-xl border border-accent/30 bg-accent/10 shadow-sm shadow-accent/10 transition-transform duration-200 ease-out"
-                style={{ transform: `translateX(${selectedDensityIndex * 100}%)` }}
+                className="absolute inset-y-0 w-1/3 rounded-control bg-item-active shadow-[0_0_0_1px_var(--color-border)] transition-[inset-inline-start] duration-200 ease-soft"
+                // Positioned by its logical start so the thumb follows the
+                // segments in a right-to-left layout too.
+                style={{ insetInlineStart: `${(selectedDensityIndex * 100) / 3}%` }}
                 aria-hidden="true"
               />
               {densityOptions.map((option) => {
@@ -304,14 +328,14 @@ const EditorSettings = () => {
                     key={option.value}
                     type="button"
                     onClick={() => setSidebarDensity(option.value)}
-                    className={`relative z-10 rounded-xl px-2.5 py-2.5 text-left transition-colors ${
-                      isActive ? "text-accent" : "text-text-muted hover:text-text-primary"
+                    className={`relative z-10 rounded-control px-2.5 py-2.5 text-start transition-colors ${
+                      isActive ? "text-text-primary" : "text-text-muted hover:text-text-primary"
                     }`}
                     aria-pressed={isActive}
                     aria-label={`${option.label} sidebar density: ${option.description}`}
                   >
                     <span className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 shrink-0 flex-col justify-center gap-1 rounded-lg border border-overlay-subtle bg-bg-sidebar/70 px-1.5">
+                      <span className="flex h-6 w-6 shrink-0 flex-col justify-center gap-1 rounded-control bg-overlay-subtle px-1.5">
                         {option.bars.map((barClass, index) => (
                           <span
                             key={index}
@@ -320,7 +344,7 @@ const EditorSettings = () => {
                         ))}
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-xs font-semibold">{option.label}</span>
+                        <span className="block text-[12.5px] font-semibold">{option.label}</span>
                         <span className="block truncate text-[11px] text-text-muted">
                           {option.description}
                         </span>
@@ -338,29 +362,24 @@ const EditorSettings = () => {
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h3 id="sidebar-metadata-title" className="text-sm font-semibold text-text-primary mb-1">
-            Sidebar Metadata
+            Sidebar metadata
           </h3>
-          <p id="sidebar-metadata-description" className="text-xs text-text-muted leading-relaxed">
+          <p
+            id="sidebar-metadata-description"
+            className="text-[12.5px] leading-relaxed text-text-muted"
+          >
             Show note tags, backlink counts, pinned markers, and saved indicators in the sidebar
             tree.
           </p>
         </div>
         <button
           onClick={() => setShowSidebarMetadata(!showSidebarMetadata)}
-          className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
-            showSidebarMetadata
-              ? "bg-accent shadow-lg shadow-accent/30"
-              : "bg-overlay-light hover:bg-overlay-medium"
-          }`}
           aria-checked={showSidebarMetadata}
           aria-labelledby="sidebar-metadata-title"
           aria-describedby="sidebar-metadata-description"
           role="switch"
-        >
-          <span
-            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${showSidebarMetadata ? "translate-x-7" : "translate-x-0"}`}
-          />
-        </button>
+          className="switch"
+        ></button>
       </div>
 
       {/* Typewriter Mode Toggle */}
@@ -370,34 +389,27 @@ const EditorSettings = () => {
             id="typewriter-mode-title"
             className="text-sm font-semibold text-text-primary mb-1 flex items-center gap-2"
           >
-            Typewriter Mode
-            <span className="px-2 py-0.5 text-[10px] font-medium bg-accent/10 text-accent rounded border border-accent/20">
-              Focus Mode
+            Typewriter mode
+            <span className="rounded-full bg-accent-dim px-2 py-0.5 text-[11px] font-medium text-accent">
+              Focus mode
             </span>
           </h3>
-          <p id="typewriter-mode-description" className="text-xs text-text-muted leading-relaxed">
+          <p
+            id="typewriter-mode-description"
+            className="text-[12.5px] leading-relaxed text-text-muted"
+          >
             Keep the current line vertically centered in the editor while you type. Works best in
-            Focus Mode for a distraction-free writing experience.
+            focus mode for a distraction-free writing experience.
           </p>
         </div>
         <button
           onClick={() => setTypewriterMode(!typewriterModeEnabled)}
-          className={`relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0 ${
-            typewriterModeEnabled
-              ? "bg-accent shadow-lg shadow-accent/30"
-              : "bg-overlay-light hover:bg-overlay-medium"
-          }`}
           aria-checked={typewriterModeEnabled}
           aria-labelledby="typewriter-mode-title"
           aria-describedby="typewriter-mode-description"
           role="switch"
-        >
-          <span
-            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
-              typewriterModeEnabled ? "translate-x-7" : "translate-x-0"
-            }`}
-          />
-        </button>
+          className="switch"
+        ></button>
       </div>
 
       <div className="flex items-start justify-between">
@@ -406,18 +418,18 @@ const EditorSettings = () => {
             id="vim-mode-title"
             className="text-sm font-semibold text-text-primary mb-1 flex items-center gap-2"
           >
-            Vim Mode
-            <span className="px-2 py-0.5 text-[10px] font-medium bg-accent/10 text-accent rounded border border-accent/20">
+            Vim mode
+            <span className="rounded-full bg-accent-dim px-2 py-0.5 text-[11px] font-medium text-accent">
               Advanced
             </span>
           </h3>
-          <p id="vim-mode-description" className="text-xs text-text-muted leading-relaxed">
+          <p id="vim-mode-description" className="text-[12.5px] leading-relaxed text-text-muted">
             Enable Vim keybindings in the markdown editor. Provides powerful modal editing with
             Normal, Insert, and Visual modes.
           </p>
           {vimMode && (
-            <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-              <p className="text-xs text-amber-300 flex items-start gap-2">
+            <div className="mt-3 p-3 bg-amber-500/10 rounded-control">
+              <p className="text-xs text-text-secondary flex items-start gap-2">
                 <svg
                   className="w-4 h-4 shrink-0 mt-0.5"
                   fill="none"
@@ -441,26 +453,12 @@ const EditorSettings = () => {
         </div>
         <button
           onClick={toggleVimMode}
-          className={`
-            relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0
-            ${
-              vimMode
-                ? "bg-accent shadow-lg shadow-accent/30"
-                : "bg-overlay-light hover:bg-overlay-medium"
-            }
-          `}
           aria-checked={vimMode}
           aria-labelledby="vim-mode-title"
           aria-describedby="vim-mode-description"
           role="switch"
-        >
-          <span
-            className={`
-              absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200
-              ${vimMode ? "translate-x-7" : "translate-x-0"}
-            `}
-          />
-        </button>
+          className="switch"
+        ></button>
       </div>
 
       {vimMode && (
@@ -469,7 +467,10 @@ const EditorSettings = () => {
             <h3 id="vim-visual-line-title" className="text-sm font-semibold text-text-primary mb-1">
               Move by visual line
             </h3>
-            <p id="vim-visual-line-description" className="text-xs text-text-muted leading-relaxed">
+            <p
+              id="vim-visual-line-description"
+              className="text-[12.5px] leading-relaxed text-text-muted"
+            >
               Long paragraphs wrap across several rows on screen but are a single line in the file.
               With this on, <code className="font-mono">j</code>,{" "}
               <code className="font-mono">k</code>, <code className="font-mono">0</code> and{" "}
@@ -481,32 +482,18 @@ const EditorSettings = () => {
           </div>
           <button
             onClick={toggleVimVisualLineMotion}
-            className={`
-              relative ml-4 w-14 h-7 rounded-full transition-all duration-200 shrink-0
-              ${
-                vimVisualLineMotion
-                  ? "bg-accent shadow-lg shadow-accent/30"
-                  : "bg-overlay-light hover:bg-overlay-medium"
-              }
-            `}
             aria-checked={vimVisualLineMotion}
             aria-labelledby="vim-visual-line-title"
             aria-describedby="vim-visual-line-description"
             role="switch"
-          >
-            <span
-              className={`
-                absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200
-                ${vimVisualLineMotion ? "translate-x-7" : "translate-x-0"}
-              `}
-            />
-          </button>
+            className="switch"
+          ></button>
         </div>
       )}
 
       {/* Vim Mode Quick Reference */}
       {vimMode && (
-        <div className="p-4 bg-overlay-subtle rounded-xl border border-overlay-light">
+        <div className="rounded-card bg-item-hover p-4">
           <h4 className="text-sm font-medium text-text-primary mb-3 flex items-center gap-2">
             <svg
               className="w-4 h-4 text-accent"
@@ -521,32 +508,24 @@ const EditorSettings = () => {
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            Quick Reference
+            Quick reference
           </h4>
-          <div className="space-y-2 text-xs text-text-secondary">
+          <div className="space-y-2 text-[12.5px] text-text-secondary">
             <div className="flex justify-between items-center py-1">
               <span>Enter Insert mode:</span>
-              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">
-                i
-              </kbd>
+              <kbd className="kbd-hint">i</kbd>
             </div>
             <div className="flex justify-between items-center py-1">
               <span>Return to Normal mode:</span>
-              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">
-                Esc
-              </kbd>
+              <kbd className="kbd-hint">Esc</kbd>
             </div>
             <div className="flex justify-between items-center py-1">
               <span>Enter Visual mode:</span>
-              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">
-                v
-              </kbd>
+              <kbd className="kbd-hint">v</kbd>
             </div>
             <div className="flex justify-between items-center py-1">
               <span>Save and continue:</span>
-              <kbd className="px-2 py-1 bg-overlay-light border border-overlay-medium rounded text-[10px] font-mono">
-                :w
-              </kbd>
+              <kbd className="kbd-hint">:w</kbd>
             </div>
             <div className="mt-3 pt-3 border-t border-overlay-light">
               <a

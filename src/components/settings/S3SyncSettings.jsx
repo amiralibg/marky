@@ -2,10 +2,10 @@ import { useState } from "react";
 import useNotesStore from "../../store/notesStore";
 import useSettingsStore from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
+import { BusyButton, BusyDots } from "../ui/Loading";
 import { testS3Connection, syncWorkspaceToS3 } from "../../utils/s3Sync";
 
-const inputClass =
-  "w-full px-3 py-1.5 rounded-lg bg-overlay-subtle border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent";
+const inputClass = "field";
 
 const LAST_SYNC_STORAGE_KEY = "marky-s3-last-sync";
 
@@ -19,16 +19,16 @@ const loadLastSync = () => {
 
 const Field = ({ label, hint, children }) => (
   <label className="block">
-    <span className="block text-xs font-medium text-text-secondary mb-1">{label}</span>
+    <span className="field-label">{label}</span>
     {children}
-    {hint && <span className="block text-[11px] text-text-muted mt-1">{hint}</span>}
+    {hint && <span className="mt-1.5 block text-[12px] text-text-muted">{hint}</span>}
   </label>
 );
 
 const ConnectionDot = ({ state }) => {
   const styles = {
     ok: "bg-green-500",
-    error: "bg-red-400",
+    error: "bg-danger",
     idle: "bg-text-muted/40",
   };
   return <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${styles[state]}`} />;
@@ -147,7 +147,7 @@ const S3SyncSettings = () => {
   return (
     <div className="space-y-5">
       {/* Status card */}
-      <div className="rounded-xl border border-border bg-overlay-subtle/50 p-4 flex items-center justify-between gap-4">
+      <div className="rounded-card bg-item-hover p-4 flex items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <ConnectionDot state={connectionState} />
@@ -170,64 +170,61 @@ const S3SyncSettings = () => {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button
+          <BusyButton
             onClick={handleTest}
-            disabled={!hasCredentials || isTesting}
+            busy={isTesting}
+            disabled={!hasCredentials}
             title={hasCredentials ? undefined : "Fill in endpoint, bucket and keys first"}
-            className={`px-3.5 py-2 rounded-lg font-medium text-xs transition-all flex items-center gap-2 border ${
+            className={`px-3.5 py-2 rounded-control font-medium text-xs transition-all flex items-center gap-2 border ${
               !hasCredentials || isTesting
                 ? "bg-overlay-light text-text-muted cursor-not-allowed border-overlay-subtle"
                 : "bg-bg-editor hover:bg-overlay-light text-text-primary border-border"
             }`}
           >
-            {isTesting ? "Testing…" : "Test"}
-          </button>
-          <button
+            Test
+          </BusyButton>
+          <BusyButton
             onClick={handleSync}
-            disabled={!canSync || isSyncing}
+            busy={isSyncing}
+            disabled={!canSync}
             title={!rootFolderPath ? "Open a workspace first" : undefined}
-            className={`px-4 py-2 rounded-lg font-medium text-xs transition-all flex items-center gap-2 ${
-              !canSync || isSyncing
-                ? "bg-overlay-light text-text-muted cursor-not-allowed"
-                : "bg-accent hover:bg-accent/80 text-white shadow-sm shadow-accent/20"
-            }`}
+            className="btn btn-primary"
+            icon={
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+            }
           >
-            <svg
-              className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-            {isSyncing ? "Syncing…" : "Sync now"}
-          </button>
+            Sync now
+          </BusyButton>
         </div>
       </div>
 
       {isSyncing && progress && (
-        <div className="flex items-center gap-2 px-1">
-          <span className="h-1 w-24 rounded-full bg-overlay-light overflow-hidden shrink-0">
-            <span className="block h-full w-1/3 rounded-full bg-accent animate-pulse" />
-          </span>
-          <span className="text-[11px] text-text-muted truncate font-mono">{progress}</span>
+        <div className="flex items-center gap-2 px-1 text-text-muted" role="status">
+          <BusyDots />
+          <span className="text-[11px] truncate font-mono">{progress}</span>
         </div>
       )}
 
       {connection && !connection.ok && (
-        <p className="text-xs text-red-400 px-1">Test failed: {connection.error}</p>
+        <p className="text-xs text-danger px-1">Test failed: {connection.error}</p>
       )}
 
       {/* Credentials */}
       <section className="space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-          Connection details
-        </h3>
+        <h3 className="text-xs font-semibold text-text-muted">Connection details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
             <Field
@@ -313,9 +310,7 @@ const S3SyncSettings = () => {
 
       {/* How it works */}
       <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-          How sync works
-        </h3>
+        <h3 className="text-xs font-semibold text-text-muted">How sync works</h3>
         <ul className="space-y-1.5 text-[11px] leading-relaxed text-text-muted list-disc list-inside">
           <li>Manual only — nothing leaves your disk until you press Sync now.</li>
           <li>Last-write-wins per file, based on modification time.</li>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useNotesStore from "../../store/notesStore";
 import useSettingsStore from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
+import { BusyButton, Loadable, Skeleton } from "../ui/Loading";
 import {
   getGitStatus,
   getGitAvailability,
@@ -12,30 +13,27 @@ import {
   describeSyncReport,
 } from "../../utils/gitSync";
 
-const inputClass =
-  "w-full px-3 py-1.5 rounded-lg bg-overlay-subtle border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent";
+const inputClass = "field";
 
 const Field = ({ label, hint, children }) => (
   <label className="block">
-    <span className="block text-xs font-medium text-text-secondary mb-1">{label}</span>
+    <span className="field-label">{label}</span>
     {children}
-    {hint && <span className="block text-[11px] text-text-muted mt-1">{hint}</span>}
+    {hint && <span className="mt-1.5 block text-[12px] text-text-muted">{hint}</span>}
   </label>
 );
 
 const StateDot = ({ state }) => {
   const styles = {
     ok: "bg-green-500",
-    error: "bg-red-400",
+    error: "bg-danger",
     warn: "bg-amber-400",
     idle: "bg-text-muted/40",
   };
   return <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${styles[state]}`} />;
 };
 
-const SectionTitle = ({ children }) => (
-  <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">{children}</h3>
-);
+const SectionTitle = ({ children }) => <h3 className="section-heading text-[14px]">{children}</h3>;
 
 const AUTH_MODES = [
   { id: "token", label: "Access token", hint: "HTTPS remote with a personal access token" },
@@ -101,7 +99,7 @@ const CustomSelect = ({ value, onChange, options, ariaLabel }) => {
       {open && (
         <ul
           role="listbox"
-          className="absolute z-20 mt-1 w-full rounded-lg border border-border bg-bg-editor shadow-lg shadow-black/20 py-1 overflow-hidden"
+          className="glass-panel absolute z-20 mt-1 w-full overflow-hidden rounded-card p-1"
         >
           {options.map((option) => {
             const isSelected = option.id === value;
@@ -113,11 +111,7 @@ const CustomSelect = ({ value, onChange, options, ariaLabel }) => {
                     onChange(option.id);
                     setOpen(false);
                   }}
-                  className={`w-full px-3 py-1.5 text-sm text-left transition-colors ${
-                    isSelected
-                      ? "bg-accent/10 text-accent"
-                      : "text-text-primary hover:bg-overlay-light"
-                  }`}
+                  className={`menu-item ${isSelected ? "font-semibold text-accent" : ""}`}
                 >
                   {option.label}
                 </button>
@@ -149,6 +143,9 @@ const GitSyncSettings = () => {
   const [probe, setProbe] = useState(null); // {ok, refs, error}
   const [showSecret, setShowSecret] = useState(false);
   const [gitVersion, setGitVersion] = useState(undefined); // undefined = still checking
+  // False until the vault's first status read has answered, so the card does
+  // not say "Not set up yet" about a repository it has not looked at.
+  const [statusChecked, setStatusChecked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,12 +162,17 @@ const GitSyncSettings = () => {
   }, []);
 
   const refreshStatus = useCallback(async () => {
-    if (!rootFolderPath) return setStatus(null);
+    if (!rootFolderPath) {
+      setStatusChecked(true);
+      return setStatus(null);
+    }
     try {
       setStatus(await getGitStatus(rootFolderPath));
     } catch {
       // A status read is informational; never surface it as a failure.
       setStatus(null);
+    } finally {
+      setStatusChecked(true);
     }
   }, [rootFolderPath]);
 
@@ -277,13 +279,13 @@ const GitSyncSettings = () => {
   // feature simply does not exist on this machine.
   if (gitVersion === null) {
     return (
-      <div className="rounded-xl border border-border bg-overlay-subtle/50 p-4 space-y-2">
+      <div className="rounded-card bg-item-hover p-4 space-y-2">
         <p className="text-sm font-medium text-text-primary">Git is not installed</p>
-        <p className="text-xs text-text-muted leading-relaxed">
+        <p className="text-[12.5px] leading-relaxed text-text-muted">
           Marky syncs through your system&apos;s git — nothing is bundled, keeping the app small.
           Install git, restart Marky, and this section will come alive.
         </p>
-        <p className="text-xs text-text-muted leading-relaxed">
+        <p className="text-[12.5px] leading-relaxed text-text-muted">
           macOS: <code className="font-mono">xcode-select --install</code> or{" "}
           <code className="font-mono">brew install git</code> · Linux:{" "}
           <code className="font-mono">apt install git</code> · Windows:{" "}
@@ -300,10 +302,29 @@ const GitSyncSettings = () => {
     );
   }
 
+  // Checking for git and reading the vault's status: the status card's shape.
+  if (gitVersion === undefined || !statusChecked) {
+    return (
+      <Loadable
+        loading
+        label="Checking git"
+        placeholder={
+          <div className="rounded-card bg-item-hover p-4 flex items-center justify-between gap-4">
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-3.5 w-1/2" />
+              <Skeleton className="h-2.5 w-2/3" />
+            </div>
+            <Skeleton className="h-9 w-28 rounded-full" />
+          </div>
+        }
+      />
+    );
+  }
+
   return (
     <div className="space-y-5">
       {/* Status card */}
-      <div className="rounded-xl border border-border bg-overlay-subtle/50 p-4 flex items-center justify-between gap-4">
+      <div className="rounded-card bg-item-hover p-4 flex items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <StateDot state={dotState} />
@@ -324,43 +345,37 @@ const GitSyncSettings = () => {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isRepo ? (
-            <button
+            <BusyButton
               onClick={handleSync}
+              busy={isBusy === "sync"}
               disabled={!rootFolderPath || Boolean(isBusy) || status?.conflicted}
-              className={`px-4 py-2 rounded-lg font-medium text-xs transition-all ${
-                !rootFolderPath || isBusy || status?.conflicted
-                  ? "bg-overlay-light text-text-muted cursor-not-allowed"
-                  : "bg-accent hover:bg-accent/80 text-white shadow-sm shadow-accent/20"
-              }`}
+              className="btn btn-primary"
             >
-              {isBusy === "sync" ? "Syncing…" : "Sync now"}
-            </button>
+              Sync now
+            </BusyButton>
           ) : (
-            <button
+            <BusyButton
               onClick={handleSetUp}
+              busy={isBusy === "init"}
               disabled={!rootFolderPath || !settings.gitRemoteUrl || Boolean(isBusy)}
               title={settings.gitRemoteUrl ? undefined : "Add a remote URL first"}
-              className={`px-4 py-2 rounded-lg font-medium text-xs transition-all ${
-                !rootFolderPath || !settings.gitRemoteUrl || isBusy
-                  ? "bg-overlay-light text-text-muted cursor-not-allowed"
-                  : "bg-accent hover:bg-accent/80 text-white shadow-sm shadow-accent/20"
-              }`}
+              className="btn btn-primary"
             >
-              {isBusy === "init" ? "Setting up…" : "Set up git sync"}
-            </button>
+              Set up git sync
+            </BusyButton>
           )}
         </div>
       </div>
 
       {nestedWarning && (
-        <p className="text-xs text-amber-400 px-1">
+        <p className="text-xs text-amber-600 px-1">
           Syncing here would commit the parent repository, not just your notes. Move the vault
           outside it, or sync that repository with git directly.
         </p>
       )}
 
       {status?.conflicted && (
-        <p className="text-xs text-red-400 px-1">
+        <p className="text-xs text-danger px-1">
           A merge started outside Marky is still unresolved. Finish or abort it in git, then sync
           again.
         </p>
@@ -465,21 +480,22 @@ const GitSyncSettings = () => {
           )}
 
           <div className="sm:col-span-2 flex items-center gap-3">
-            <button
+            <BusyButton
               onClick={handleTest}
+              busy={isBusy === "test"}
               disabled={!settings.gitRemoteUrl || Boolean(isBusy)}
-              className={`px-3.5 py-2 rounded-lg font-medium text-xs transition-all border ${
+              className={`px-3.5 py-2 rounded-control font-medium text-xs transition-all border ${
                 !settings.gitRemoteUrl || isBusy
                   ? "bg-overlay-light text-text-muted cursor-not-allowed border-overlay-subtle"
                   : "bg-bg-editor hover:bg-overlay-light text-text-primary border-border"
               }`}
             >
-              {isBusy === "test" ? "Testing…" : "Test connection"}
-            </button>
+              Test connection
+            </BusyButton>
             {probe?.ok && (
               <span className="text-xs text-green-500">Reached the remote ({probe.refs} refs)</span>
             )}
-            {probe && !probe.ok && <span className="text-xs text-red-400">{probe.error}</span>}
+            {probe && !probe.ok && <span className="text-xs text-danger">{probe.error}</span>}
           </div>
         </div>
       </section>
@@ -534,13 +550,14 @@ const GitSyncSettings = () => {
               Throw away every local change and match the remote exactly. Useful when a vault has
               drifted too far to merge — and destructive, so it asks first.
             </p>
-            <button
+            <BusyButton
               onClick={handleReset}
+              busy={isBusy === "reset"}
               disabled={Boolean(isBusy)}
-              className="shrink-0 px-3.5 py-2 rounded-lg font-medium text-xs border border-red-400/40 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-40"
+              className="btn btn-sm btn-danger"
             >
-              {isBusy === "reset" ? "Resetting…" : "Reset to remote"}
-            </button>
+              Reset to remote
+            </BusyButton>
           </div>
         </section>
       )}

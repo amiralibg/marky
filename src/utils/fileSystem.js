@@ -1,8 +1,10 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { exists, mkdir, readTextFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, readFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { joinPath, sanitizeAttachmentName, withNameSuffix } from "./attachments";
 import { markSelfWrite } from "./selfWrite";
+
+const utf8WithBom = new TextDecoder("utf-8", { ignoreBOM: true });
 
 const formatPathLabel = (value) => {
   if (!value || typeof value !== "string") return "item";
@@ -80,8 +82,8 @@ export async function openMarkdownFile() {
       multiple: false,
       filters: [
         {
-          name: "Markdown",
-          extensions: ["md", "markdown", "txt"],
+          name: "Documents",
+          extensions: ["md", "markdown", "txt", "html", "htm"],
         },
       ],
     });
@@ -90,7 +92,7 @@ export async function openMarkdownFile() {
 
     // selected is a string path in Tauri v2
     filePath = typeof selected === "string" ? selected : selected.path;
-    const content = await readTextFile(filePath);
+    const content = utf8WithBom.decode(await readFile(filePath));
     const fileName = filePath.split("/").pop();
 
     return {
@@ -246,8 +248,11 @@ export async function scanWorkspaceAttachments(folderPath, ignorePatterns = []) 
  */
 export async function readMarkdownFile(filePath) {
   try {
-    const content = await readTextFile(filePath);
-    return content;
+    // Decoded here rather than with `readTextFile`, whose TextDecoder drops a
+    // leading BOM: the bulk read (Rust `read_to_string`) keeps it, and a file
+    // read one way and written back the other would lose it on save.
+    const bytes = await readFile(filePath);
+    return utf8WithBom.decode(bytes);
   } catch (error) {
     console.error("Error reading file:", error);
     wrapFsError(error, "read this note", filePath);

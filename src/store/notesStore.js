@@ -18,6 +18,13 @@ import { buildDailyNoteContent, formatDailyNoteTitle } from "../utils/dailyNotes
 import { getNoteProperties } from "../utils/frontmatter";
 import useSettingsStore, { parseIgnorePatterns, normalizeSaveMode } from "./settingsStore";
 import { folderNameOf, notesStorageKey, windowVaultPath } from "../utils/windowVault";
+import {
+  documentKindFromPath,
+  documentKindOf,
+  isHtmlDocument,
+  isHtmlPath,
+  stripDocumentExtension,
+} from "../utils/documentKind";
 // History and drafts live on disk (see utils/sideStore.js). They used to sit in
 // `localStorage`, where they shared a ~5 MB quota and failed silently.
 import {
@@ -68,7 +75,10 @@ const normalizePath = (value) => (value ? value.replace(/\\/g, "/") : "");
 const buildId = (type, path) => `${type}::${normalizePath(path)}`;
 const buildViewId = () =>
   `view::${Date.now().toString(36)}::${Math.random().toString(36).slice(2, 8)}`;
-const stripExtension = (name) => name.replace(/\.(md|markdown|txt)$/i, "") || name;
+// Display names drop the extension of every document kind, so `Q3 report.html`
+// reads as "Q3 report". Ids stay path based, so a note and an HTML document
+// with the same base name remain two items.
+const stripExtension = (name) => stripDocumentExtension(name);
 const sanitizeNoteTitle = (value) =>
   value
     ? value
@@ -89,6 +99,27 @@ const folderNameFromPath = (path) => {
   if (!normalized) return path;
   const parts = normalized.split("/");
   return parts[parts.length - 1] || path;
+};
+
+const escapeHtmlText = (value) =>
+  String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** The smallest complete page a new HTML document starts as. */
+export const buildHtmlDocumentTemplate = (title) => {
+  const text = escapeHtmlText(title || "Untitled");
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${text}</title>
+</head>
+<body>
+  <h1>${text}</h1>
+  <p>Start writing…</p>
+</body>
+</html>
+`;
 };
 
 const stripCodeBlocks = (content) => {
@@ -177,27 +208,47 @@ const extractWikiLinks = (content) => {
     if (!inner) continue;
 
     const [targetRaw, aliasRaw] = inner.split("|");
-    const target = stripExtension((targetRaw || "").trim());
+    const rawTarget = (targetRaw || "").trim();
+    const target = stripExtension(rawTarget);
     if (!target) continue;
 
     const key = buildNoteLinkKey(target);
-    if (!key || seen.has(key)) continue;
+    // `[[Q3 report.html]]` asks for the HTML document even when a note shares
+    // its name; a bare `[[Q3 report]]` prefers the note (see resolveLink).
+    const kind = isHtmlPath(rawTarget) ? "html" : null;
+    const seenKey = `${key}\u0000${kind || ""}`;
+    if (!key || seen.has(seenKey)) continue;
 
-    seen.add(key);
+    seen.add(seenKey);
     links.push({
       key,
       target,
       alias: aliasRaw ? aliasRaw.trim() : null,
+      ...(kind ? { kind } : {}),
     });
   }
 
   return links;
 };
 
+// HTML documents carry no wiki links, hashtags or front matter of their own:
+// `#fff` in a stylesheet is not a tag, and a `---` is not a properties block.
+const EMPTY_PROPERTIES = getNoteProperties("");
+
+const htmlMetadata = (item) => ({
+  ...item,
+  kind: "html",
+  linkKey: buildNoteLinkKey(item.name),
+  links: [],
+  tags: [],
+  properties: EMPTY_PROPERTIES,
+});
+
 const ensureNoteMetadata = (item) => {
   if (!item || item.type !== "note") {
     return item;
   }
+  if (isHtmlDocument(item)) return htmlMetadata(item);
 
   const linkKey = item.linkKey || buildNoteLinkKey(item.name);
   const links = item.links || extractWikiLinks(item.content);
@@ -217,6 +268,7 @@ const recalculateNoteMetadata = (item) => {
   if (!item || item.type !== "note") {
     return item;
   }
+  if (isHtmlDocument(item)) return htmlMetadata(item);
 
   return {
     ...item,
@@ -241,6 +293,36 @@ const collectAncestorIds = (itemId, items) => {
     current = parent;
   }
   return result;
+};
+
+/**
+ * key → { markdown, html }: the note and the HTML document a wiki link key
+ * can name. First item of each kind wins, matching the old first-match rule.
+ */
+const buildLinkIndex = (items) => {
+  const index = new Map();
+  for (const item of items) {
+    if (item.type !== "note") continue;
+    const key = item.linkKey || buildNoteLinkKey(item.name);
+    if (!key) continue;
+    const entry = index.get(key) || { markdown: null, html: null };
+    const kind = documentKindOf(item) === "html" ? "html" : "markdown";
+    if (!entry[kind]) entry[kind] = item;
+    index.set(key, entry);
+  }
+  return index;
+};
+
+/**
+ * What a link resolves to. `[[X.html]]` only ever names an HTML document; a
+ * bare `[[X]]` names the note called X, or the HTML document when there is no
+ * such note.
+ */
+const resolveLink = (index, link) => {
+  const entry = index.get(link?.key);
+  if (!entry) return null;
+  if (link.kind === "html") return entry.html;
+  return entry.markdown || entry.html;
 };
 
 const createNameReservationSet = (names) => {
@@ -325,20 +407,25 @@ const inFlightSaves = new Map();
  * would write those stale bytes. The mounted editor registers a flusher here,
  * and every save path drains it first.
  */
-let pendingEditFlusher = null;
+// A set rather than one slot: the markdown editor and an HTML document's
+// editor can both be mounted (the latter inside the former), and each holds
+// its own unpushed edits.
+const pendingEditFlushers = new Set();
 
 export const registerPendingEditFlusher = (flush) => {
-  pendingEditFlusher = flush;
+  pendingEditFlushers.add(flush);
   return () => {
-    if (pendingEditFlusher === flush) pendingEditFlusher = null;
+    pendingEditFlushers.delete(flush);
   };
 };
 
 const drainPendingEditorEdits = () => {
-  try {
-    pendingEditFlusher?.();
-  } catch (error) {
-    console.error("Failed to flush pending editor edits:", error);
+  for (const flush of pendingEditFlushers) {
+    try {
+      flush();
+    } catch (error) {
+      console.error("Failed to flush pending editor edits:", error);
+    }
   }
 };
 
@@ -561,13 +648,19 @@ const buildItemsFromFolderData = async (
         name: stripExtension(entry.name),
         parentId,
         type: "note",
+        kind: documentKindFromPath(entry.path),
         filePath: entry.path,
         normalizedPath: normalizedEntry,
         content: noteContent,
         createdAt: isUnchanged && cached.createdAt ? cached.createdAt : now,
         updatedAt: isUnchanged && cached.updatedAt ? cached.updatedAt : now,
         linkKey: isUnchanged && cached.linkKey ? cached.linkKey : buildNoteLinkKey(entry.name),
-        links: isUnchanged && cached.links ? cached.links : extractWikiLinks(noteContent),
+        links:
+          isUnchanged && cached.links
+            ? cached.links
+            : isHtmlPath(entry.path)
+              ? []
+              : extractWikiLinks(noteContent),
         tags: isUnchanged && cached.tags ? cached.tags : undefined,
         properties: isUnchanged && cached.properties ? cached.properties : undefined,
         // Carried so the next refresh can tell whether this file changed.
@@ -924,8 +1017,11 @@ const useNotesStore = create(
           throw new Error("Parent folder not found");
         }
 
+        // Only notes compete for a note's name: an HTML document called the
+        // same is a different file (`.html`), and stays its own item.
         const noteSiblings = state.items.filter(
-          (entry) => entry.parentId === resolvedParentId && entry.type === "note"
+          (entry) =>
+            entry.parentId === resolvedParentId && entry.type === "note" && !isHtmlDocument(entry)
         );
         const reservedNoteNames = createNameReservationSet(noteSiblings.map((entry) => entry.name));
         const desiredBase = sanitizeNoteTitle(noteName) || "New Note";
@@ -995,6 +1091,63 @@ const useNotesStore = create(
         return get().createNote(parentId, buildDailyNoteContent(date), title);
       },
 
+      /**
+       * Create a minimal, valid HTML document beside the notes and open it.
+       * The same flow as `createNote` — a unique name, written through the
+       * same Rust command, revealed for renaming — with an `.html` file.
+       */
+      createHtmlDocument: async (parentId = null, name = null) => {
+        const state = get();
+        const { rootFolderPath, rootFolderId } = state;
+
+        if (!rootFolderPath || !rootFolderId) {
+          throw new Error("Select a workspace folder before creating new documents.");
+        }
+
+        const resolvedParentId = parentId || rootFolderId;
+        const parentPath = resolveFolderPath(resolvedParentId, state.items, rootFolderPath);
+        if (!parentPath) {
+          throw new Error("Parent folder not found");
+        }
+
+        const siblings = state.items.filter(
+          (entry) =>
+            entry.parentId === resolvedParentId && entry.type === "note" && isHtmlDocument(entry)
+        );
+        const reserved = createNameReservationSet(siblings.map((entry) => entry.name));
+        const desiredBase = sanitizeNoteTitle(name) || "New HTML document";
+        let baseName = reserveUniqueName(desiredBase, reserved);
+        let newPath = null;
+        let lastError = null;
+
+        for (let attempt = 0; attempt < 100 && !newPath; attempt += 1) {
+          try {
+            newPath = await createMarkdownFileOnDisk(
+              parentPath,
+              `${baseName}.html`,
+              buildHtmlDocumentTemplate(baseName)
+            );
+          } catch (error) {
+            lastError = error;
+            if (error?.message && /exists/i.test(error.message)) {
+              baseName = reserveUniqueName(desiredBase, reserved);
+              continue;
+            }
+            throw error;
+          }
+        }
+
+        if (!newPath) {
+          throw lastError || new Error("Unable to create document");
+        }
+
+        await get().refreshRootFromDisk({ ensureExpandedPath: parentPath, focusPath: newPath });
+        const id = buildId("note", newPath);
+        get().revealItem(id, { rename: true });
+        set({ currentNoteId: id });
+        return id;
+      },
+
       loadNoteFromFile: (fileData, parentId = null) => {
         const { content, path, name } = fileData;
         const normalized = normalizePath(path);
@@ -1021,6 +1174,7 @@ const useNotesStore = create(
           name: stripExtension(name) || "Untitled",
           parentId,
           type: "note",
+          kind: documentKindFromPath(path || name),
           // A loose file lives outside the vault tree: no parent, opened in place.
           isLoose: !parentId,
           content,
@@ -1750,13 +1904,8 @@ const useNotesStore = create(
       findNoteByLinkTarget: (target) => {
         const key = buildNoteLinkKey(target);
         if (!key) return null;
-
-        const { items } = get();
-        return (
-          items.find(
-            (item) => item.type === "note" && (item.linkKey || buildNoteLinkKey(item.name)) === key
-          ) || null
-        );
+        const link = { key, kind: isHtmlPath(String(target || "").trim()) ? "html" : null };
+        return resolveLink(buildLinkIndex(get().items), link);
       },
 
       getOutgoingLinks: (noteId) => {
@@ -1764,39 +1913,26 @@ const useNotesStore = create(
         const note = items.find((item) => item.id === noteId && item.type === "note");
         if (!note) return [];
 
-        const notesByKey = new Map();
-        items.forEach((item) => {
-          if (item.type === "note" && item.linkKey) {
-            notesByKey.set(item.linkKey, item);
-          } else if (item.type === "note") {
-            const fallbackKey = buildNoteLinkKey(item.name);
-            if (fallbackKey) {
-              notesByKey.set(fallbackKey, ensureNoteMetadata(item));
-            }
-          }
-        });
-
+        const index = buildLinkIndex(items);
         const links = note.links || extractWikiLinks(note.content);
 
         return links.map((link) => ({
           ...link,
-          note: notesByKey.get(link.key) || null,
+          note: resolveLink(index, link),
         }));
       },
 
       getBrokenWikiLinks: () => {
         const { items } = get();
         const notes = items.filter((item) => item.type === "note");
-        const existingKeys = new Set(
-          notes.map((note) => note.linkKey || buildNoteLinkKey(note.name)).filter(Boolean)
-        );
+        const index = buildLinkIndex(items);
         const brokenByKey = new Map();
 
         notes.forEach((note) => {
           const links = note.links || extractWikiLinks(note.content);
 
           links.forEach((link) => {
-            if (!link.key || existingKeys.has(link.key)) return;
+            if (!link.key || resolveLink(index, link)) return;
 
             const entry = brokenByKey.get(link.key) || {
               key: link.key,
@@ -1827,12 +1963,17 @@ const useNotesStore = create(
 
         const targetKey = target.linkKey || buildNoteLinkKey(target.name);
         if (!targetKey) return [];
+        // A backlink is a link that *resolves* here: with a note and an HTML
+        // document of the same name, `[[X]]` belongs to the note.
+        const index = buildLinkIndex(items);
 
         return items
           .filter((item) => {
             if (item.type !== "note" || item.id === noteId) return false;
             const links = item.links || extractWikiLinks(item.content);
-            return links.some((link) => link.key === targetKey);
+            return links.some(
+              (link) => link.key === targetKey && resolveLink(index, link)?.id === target.id
+            );
           })
           .sort((a, b) => a.name.localeCompare(b.name));
       },
@@ -1997,8 +2138,10 @@ const useNotesStore = create(
         }
 
         const state = get();
+        // Never HTML documents: a stylesheet's `#fff` would read as a tag.
         const notes = state.items.filter(
-          (item) => item.type === "note" && typeof item.content === "string"
+          (item) =>
+            item.type === "note" && typeof item.content === "string" && !isHtmlDocument(item)
         );
         const desiredTarget = action === "delete" ? null : normalizedTarget;
 
@@ -2294,6 +2437,7 @@ const useNotesStore = create(
         // Return notes that contain ALL selected tags (AND logic)
         return items.filter((item) => {
           if (item.type !== "note" || !item.content) return false;
+          if (isHtmlDocument(item)) return false;
 
           const noteTags = extractTags(item.content);
           return selectedTags.every((tag) => noteTags.includes(tag));

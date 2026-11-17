@@ -3,6 +3,7 @@ import useNotesStore from "../../store/notesStore";
 import useSettingsStore from "../../store/settingsStore";
 import useUIStore from "../../store/uiStore";
 import { sortSidebarItems } from "../../utils/sidebarSort";
+import { isHtmlDocument } from "../../utils/documentKind";
 
 const TreeItem = ({
   item,
@@ -59,6 +60,7 @@ const TreeItem = ({
   const dragStartTimeRef = useRef(null);
 
   const isFolder = item.type === "folder";
+  const isHtml = !isFolder && isHtmlDocument(item);
   const isExpanded = expandedFolders.includes(item.id);
 
   // Use filtered children if search is active
@@ -115,22 +117,20 @@ const TreeItem = ({
   const showDropHighlight = isInternalDropTarget || isExternalDropTarget;
   const isCompactDensity = sidebarDensity === "compact";
   const isSpaciousDensity = sidebarDensity === "spacious";
+  // Rows are 28 / 32 / 40px with a 1px gap; `TREE_ROW_HEIGHTS` in the
+  // sidebar must stay in step for the virtualised tree.
   const rowDensityClass = isCompactDensity
-    ? "px-1.5 py-0.5 my-1 min-h-7 rounded-[5px]"
+    ? "pe-2 my-px min-h-7"
     : isSpaciousDensity
-      ? "px-1.5 py-0.5 my-2 min-h-9 rounded-lg"
-      : "px-1.5 py-0.5 my-1 min-h-8 rounded-md";
+      ? "pe-2.5 my-px min-h-10"
+      : "pe-2.5 my-px min-h-8";
   const nameDensityClass = isCompactDensity
-    ? "text-xs leading-4"
+    ? "text-[13px] leading-4"
     : isSpaciousDensity
-      ? "text-sm leading-5 font-medium"
-      : "text-sm";
-  const chevronClass = isCompactDensity ? "w-3.5 h-3.5 mr-0.5" : "w-4 h-4 mr-1";
-  const iconClass = isCompactDensity
-    ? "w-3.5 h-3.5 mr-1.5"
-    : isSpaciousDensity
-      ? "w-4.5 h-4.5 mr-2.5"
-      : "w-4 h-4 mr-2";
+      ? "text-[14px] leading-5"
+      : "text-[13.5px] leading-5";
+  const chevronClass = "w-3 h-3 me-1.5";
+  const iconClass = isCompactDensity ? "w-3.5 h-3.5 me-2" : "w-4 h-4 me-2.5";
   const showInlineMetadata = showSidebarMetadata && !isCompactDensity;
 
   // Auto-expand folder when it's an external drop target
@@ -514,7 +514,7 @@ const TreeItem = ({
     }
   }
   if (isMultiSelected) metadataParts.push("in selection");
-  const treeItemLabel = `${isFolder ? "Folder" : "Note"} ${item.name}${
+  const treeItemLabel = `${isFolder ? "Folder" : isHtml ? "HTML document" : "Note"} ${item.name}${
     metadataParts.length ? `, ${metadataParts.join(", ")}` : ""
   }`;
 
@@ -534,9 +534,9 @@ const TreeItem = ({
       {showReorderBar && (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute right-2 z-10 h-[2.5px] rounded-full bg-accent"
+          className="pointer-events-none absolute end-2 z-10 h-[2.5px] rounded-full bg-accent"
           style={{
-            left: `${level * 16 + 12}px`,
+            insetInlineStart: `${level * 16 + 12}px`,
             top: gapBefore ? "-1.5px" : "auto",
             bottom: gapAfter ? "-1.5px" : "auto",
             boxShadow: "0 0 0 2px var(--color-bg-sidebar)",
@@ -545,19 +545,22 @@ const TreeItem = ({
       )}
       <div
         className={`
-          flex items-center select-none relative
+          group/row flex items-center select-none relative rounded-control font-medium
           ${isCut ? "opacity-50" : ""}
-          ${rowDensityClass} transition-colors duration-150
-          ${isSelected ? "bg-item-active text-text-primary font-medium" : "text-text-secondary"}
-          ${isMultiSelected ? "bg-accent-dim text-text-primary ring-1 ring-inset ring-accent/30" : ""}
-          ${!isBeingDragged && !isRenaming ? "hover:bg-item-hover hover:text-text-primary cursor-pointer" : ""}
-          ${showDropHighlight ? "bg-accent-dim text-text-primary ring-1 ring-accent/40 ring-inset" : ""}
+          ${rowDensityClass} transition-[background-color,color] duration-140
+          ${
+            showDropHighlight || isMultiSelected
+              ? "bg-accent-dim text-text-primary"
+              : isSelected
+                ? "bg-pill text-text-primary font-semibold"
+                : `text-text-secondary ${!isBeingDragged && !isRenaming ? "hover:bg-item-hover hover:text-text-primary" : ""}`
+          }
+          ${!isBeingDragged && !isRenaming ? "cursor-pointer" : ""}
           ${isBeingDragged ? "cursor-grabbing" : "cursor-grab"}
-          focus:outline-none focus:bg-item-hover focus:text-text-primary focus:ring-1 focus:ring-accent/40 focus:ring-inset
-          focus-visible:outline-none
+          focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50
         `}
         style={{
-          paddingLeft: `${level * 16 + 8}px`,
+          paddingInlineStart: `${level * 16 + 8}px`,
         }}
         data-treeitem-row="true"
         data-tree-index={treeIndex ?? undefined}
@@ -588,12 +591,12 @@ const TreeItem = ({
       >
         {/* Chevron — always rendered to keep icon alignment; invisible for notes */}
         <svg
-          className={`${chevronClass} shrink-0 text-text-muted transition-transform duration-150 ${
-            isFolder ? (isExpanded ? "rotate-90 opacity-70" : "opacity-70") : "opacity-0"
+          className={`${chevronClass} shrink-0 text-text-muted motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-soft rtl:-scale-x-100 ${
+            isFolder ? (isExpanded ? "rotate-90" : "") : "opacity-0"
           }`}
           fill="none"
           stroke="currentColor"
-          strokeWidth={2.2}
+          strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
           viewBox="0 0 24 24"
@@ -605,35 +608,44 @@ const TreeItem = ({
         {/* Icon */}
         {isFolder ? (
           <svg
-            className={`${iconClass} shrink-0 transition-colors ${showDropHighlight ? "text-accent" : "text-text-muted"}`}
+            className={`${iconClass} shrink-0 transition-colors ${showDropHighlight ? "text-accent" : ""}`}
             fill="none"
             stroke="currentColor"
-            strokeWidth={1.75}
+            strokeWidth={1.6}
             strokeLinecap="round"
             strokeLinejoin="round"
             viewBox="0 0 24 24"
             aria-hidden="true"
           >
-            <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+            <path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
           </svg>
         ) : (
           <div className="flex items-center shrink-0">
+            {/* The selected note's icon takes the accent — the row's one mark
+                of colour. */}
             <svg
-              className={`${iconClass} text-text-muted`}
+              className={`${iconClass} ${isSelected ? "text-accent" : ""}`}
               fill="none"
               stroke="currentColor"
-              strokeWidth={1.75}
+              strokeWidth={1.6}
               strokeLinecap="round"
               strokeLinejoin="round"
               viewBox="0 0 24 24"
               aria-hidden="true"
             >
-              <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
-              <path d="M14 3v5h5" />
+              <path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z" />
+              {/* An HTML document's sheet carries angle brackets instead of lines. */}
+              <path
+                d={
+                  isHtml
+                    ? "M14 3.5V8h4.5M10.5 12 8.5 14.2l2 2.3M13.5 12l2 2.2-2 2.3"
+                    : "M14 3.5V8h4.5M9 12.5h6M9 16h4"
+                }
+              />
             </svg>
             {isPinned(item.id) && (
               <svg
-                className={`${isCompactDensity ? "w-2.5 h-2.5 mr-0.5" : "w-3 h-3 mr-1"} text-accent`}
+                className={`${isCompactDensity ? "w-2.5 h-2.5 me-0.5" : "w-3 h-3 me-1"} text-text-muted`}
                 fill="currentColor"
                 viewBox="0 0 24 24"
                 aria-hidden="true"
@@ -652,7 +664,7 @@ const TreeItem = ({
             onChange={(e) => setRenamingValue(e.target.value)}
             onBlur={handleRename}
             onKeyDown={handleRenameKeyDown}
-            className="flex-1 bg-overlay-light text-text-primary px-2 py-0.5 rounded outline-none border border-overlay-medium focus:border-accent text-sm"
+            className="flex-1 min-w-0 h-6 bg-bg-editor text-text-primary px-2 rounded-control outline-none shadow-[0_0_0_1px_var(--color-border-light)] focus:shadow-[0_0_0_2px_var(--color-accent)] text-[13.5px]"
             aria-label={`Rename ${item.type} ${item.name}`}
             autoFocus
             onClick={(e) => e.stopPropagation()}
@@ -669,10 +681,18 @@ const TreeItem = ({
               {item.name}
             </span>
 
+            {/* The kind, in small mono, so an HTML document reads apart from a
+                note of the same name. */}
+            {isHtml && (
+              <span className="ms-2 shrink-0 font-mono text-[10px] font-medium text-text-muted">
+                html
+              </span>
+            )}
+
             {/* Backlinks badge */}
             {showInlineMetadata && item.type === "note" && backlinksCount > 0 && (
               <div
-                className={`${isSpaciousDensity ? "ml-3 rounded-full bg-overlay-subtle px-1.5 py-0.5" : "ml-2"} flex items-center gap-0.5 shrink-0`}
+                className={`${isSpaciousDensity ? "ms-3 rounded-full bg-item-hover px-1.5 py-0.5" : "ms-2"} flex items-center gap-0.5 shrink-0`}
                 title={`${backlinksCount} backlink${backlinksCount !== 1 ? "s" : ""}`}
               >
                 <svg
@@ -689,26 +709,28 @@ const TreeItem = ({
                     d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
                   />
                 </svg>
-                <span className="text-[10px] text-text-muted font-medium">{backlinksCount}</span>
+                <span className="text-[11.5px] text-text-muted font-medium">{backlinksCount}</span>
               </div>
             )}
 
             {/* Tags */}
             {showInlineMetadata && item.type === "note" && noteTags.length > 0 && (
               <div
-                className={`${isSpaciousDensity ? "gap-1.5 ml-3" : "gap-1 ml-2"} flex min-w-0 flex-[0_100_auto] items-center overflow-hidden`}
+                className={`${isSpaciousDensity ? "gap-1.5 ms-3" : "gap-1 ms-2"} flex min-w-0 flex-[0_100_auto] items-center overflow-hidden`}
               >
                 {noteTags.slice(0, 2).map((tag) => (
                   <span
                     key={tag}
-                    className="shrink-0 whitespace-nowrap text-[10.5px] text-text-muted"
+                    className="shrink-0 whitespace-nowrap text-[11px] font-normal text-text-muted"
                     title={`#${tag}`}
                   >
                     #{tag}
                   </span>
                 ))}
                 {noteTags.length > 2 && (
-                  <span className="text-[10px] text-text-muted">+{noteTags.length - 2}</span>
+                  <span className="text-[11px] font-normal text-text-muted">
+                    +{noteTags.length - 2}
+                  </span>
                 )}
               </div>
             )}

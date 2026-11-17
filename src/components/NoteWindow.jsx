@@ -4,6 +4,9 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import CodeMirrorEditor from "./editor/CodeMirrorEditor";
 import EditorScrollFade from "./editor/EditorScrollFade";
+import HtmlDocumentView, { HtmlViewModeControl } from "./editor/HtmlDocumentView";
+import { isHtmlPath } from "../utils/documentKind";
+import { detectPlatform } from "../utils/platform";
 import useSettingsStore, {
   applyTheme,
   applyAccentColor,
@@ -13,6 +16,7 @@ import useSettingsStore, {
   normalizeSaveMode,
 } from "../store/settingsStore";
 import { readMarkdownFile, writeMarkdownFileOnDisk } from "../utils/fileSystem";
+import { applyWindowTranslucency } from "../utils/windowTranslucency";
 import {
   addNoteHistorySnapshot,
   setDraftCacheEntry,
@@ -21,6 +25,7 @@ import {
 import { setAttachmentContext } from "../utils/attachments";
 import { copyDroppedImages, saveImageAttachment } from "../utils/attachmentSaver";
 import { useExternalImageDrop } from "../hooks/useExternalImageDrop";
+import { LoadingState, SkeletonLines } from "./ui/Loading";
 
 const fileNameOf = (path) => (path || "").replace(/\\/g, "/").split("/").pop() || "Note";
 
@@ -63,6 +68,8 @@ const NoteWindow = ({ filePath }) => {
   const fontScale = useSettingsStore((state) => state.fontScale);
   const editorFontScale = useSettingsStore((state) => state.editorFontScale);
   const readingFont = useSettingsStore((state) => state.readingFont);
+  const translucentWindow = useSettingsStore((state) => state.translucentWindow);
+  const translucencyAmount = useSettingsStore((state) => state.translucencyAmount);
   const vimMode = useSettingsStore((state) => state.vimMode);
   const vimVisualLineMotion = useSettingsStore((state) => state.vimVisualLineMotion);
   const showLineNumbers = useSettingsStore((state) => state.showLineNumbers);
@@ -71,6 +78,13 @@ const NoteWindow = ({ filePath }) => {
   const saveMode = useSettingsStore((state) => normalizeSaveMode(state.saveMode));
   const autosaveDelay = useSettingsStore((state) => state.autosaveDelay);
   const isAutoSave = saveMode === "auto";
+  const runScripts = useSettingsStore((state) => state.htmlRunScripts !== false);
+  // An HTML document gets its three views here too. The mode is local: this
+  // window must not write settings (see the note above the component).
+  const isHtml = isHtmlPath(filePath);
+  const [htmlMode, setHtmlMode] = useState("preview");
+  const htmlViewRef = useRef(null);
+  const [htmlNotice, setHtmlNotice] = useState(null);
 
   // This window knows nothing of the workspace — it edits one file — so images
   // resolve against, and are written beside, the note itself.
@@ -162,6 +176,12 @@ const NoteWindow = ({ filePath }) => {
     applyReadingFont(readingFont);
   }, [readingFont]);
 
+  // Same window material as the main window, so a note opened on its own
+  // reads as part of the same app.
+  useEffect(() => {
+    applyWindowTranslucency(translucentWindow, translucencyAmount);
+  }, [translucentWindow, translucencyAmount]);
+
   const isDirty = content !== savedContent;
 
   useEffect(() => {
@@ -205,6 +225,7 @@ const NoteWindow = ({ filePath }) => {
   );
 
   const save = useCallback(async () => {
+    htmlViewRef.current?.flushEdits();
     const next = contentRef.current;
     setStatus("saving");
     try {
@@ -317,28 +338,100 @@ const NoteWindow = ({ filePath }) => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [save]);
 
-  if (status === "loading") {
-    return (
-      <div className="flex h-full items-center justify-center bg-bg-editor text-sm text-text-muted">
-        Opening {fileNameOf(filePath)}…
+  // The same desk-and-sheet as the main window: a strip of desk on top (the
+  // drag region, and room for the traffic lights on macOS, where it is 52px to
+  // centre on them like the main title bar), the sheet
+  // floating below it with the 8px gap on the other three sides.
+  const frame = (children, controls = null) => (
+    <div className="app-shell flex h-full flex-col">
+      <div
+        className={`flex ${detectPlatform() === "macos" ? "h-[52px]" : "h-12"} shrink-0 items-center justify-end pe-3`}
+        data-tauri-drag-region
+      >
+        {controls}
       </div>
+      <div className="sheet mx-2 mb-2 flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+    </div>
+  );
+
+  if (status === "loading") {
+    return frame(
+      <LoadingState label={`Opening ${fileNameOf(filePath)}`} className="h-full px-12 py-14">
+        <div className="mx-auto max-w-[41rem]">
+          <SkeletonLines count={7} />
+        </div>
+      </LoadingState>
     );
   }
 
   if (status === "error") {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 bg-bg-editor px-8 text-center">
+    return frame(
+      <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
         <p className="text-sm font-semibold text-text-primary">{fileNameOf(filePath)}</p>
         <p className="text-xs text-text-muted">{error}</p>
       </div>
     );
   }
 
-  return (
-    <div className="flex h-full flex-col bg-bg-editor">
-      {/* Room for the overlay traffic lights on macOS. */}
-      <div className="h-10 shrink-0" data-tauri-drag-region />
+  if (isHtml) {
+    const saveState =
+      htmlNotice ||
+      (status === "saving"
+        ? "Saving…"
+        : isDirty
+          ? isAutoSave
+            ? "Saving…"
+            : "Unsaved — ⌘S"
+          : "Saved");
+    return frame(
+      <HtmlDocumentView
+        ref={htmlViewRef}
+        source={content}
+        filePath={filePath}
+        vaultRoot={null}
+        name={fileNameOf(filePath)}
+        mode={htmlMode}
+        runScripts={runScripts}
+        onChange={handleChange}
+        onSave={() => void save()}
+        onOpenDocument={(path) => {
+          // This window holds one file; another document opens in the browser.
+          setHtmlNotice(`Open ${fileNameOf(path)} from the main window`);
+          setTimeout(() => setHtmlNotice(null), 4000);
+        }}
+        notify={(message) => {
+          setHtmlNotice(message);
+          setTimeout(() => setHtmlNotice(null), 5000);
+        }}
+        crumbs={
+          <span className="truncate" title={filePath}>
+            {fileNameOf(filePath)}
+          </span>
+        }
+        statusExtra={<span className="shrink-0">{saveState}</span>}
+        themeKey={`${themeId}:${accentColorId}`}
+        keymaps={keymaps}
+        sourceEditorProps={{
+          enableLineNumbers: showLineNumbers,
+          enableVimMode: vimMode,
+          vimVisualLineMotion,
+          editorSearchKeymap: keymaps?.editorSearch,
+        }}
+      />,
+      <div data-no-drag>
+        <HtmlViewModeControl
+          mode={htmlMode}
+          onChange={(next) => {
+            htmlViewRef.current?.flushEdits();
+            setHtmlMode(next);
+          }}
+        />
+      </div>
+    );
+  }
 
+  return frame(
+    <>
       <div className="min-h-0 flex-1">
         <EditorScrollFade className="mx-auto w-full max-w-[46rem]">
           <CodeMirrorEditor
@@ -361,7 +454,7 @@ const NoteWindow = ({ filePath }) => {
         </EditorScrollFade>
       </div>
 
-      <div className="flex shrink-0 items-center justify-between gap-4 px-5 pb-2 pt-1 text-[11px] text-text-muted">
+      <div className="flex h-9 shrink-0 items-center justify-between gap-4 px-5 text-[12px] text-text-muted">
         <span className="truncate" title={filePath}>
           {fileNameOf(filePath)}
         </span>
@@ -376,7 +469,7 @@ const NoteWindow = ({ filePath }) => {
                 : "Saved")}
         </span>
       </div>
-    </div>
+    </>
   );
 };
 

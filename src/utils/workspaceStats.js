@@ -1,3 +1,5 @@
+import { stripDocumentExtension } from "./documentKind";
+
 export const countWords = (text = "") => text.trim().split(/\s+/).filter(Boolean).length;
 
 const stripCodeBlocks = (content = "") =>
@@ -15,7 +17,7 @@ const extractTags = (content = "") => {
   return tags;
 };
 
-const stripExtension = (name = "") => name.replace(/\.(md|markdown|txt)$/i, "") || name;
+const stripExtension = (name = "") => stripDocumentExtension(name);
 
 const buildLinkKey = (value = "") => stripExtension(value).trim().toLowerCase();
 

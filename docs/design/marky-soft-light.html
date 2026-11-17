@@ -1,0 +1,1786 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Marky · Soft Light</title>
+    <style>
+      @font-face {
+        font-family: "Hanken Grotesk";
+        font-weight: 400 700;
+        src: url("../../src/assets/fonts/HankenGrotesk-normal-latin.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Newsreader";
+        font-weight: 400 700;
+        src: url("../../src/assets/fonts/Newsreader-normal-latin.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "JetBrains Mono";
+        font-weight: 400 500;
+        src: url("../../src/assets/fonts/JetBrainsMono-normal-latin.woff2") format("woff2");
+      }
+
+      /* ── Tokens ─────────────────────────────────────────────── */
+      :root {
+        --accent: #6d5ce0;
+
+        --desk: #ecebf1;
+        --sheet: #fdfdfc;
+        --raised: #ffffff;
+        --ink: #1b1a21;
+        --ink-2: #5d5c69;
+        --ink-3: #9795a2;
+        --line: rgba(24, 20, 48, 0.08);
+        --line-strong: rgba(24, 20, 48, 0.14);
+        --hover: rgba(24, 20, 48, 0.05);
+        --press: rgba(24, 20, 48, 0.09);
+        --pill: rgba(255, 255, 255, 0.74);
+        --accent-dim: rgba(109, 92, 224, 0.13);
+        /* The sheet is held by a hairline alone. The only shadow in the app
+           is --pop-shadow, under things that float above the sheet. */
+        --sheet-shadow: 0 0 0 1px var(--line);
+        --folder: color-mix(in oklab, var(--accent) 9%, var(--desk));
+        --frost: color-mix(in oklab, var(--raised) 70%, transparent);
+        --blur: blur(24px) saturate(1.6);
+        --pop-shadow: 0 0 0 1px var(--line), 0 16px 48px -12px rgba(24, 20, 48, 0.28);
+
+        /* radius vocabulary: 8 / 14 / 20 and the pill. Nothing else. */
+        --r-control: 8px;
+        --r-card: 14px;
+        --r-sheet: 14px;
+        --r-lg: 20px;
+        --r-pill: 999px;
+
+        --sans: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
+        --ease: cubic-bezier(0.2, 0, 0, 1);
+      }
+      [data-theme="dark"] {
+        --desk: #131217;
+        --sheet: #1b1a20;
+        --raised: #24232a;
+        --ink: #edecf3;
+        --ink-2: #a5a3b1;
+        --ink-3: #6d6b79;
+        --line: rgba(236, 232, 255, 0.08);
+        --line-strong: rgba(236, 232, 255, 0.15);
+        --hover: rgba(236, 232, 255, 0.055);
+        --press: rgba(236, 232, 255, 0.1);
+        --pill: rgba(236, 232, 255, 0.09);
+        --accent: #8f81f2;
+        --accent-dim: rgba(143, 129, 242, 0.18);
+        --folder: color-mix(in oklab, var(--accent) 14%, var(--raised));
+        --pop-shadow: 0 0 0 1px var(--line-strong), 0 16px 48px -12px rgba(0, 0, 0, 0.6);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        overflow: hidden;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+      }
+      svg.i {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex: none;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      /* ── Shell ──────────────────────────────────────────────── */
+      .app {
+        height: 100%;
+        font-family: var(--sans);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+        /* The desk: one flat neutral. No gradients anywhere in these designs.
+           On macOS the app can instead paint it at ~65% alpha over native
+           window vibrancy (the "Translucent sidebar" setting). */
+        background: var(--desk);
+        position: relative;
+        display: grid;
+        grid-template-columns: 264px 1fr;
+        grid-template-rows: 48px 1fr;
+      }
+      .titlebar {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        min-width: 0;
+      }
+      .tb-left {
+        width: 264px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        padding: 0 12px 0 20px;
+        gap: 8px;
+      }
+      .lights {
+        display: flex;
+        gap: 8px;
+        margin-inline-end: auto;
+      }
+      .lights i {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--press);
+        box-shadow: inset 0 0 0 0.5px var(--line-strong);
+      }
+      .icon-btn {
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border-radius: var(--r-control);
+        color: var(--ink-2);
+        transition:
+          background-color 0.14s,
+          color 0.14s;
+      }
+      .icon-btn:hover {
+        background: var(--hover);
+        color: var(--ink);
+      }
+      .tabs {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        gap: 4px;
+        align-items: center;
+      }
+      .tab {
+        height: 32px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+        border-radius: var(--r-control);
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--ink-2);
+        white-space: nowrap;
+        transition:
+          background-color 0.14s,
+          color 0.14s;
+      }
+      .tab:hover {
+        background: var(--hover);
+        color: var(--ink);
+      }
+      .tab.on {
+        background: var(--pill);
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .tab .x {
+        opacity: 0.5;
+        width: 12px;
+        height: 12px;
+      }
+      .tab .kind {
+        font: 500 9.5px/1 var(--mono);
+        letter-spacing: 0.02em;
+        color: var(--ink-3);
+        padding: 3px 4px;
+        border-radius: 4px;
+        box-shadow: inset 0 0 0 1px var(--line-strong);
+      }
+      .tb-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+      }
+      .seg {
+        display: flex;
+        padding: 2px;
+        gap: 2px;
+        border-radius: var(--r-control);
+        background: var(--hover);
+      }
+      .seg button {
+        height: 28px;
+        padding: 0 12px;
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        border-radius: 6px;
+        font-size: 12.5px;
+        font-weight: 500;
+        color: var(--ink-2);
+      }
+      .seg button.on {
+        background: var(--raised);
+        color: var(--ink);
+        font-weight: 600;
+        box-shadow: 0 0 0 1px var(--line);
+      }
+      .seg svg.i {
+        width: 14px;
+        height: 14px;
+      }
+
+      /* ── Sidebar ────────────────────────────────────────────── */
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        padding: 4px 12px 8px;
+      }
+      .vault {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px;
+        border-radius: var(--r-card);
+        text-align: start;
+      }
+      .vault:hover {
+        background: var(--hover);
+      }
+      .vault .mark {
+        width: 32px;
+        height: 32px;
+        border-radius: var(--r-control);
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-weight: 700;
+        font-size: 15px;
+        background: var(--accent);
+      }
+      .vault b {
+        display: block;
+        font-size: 14px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+      .vault small {
+        display: block;
+        font-size: 12px;
+        color: var(--ink-3);
+      }
+      .search {
+        margin: 8px 0 12px;
+        height: 36px;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+        border-radius: var(--r-pill);
+        background: var(--pill);
+        color: var(--ink-3);
+        font-size: 13.5px;
+      }
+      .search kbd {
+        margin-inline-start: auto;
+        font: 500 11px var(--mono);
+        color: var(--ink-3);
+      }
+      .row {
+        height: 32px;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 10px;
+        border-radius: var(--r-control);
+        font-size: 13.5px;
+        font-weight: 500;
+        color: var(--ink-2);
+        text-align: start;
+        transition:
+          background-color 0.14s,
+          color 0.14s;
+      }
+      .row:hover {
+        background: var(--hover);
+        color: var(--ink);
+      }
+      .row.on {
+        background: var(--pill);
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .row.on svg.i:first-of-type {
+        color: var(--accent);
+      }
+      .row span.t {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .row .meta {
+        font-size: 11.5px;
+        color: var(--ink-3);
+        font-weight: 500;
+      }
+      .row .chev {
+        width: 12px;
+        height: 12px;
+        color: var(--ink-3);
+        margin-inline: -2px;
+      }
+      .d1 {
+        padding-inline-start: 26px;
+      }
+      .d2 {
+        padding-inline-start: 42px;
+      }
+      .group {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 10px 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ink-3);
+      }
+      .tree {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+      .side-foot {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 4px 0;
+      }
+      .saved {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--ink-3);
+        margin-inline-end: auto;
+        padding-inline-start: 6px;
+      }
+      .saved i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #35a36b;
+      }
+
+      /* ── Sheet ──────────────────────────────────────────────── */
+      .sheet {
+        margin: 0 8px 8px 0;
+        border-radius: var(--r-sheet);
+        background: var(--sheet);
+        box-shadow: var(--sheet-shadow);
+        overflow: hidden;
+        min-width: 0;
+        min-height: 0;
+        display: none;
+        flex-direction: column;
+      }
+      [data-view="home"] .sheet.home,
+      [data-view="note"] .sheet.note,
+      [data-view="palette"] .sheet.note,
+      [data-view="html"] .sheet.html,
+      [data-view="edit"] .sheet.html {
+        display: flex;
+      }
+      [data-view="home"] .only-doc,
+      [data-view="home"] .for-note,
+      [data-view="home"] .for-html,
+      [data-view="note"] .for-html,
+      [data-view="palette"] .for-html,
+      [data-view="html"] .for-note,
+      [data-view="edit"] .for-note {
+        display: none;
+      }
+      .scroll {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+      }
+      .status {
+        height: 36px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 0 20px;
+        font-size: 12px;
+        color: var(--ink-3);
+      }
+      .status .crumbs b {
+        font-weight: 500;
+        color: var(--ink-2);
+      }
+      .status .sp {
+        flex: 1;
+      }
+      .status button {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        height: 24px;
+        padding: 0 8px;
+        border-radius: 6px;
+        color: var(--ink-2);
+      }
+      .status button:hover {
+        background: var(--hover);
+      }
+      .status svg.i {
+        width: 13px;
+        height: 13px;
+      }
+
+      /* ── Home ───────────────────────────────────────────────── */
+      .home-inner {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 56px 48px 64px;
+      }
+      .hero {
+        display: flex;
+        align-items: flex-end;
+        gap: 24px;
+        margin-bottom: 40px;
+      }
+      .hero h1 {
+        font-size: 40px;
+        line-height: 1.1;
+        font-weight: 700;
+        letter-spacing: -0.028em;
+        text-wrap: balance;
+      }
+      .hero p {
+        margin-top: 8px;
+        font-size: 15px;
+        color: var(--ink-2);
+      }
+      .hero .acts {
+        margin-inline-start: auto;
+        display: flex;
+        gap: 8px;
+      }
+      .btn {
+        height: 36px;
+        padding: 0 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: var(--r-pill);
+        font-size: 13.5px;
+        font-weight: 600;
+        color: var(--ink-2);
+        transition:
+          background-color 0.14s,
+          transform 0.14s var(--ease);
+      }
+      .btn:hover {
+        background: var(--hover);
+      }
+      .btn:active {
+        transform: scale(0.97);
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: #fff;
+        box-shadow: none;
+      }
+      .btn.primary:hover {
+        background: color-mix(in oklab, var(--accent) 88%, #000);
+      }
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-bottom: 20px;
+      }
+      .chip {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: var(--r-pill);
+        font-size: 13.5px;
+        font-weight: 500;
+        color: var(--ink-2);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .chip:hover {
+        background: var(--hover);
+      }
+      .chip.on {
+        background: var(--hover);
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .chip small {
+        font-size: 12px;
+        color: var(--ink-3);
+        font-weight: 500;
+      }
+      .bar .sp {
+        flex: 1;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
+        gap: 20px;
+      }
+      /* The signature: a card is the document itself, in miniature. */
+      .card {
+        display: flex;
+        flex-direction: column;
+        text-align: start;
+        border-radius: var(--r-lg);
+        background: var(--raised);
+        box-shadow: 0 0 0 1px var(--line);
+        overflow: hidden;
+        transition: box-shadow 0.14s;
+      }
+      /* Hover never lifts and never casts a shadow: the hairline firms up. */
+      .card:hover {
+        box-shadow: 0 0 0 1px var(--line-strong);
+      }
+
+      /* The folder: a tabbed back plate, the first documents inside it as
+         real miniatures, and a frosted pocket in front carrying the name. */
+      .card.folder {
+        position: relative;
+        background: none;
+        box-shadow: none;
+        overflow: visible;
+        min-height: 250px;
+      }
+      .folder::before,
+      .folder::after {
+        content: "";
+        position: absolute;
+        background: var(--folder);
+      }
+      .folder::before {
+        inset: 20px 0 0;
+        border-radius: 0 var(--r-lg) var(--r-lg) var(--r-lg);
+      }
+      .folder::after {
+        top: 0;
+        inset-inline-start: 0;
+        width: 44%;
+        height: 40px;
+        border-radius: var(--r-card) var(--r-card) 0 0;
+      }
+      .folder .fsheet {
+        position: absolute;
+        z-index: 1;
+        inset: 36px 16px 0;
+        height: auto;
+        padding: 14px 16px 0;
+        border-radius: var(--r-control) var(--r-control) 0 0;
+        background: var(--raised);
+        box-shadow: 0 0 0 1px var(--line);
+        transition: transform 0.24s var(--ease);
+      }
+      .folder .fsheet.back {
+        inset: 28px 26px 0;
+        opacity: 0.7;
+      }
+      .folder:hover .fsheet {
+        transform: translateY(-6px);
+      }
+      .folder:hover .fsheet.back {
+        transform: translateY(-10px);
+      }
+      .pocket {
+        position: absolute;
+        z-index: 2;
+        inset: auto 0 0;
+        height: 104px;
+        padding: 0 20px 18px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        border-radius: var(--r-card) var(--r-card) var(--r-lg) var(--r-lg);
+        background: color-mix(in oklab, var(--folder) 58%, transparent);
+        -webkit-backdrop-filter: blur(9px) saturate(1.4);
+        backdrop-filter: blur(9px) saturate(1.4);
+        box-shadow: inset 0 1px 0 color-mix(in oklab, var(--raised) 60%, transparent);
+      }
+      .pocket b {
+        font-size: 16px;
+        font-weight: 650;
+        letter-spacing: -0.012em;
+      }
+      .pocket small {
+        font-size: 12.5px;
+        color: var(--ink-2);
+      }
+      .mini {
+        height: 188px;
+        padding: 20px 20px 0;
+        overflow: hidden;
+        position: relative;
+        font-size: 6.4px;
+        line-height: 1.6;
+        color: var(--ink-2);
+      }
+      .mini h4 {
+        font-size: 2.3em;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+        color: var(--ink);
+        font-weight: 700;
+        margin-bottom: 0.5em;
+      }
+      .mini h5 {
+        font-size: 1.45em;
+        color: var(--ink);
+        font-weight: 650;
+        margin: 1em 0 0.3em;
+      }
+      .mini p {
+        margin-bottom: 0.7em;
+      }
+      .mini ul {
+        padding-inline-start: 1.4em;
+        margin-bottom: 0.7em;
+      }
+      .mini a {
+        color: var(--accent);
+      }
+      .mini .q {
+        border-inline-start: 2px solid var(--accent);
+        padding-inline-start: 1em;
+        font-style: italic;
+      }
+      .mini pre {
+        font: 0.9em/1.6 var(--mono);
+        background: var(--hover);
+        padding: 1em;
+        border-radius: 4px;
+      }
+      .mini .chart {
+        display: flex;
+        align-items: flex-end;
+        gap: 3px;
+        height: 44px;
+        margin: 8px 0;
+      }
+      .mini .chart i {
+        flex: 1;
+        border-radius: 2px 2px 0 0;
+        background: var(--accent-dim);
+      }
+      .mini .chart i:last-child {
+        background: var(--accent);
+      }
+      .mini.page {
+        padding: 0;
+      }
+      .mini.page .band {
+        background: #14213d;
+        color: #fff;
+        padding: 16px 20px;
+      }
+      .mini.page .band h4 {
+        color: #fff;
+        margin: 0;
+      }
+      .mini.page .band span {
+        opacity: 0.7;
+      }
+      .mini.page .cols {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        padding: 12px 20px;
+      }
+      .mini.page .cols div {
+        border-radius: 4px;
+        padding: 6px;
+        background: var(--hover);
+      }
+      .mini.page .cols b {
+        display: block;
+        font-size: 2em;
+        color: var(--ink);
+      }
+      .card footer {
+        padding: 12px 16px 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .card footer div {
+        min-width: 0;
+        flex: 1;
+      }
+      .card footer b {
+        display: block;
+        font-size: 13.5px;
+        font-weight: 600;
+        letter-spacing: -0.005em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .card footer small {
+        font-size: 12px;
+        color: var(--ink-3);
+      }
+      .badge {
+        font: 500 9.5px/1 var(--mono);
+        padding: 4px 5px;
+        border-radius: 4px;
+        color: var(--ink-2);
+        box-shadow: inset 0 0 0 1px var(--line-strong);
+      }
+      h2.sec {
+        font-size: 15px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        margin: 48px 0 12px;
+      }
+      .list {
+        border-radius: var(--r-card);
+        box-shadow: 0 0 0 1px var(--line);
+        background: var(--raised);
+      }
+      .list div {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 48px;
+        padding: 0 16px;
+        font-size: 13.5px;
+      }
+      .list div + div {
+        border-top: 1px solid var(--line);
+      }
+      .list b {
+        font-weight: 550;
+        flex: 1;
+      }
+      .list span {
+        color: var(--ink-3);
+        font-size: 12.5px;
+      }
+      .list svg {
+        color: var(--ink-3);
+      }
+
+      /* ── Note ───────────────────────────────────────────────── */
+      .doc {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 64px 32px 96px;
+        font-size: 16.5px;
+        line-height: 1.7;
+      }
+      .doc h1 {
+        font-size: 36px;
+        line-height: 1.15;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        margin-bottom: 12px;
+      }
+      .doc .props {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 32px;
+        font-size: 13px;
+        color: var(--ink-3);
+      }
+      .tag {
+        height: 24px;
+        padding: 0 10px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: var(--r-pill);
+        background: var(--accent-dim);
+        color: var(--accent);
+        font-size: 12.5px;
+        font-weight: 550;
+      }
+      .doc h2 {
+        font-size: 24px;
+        line-height: 1.25;
+        font-weight: 650;
+        letter-spacing: -0.018em;
+        margin: 44px 0 12px;
+      }
+      .doc p {
+        margin-bottom: 16px;
+      }
+      .doc a {
+        color: var(--accent);
+        text-decoration: underline;
+        text-decoration-color: color-mix(in oklab, var(--accent) 35%, transparent);
+        text-underline-offset: 3px;
+      }
+      .doc ul {
+        list-style: none;
+        margin-bottom: 16px;
+      }
+      .doc li {
+        display: flex;
+        gap: 12px;
+        padding: 3px 0;
+      }
+      .doc li::before {
+        content: "";
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--ink-3);
+        margin-top: 0.72em;
+        flex: none;
+      }
+      .doc li.todo::before {
+        width: 17px;
+        height: 17px;
+        border-radius: 5px;
+        background: none;
+        box-shadow: inset 0 0 0 1.5px var(--line-strong);
+        margin-top: 0.32em;
+      }
+      .doc li.done::before {
+        background: var(--accent)
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 17'%3E%3Cpath d='M4.5 8.8l2.6 2.6 5.4-5.8' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        box-shadow: none;
+      }
+      .doc li.done {
+        color: var(--ink-3);
+      }
+      .callout {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        border-radius: var(--r-card);
+        background: var(--accent-dim);
+        margin: 8px 0 20px;
+        font-size: 15.5px;
+      }
+      .callout svg {
+        color: var(--accent);
+        margin-top: 5px;
+      }
+      .doc pre {
+        font: 13.5px/1.65 var(--mono);
+        padding: 16px 20px;
+        border-radius: var(--r-card);
+        background: var(--hover);
+        margin-bottom: 16px;
+        overflow: auto;
+      }
+      .doc pre i {
+        font-style: normal;
+        color: var(--accent);
+      }
+      .doc pre u {
+        text-decoration: none;
+        color: var(--ink-3);
+      }
+      .outline {
+        position: absolute;
+        inset-inline-end: 16px;
+        top: 50%;
+        display: grid;
+        gap: 7px;
+        justify-items: end;
+      }
+      .outline i {
+        height: 2px;
+        width: 14px;
+        border-radius: 2px;
+        background: var(--line-strong);
+      }
+      .outline i.s {
+        width: 9px;
+      }
+      .outline i.on {
+        width: 20px;
+        background: var(--accent);
+      }
+      .rel {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* ── HTML document ──────────────────────────────────────── */
+      .frame {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        background: #f7f5ef;
+        color: #1d2433;
+        font-family: Georgia, "Times New Roman", serif;
+      }
+      .frame .hero2 {
+        background: #14213d;
+        color: #fff;
+        padding: 56px 64px 48px;
+      }
+      .frame .hero2 small {
+        font: 600 12px/1 var(--sans);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #fca311;
+      }
+      .frame .hero2 h1 {
+        font-size: 44px;
+        line-height: 1.1;
+        font-weight: 400;
+        margin: 16px 0 12px;
+        letter-spacing: -0.01em;
+      }
+      .frame .hero2 p {
+        font-size: 17px;
+        opacity: 0.75;
+        max-width: 560px;
+        line-height: 1.5;
+      }
+      .frame .kpis {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        padding: 32px 64px 0;
+      }
+      .frame .kpis div {
+        background: #fff;
+        border: 1px solid #e5e0d2;
+        border-radius: 6px;
+        padding: 20px;
+        font-family: var(--sans);
+      }
+      .frame .kpis b {
+        display: block;
+        font-size: 30px;
+        letter-spacing: -0.02em;
+      }
+      .frame .kpis span {
+        font-size: 13px;
+        color: #6b7280;
+      }
+      .frame .kpis em {
+        font-style: normal;
+        font-size: 12px;
+        font-weight: 600;
+        color: #1a7f4b;
+      }
+      .frame .body2 {
+        padding: 32px 64px 64px;
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 40px;
+        font-size: 17px;
+        line-height: 1.65;
+      }
+      .frame h2 {
+        font-size: 24px;
+        font-weight: 400;
+        margin-bottom: 12px;
+      }
+      .frame .bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        height: 180px;
+        padding: 20px;
+        background: #fff;
+        border: 1px solid #e5e0d2;
+        border-radius: 6px;
+      }
+      .frame .bars i {
+        flex: 1;
+        background: #c9d3e6;
+        border-radius: 3px 3px 0 0;
+      }
+      .frame .bars i:last-child {
+        background: #fca311;
+      }
+
+      /* ── Editing an HTML document in place ──────────────────
+         Edit mode keeps the page's own design and makes its text typeable.
+         The block under the pointer gets a hairline, the block with the
+         caret an accent outline, and formatting floats above the selection. */
+      [data-view="html"] .b-prev,
+      [data-view="edit"] .b-edit {
+        background: var(--raised);
+        color: var(--ink);
+        font-weight: 600;
+        box-shadow: 0 0 0 1px var(--line);
+      }
+      .etool,
+      .e-only,
+      .caret {
+        display: none;
+      }
+      [data-view="edit"] .e-hover {
+        outline: 1px solid rgba(29, 36, 51, 0.22);
+        outline-offset: 6px;
+        border-radius: 2px;
+      }
+      [data-view="edit"] .e-on {
+        outline: 1.5px solid var(--accent);
+        outline-offset: 6px;
+        border-radius: 2px;
+      }
+      [data-view="edit"] .caret {
+        display: inline-block;
+        width: 1.5px;
+        height: 1.1em;
+        margin-inline-start: 1px;
+        vertical-align: text-bottom;
+        background: var(--accent);
+      }
+      [data-view="edit"] .body2 > div:first-child {
+        position: relative;
+      }
+      [data-view="edit"] .etool {
+        position: absolute;
+        top: -6px;
+        inset-inline-start: 120px;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 4px;
+        border-radius: var(--r-card);
+        background: var(--frost);
+        -webkit-backdrop-filter: var(--blur);
+        backdrop-filter: var(--blur);
+        box-shadow: var(--pop-shadow);
+        font-family: var(--sans);
+        color: var(--ink);
+      }
+      .etool button {
+        min-width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border-radius: 6px;
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+      .etool button.wide {
+        display: flex;
+        gap: 4px;
+        padding: 0 8px;
+        font-weight: 550;
+        color: var(--ink);
+      }
+      .etool button.wide svg {
+        width: 12px;
+        height: 12px;
+      }
+      .etool hr {
+        border: 0;
+        width: 1px;
+        height: 16px;
+        background: var(--line-strong);
+        margin: 0 2px;
+      }
+      [data-view="edit"] .e-only {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--ink-2);
+      }
+      .e-only .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      /* ── Floating surfaces: frosted, and the only place a shadow lives ── */
+      .scrim {
+        display: none;
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        background: color-mix(in oklab, var(--desk) 35%, transparent);
+      }
+      [data-view="palette"] .scrim {
+        display: block;
+      }
+      .palette {
+        width: 600px;
+        margin: 112px auto 0;
+        border-radius: var(--r-lg);
+        background: var(--frost);
+        -webkit-backdrop-filter: var(--blur);
+        backdrop-filter: var(--blur);
+        box-shadow: var(--pop-shadow);
+        overflow: hidden;
+      }
+      .palette .q {
+        height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 20px;
+        font-size: 16px;
+        color: var(--ink-3);
+        border-bottom: 1px solid var(--line);
+      }
+      .palette .q span {
+        color: var(--ink);
+      }
+      .palette ul {
+        list-style: none;
+        padding: 8px;
+      }
+      .palette li {
+        height: 40px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 12px;
+        border-radius: var(--r-control);
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--ink-2);
+      }
+      .palette li.on {
+        background: var(--hover);
+        color: var(--ink);
+      }
+      .palette li.on svg {
+        color: var(--accent);
+      }
+      .palette li small {
+        margin-inline-start: auto;
+        font: 500 11.5px var(--mono);
+        color: var(--ink-3);
+      }
+      .palette h6 {
+        padding: 8px 12px 4px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ink-3);
+      }
+
+      /* ── Mockup switcher (not part of the design) ───────────── */
+      .switch {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 4px;
+        padding: 4px;
+        border-radius: var(--r-pill);
+        background: #1b1a21;
+        box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.45);
+        z-index: 9;
+      }
+      .switch button {
+        height: 30px;
+        padding: 0 14px;
+        border-radius: var(--r-pill);
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #b9b7c6;
+      }
+      .switch button[aria-pressed="true"] {
+        background: #fff;
+        color: #1b1a21;
+      }
+      .switch hr {
+        border: 0;
+        width: 1px;
+        background: #3a3944;
+        margin: 6px 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute">
+      <defs>
+        <symbol id="home" viewBox="0 0 24 24">
+          <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z" />
+        </symbol>
+        <symbol id="graph" viewBox="0 0 24 24">
+          <circle cx="6" cy="7" r="2.2" />
+          <circle cx="18" cy="6" r="2.2" />
+          <circle cx="13" cy="18" r="2.2" />
+          <path d="M8 7.3 15.8 6.3M7.2 8.9 11.8 16.2M17 8 14 16" />
+        </symbol>
+        <symbol id="pin" viewBox="0 0 24 24">
+          <path d="M9 4h6l-.8 6 3 3.2H6.8l3-3.2zM12 13.5V20" />
+        </symbol>
+        <symbol id="folder" viewBox="0 0 24 24">
+          <path
+            d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"
+          />
+        </symbol>
+        <symbol id="doc" viewBox="0 0 24 24">
+          <path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z" />
+          <path d="M14 3.5V8h4.5M9 12.5h6M9 16h4" />
+        </symbol>
+        <symbol id="code" viewBox="0 0 24 24">
+          <path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z" />
+          <path d="M14 3.5V8h4.5M10.5 12 8.5 14.2l2 2.3M13.5 12l2 2.2-2 2.3" />
+        </symbol>
+        <symbol id="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></symbol>
+        <symbol id="down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+        <symbol id="search" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="6.5" />
+          <path d="m16 16 4 4" />
+        </symbol>
+        <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+        <symbol id="side" viewBox="0 0 24 24">
+          <rect x="3.5" y="5" width="17" height="14" rx="3" />
+          <path d="M9.5 5v14" />
+        </symbol>
+        <symbol id="x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></symbol>
+        <symbol id="src" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5" /></symbol>
+        <symbol id="pen" viewBox="0 0 24 24">
+          <path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" />
+        </symbol>
+        <symbol id="book" viewBox="0 0 24 24">
+          <path
+            d="M12 6.5c-2-1.4-4.6-1.8-8-1.5v13c3.4-.3 6 .1 8 1.5 2-1.4 4.6-1.8 8-1.5V5c-3.4-.3-6 .1-8 1.5zM12 6.5v13"
+          />
+        </symbol>
+        <symbol id="eye" viewBox="0 0 24 24">
+          <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+          <circle cx="12" cy="12" r="2.8" />
+        </symbol>
+        <symbol id="more" viewBox="0 0 24 24">
+          <circle cx="5.5" cy="12" r="1" />
+          <circle cx="12" cy="12" r="1" />
+          <circle cx="18.5" cy="12" r="1" />
+        </symbol>
+        <symbol id="gear" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3" />
+          <path
+            d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"
+          />
+        </symbol>
+        <symbol id="moon" viewBox="0 0 24 24">
+          <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+        </symbol>
+        <symbol id="grid" viewBox="0 0 24 24">
+          <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+          <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+          <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+          <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+        </symbol>
+        <symbol id="rows" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></symbol>
+        <symbol id="repeat" viewBox="0 0 24 24">
+          <path
+            d="M17 3.5 20 6.5l-3 3M20 6.5H8a4 4 0 0 0-4 4v1M7 20.5l-3-3 3-3M4 17.5h12a4 4 0 0 0 4-4v-1"
+          />
+        </symbol>
+        <symbol id="ext" viewBox="0 0 24 24">
+          <path
+            d="M14 4.5h5.5V10M19.5 4.5 11 13M17.5 14v4a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8A1.5 1.5 0 0 1 6 6.5h4"
+          />
+        </symbol>
+        <symbol id="reload" viewBox="0 0 24 24">
+          <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" />
+        </symbol>
+        <symbol id="bulb" viewBox="0 0 24 24">
+          <path
+            d="M9 17.5h6M10 20.5h4M12 3.5a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2v.2h5.200v-.2c0-.8.4-1.500 1-2A6 6 0 0 0 12 3.5z"
+          />
+        </symbol>
+      </defs>
+    </svg>
+
+    <div class="app" data-theme="light" data-view="home">
+      <header class="titlebar">
+        <div class="tb-left">
+          <div class="lights"><i></i><i></i><i></i></div>
+          <button class="icon-btn" aria-label="New note">
+            <svg class="i"><use href="#plus" /></svg>
+          </button>
+          <button class="icon-btn" aria-label="Hide sidebar">
+            <svg class="i"><use href="#side" /></svg>
+          </button>
+        </div>
+        <nav class="tabs">
+          <button class="tab for-note for-html only-doc">Q4 roadmap</button>
+          <button class="tab on for-note">
+            Weekly review <svg class="i x"><use href="#x" /></svg>
+          </button>
+          <button class="tab for-html only-doc">Weekly review</button>
+          <button class="tab on for-html">
+            <span class="kind">HTML</span>Q3 report <svg class="i x"><use href="#x" /></svg>
+          </button>
+          <button class="tab for-note only-doc"><span class="kind">HTML</span>Q3 report</button>
+        </nav>
+        <div class="tb-right only-doc">
+          <div class="seg for-note">
+            <button>
+              <svg class="i"><use href="#src" /></svg>Source
+            </button>
+            <button>
+              <svg class="i"><use href="#pen" /></svg>Live
+            </button>
+            <button class="on">
+              <svg class="i"><use href="#book" /></svg>Read
+            </button>
+          </div>
+          <div class="seg for-html">
+            <button class="b-prev">
+              <svg class="i"><use href="#eye" /></svg>Preview
+            </button>
+            <button class="b-edit">
+              <svg class="i"><use href="#pen" /></svg>Edit
+            </button>
+            <button>
+              <svg class="i"><use href="#src" /></svg>Source
+            </button>
+          </div>
+          <button class="icon-btn" aria-label="More actions">
+            <svg class="i"><use href="#more" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <button class="vault">
+          <span class="mark">M</span>
+          <span style="flex: 1"><b>Marky notes</b><small>42 notes · synced</small></span>
+          <svg class="i" style="color: var(--ink-3)"><use href="#down" /></svg>
+        </button>
+        <button class="search">
+          <svg class="i"><use href="#search" /></svg>Search<kbd>⌘K</kbd>
+        </button>
+
+        <button class="row home-row">
+          <svg class="i"><use href="#home" /></svg><span class="t">Home</span>
+        </button>
+        <button class="row">
+          <svg class="i"><use href="#graph" /></svg><span class="t">Graph</span>
+        </button>
+        <button class="row">
+          <svg class="i"><use href="#pin" /></svg><span class="t">Pinned</span
+          ><span class="meta">3</span>
+        </button>
+
+        <div class="group">
+          Files
+          <button
+            class="icon-btn"
+            style="width: 24px; height: 24px; margin: -4px -6px"
+            aria-label="New"
+          >
+            <svg class="i" style="width: 14px; height: 14px"><use href="#plus" /></svg>
+          </button>
+        </div>
+        <div class="tree">
+          <button class="row">
+            <svg class="i chev" style="transform: rotate(90deg)"><use href="#chev" /></svg
+            ><svg class="i"><use href="#folder" /></svg><span class="t">Journal</span>
+          </button>
+          <button class="row d1">
+            <svg class="i"><use href="#doc" /></svg><span class="t">Week 42</span>
+          </button>
+          <button class="row d1">
+            <svg class="i"><use href="#doc" /></svg><span class="t">Week 43</span
+            ><span class="meta">↗ 1</span>
+          </button>
+          <button class="row d1 note-row">
+            <svg class="i"><use href="#doc" /></svg><span class="t">Weekly review</span>
+          </button>
+          <button class="row">
+            <svg class="i chev" style="transform: rotate(90deg)"><use href="#chev" /></svg
+            ><svg class="i"><use href="#folder" /></svg><span class="t">Projects</span>
+          </button>
+          <button class="row d1">
+            <svg class="i"><use href="#doc" /></svg><span class="t">Q4 roadmap</span>
+          </button>
+          <button class="row d1 html-row">
+            <svg class="i"><use href="#code" /></svg><span class="t">Q3 report</span
+            ><span class="meta" style="font-family: var(--mono); font-size: 10px">html</span>
+          </button>
+          <button class="row d1">
+            <svg class="i"><use href="#code" /></svg><span class="t">Pricing page draft</span
+            ><span class="meta" style="font-family: var(--mono); font-size: 10px">html</span>
+          </button>
+          <button class="row">
+            <svg class="i chev"><use href="#chev" /></svg><svg class="i"><use href="#folder" /></svg
+            ><span class="t">Reading</span><span class="meta">12</span>
+          </button>
+          <button class="row">
+            <svg class="i" style="margin-inline-start: 20px"><use href="#doc" /></svg
+            ><span class="t">Inbox</span>
+          </button>
+        </div>
+        <div class="side-foot">
+          <span class="saved"><i></i>Saved</span>
+          <button class="icon-btn" aria-label="Theme">
+            <svg class="i"><use href="#moon" /></svg>
+          </button>
+          <button class="icon-btn" aria-label="Settings">
+            <svg class="i"><use href="#gear" /></svg>
+          </button>
+        </div>
+      </aside>
+
+      <!-- HOME -->
+      <main class="sheet home">
+        <div class="scroll">
+          <div class="home-inner">
+            <div class="hero">
+              <div>
+                <h1>Good evening</h1>
+                <p>Sunday, November 15 · 42 notes, 4 HTML documents</p>
+              </div>
+              <div class="acts">
+                <button class="btn">Templates</button>
+                <button class="btn">New folder</button>
+                <button class="btn primary">
+                  <svg class="i"><use href="#plus" /></svg>New note
+                </button>
+              </div>
+            </div>
+
+            <div class="bar">
+              <button class="chip on">Library</button>
+              <button class="chip">Recent</button>
+              <button class="chip">Pinned <small>3</small></button>
+              <span class="sp"></span>
+              <div class="seg">
+                <button class="on" aria-label="Grid">
+                  <svg class="i"><use href="#grid" /></svg>
+                </button>
+                <button aria-label="List">
+                  <svg class="i"><use href="#rows" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="grid">
+              <button class="card folder">
+                <div class="fsheet back mini"></div>
+                <div class="fsheet mini">
+                  <h4>Weekly review</h4>
+                  <p>
+                    Three things moved this week and one stalled. The stall is the interesting one:
+                    it keeps coming up and nobody owns it.
+                  </p>
+                  <h5>What shipped</h5>
+                  <ul>
+                    <li>Live preview redraws when the parse catches up</li>
+                    <li>AppImage runs in AppRun mode</li>
+                  </ul>
+                </div>
+                <div class="pocket"><b>Journal</b><small>14 items</small></div>
+              </button>
+              <button class="card folder">
+                <div class="fsheet back mini"></div>
+                <div class="fsheet mini">
+                  <h4>Q4 roadmap</h4>
+                  <p>
+                    One bet per month. Everything else is maintenance, and maintenance is allowed to
+                    win.
+                  </p>
+                  <div class="chart">
+                    <i style="height: 35%"></i><i style="height: 50%"></i><i style="height: 44%"></i
+                    ><i style="height: 70%"></i><i style="height: 62%"></i
+                    ><i style="height: 88%"></i>
+                  </div>
+                </div>
+                <div class="pocket"><b>Projects</b><small>9 items · 2 HTML</small></div>
+              </button>
+              <button class="card">
+                <div class="mini">
+                  <h4>Weekly review</h4>
+                  <p>
+                    Three things moved this week and one stalled. The stall is the interesting one:
+                    it keeps coming up in <a>Q4 roadmap</a> and nobody owns it.
+                  </p>
+                  <h5>What shipped</h5>
+                  <ul>
+                    <li>Live preview redraws when the parse catches up</li>
+                    <li>AppImage runs in AppRun mode</li>
+                    <li>The editor reopens in the view you used last</li>
+                  </ul>
+                  <h5>What stalled</h5>
+                  <p class="q">
+                    The sync conflict screen asks a question the user can't answer yet.
+                  </p>
+                </div>
+                <footer>
+                  <div><b>Weekly review</b><small>Journal · 2 min ago</small></div>
+                </footer>
+              </button>
+              <button class="card">
+                <div class="mini page">
+                  <div class="band">
+                    <span>QUARTERLY REPORT</span>
+                    <h4>Q3 in numbers</h4>
+                  </div>
+                  <div class="cols">
+                    <div><b>18.4k</b>downloads</div>
+                    <div><b>312</b>stars</div>
+                    <div><b>9</b>releases</div>
+                  </div>
+                  <div style="padding: 0 20px">
+                    <div class="chart">
+                      <i style="height: 30%"></i><i style="height: 42%"></i
+                      ><i style="height: 38%"></i><i style="height: 55%"></i
+                      ><i style="height: 64%"></i><i style="height: 60%"></i
+                      ><i style="height: 78%"></i><i style="height: 96%"></i>
+                    </div>
+                  </div>
+                </div>
+                <footer>
+                  <div><b>Q3 report</b><small>Projects · 1 h ago</small></div>
+                  <span class="badge">HTML</span>
+                </footer>
+              </button>
+              <button class="card">
+                <div class="mini">
+                  <h4>Q4 roadmap</h4>
+                  <p>
+                    One bet per month. Everything else is maintenance, and maintenance is allowed to
+                    win.
+                  </p>
+                  <h5>October — plugins</h5>
+                  <div class="chart">
+                    <i style="height: 35%"></i><i style="height: 50%"></i><i style="height: 44%"></i
+                    ><i style="height: 70%"></i><i style="height: 62%"></i
+                    ><i style="height: 88%"></i>
+                  </div>
+                  <h5>November — HTML documents</h5>
+                  <p>Open, read and edit .html files beside notes.</p>
+                </div>
+                <footer>
+                  <div><b>Q4 roadmap</b><small>Projects · yesterday</small></div>
+                </footer>
+              </button>
+              <button class="card">
+                <div class="mini">
+                  <h4>Plugins plan</h4>
+                  <p>A plugin is a folder with a manifest. It can add commands, never chrome.</p>
+                  <pre>
+{
+  "id": "word-goal",
+  "commands": ["goal.set"],
+  "permissions": ["notes:read"]
+}</pre
+                  >
+                  <h5>Open questions</h5>
+                  <ul>
+                    <li>Sandboxing on Linux</li>
+                    <li>Update channel</li>
+                  </ul>
+                </div>
+                <footer>
+                  <div><b>Plugins plan</b><small>Projects · Tuesday</small></div>
+                </footer>
+              </button>
+            </div>
+
+            <h2 class="sec">Upcoming &amp; recurring</h2>
+            <div class="list">
+              <div>
+                <svg class="i"><use href="#repeat" /></svg><b>Daily note</b
+                ><span>Every day · 8:00</span>
+              </div>
+              <div>
+                <svg class="i"><use href="#repeat" /></svg><b>Weekly review</b
+                ><span>Fridays · 16:00 · Journal</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- NOTE -->
+      <main class="sheet note">
+        <div class="rel">
+          <div class="scroll">
+            <article class="doc">
+              <h1>Weekly review</h1>
+              <div class="props">
+                <span class="tag">review</span><span class="tag">planning</span
+                ><span>· Edited 2 min ago</span>
+              </div>
+              <p>
+                Three things moved this week and one stalled. The stall is the interesting one: it
+                keeps coming up in <a href="#">Q4 roadmap</a> and nobody <strong>owns</strong> it.
+              </p>
+              <h2>What shipped</h2>
+              <ul>
+                <li>Live preview redraws when the background parse catches up</li>
+                <li>AppImage runs in AppRun mode on older distros</li>
+                <li class="todo done">Release v1.8.12</li>
+                <li class="todo">Write up the&nbsp;<a href="#">Plugins plan</a></li>
+              </ul>
+              <div class="callout">
+                <svg class="i"><use href="#bulb" /></svg
+                ><span
+                  >The sync conflict screen asks a question the user can't answer yet. Fix the
+                  question before the screen.</span
+                >
+              </div>
+              <h2>Numbers</h2>
+              <pre><u># week 46</u>
+downloads   <i>1,204</i>   <u>+8%</u>
+crash-free  <i>99.7%</i></pre>
+            </article>
+          </div>
+          <div class="outline"><i></i><i class="on"></i><i class="s"></i><i></i></div>
+        </div>
+        <div class="status">
+          <span class="crumbs">Marky notes / Journal / <b>Weekly review</b></span
+          ><span class="sp"></span><span>208 words</span><span>2 min read</span>
+        </div>
+      </main>
+
+      <!-- HTML DOCUMENT -->
+      <main class="sheet html">
+        <div class="frame">
+          <div class="hero2">
+            <small>Quarterly report</small>
+            <h1>Q3 in numbers</h1>
+            <p>
+              What grew, what stalled, and the one bet we are taking into the last quarter of the
+              year.
+            </p>
+          </div>
+          <div class="kpis">
+            <div><b>18.4k</b><span>downloads</span> <em>↑ 22%</em></div>
+            <div><b>312</b><span>new stars</span> <em>↑ 9%</em></div>
+            <div><b>9</b><span>releases shipped</span></div>
+          </div>
+          <div class="body2">
+            <div>
+              <h2 class="e-hover">Summary</h2>
+              <div class="etool" role="toolbar" aria-label="Text formatting">
+                <button class="wide">
+                  Paragraph <svg class="i"><use href="#down" /></svg>
+                </button>
+                <hr />
+                <button aria-label="Bold"><b>B</b></button
+                ><button aria-label="Italic"><i>I</i></button
+                ><button aria-label="Link">
+                  <svg class="i"><use href="#ext" /></svg>
+                </button>
+              </div>
+              <p class="e-on">
+                Downloads compounded for the third quarter running. Most of the growth came after
+                the Quiet Desk release, when reading a note stopped looking like editing one.<span
+                  class="caret"
+                ></span>
+              </p>
+            </div>
+            <div class="bars">
+              <i style="height: 30%"></i><i style="height: 42%"></i><i style="height: 38%"></i
+              ><i style="height: 55%"></i><i style="height: 64%"></i><i style="height: 78%"></i
+              ><i style="height: 96%"></i>
+            </div>
+          </div>
+        </div>
+        <div class="status">
+          <span class="crumbs">Marky notes / Projects / <b>Q3 report.html</b></span
+          ><span class="sp"></span
+          ><span class="e-only"><i class="dot"></i>Editing in place · scripts paused</span
+          ><span>HTML document · 14 KB</span>
+          <button>
+            <svg class="i"><use href="#reload" /></svg>Reload
+          </button>
+          <button>
+            <svg class="i"><use href="#ext" /></svg>Open in browser
+          </button>
+        </div>
+      </main>
+      <div class="scrim">
+        <div class="palette">
+          <div class="q">
+            <svg class="i"><use href="#search" /></svg><span>rep</span>
+          </div>
+          <ul>
+            <h6>Documents</h6>
+            <li class="on">
+              <svg class="i"><use href="#code" /></svg>Q3 report<small>Projects</small>
+            </li>
+            <li>
+              <svg class="i"><use href="#doc" /></svg>Reply to plugin feedback<small>Inbox</small>
+            </li>
+            <h6>Commands</h6>
+            <li>
+              <svg class="i"><use href="#repeat" /></svg>Replace in note<small>⌘⌥F</small>
+            </li>
+            <li>
+              <svg class="i"><use href="#ext" /></svg>Export as PDF<small>⌘⇧E</small>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="switch" role="group" aria-label="Mockup controls">
+      <button data-v="home">Home</button>
+      <button data-v="note">Note</button>
+      <button data-v="html">HTML document</button>
+      <button data-v="edit">HTML edit</button>
+      <button data-v="palette">Palette</button>
+      <hr />
+      <button data-t="light">Light</button>
+      <button data-t="dark">Dark</button>
+    </div>
+
+    <script>
+      const app = document.querySelector(".app");
+      const sync = () => {
+        const { view, theme } = app.dataset;
+        document.querySelectorAll(".switch button").forEach((b) => {
+          const on = b.dataset.v === view || b.dataset.t === theme;
+          b.setAttribute("aria-pressed", on);
+        });
+        app.querySelector(".home-row").classList.toggle("on", view === "home");
+        app
+          .querySelector(".note-row")
+          .classList.toggle("on", view === "note" || view === "palette");
+        app.querySelector(".html-row").classList.toggle("on", view === "html" || view === "edit");
+      };
+      document.querySelector(".switch").addEventListener("click", (e) => {
+        const b = e.target.closest("button");
+        if (!b) return;
+        if (b.dataset.v) app.dataset.view = b.dataset.v;
+        if (b.dataset.t) app.dataset.theme = b.dataset.t;
+        sync();
+      });
+      const q = new URLSearchParams(location.search);
+      for (const k of ["view", "theme"]) if (q.get(k)) app.dataset[k] = q.get(k);
+      sync();
+    </script>
+  </body>
+</html>

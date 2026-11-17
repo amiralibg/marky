@@ -2,63 +2,148 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEFAULT_ATTACHMENT_FOLDER } from "../utils/attachments";
 import { applySyntaxPalette } from "../components/editor/theme";
+import {
+  TRANSLUCENCY_DEFAULT,
+  TRANSLUCENT_WINDOW_DEFAULT,
+  applyTranslucencyAmount,
+  applyWindowTranslucency,
+  clampTranslucency,
+  syncWindowAppearance,
+} from "../utils/windowTranslucency";
 
-// Theme definitions — "Vault" redesign (claude.ai/design Marky - Vault).
-// bgEditor = the content "panel"; itemActive = "raised"; bar = skeleton bars
-// in home-card / theme-card previews.
-const defineTheme = (id, name, type, t) => ({
-  id,
-  name,
-  type,
-  preview: { bg: t.bg, sidebar: t.sidebar, accent: t.panel, bar: t.bar },
-  colors: {
-    bgBase: t.bg,
-    bgSidebar: t.sidebar,
-    bgEditor: t.panel,
-    overlayBg: type === "light" ? "rgba(30, 25, 15, 0.38)" : "rgba(0, 0, 0, 0.5)",
-    glassBorder: t.border,
-    glassHighlight: t.hover,
-    glassPanelBg: t.panel,
-    textPrimary: t.text,
-    textSecondary: t.text2,
-    textMuted: t.text3,
-    border: t.border,
-    borderLight: t.borderLight,
-    itemHover: t.hover,
-    itemActive: t.raised,
-    titlebarBg: t.sidebar,
-    bar: t.bar,
-  },
-});
+// hex "#rrggbb" → "rgba(r,g,b,a)". Plain rgba rather than `color-mix()` for
+// anything that has to survive older WebKit builds (WebKitGTK on LTS distros)
+// and `::selection`, which drops `color-mix()` values outright.
+const hexToRgba = (hex, alpha) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+};
+
+// Theme definitions — the "Soft Light" design (docs/design/marky-soft-light.html).
+// sidebar = the desk (title bar + sidebar, one flat surface); panel = the
+// floating sheet; raised = what sits on the sheet (menus, control thumbs);
+// bar = skeleton bars in home-card / theme-card previews.
+//
+// Only the base colours are hand-picked per theme. The Soft Light surfaces —
+// the pill fill of a selected row, the pressed tint, the frosted menu
+// background, the folder plate and the pop shadow — are derived here, so every
+// theme gets the design without being tuned one by one.
+//
+// Optional overrides, for a theme the derivation does not suit:
+// - `sheetRing`: the sheet's hairline, where the default is too faint to hold
+//   the sheet on its own (a desk and sheet of the same colour).
+// - `folder`: the surface Home's folder cards are cut from, in place of
+//   `raised` (dark) or `sidebar` (light), where that is too close to the sheet.
+const defineTheme = (id, name, type, t) => {
+  const isLight = type === "light";
+  const sheetRing = t.sheetRing || (isLight ? t.borderLight : t.border);
+  return {
+    id,
+    name,
+    type,
+    // `ring` outlines the miniature sheet in the theme picker; only themes
+    // with their own sheet ring pass one, the rest keep the picker's neutral.
+    preview: {
+      bg: t.bg,
+      sidebar: t.sidebar,
+      accent: t.panel,
+      bar: t.bar,
+      ...(t.sheetRing ? { ring: t.sheetRing } : {}),
+    },
+    colors: {
+      bgBase: t.bg,
+      bgSidebar: t.sidebar,
+      bgEditor: t.panel,
+      overlayBg: isLight ? "rgba(24, 20, 48, 0.32)" : "rgba(0, 0, 0, 0.5)",
+      glassBorder: t.border,
+      glassHighlight: t.hover,
+      // The opaque fallback for frosted panels where backdrop blur is missing.
+      glassPanelBg: t.raised,
+      textPrimary: t.text,
+      textSecondary: t.text2,
+      textMuted: t.text3,
+      border: t.border,
+      borderLight: t.borderLight,
+      itemHover: t.hover,
+      itemActive: t.raised,
+      titlebarBg: t.sidebar,
+      bar: t.bar,
+      // White over a light desk lifts a row; on a dark desk white would glare,
+      // so the pill is the theme's own ink at a whisper.
+      pill: t.pill || (isLight ? "rgba(255, 255, 255, 0.74)" : hexToRgba(t.text, 0.09)),
+      press: t.press || hexToRgba(t.text, isLight ? 0.09 : 0.1),
+      frost: hexToRgba(t.raised, 0.7),
+      // The sheet's outline sits inside the sheet, so it must out-darken the
+      // desk: light themes need the strong hairline, dark ones the soft one.
+      sheetRing,
+      // The theme's own surface with a whisper of the live accent (mixed in
+      // CSS, so it follows the accent). Kept to 6%: at more, the accent's hue
+      // outweighs a near-neutral surface and every theme's folder comes out
+      // the same accent-tinted slate.
+      folder: `color-mix(in oklab, var(--color-accent) 6%, ${
+        t.folder || (isLight ? t.sidebar : t.raised)
+      })`,
+      popShadow: isLight
+        ? `0 0 0 1px ${t.border}, 0 16px 48px -12px rgba(24, 20, 48, 0.28)`
+        : `0 0 0 1px ${t.borderLight}, 0 16px 48px -12px rgba(0, 0, 0, 0.6)`,
+    },
+  };
+};
 
 export const THEMES = [
-  // The page is a warm off-white sheet on a slightly deeper desk — never pure
-  // white, which reads as a lit screen rather than paper over a long session.
+  // A near-white sheet floating on a cool lavender-grey desk. Keep in step
+  // with the static `:root` block in index.css, which paints before this runs.
   defineTheme("vault", "Vault", "light", {
-    bg: "#fcfbf9",
-    sidebar: "#f3f1ec",
-    panel: "#fcfbf9",
+    bg: "#fdfdfc",
+    sidebar: "#ecebf1",
+    panel: "#fdfdfc",
     raised: "#ffffff",
-    border: "rgba(35, 35, 32, 0.09)",
-    borderLight: "rgba(35, 35, 32, 0.16)",
-    text: "#2f2f2b",
-    text2: "#73726e",
-    text3: "#9f9e9a",
-    hover: "rgba(35, 35, 32, 0.045)",
-    bar: "#e6e5e1",
+    border: "rgba(24, 20, 48, 0.08)",
+    borderLight: "rgba(24, 20, 48, 0.14)",
+    text: "#1b1a21",
+    text2: "#5d5c69",
+    text3: "#9795a2",
+    hover: "rgba(24, 20, 48, 0.05)",
+    press: "rgba(24, 20, 48, 0.09)",
+    bar: "#dddce4",
   }),
   defineTheme("vault-dark", "Vault Dark", "dark", {
-    bg: "#1e1e1c",
-    sidebar: "#191918",
-    panel: "#242422",
-    raised: "#2b2b29",
-    border: "rgba(240, 240, 235, 0.09)",
-    borderLight: "rgba(240, 240, 235, 0.16)",
-    text: "#e7e6e2",
-    text2: "#a3a29d",
-    text3: "#71706b",
-    hover: "rgba(240, 240, 235, 0.05)",
-    bar: "#4a4a46",
+    bg: "#1b1a20",
+    sidebar: "#131217",
+    panel: "#1b1a20",
+    raised: "#24232a",
+    border: "rgba(236, 232, 255, 0.08)",
+    borderLight: "rgba(236, 232, 255, 0.15)",
+    text: "#edecf3",
+    text2: "#a5a3b1",
+    text3: "#6d6b79",
+    hover: "rgba(236, 232, 255, 0.055)",
+    press: "rgba(236, 232, 255, 0.1)",
+    pill: "rgba(236, 232, 255, 0.09)",
+    bar: "#3a3944",
+  }),
+  // True black for OLED screens: desk and sheet are both #000, so the sheet is
+  // drawn by its hairline alone. Neutral greys, no hue in the surfaces.
+  defineTheme("black", "Black", "dark", {
+    bg: "#000000",
+    sidebar: "#000000",
+    panel: "#000000",
+    raised: "#121214",
+    border: "rgba(255, 255, 255, 0.10)",
+    borderLight: "rgba(255, 255, 255, 0.17)",
+    text: "#f2f2f4",
+    text2: "#a1a1a8",
+    text3: "#6b6b72",
+    hover: "rgba(255, 255, 255, 0.06)",
+    press: "rgba(255, 255, 255, 0.11)",
+    pill: "rgba(255, 255, 255, 0.10)",
+    bar: "#2a2a2e",
+    // The sheet has no fill of its own against the desk, so its ring is the
+    // strong hairline rather than the soft one other dark themes use.
+    sheetRing: "rgba(255, 255, 255, 0.17)",
+    // `raised` is a step off black; folders need a step more to read as cards
+    // on the black sheet.
+    folder: "#202023",
   }),
   defineTheme("paper", "Paper", "light", {
     bg: "#f6f3ec",
@@ -265,6 +350,7 @@ export const THEME_COUNTERPARTS = {
   // Dark-only themes fall back to the default light theme when switching to light.
   "dark-matter-mars": "vault",
   "dark-matter-neptune": "vault",
+  black: "vault",
   nord: "vault",
   dracula: "vault",
 };
@@ -299,7 +385,7 @@ export const DEFAULT_KEYMAPS = {
   editorSearch: { key: "f", modifiers: ["mod"], description: "Find in editor" },
   toggleSidebar: { key: "b", modifiers: ["mod"], description: "Toggle sidebar" },
   showShortcuts: { key: "/", modifiers: ["mod"], description: "Show keyboard shortcuts" },
-  toggleFocusMode: { key: "F", modifiers: ["mod", "alt"], description: "Toggle Focus Mode" },
+  toggleFocusMode: { key: "F", modifiers: ["mod", "alt"], description: "Toggle focus mode" },
   increaseFontSize: { key: "=", modifiers: ["mod"], description: "Increase font size" },
   decreaseFontSize: { key: "-", modifiers: ["mod"], description: "Decrease font size" },
   resetFontSize: { key: "0", modifiers: ["mod"], description: "Reset font size" },
@@ -348,7 +434,7 @@ const migrateLegacyKeymaps = (keymaps = {}) => {
 // Used by KeymapsModal and KeymapsSettings to render shortcuts consistently
 export const KEYMAP_CATEGORIES = [
   {
-    name: "File Operations",
+    name: "File operations",
     iconPath: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z",
     actions: ["newNote", "newFolder", "openFolder", "save"],
   },
@@ -398,9 +484,18 @@ export const applyTheme = (themeId) => {
     document.documentElement.style.setProperty("--color-item-active", colors.itemActive);
     document.documentElement.style.setProperty("--color-titlebar-bg", colors.titlebarBg);
     document.documentElement.style.setProperty("--color-bar", colors.bar);
+    document.documentElement.style.setProperty("--color-pill", colors.pill);
+    document.documentElement.style.setProperty("--color-press", colors.press);
+    document.documentElement.style.setProperty("--color-frost", colors.frost);
+    document.documentElement.style.setProperty("--color-folder", colors.folder);
+    document.documentElement.style.setProperty("--color-sheet-ring", colors.sheetRing);
+    document.documentElement.style.setProperty("--pop-shadow", colors.popShadow);
 
     // Set theme type attribute for conditional styling
     document.documentElement.setAttribute("data-theme", theme.type);
+    // A translucent window's native material follows the window appearance,
+    // not the page, so it has to be told when the theme flips light ↔ dark.
+    syncWindowAppearance();
 
     // Editor syntax token colors follow the theme too (see theme.js) — without
     // this a light theme kept the bright dark-palette tokens and the note text
@@ -409,19 +504,13 @@ export const applyTheme = (themeId) => {
   }
 };
 
-// hex "#rrggbb" → "rgba(r,g,b,a)" — used for the soft accent wash
-const hexToRgba = (hex, alpha) => {
-  const n = parseInt(hex.slice(1), 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-};
-
 // Helper to apply accent color to CSS variables
 export const applyAccentColor = (colorId) => {
   const color = ACCENT_COLORS.find((c) => c.id === migrateAccentId(colorId));
   if (color) {
     document.documentElement.style.setProperty("--color-accent", color.value);
     document.documentElement.style.setProperty("--color-accent-hover", color.hover);
-    document.documentElement.style.setProperty("--color-accent-dim", hexToRgba(color.value, 0.16));
+    document.documentElement.style.setProperty("--color-accent-dim", hexToRgba(color.value, 0.13));
     // Selection washes must be plain rgba: WebKit drops `color-mix()` values
     // inside `::selection` (the declaration is discarded while sibling
     // declarations apply), which left selections inside live-preview rendered
@@ -457,6 +546,18 @@ export const formatKeymap = (keymap) => {
 
   parts.push(keyDisplay);
   return parts;
+};
+
+/**
+ * A shortcut as one short hint for menus and rows: the macOS glyphs run
+ * together (⌘⇧F), other platforms spell it out with pluses (Ctrl+Shift+F).
+ */
+export const formatShortcutHint = (keymap) => {
+  if (!keymap?.modifiers) return "";
+  const parts = formatKeymap(keymap);
+  return navigator.platform.includes("Mac")
+    ? parts.map((part) => (part === "Shift" ? "⇧" : part)).join("")
+    : parts.join("+");
 };
 
 /**
@@ -509,7 +610,10 @@ export const applyEditorFontScale = (scale) => {
  */
 export const EDITOR_WIDTHS = [
   { id: "narrow", label: "Narrow", value: "46rem", description: "Book measure, ~70 characters" },
-  { id: "default", label: "Default", value: "56rem", description: "Balanced" },
+  // The pane carries a 4.5rem heading gutter plus 4px of line padding a side,
+  // so this leaves a 41rem (656px) text column: the Soft Light reading column,
+  // 720px less its own 32px margins.
+  { id: "default", label: "Default", value: "calc(50rem + 8px)", description: "Balanced" },
   { id: "wide", label: "Wide", value: "64rem", description: "Fills the window" },
 ];
 
@@ -586,6 +690,27 @@ export const VIEW_MODE_DEFAULT = "live";
 export const normalizeViewMode = (value) =>
   VIEW_MODES.includes(value) ? value : VIEW_MODE_DEFAULT;
 
+/**
+ * The same choice for HTML documents, which have their own three views:
+ * `preview` (the page, its scripts running), `edit` (typing on the page,
+ * scripts paused) and `source`. Kept apart from the markdown mode so opening
+ * a report does not flip every note to a view it does not have.
+ */
+export const HTML_VIEW_MODES = ["preview", "edit", "source"];
+export const HTML_VIEW_MODE_DEFAULT = "preview";
+
+export const normalizeHtmlViewMode = (value) =>
+  HTML_VIEW_MODES.includes(value) ? value : HTML_VIEW_MODE_DEFAULT;
+
+// Home's chip row (Library / Recent / Pinned) and its grid/list toggle.
+// App-wide like the editor view mode, not per workspace profile: they are
+// how this person likes to look at Home, not a property of a vault.
+export const HOME_VIEWS = ["library", "recent", "pinned"];
+export const HOME_LAYOUTS = ["grid", "list"];
+
+export const normalizeHomeView = (value) => (HOME_VIEWS.includes(value) ? value : "library");
+export const normalizeHomeLayout = (value) => (HOME_LAYOUTS.includes(value) ? value : "grid");
+
 const createDefaultProfileSettings = () => ({
   themeId: "vault",
   accentColorId: "purple",
@@ -593,6 +718,8 @@ const createDefaultProfileSettings = () => ({
   editorFontScale: FONT_SCALE_DEFAULT,
   editorWidth: "default",
   readingFont: READING_FONT_DEFAULT,
+  translucentWindow: TRANSLUCENT_WINDOW_DEFAULT,
+  translucencyAmount: TRANSLUCENCY_DEFAULT,
   ignorePatterns: "",
   attachmentFolder: DEFAULT_ATTACHMENT_FOLDER,
   vimMode: false,
@@ -601,6 +728,10 @@ const createDefaultProfileSettings = () => ({
   autosaveDelay: 2000,
   typewriterMode: false,
   showLineNumbers: false,
+  // Whether an HTML document's own scripts run in Preview. On by default;
+  // off, the frame's policy runs none of the document's scripts (only Marky's
+  // nonce'd agent, as in Edit — see `sandboxFor` in utils/htmlFrame.js).
+  htmlRunScripts: true,
   sidebarDensity: "comfortable",
   showSidebarMetadata: true,
   keymaps: { ...DEFAULT_KEYMAPS },
@@ -640,6 +771,8 @@ const buildProfileSettingsSnapshot = (state) => ({
   editorFontScale: state.editorFontScale,
   editorWidth: state.editorWidth,
   readingFont: state.readingFont,
+  translucentWindow: state.translucentWindow,
+  translucencyAmount: clampTranslucency(state.translucencyAmount),
   ignorePatterns: state.ignorePatterns,
   attachmentFolder: state.attachmentFolder,
   vimMode: state.vimMode,
@@ -648,6 +781,7 @@ const buildProfileSettingsSnapshot = (state) => ({
   autosaveDelay: state.autosaveDelay,
   typewriterMode: state.typewriterMode,
   showLineNumbers: state.showLineNumbers,
+  htmlRunScripts: state.htmlRunScripts !== false,
   sidebarDensity: state.sidebarDensity,
   showSidebarMetadata: state.showSidebarMetadata,
   keymaps: { ...DEFAULT_KEYMAPS, ...(state.keymaps || {}) },
@@ -685,6 +819,13 @@ const mergeProfileSettings = (profile = {}) => {
   if (!ACCENT_COLORS.some((c) => c.id === merged.accentColorId)) merged.accentColorId = "purple";
   if (!EDITOR_WIDTHS.some((w) => w.id === merged.editorWidth)) merged.editorWidth = "default";
   merged.readingFont = normalizeReadingFont(merged.readingFont);
+  // Profiles written before the setting existed carry no value: they take the
+  // platform default rather than reading as an explicit "off".
+  merged.translucentWindow =
+    typeof merged.translucentWindow === "boolean"
+      ? merged.translucentWindow
+      : TRANSLUCENT_WINDOW_DEFAULT;
+  merged.translucencyAmount = clampTranslucency(merged.translucencyAmount);
   merged.fontScale = clampFontScale(merged.fontScale ?? FONT_SCALE_DEFAULT);
   merged.editorFontScale = clampFontScale(merged.editorFontScale ?? FONT_SCALE_DEFAULT);
   // Profiles written before save modes existed carry an `autosaveEnabled`
@@ -745,8 +886,13 @@ const useSettingsStore = create(
       autosaveDelay: 2000, // ms after last keystroke to auto-save
       typewriterMode: false,
       showLineNumbers: false, // Notion-clean default; toggle in Editor settings
+      htmlRunScripts: true, // HTML documents' scripts run in Preview
       editorWidth: "default", // 'narrow' | 'default' | 'wide' — see EDITOR_WIDTHS
       readingFont: READING_FONT_DEFAULT, // see READING_FONTS
+      // Desk shows the blurred desktop (macOS / Windows) — see windowTranslucency.js
+      translucentWindow: TRANSLUCENT_WINDOW_DEFAULT,
+      // How much desktop shows through when it is (0–100) — see windowTranslucency.js
+      translucencyAmount: TRANSLUCENCY_DEFAULT,
       ignorePatterns: "", // extra scanner excludes, one glob per line
       // Where a pasted or dropped image is written, relative to the workspace
       // root. Empty means the root itself, which is what Obsidian defaults to.
@@ -756,6 +902,11 @@ const useSettingsStore = create(
       openRecentOnStartup: true,
       // Last Source/Live/Read choice — see VIEW_MODES
       editorViewMode: VIEW_MODE_DEFAULT,
+      // Last Preview/Edit/Source choice for HTML documents — see HTML_VIEW_MODES
+      htmlViewMode: HTML_VIEW_MODE_DEFAULT,
+      // Home's last chip and layout — see HOME_VIEWS / HOME_LAYOUTS
+      homeView: "library",
+      homeLayout: "grid",
 
       // Keymaps (user customizations stored here)
       keymaps: { ...DEFAULT_KEYMAPS },
@@ -863,6 +1014,9 @@ const useSettingsStore = create(
       setShowLineNumbers: (enabled) => {
         get().syncProfileState({ showLineNumbers: enabled });
       },
+      setHtmlRunScripts: (enabled) => {
+        get().syncProfileState({ htmlRunScripts: Boolean(enabled) });
+      },
       setEditorWidth: (width) => {
         get().syncProfileState({ editorWidth: width });
       },
@@ -870,6 +1024,19 @@ const useSettingsStore = create(
         const value = normalizeReadingFont(font);
         get().syncProfileState({ readingFont: value });
         applyReadingFont(value);
+      },
+      setTranslucentWindow: (enabled) => {
+        const value = Boolean(enabled);
+        get().syncProfileState({ translucentWindow: value });
+        applyWindowTranslucency(value, get().translucencyAmount);
+      },
+      // Persisted once a gesture lands; the slider paints the desk live in
+      // between (`applyTranslucencyAmount`). Returns the value it stored.
+      setTranslucencyAmount: (amount) => {
+        const value = clampTranslucency(amount);
+        get().syncProfileState({ translucencyAmount: value });
+        applyTranslucencyAmount(value);
+        return value;
       },
       setIgnorePatterns: (patterns) => {
         get().syncProfileState({ ignorePatterns: patterns });
@@ -899,6 +1066,15 @@ const useSettingsStore = create(
       },
       setEditorViewMode: (mode) => {
         set({ editorViewMode: normalizeViewMode(mode) });
+      },
+      setHtmlViewMode: (mode) => {
+        set({ htmlViewMode: normalizeHtmlViewMode(mode) });
+      },
+      setHomeView: (view) => {
+        set({ homeView: normalizeHomeView(view) });
+      },
+      setHomeLayout: (layout) => {
+        set({ homeLayout: normalizeHomeLayout(layout) });
       },
 
       toggleVimMode: () => {
@@ -979,6 +1155,10 @@ const useSettingsStore = create(
           applyFontScale(sharedSettings.fontScale);
           applyEditorFontScale(sharedSettings.editorFontScale);
           applyReadingFont(sharedSettings.readingFont);
+          applyWindowTranslucency(
+            sharedSettings.translucentWindow,
+            sharedSettings.translucencyAmount
+          );
         }
       },
 
@@ -1000,6 +1180,7 @@ const useSettingsStore = create(
         applyFontScale(snapshot.fontScale);
         applyEditorFontScale(snapshot.editorFontScale);
         applyReadingFont(snapshot.readingFont);
+        applyWindowTranslucency(snapshot.translucentWindow, snapshot.translucencyAmount);
       },
 
       clearActiveWorkspaceSettings: () => {
@@ -1013,6 +1194,10 @@ const useSettingsStore = create(
         applyFontScale(sharedSettings.fontScale);
         applyEditorFontScale(sharedSettings.editorFontScale);
         applyReadingFont(sharedSettings.readingFont);
+        applyWindowTranslucency(
+          sharedSettings.translucentWindow,
+          sharedSettings.translucencyAmount
+        );
       },
 
       getSettingsExportPayload: () => {
@@ -1067,6 +1252,10 @@ const useSettingsStore = create(
         applyAccentColor(activeSnapshot.accentColorId);
         applyFontScale(activeSnapshot.fontScale);
         applyEditorFontScale(activeSnapshot.editorFontScale);
+        applyWindowTranslucency(
+          activeSnapshot.translucentWindow,
+          activeSnapshot.translucencyAmount
+        );
       },
 
       // Initialize settings (call on app start)
@@ -1098,6 +1287,7 @@ const useSettingsStore = create(
         applyAccentColor(snapshot.accentColorId);
         applyFontScale(snapshot.fontScale);
         applyEditorFontScale(snapshot.editorFontScale);
+        applyWindowTranslucency(snapshot.translucentWindow, snapshot.translucencyAmount);
       },
 
       // Get keymap by action ID
@@ -1119,12 +1309,17 @@ const useSettingsStore = create(
         typewriterMode: state.typewriterMode,
         editorWidth: state.editorWidth,
         readingFont: state.readingFont,
+        translucentWindow: state.translucentWindow,
+        translucencyAmount: state.translucencyAmount,
         ignorePatterns: state.ignorePatterns,
         sidebarDensity: state.sidebarDensity,
         showSidebarMetadata: state.showSidebarMetadata,
         keymaps: state.keymaps,
         openRecentOnStartup: state.openRecentOnStartup,
         editorViewMode: state.editorViewMode,
+        htmlViewMode: state.htmlViewMode,
+        homeView: state.homeView,
+        homeLayout: state.homeLayout,
         sharedSettings: state.sharedSettings,
         workspaceProfiles: state.workspaceProfiles,
         activeWorkspacePath: state.activeWorkspacePath,

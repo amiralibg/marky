@@ -300,6 +300,6 @@ describe("GraphModal", () => {
     await act(async () => {
       fireEvent.click(screen.getByText("Orphaned"));
     });
-    expect(screen.getByText("No orphaned notes found.")).toBeInTheDocument();
+    expect(screen.getByText("No orphaned notes")).toBeInTheDocument();
   });
 });

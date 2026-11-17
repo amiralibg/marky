@@ -9,6 +9,19 @@ import useSettingsStore, {
   THEMES,
   formatKeymap,
 } from "../../store/settingsStore";
+import {
+  TRANSLUCENCY_MAX,
+  TRANSLUCENCY_MIN,
+  TRANSLUCENCY_STEP,
+  applyTranslucencyAmount,
+  clampTranslucency,
+  supportsWindowTranslucency,
+} from "../../utils/windowTranslucency";
+import RangeSlider from "../ui/RangeSlider";
+
+// Linux has no blur to offer, so the setting does not exist there (see
+// windowTranslucency.js). The platform cannot change while the app runs.
+const canBeTranslucent = supportsWindowTranslucency();
 
 const THEME_FILTERS = [
   { id: "all", label: "All" },
@@ -40,6 +53,10 @@ const AppearanceSettings = () => {
     setEditorFontScale,
     readingFont,
     setReadingFont,
+    translucentWindow,
+    setTranslucentWindow,
+    translucencyAmount,
+    setTranslucencyAmount,
     getKeymap,
   } = useSettingsStore();
   // Default the filter to the current theme's mode so the list opens focused
@@ -90,6 +107,21 @@ const AppearanceSettings = () => {
     }, SCALE_COMMIT_DELAY_MS);
   };
 
+  // The translucency slider paints the desk live as it moves (a CSS variable,
+  // no native call) and persists once the gesture lands.
+  const [translucencyDraft, setTranslucencyDraft] = useState(() =>
+    clampTranslucency(translucencyAmount)
+  );
+  useEffect(() => {
+    setTranslucencyDraft(clampTranslucency(translucencyAmount));
+  }, [translucencyAmount]);
+  const previewTranslucency = (value) => {
+    const clamped = clampTranslucency(value);
+    setTranslucencyDraft(clamped);
+    applyTranslucencyAmount(clamped);
+  };
+  const commitTranslucency = (value) => setTranslucencyDraft(setTranslucencyAmount(value));
+
   const visibleThemes = THEMES.filter((t) => filter === "all" || t.type === filter);
   const darkCount = THEMES.filter((t) => t.type === "dark").length;
   const lightCount = THEMES.filter((t) => t.type === "light").length;
@@ -104,7 +136,7 @@ const AppearanceSettings = () => {
             <p className="text-[13px] text-text-muted">Applies across the whole app, instantly.</p>
           </div>
           <div
-            className="flex items-center gap-0.5 rounded-lg bg-overlay-subtle p-0.5 shrink-0"
+            className="flex items-center gap-0.5 rounded-control bg-item-hover p-0.5 shrink-0"
             role="group"
             aria-label="Filter themes"
           >
@@ -117,14 +149,14 @@ const AppearanceSettings = () => {
                   key={f.id}
                   onClick={() => setFilter(f.id)}
                   aria-pressed={active}
-                  className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${
+                  className={`rounded-[calc(var(--radius-control)-2px)] px-2.5 py-1 text-[12px] transition-colors ${
                     active
-                      ? "bg-accent-dim font-semibold text-accent"
+                      ? "bg-item-active font-semibold text-text-primary shadow-[0_0_0_1px_var(--color-border)]"
                       : "text-text-secondary hover:text-text-primary"
                   }`}
                 >
                   {f.label}
-                  <span className="ml-1 text-[10px] opacity-60">{count}</span>
+                  <span className="ml-1 text-[11px] opacity-60">{count}</span>
                 </button>
               );
             })}
@@ -146,20 +178,33 @@ const AppearanceSettings = () => {
                 aria-checked={selected}
                 aria-label={`${theme.name} theme, ${theme.type}`}
                 title={`${theme.name} · ${theme.type === "light" ? "Light" : "Dark"}`}
-                className="rounded-[11px] p-2 text-left transition-all"
+                className="rounded-card p-2 text-start transition-[box-shadow] duration-140"
                 style={{
                   background: "var(--color-bg-editor)",
-                  border: `1.5px solid ${selected ? "var(--color-accent)" : "var(--color-border)"}`,
-                  boxShadow: selected ? "0 0 0 3px var(--color-accent-dim)" : "none",
+                  boxShadow: selected
+                    ? "0 0 0 2px var(--color-accent)"
+                    : "0 0 0 1px var(--color-border)",
                 }}
               >
+                {/* The theme in miniature: its desk, and its sheet floating on
+                    it with the same gap the app leaves. */}
                 <div
-                  className="flex h-[46px] overflow-hidden rounded-md"
-                  style={{ border: "1px solid rgba(128,128,128,.16)" }}
+                  className="flex h-[52px] overflow-hidden rounded-control p-1.5 ps-[30%]"
+                  style={{
+                    backgroundColor: theme.preview.sidebar,
+                    boxShadow: "inset 0 0 0 1px rgba(128,128,128,.16)",
+                  }}
                   aria-hidden="true"
                 >
-                  <div style={{ width: "34%", backgroundColor: theme.preview.sidebar }} />
-                  <div className="flex-1 px-2 py-2" style={{ backgroundColor: theme.preview.bg }}>
+                  <div
+                    className="flex-1 rounded-control px-2 py-2"
+                    style={{
+                      backgroundColor: theme.preview.accent,
+                      // A theme whose sheet is held by its ring alone (Black)
+                      // shows that ring; the neutral grey would vanish there.
+                      boxShadow: `0 0 0 1px ${theme.preview.ring || "rgba(128,128,128,.14)"}`,
+                    }}
+                  >
                     <div
                       className="mb-1 h-1 w-[70%] rounded-full"
                       style={{ backgroundColor: theme.preview.bar }}
@@ -187,6 +232,64 @@ const AppearanceSettings = () => {
         </div>
       </div>
 
+      {canBeTranslucent && (
+        <div className="flex items-start justify-between gap-6">
+          <div className="flex-1">
+            <h3
+              id="translucent-window-title"
+              className="text-[13px] font-semibold text-text-primary mb-0.5"
+            >
+              Translucent window
+            </h3>
+            <p id="translucent-window-description" className="text-[13px] text-text-muted">
+              Lets the desktop show through the sidebar and title bar, softly blurred. Notes stay on
+              an opaque page.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={translucentWindow}
+            aria-labelledby="translucent-window-title"
+            aria-describedby="translucent-window-description"
+            onClick={() => setTranslucentWindow(!translucentWindow)}
+            className="switch"
+          ></button>
+        </div>
+      )}
+
+      {canBeTranslucent && translucentWindow && (
+        <div className="-mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <label
+            htmlFor="translucency-amount"
+            className="w-24 shrink-0 text-[13px] font-medium text-text-secondary"
+          >
+            Translucency
+          </label>
+          <RangeSlider
+            id="translucency-amount"
+            min={TRANSLUCENCY_MIN}
+            max={TRANSLUCENCY_MAX}
+            step={TRANSLUCENCY_STEP}
+            value={translucencyDraft}
+            onInput={previewTranslucency}
+            onCommit={commitTranslucency}
+            aria-valuetext={`${translucencyDraft}%`}
+            aria-describedby="translucency-amount-hint"
+            className="flex-1 max-w-[18rem]"
+          />
+          <span
+            className="w-10 shrink-0 text-end text-[12.5px] font-medium tabular-nums text-text-secondary"
+            aria-hidden="true"
+          >
+            {translucencyDraft}%
+          </span>
+          <p id="translucency-amount-hint" className="w-full text-[12.5px] text-text-muted">
+            How much of the desktop shows through. 0% is a solid window.
+          </p>
+        </div>
+      )}
+
       {/* Reading typeface */}
       <div>
         <h3 className="text-[13px] font-semibold text-text-primary mb-0.5">Typeface</h3>
@@ -209,7 +312,7 @@ const AppearanceSettings = () => {
                 onClick={() => setReadingFont(font.id)}
                 role="radio"
                 aria-checked={selected}
-                className={`rounded-[10px] border p-3 text-start transition-colors ${
+                className={`rounded-card border p-3 text-start transition-colors ${
                   selected
                     ? "border-accent bg-accent-dim"
                     : "border-border hover:border-border-light hover:bg-overlay-subtle"
@@ -250,12 +353,12 @@ const AppearanceSettings = () => {
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 rounded-lg bg-overlay-subtle p-1">
+          <div className="flex items-center gap-1 rounded-control bg-item-hover p-0.5">
             <button
               onClick={() => queueFontScale(fontScaleDraft - FONT_SCALE_STEP)}
               disabled={fontScaleDraft <= FONT_SCALE_MIN}
               aria-label="Decrease text size"
-              className="rounded-md px-2.5 py-1 text-[15px] leading-none text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
+              className="h-7 rounded-[calc(var(--radius-control)-2px)] px-2.5 text-[15px] leading-none text-text-secondary transition-colors hover:bg-item-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
             >
               −
             </button>
@@ -269,21 +372,21 @@ const AppearanceSettings = () => {
               onClick={() => queueFontScale(fontScaleDraft + FONT_SCALE_STEP)}
               disabled={fontScaleDraft >= FONT_SCALE_MAX}
               aria-label="Increase text size"
-              className="rounded-md px-2.5 py-1 text-[15px] leading-none text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
+              className="h-7 rounded-[calc(var(--radius-control)-2px)] px-2.5 text-[15px] leading-none text-text-secondary transition-colors hover:bg-item-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
             >
               +
             </button>
           </div>
 
-          <input
-            type="range"
+          <RangeSlider
             min={FONT_SCALE_MIN}
             max={FONT_SCALE_MAX}
             step={FONT_SCALE_STEP}
             value={fontScaleDraft}
-            onChange={(event) => queueFontScale(Number(event.target.value))}
+            onInput={queueFontScale}
             aria-label="Text size"
-            className="h-1 flex-1 min-w-[9rem] max-w-[18rem] cursor-pointer appearance-none rounded-full bg-overlay-light accent-accent"
+            aria-valuetext={`${fontScaleDraft}%`}
+            className="flex-1 max-w-[18rem]"
           />
 
           {fontScaleDraft !== FONT_SCALE_DEFAULT && (
@@ -311,12 +414,12 @@ const AppearanceSettings = () => {
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 rounded-lg bg-overlay-subtle p-1">
+          <div className="flex items-center gap-1 rounded-control bg-item-hover p-0.5">
             <button
               onClick={() => queueEditorScale(editorScaleDraft - FONT_SCALE_STEP)}
               disabled={editorScaleDraft <= FONT_SCALE_MIN}
               aria-label="Decrease editor text size"
-              className="rounded-md px-2.5 py-1 text-[15px] leading-none text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
+              className="h-7 rounded-[calc(var(--radius-control)-2px)] px-2.5 text-[15px] leading-none text-text-secondary transition-colors hover:bg-item-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
             >
               −
             </button>
@@ -330,21 +433,21 @@ const AppearanceSettings = () => {
               onClick={() => queueEditorScale(editorScaleDraft + FONT_SCALE_STEP)}
               disabled={editorScaleDraft >= FONT_SCALE_MAX}
               aria-label="Increase editor text size"
-              className="rounded-md px-2.5 py-1 text-[15px] leading-none text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
+              className="h-7 rounded-[calc(var(--radius-control)-2px)] px-2.5 text-[15px] leading-none text-text-secondary transition-colors hover:bg-item-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-35"
             >
               +
             </button>
           </div>
 
-          <input
-            type="range"
+          <RangeSlider
             min={FONT_SCALE_MIN}
             max={FONT_SCALE_MAX}
             step={FONT_SCALE_STEP}
             value={editorScaleDraft}
-            onChange={(event) => queueEditorScale(Number(event.target.value))}
+            onInput={queueEditorScale}
             aria-label="Editor text size"
-            className="h-1 flex-1 min-w-[9rem] max-w-[18rem] cursor-pointer appearance-none rounded-full bg-overlay-light accent-accent"
+            aria-valuetext={`${editorScaleDraft}%`}
+            className="flex-1 max-w-[18rem]"
           />
 
           {editorScaleDraft !== FONT_SCALE_DEFAULT && (
@@ -379,8 +482,10 @@ const AppearanceSettings = () => {
                 aria-checked={selected}
                 aria-label={`${color.name} accent color`}
                 title={color.name}
-                className="rounded-full p-[5px] transition-transform hover:scale-105"
-                style={{ boxShadow: selected ? `0 0 0 2px ${color.value}` : "none" }}
+                className="rounded-full p-[5px] transition-[box-shadow] duration-140"
+                style={{
+                  boxShadow: selected ? `0 0 0 2px ${color.value}` : undefined,
+                }}
               >
                 <span
                   className="block h-[26px] w-[26px] rounded-full"

@@ -4,6 +4,7 @@ const MarkdownEditor = lazy(() => import("./components/editor/MarkdownEditor"));
 import OnboardingModal from "./components/modals/OnboardingModal";
 import WorkspaceRequiredModal from "./components/modals/WorkspaceRequiredModal";
 import NotificationToast from "./components/layout/NotificationToast";
+import { LoadingState, SkeletonLines } from "./components/ui/Loading";
 import TitleBar from "./components/layout/TitleBar";
 import WindowResizeHandles from "./components/layout/WindowResizeHandles";
 import ConfirmDialog from "./components/modals/ConfirmDialog";
@@ -27,6 +28,7 @@ import {
 } from "./utils/sideStore";
 import { openNoteInNewWindow } from "./utils/noteWindows";
 import { detectPlatform } from "./utils/platform";
+import { isHtmlDocument } from "./utils/documentKind";
 import { useFileWatcher } from "./hooks/useFileWatcher";
 import { useSaveLifecycle } from "./hooks/useSaveLifecycle";
 
@@ -348,6 +350,9 @@ function App() {
         case "newNote":
           sidebarRef.current?.handleNewNote?.();
           break;
+        case "newHtmlDocument":
+          sidebarRef.current?.handleNewHtmlDocument?.(null);
+          break;
         case "openDailyNote":
           createDailyNote()
             .then(() => addNotification("Daily note ready", "success", 1800))
@@ -448,7 +453,11 @@ function App() {
             addNotification("No note is selected", "info");
             break;
           }
-          const link = `[[${stripMarkdownExtension(currentNote.name)}]]`;
+          // An HTML document's link names its kind, so a note given the same
+          // name later cannot take the link over.
+          const link = isHtmlDocument(currentNote)
+            ? `[[${currentNote.name}.html]]`
+            : `[[${stripMarkdownExtension(currentNote.name)}]]`;
           writeText(link)
             .then(() => addNotification("Wiki link copied", "success", 1800))
             .catch((error) =>
@@ -840,7 +849,7 @@ function App() {
 
   return (
     <div
-      className={`app-shell h-screen flex flex-col bg-bg-sidebar text-text-primary overflow-hidden ${isResizingSidebar ? "select-none cursor-col-resize" : ""}`}
+      className={`app-shell h-screen flex flex-col text-text-primary overflow-hidden ${isResizingSidebar ? "select-none cursor-col-resize" : ""}`}
     >
       {/* Linux draws no frame of its own around an undecorated window. */}
       {isLinux && <WindowResizeHandles />}
@@ -860,8 +869,9 @@ function App() {
       )}
 
       <div className="flex-1 flex relative overflow-hidden">
-        {/* Sidebar. No border of its own: it shares one surface with the title
-            bar, and the sheet beside it carries the only edge. */}
+        {/* Sidebar. No border of its own: it and the title bar are the desk,
+            one flat surface, and the sheet floating beside it carries the only
+            edge. */}
         {!focusMode && (
           <div className="relative flex">
             <div
@@ -894,7 +904,7 @@ function App() {
             {/* Resize handle. Absolute and centred on the border rather than a
                 column of its own: a column would push the editor 4px clear of
                 the sidebar and leave a strip of bare background between them.
-                Nothing to see at rest — the border is the only mark there —
+                Nothing to see at rest — the sheet's hairline is the only mark there —
                 and the grab strip takes the accent under the pointer. */}
             {showSidebar && !focusMode && (
               <div
@@ -909,19 +919,28 @@ function App() {
           </div>
         )}
 
-        {/* Main content — the sheet. One tone off the sidebar/title-bar
-            surface, joined to it by a hairline and a single rounded corner
-            where the two meet. */}
+        {/* Main content — the sheet, floating on the desk: rounded on all
+            four corners, held by a hairline ring (no shadow), with an 8px gap
+            to the window's trailing and bottom edges — and to the leading edge
+            too when the sidebar is hidden, so it never touches the frame.
+            Focus mode is the one exception: there the sheet is the whole
+            window. */}
         <div
-          className={`flex-1 flex flex-col min-w-0 overflow-hidden bg-bg-editor ${
-            focusMode
-              ? ""
-              : showSidebar
-                ? "rounded-ss-[10px] border-s border-t border-border"
-                : "border-t border-border"
+          className={`flex-1 flex flex-col min-w-0 overflow-hidden ${
+            focusMode ? "bg-bg-editor" : `sheet mb-2 me-2 ${showSidebar ? "" : "ms-2"}`
           } ${isResizingSidebar ? "pointer-events-none" : ""}`}
         >
-          <Suspense fallback={<div className="flex-1 bg-bg-editor" />}>
+          {/* Opening the editor's bundle (a large note's first open, a cold
+              start): blank for a moment, then the shape of a note. */}
+          <Suspense
+            fallback={
+              <LoadingState label="Opening the editor" className="flex-1 bg-bg-editor px-12 py-14">
+                <div className="mx-auto max-w-[41rem]">
+                  <SkeletonLines count={7} />
+                </div>
+              </LoadingState>
+            }
+          >
             <MarkdownEditor
               ref={editorRef}
               onOpenKeymapsModal={() => setShowKeymapsModal(true)}
@@ -995,9 +1014,9 @@ function App() {
       {closeConfirmation && (
         <ConfirmDialog
           isOpen={true}
-          title="Unsaved Changes"
+          title="Unsaved changes"
           message={`Do you want to save changes to "${closeConfirmation.noteName}" before closing?`}
-          confirmLabel="Save & Close"
+          confirmLabel="Save and close"
           cancelLabel="Discard"
           variant="warning"
           onConfirm={async () => {
@@ -1042,34 +1061,36 @@ const RenameDialog = ({ item, onSubmit, onCancel }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-titlebar-bg border border-border rounded-lg shadow-2xl p-6 w-96 animate-in zoom-in-95 duration-200">
-        <h2 className="text-lg font-semibold text-text-primary mb-4">
-          Rename {item.type === "folder" ? "Folder" : "Note"}
-        </h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="modal-scrim animate-fade-in" aria-hidden="true" />
+      <div
+        className="glass-panel modal-panel relative w-full max-w-[400px] animate-fade-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rename-dialog-title"
+      >
         <form onSubmit={handleSubmit}>
-          <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="w-full px-3 py-2 bg-bg-editor border border-border rounded text-text-primary outline-none focus:border-accent transition-colors"
-            placeholder="Enter new name"
-            autoFocus
-          />
-          <div className="flex justify-end gap-2 mt-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 bg-overlay-light hover:bg-overlay-medium text-text-primary rounded transition-colors"
-            >
+          <div className="px-6 pt-6">
+            <h2 id="rename-dialog-title" className="modal-title mb-4">
+              Rename {item.type === "folder" ? "folder" : "note"}
+            </h2>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="field"
+              placeholder="New name"
+              aria-label="New name"
+              dir="auto"
+              autoFocus
+            />
+          </div>
+          <div className="modal-footer pt-5">
+            <button type="button" onClick={onCancel} className="btn">
               Cancel
             </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-accent hover:bg-accent/80 text-white rounded transition-colors"
-              disabled={!newName.trim()}
-            >
+            <button type="submit" className="btn btn-primary" disabled={!newName.trim()}>
               Rename
             </button>
           </div>

@@ -35,6 +35,8 @@ const CodeMirrorEditor = forwardRef(
       onImageError = null,
       ariaLabel = "Markdown editor",
       autoHeight = false,
+      language = "markdown",
+      lineSeparator = null,
     },
     ref
   ) => {
@@ -142,6 +144,8 @@ const CodeMirrorEditor = forwardRef(
             ? saveImageRef.current(file)
             : Promise.reject(new Error("Images can only be added to a saved note.")),
         onImageError: (error) => onImageErrorRef.current?.(error),
+        language,
+        lineSeparator,
       });
 
       const EMPTY_SELECTION = Object.freeze({ empty: true });
@@ -230,6 +234,8 @@ const CodeMirrorEditor = forwardRef(
       formattingKeymaps,
       ariaLabel,
       autoHeight,
+      language,
+      lineSeparator,
     ]);
 
     // Some Vim mode transitions (notably Insert -> Normal via Esc) may not dispatch

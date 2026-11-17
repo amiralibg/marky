@@ -3,6 +3,7 @@ import useNotesStore from "../../store/notesStore";
 import { isGitConfigured } from "../../utils/gitSync";
 import { isS3Configured } from "../../utils/s3Sync";
 import { useAutoSyncStatus } from "../../utils/autoSyncRunner";
+import { BusyDots } from "../ui/Loading";
 
 const INTERVALS = [5, 15, 30, 60, 180];
 
@@ -23,24 +24,16 @@ const Toggle = ({ checked, onChange, disabled, label, hint }) => (
       aria-label={label}
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
-      className={`shrink-0 mt-0.5 w-9 h-5 rounded-full transition-colors relative ${
-        checked ? "bg-accent" : "bg-overlay-light"
-      }`}
-    >
-      <span
-        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
-          checked ? "left-[18px]" : "left-0.5"
-        }`}
-      />
-    </button>
+      className="switch"
+    ></button>
   </label>
 );
 
 const STATE_COPY = {
   idle: { dot: "bg-green-500", text: "Up to date" },
-  syncing: { dot: "bg-accent animate-pulse", text: "Syncing…" },
+  syncing: { dot: null, text: "Syncing…" },
   error: { dot: "bg-amber-400", text: "Retrying after an error" },
-  paused: { dot: "bg-red-400", text: "Paused after repeated failures" },
+  paused: { dot: "bg-danger", text: "Paused after repeated failures" },
   offline: { dot: "bg-text-muted/40", text: "Waiting for a connection" },
   off: { dot: "bg-text-muted/40", text: "Auto-sync is off" },
 };
@@ -79,9 +72,13 @@ const AutoSyncSettings = () => {
   return (
     <div className="space-y-5">
       {/* Status */}
-      <div className="rounded-xl border border-border bg-overlay-subtle/50 p-4">
+      <div className="rounded-card bg-item-hover p-4">
         <div className="flex items-center gap-2">
-          <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${copy.dot}`} />
+          {copy.dot ? (
+            <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${copy.dot}`} />
+          ) : (
+            <BusyDots className="text-text-secondary" />
+          )}
           <span className="text-sm font-medium text-text-primary">{copy.text}</span>
         </div>
         <p className="text-xs text-text-muted mt-1">
@@ -97,12 +94,12 @@ const AutoSyncSettings = () => {
               : "Nothing synced yet this session."}
         </p>
         {settings.autoSyncEnabled && !anyReady && (
-          <p className="text-[11px] text-amber-400 mt-2">
+          <p className="text-[11px] text-amber-600 mt-2">
             Nothing to sync with yet — finish setting up git or S3 sync first.
           </p>
         )}
         {!rootFolderPath && (
-          <p className="text-[11px] text-amber-400 mt-2">Open a workspace to enable auto-sync.</p>
+          <p className="text-[11px] text-amber-600 mt-2">Open a workspace to enable auto-sync.</p>
         )}
       </div>
 
@@ -158,11 +155,8 @@ const AutoSyncSettings = () => {
                 key={minutes}
                 type="button"
                 onClick={() => setAutoSyncConfig({ autoSyncIntervalMinutes: minutes })}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                  active
-                    ? "bg-accent/15 border-accent/50 text-accent"
-                    : "bg-overlay-subtle border-border text-text-secondary hover:text-text-primary"
-                }`}
+                aria-pressed={active}
+                className="chip h-7 px-2.5 text-[12.5px]"
               >
                 {minutes < 60 ? `${minutes} min` : `${minutes / 60} hr`}
               </button>
@@ -172,7 +166,7 @@ const AutoSyncSettings = () => {
       </div>
 
       <details>
-        <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-wider text-text-muted hover:text-text-secondary transition-colors">
+        <summary className="cursor-pointer select-none text-xs font-semibold text-text-muted hover:text-text-secondary transition-colors">
           How auto-sync behaves
         </summary>
         <ul className="mt-3 space-y-1.5 text-[11px] leading-relaxed text-text-muted list-disc list-inside">

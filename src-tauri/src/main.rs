@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod documents;
 mod git_sync;
 
 use notify_debouncer_full::{
@@ -120,7 +121,7 @@ fn is_supported_file(path: &str) -> bool {
         .map(|ext| {
             matches!(
                 ext.to_lowercase().as_str(),
-                "md" | "markdown" | "mdx" | "txt" | "text"
+                "md" | "markdown" | "mdx" | "txt" | "text" | "html" | "htm"
             )
         })
         .unwrap_or(false)
@@ -632,10 +633,21 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
 /// a workspace at a JS project and it used to pull in every bundled README.
 const ALWAYS_IGNORED: [&str; 2] = ["node_modules", ".git"];
 
-/// True for the extensions Marky treats as notes.
+/// True for the extensions Marky treats as documents in a vault: markdown notes
+/// and HTML documents. The scan, the bulk read and the watcher all ask this one
+/// function, so a file the tree shows is always a file whose changes are seen.
+///
+/// Markdown keeps its historical case-sensitive match (a `NOTES.MD` was never
+/// picked up and changing that would surprise existing vaults); HTML matches
+/// any case because exporters routinely write `.HTML` / `.HTM`.
 fn is_note_extension(path: &Path) -> bool {
-    path.extension()
-        .is_some_and(|ext| ext == "md" || ext == "markdown" || ext == "txt")
+    path.extension().is_some_and(|ext| {
+        ext == "md"
+            || ext == "markdown"
+            || ext == "txt"
+            || ext.eq_ignore_ascii_case("html")
+            || ext.eq_ignore_ascii_case("htm")
+    })
 }
 
 /// Epoch-millis mtime and byte length, or `(0, 0)` when the platform won't say.
@@ -977,11 +989,7 @@ fn watch_folder(
                                 continue;
                             }
 
-                            if path.is_dir()
-                                || path.extension().is_some_and(|ext| {
-                                    ext == "md" || ext == "markdown" || ext == "txt"
-                                })
-                            {
+                            if path.is_dir() || is_note_extension(path) {
                                 let event_type = match event.kind {
                                     notify::EventKind::Create(_) => "create",
                                     notify::EventKind::Modify(_) => "modify",
@@ -1135,6 +1143,341 @@ fn remove_window_menu(window: tauri::WebviewWindow) {
     remove_native_menu(&window);
 }
 
+/// How a window looks before its page has painted anything: whether the
+/// translucent material is on, the scheme it follows, and the desk colour
+/// painted behind the webview when it is off. Written by
+/// `set_window_translucency` to the app config directory, read when a window
+/// first loads (see `dress_window`), so the first frame a window ever shows is
+/// already right — blurred, or opaque in the theme's desk colour — instead of
+/// the desktop showing through sharp until the page has read its settings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct WindowAppearance {
+    #[serde(default)]
+    translucent: bool,
+    #[serde(default)]
+    dark: bool,
+    /// `#rrggbb`. The Vault light desk on a fresh install, which is the theme
+    /// a fresh install opens in.
+    #[serde(default = "default_desk_colour")]
+    background: String,
+}
+
+fn default_desk_colour() -> String {
+    "#ecebf1".to_string()
+}
+
+impl Default for WindowAppearance {
+    fn default() -> Self {
+        Self {
+            translucent: false,
+            dark: false,
+            background: default_desk_colour(),
+        }
+    }
+}
+
+const APPEARANCE_FILE: &str = "window-appearance.json";
+
+/// A window that has not shown itself this long after its page started
+/// loading is shown anyway, so a frontend that fails to boot can never leave
+/// the app invisible. The frontend normally shows its window within a few
+/// hundred milliseconds (see src/utils/windowStartup.js).
+const REVEAL_FALLBACK: Duration = Duration::from_secs(3);
+
+#[derive(Default)]
+struct AppearanceState {
+    /// The remembered appearance, loaded from disk on first use.
+    current: Mutex<Option<WindowAppearance>>,
+    /// Windows already dressed for their first load (a reload keeps its
+    /// material and is not dressed again).
+    dressed: Mutex<std::collections::HashSet<String>>,
+    /// The material each window has on now, so a repeat request is a no-op
+    /// rather than a flicker of clear-and-reapply.
+    applied: Mutex<HashMap<String, (bool, bool)>>,
+}
+
+fn appearance_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join(APPEARANCE_FILE))
+}
+
+fn current_appearance(app: &tauri::AppHandle) -> WindowAppearance {
+    let state = app.state::<AppearanceState>();
+    let mut current = match state.current.lock() {
+        Ok(guard) => guard,
+        Err(_) => return WindowAppearance::default(),
+    };
+    if current.is_none() {
+        let loaded = appearance_path(app)
+            .and_then(|path| fs::read_to_string(path).ok())
+            .and_then(|text| serde_json::from_str::<WindowAppearance>(&text).ok())
+            .filter(|appearance| parse_hex_colour(&appearance.background).is_some())
+            .unwrap_or_default();
+        *current = Some(loaded);
+    }
+    current.clone().unwrap_or_default()
+}
+
+fn remember_appearance(app: &tauri::AppHandle, next: WindowAppearance) {
+    let state = app.state::<AppearanceState>();
+    let Ok(mut current) = state.current.lock() else {
+        return;
+    };
+    if current.as_ref() == Some(&next) {
+        return;
+    }
+    if let Some(path) = appearance_path(app) {
+        if let Some(dir) = path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let Ok(text) = serde_json::to_string(&next) {
+            let _ = fs::write(path, text);
+        }
+    }
+    *current = Some(next);
+}
+
+/// `#rrggbb` → an opaque colour; anything else is refused.
+fn parse_hex_colour(value: &str) -> Option<tauri::window::Color> {
+    let hex = value.strip_prefix('#')?;
+    if hex.len() != 6 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    let n = u32::from_str_radix(hex, 16).ok()?;
+    Some(tauri::window::Color(
+        ((n >> 16) & 0xff) as u8,
+        ((n >> 8) & 0xff) as u8,
+        (n & 0xff) as u8,
+        255,
+    ))
+}
+
+const CLEAR: tauri::window::Color = tauri::window::Color(0, 0, 0, 0);
+
+/// Put the material on a window, or take it off and paint the desk colour
+/// behind the webview instead. Returns whether a material is now on. Must run
+/// on the main thread (AppKit and DWM want window changes made there).
+///
+/// - macOS: NSVisualEffectView with the sidebar material. Its light or dark
+///   look follows the window's appearance, so the window is pinned to the
+///   page's theme while the material is on and handed back to the system after.
+///   The colour goes on the window layer (WKWebView has no background of its
+///   own in a transparent window).
+/// - Windows: Mica on Windows 11; `apply_mica` refuses older builds, and
+///   Windows 10 falls back to Acrylic (which lags while dragging on some 10
+///   builds — a Windows limitation, and the reason Mica is tried first). The
+///   colour goes on the webview layer, which is transparent while the
+///   material is on.
+/// - Linux: no material (Tauri can drive no blur there, and a see-through
+///   window without blur is unreadable, so the frontend never offers the
+///   setting); only the webview's colour, so GTK's default never flashes.
+fn apply_window_material<R: tauri::Runtime>(
+    window: &tauri::Window<R>,
+    webview: &tauri::Webview<R>,
+    enabled: bool,
+    dark: bool,
+    background: Option<tauri::window::Color>,
+) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        use window_vibrancy::{NSVisualEffectMaterial, NSVisualEffectState};
+        let _ = webview;
+        // Applying twice would stack two effect views; clear whatever is there.
+        while let Ok(true) = window_vibrancy::clear_vibrancy(window) {}
+        if !enabled {
+            let _ = window.set_theme(None);
+            if let Some(colour) = background {
+                let _ = window.set_background_color(Some(colour));
+            }
+            return false;
+        }
+        let _ = window.set_background_color(Some(CLEAR));
+        let _ = window.set_theme(Some(if dark {
+            tauri::Theme::Dark
+        } else {
+            tauri::Theme::Light
+        }));
+        window_vibrancy::apply_vibrancy(
+            window,
+            NSVisualEffectMaterial::Sidebar,
+            Some(NSVisualEffectState::FollowsWindowActiveState),
+            None,
+        )
+        .is_ok()
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = window_vibrancy::clear_mica(window);
+        let _ = window_vibrancy::clear_acrylic(window);
+        if !enabled {
+            if let Some(colour) = background {
+                let _ = webview.set_background_color(Some(colour));
+            }
+            return false;
+        }
+        let _ = webview.set_background_color(Some(CLEAR));
+        window_vibrancy::apply_mica(window, Some(dark))
+            .or_else(|_| window_vibrancy::apply_acrylic(window, None))
+            .is_ok()
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = (window, enabled, dark, CLEAR);
+        if let Some(colour) = background {
+            let _ = webview.set_background_color(Some(colour));
+        }
+        false
+    }
+}
+
+/// Apply a material request to one window unless it already has it. The desk
+/// colour is cheap and always refreshed while the material is off (it follows
+/// the theme, and shows at the edges during a live resize).
+fn apply_to_window<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    window: &tauri::Window<R>,
+    webview: &tauri::Webview<R>,
+    enabled: bool,
+    dark: bool,
+    background: Option<tauri::window::Color>,
+) -> bool {
+    let state = app.state::<AppearanceState>();
+    let label = window.label().to_string();
+    let unchanged = state
+        .applied
+        .lock()
+        .map(|applied| applied.get(&label) == Some(&(enabled, dark)))
+        .unwrap_or(false);
+    if unchanged {
+        if !enabled {
+            apply_window_material(window, webview, false, dark, background);
+        }
+        return enabled;
+    }
+    let on = apply_window_material(window, webview, enabled, dark, background);
+    if let Ok(mut applied) = state.applied.lock() {
+        applied.insert(label, (enabled, dark));
+    }
+    on
+}
+
+/// The first time a window's page starts loading — before the page can show
+/// the window, which every window is created hidden for — put on the
+/// remembered appearance, and arm the fallback that shows the window if the
+/// page never does.
+fn dress_window(webview: &tauri::Webview) {
+    let window = webview.window();
+    let label = window.label().to_string();
+    let app = webview.app_handle().clone();
+    let first_load = app
+        .state::<AppearanceState>()
+        .dressed
+        .lock()
+        .map(|mut dressed| dressed.insert(label))
+        .unwrap_or(false);
+    if !first_load {
+        return;
+    }
+
+    let appearance = current_appearance(&app);
+    let background = parse_hex_colour(&appearance.background);
+    let supported = cfg!(any(target_os = "macos", target_os = "windows"));
+    let (target, view, handle) = (window.clone(), webview.clone(), app.clone());
+    let _ = window.run_on_main_thread(move || {
+        #[cfg(target_os = "macos")]
+        install_title_toolbar(&target);
+        apply_to_window(
+            &handle,
+            &target,
+            &view,
+            appearance.translucent && supported,
+            appearance.dark,
+            background,
+        );
+    });
+
+    std::thread::spawn(move || {
+        std::thread::sleep(REVEAL_FALLBACK);
+        if !window.is_visible().unwrap_or(true) {
+            eprintln!(
+                "Window {} did not show itself; showing it anyway",
+                window.label()
+            );
+            let _ = window.show();
+        }
+    });
+}
+
+/// Give a macOS window an empty unified toolbar, so AppKit itself lays out the
+/// traffic lights in a toolbar-height title bar.
+///
+/// Moving the buttons by hand (`trafficLightPosition`, which resizes the title
+/// bar container and shifts each button's frame) clips the rim of every button
+/// on the macOS 26 SDK: the circles come out flat on their left and right
+/// edges. A window with a toolbar gets the larger, centred buttons natively,
+/// the way Finder or Calculator draws them. The toolbar has no items, so the
+/// page still owns the whole strip and every click in it.
+#[cfg(target_os = "macos")]
+fn install_title_toolbar<R: tauri::Runtime>(window: &tauri::Window<R>) {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSToolbar, NSWindow, NSWindowToolbarStyle};
+
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let Ok(pointer) = window.ns_window() else {
+        return;
+    };
+    // SAFETY: Tauri hands back the live NSWindow behind this window, and we
+    // are on the main thread (checked above).
+    let ns_window: &NSWindow = unsafe { &*(pointer as *const NSWindow) };
+    if ns_window.toolbar().is_some() {
+        return;
+    }
+    let toolbar = NSToolbar::new(mtm);
+    ns_window.setToolbar(Some(&toolbar));
+    ns_window.setToolbarStyle(NSWindowToolbarStyle::Unified);
+}
+
+/// The "Translucent window" appearance setting: a system material behind the
+/// webview, so the desk (title bar + sidebar, painted part-transparent by the
+/// page) shows the blurred desktop. Every macOS and Windows window is created
+/// transparent so this can be switched at runtime; with it off the page paints
+/// an opaque desk over the bare window. Returns whether a material is now on.
+///
+/// Also remembers the request, with the theme's desk colour, for the next
+/// launch (see `WindowAppearance`). Called on every platform for that reason;
+/// Linux never gets a material.
+///
+/// A plain (non-async) command, so Tauri runs it on the main thread, which is
+/// where AppKit and DWM want window changes made.
+#[tauri::command]
+fn set_window_translucency(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    enabled: bool,
+    dark: bool,
+    background: Option<String>,
+) -> bool {
+    let supported = cfg!(any(target_os = "macos", target_os = "windows"));
+    let enabled = enabled && supported;
+    let colour = background.as_deref().and_then(parse_hex_colour);
+    let mut remembered = current_appearance(&app);
+    remembered.translucent = enabled;
+    remembered.dark = dark;
+    if let (Some(_), Some(hex)) = (colour, background) {
+        remembered.background = hex.to_ascii_lowercase();
+    }
+    remember_appearance(&app, remembered);
+    let webview: &tauri::Webview = window.as_ref();
+    let native = webview.window();
+    apply_to_window(&app, &native, webview, enabled, dark, colour)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -1144,6 +1487,25 @@ fn main() {
         })
         .manage(PendingOpen(Arc::new(Mutex::new(Vec::new()))))
         .manage(ExitState::default())
+        .manage(documents::DocumentRoots::default())
+        .manage(AppearanceState::default())
+        // Every window is created hidden; its material (or opaque desk
+        // colour) goes on as its page starts loading, before the page can
+        // show it. See `dress_window`.
+        .on_page_load(|webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Started {
+                dress_window(webview);
+            }
+        })
+        // HTML documents' relative resources (see documents.rs). Answered off
+        // the main thread: a large image must not stall the UI.
+        .register_asynchronous_uri_scheme_protocol(documents::SCHEME, |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            std::thread::spawn(move || {
+                let roots = app.state::<documents::DocumentRoots>();
+                responder.respond(documents::respond(&roots, &request));
+            });
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
@@ -1444,6 +1806,7 @@ fn main() {
             open_recent_note,
             take_pending_open_paths,
             remove_window_menu,
+            set_window_translucency,
             read_note_history,
             append_note_history,
             remove_note_history,
@@ -1460,7 +1823,10 @@ fn main() {
             git_sync::git_clone_repo,
             git_sync::git_test_remote,
             git_sync::git_sync,
-            git_sync::git_reset_to_remote
+            git_sync::git_reset_to_remote,
+            documents::register_document_root,
+            documents::open_external_url,
+            documents::open_document_in_browser
         ])
         .on_window_event(|window, event| {
             // A closed window's watcher would otherwise sit in the map holding
@@ -1469,6 +1835,15 @@ fn main() {
                 if let Ok(mut watchers) = window.state::<WatcherState>().watchers.lock() {
                     watchers.remove(window.label());
                 }
+                // A label can be reused (a note reopened in its own window);
+                // the new window must be dressed afresh.
+                let appearance = window.state::<AppearanceState>();
+                if let Ok(mut dressed) = appearance.dressed.lock() {
+                    dressed.remove(window.label());
+                }
+                if let Ok(mut applied) = appearance.applied.lock() {
+                    applied.remove(window.label());
+                };
             }
         })
         .setup(|app| {
@@ -1758,5 +2133,99 @@ mod scan_tests {
 
         assert!(!files.iter().any(|f| f.path == root_str));
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn html_documents_are_vault_documents() {
+        assert!(is_note_extension(Path::new("/v/Report.html")));
+        assert!(is_note_extension(Path::new("/v/Report.HTM")));
+        assert!(is_note_extension(Path::new("/v/Note.md")));
+        assert!(!is_note_extension(Path::new("/v/style.css")));
+        assert!(!is_note_extension(Path::new("/v/chart.js")));
+        assert!(!is_note_extension(Path::new("/v/page.xhtml")));
+        assert!(!is_note_extension(Path::new("/v/html")));
+    }
+
+    #[test]
+    fn html_documents_can_be_opened_with_marky() {
+        assert!(is_supported_file("/tmp/Report.html"));
+        assert!(is_supported_file("/tmp/Report.HTM"));
+        assert!(is_supported_file("/tmp/Note.md"));
+        assert!(!is_supported_file("/tmp/image.png"));
+        assert!(!is_supported_file("/tmp/no-extension"));
+    }
+
+    #[test]
+    fn scan_and_bulk_read_include_html_beside_notes() {
+        let root = fixture("html");
+        touch(&root.join("Report.html"));
+        touch(&root.join("Report.md"));
+        touch(&root.join("assets/style.css"));
+        let scanned =
+            names(&scan_folder_for_markdown(root.to_string_lossy().to_string(), None).unwrap());
+        assert!(scanned.contains(&"Report.html".to_string()));
+        assert!(scanned.contains(&"Report.md".to_string()));
+        assert!(!scanned.contains(&"style.css".to_string()));
+
+        let read = read_workspace_files(root.to_string_lossy().to_string(), None, None).unwrap();
+        assert!(read
+            .iter()
+            .any(|f| f.name == "Report.html" && f.content.is_some()));
+        let _ = fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod appearance_tests {
+    use super::*;
+
+    #[test]
+    fn parses_only_six_digit_hex_colours() {
+        let colour = parse_hex_colour("#ecebf1").unwrap();
+        assert_eq!(
+            (colour.0, colour.1, colour.2, colour.3),
+            (0xec, 0xeb, 0xf1, 255)
+        );
+        assert!(parse_hex_colour("#ECEBF1").is_some());
+        for bad in ["ecebf1", "#ecebf", "#ecebf1ff", "#zzzzzz", "", "rgb(1,2,3)"] {
+            assert!(parse_hex_colour(bad).is_none(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_black_desk_is_opaque_black_not_clear() {
+        // The Black theme's desk is #000000. It must come back as a painted,
+        // opaque colour: CLEAR (the same channels at alpha 0) is what the
+        // material path uses to let the desktop show through.
+        let colour = parse_hex_colour("#000000").unwrap();
+        assert_eq!((colour.0, colour.1, colour.2, colour.3), (0, 0, 0, 255));
+        assert_ne!(colour.3, CLEAR.3);
+    }
+
+    #[test]
+    fn a_missing_or_partial_file_reads_as_the_fresh_install_look() {
+        let partial: WindowAppearance = serde_json::from_str(r#"{"translucent":true}"#).unwrap();
+        assert!(partial.translucent);
+        assert!(!partial.dark);
+        assert_eq!(partial.background, "#ecebf1");
+        assert_eq!(
+            WindowAppearance::default().background,
+            default_desk_colour()
+        );
+        assert!(!WindowAppearance::default().translucent);
+    }
+
+    #[test]
+    fn round_trips_through_json() {
+        let appearance = WindowAppearance {
+            translucent: true,
+            dark: true,
+            background: "#131217".to_string(),
+        };
+        let text = serde_json::to_string(&appearance).unwrap();
+        assert_eq!(
+            serde_json::from_str::<WindowAppearance>(&text).unwrap(),
+            appearance
+        );
     }
 }

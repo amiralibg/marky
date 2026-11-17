@@ -3,6 +3,7 @@ import { marked } from "marked";
 import useNotesStore from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
 import { batchExportNotes } from "../../utils/backup";
+import { BusyButton } from "../ui/Loading";
 
 const BatchExportModal = ({ isOpen, onClose }) => {
   const { items, rootFolderPath } = useNotesStore();
@@ -80,134 +81,91 @@ const BatchExportModal = ({ isOpen, onClose }) => {
   const allSelected = selectedIds.size === allNotes.length && allNotes.length > 0;
   const someSelected = selectedIds.size > 0 && !allSelected;
 
+  const segment = (active, onClick, label) => (
+    <button type="button" aria-pressed={active} onClick={onClick} className="flex-1">
+      {label}
+    </button>
+  );
+
   return (
     <>
-      <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn"
-        onClick={onClose}
-      />
+      <div className="modal-scrim z-50 animate-fade-in" onClick={onClose} aria-hidden="true" />
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
-          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col pointer-events-auto animate-slideUp"
+          className="glass-panel modal-panel w-full max-w-[560px] max-h-[80vh] flex flex-col pointer-events-auto animate-fade-in"
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="batch-export-title"
         >
-          {/* Header */}
-          <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between shrink-0">
-            <div>
-              <h2 className="text-xl font-semibold text-text-primary">Batch Export</h2>
-              <p className="text-sm text-text-muted mt-1">Export multiple notes as a ZIP archive</p>
+          <div className="modal-header shrink-0">
+            <div className="min-w-0 flex-1">
+              <h2 id="batch-export-title" className="modal-title">
+                Batch export
+              </h2>
+              <p className="modal-subtitle">Export several notes as one ZIP archive.</p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-overlay-light rounded-lg transition-colors"
-              title="Close"
-            >
+            <button type="button" onClick={onClose} className="icon-btn" aria-label="Close">
               <svg
-                className="w-5 h-5 text-text-secondary"
+                viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                viewBox="0 0 24 24"
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                aria-hidden="true"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
+                <path d="m6 6 12 12M18 6 6 18" />
               </svg>
             </button>
           </div>
 
-          {/* Options */}
-          <div className="px-6 pt-5 pb-3 shrink-0 space-y-4">
-            {/* Format */}
+          <div className="shrink-0 space-y-4 px-6 pt-4 pb-3">
             <div>
-              <p className="text-sm font-medium text-text-secondary mb-2">Output format</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setFormat("md")}
-                  className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    format === "md"
-                      ? "border-accent bg-accent/10 text-text-primary"
-                      : "border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light"
-                  }`}
-                >
-                  Markdown (.md)
-                </button>
-                <button
-                  onClick={() => setFormat("html")}
-                  className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    format === "html"
-                      ? "border-accent bg-accent/10 text-text-primary"
-                      : "border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light"
-                  }`}
-                >
-                  HTML (.html)
-                </button>
+              <p className="field-label">Format</p>
+              <div className="seg flex w-full" role="group" aria-label="Format">
+                {segment(format === "md", () => setFormat("md"), "Markdown (.md)")}
+                {segment(format === "html", () => setFormat("html"), "HTML (.html)")}
               </div>
             </div>
-
-            {/* Scope */}
             <div>
-              <p className="text-sm font-medium text-text-secondary mb-2">Which notes</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setScope("all")}
-                  className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    scope === "all"
-                      ? "border-accent bg-accent/10 text-text-primary"
-                      : "border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light"
-                  }`}
-                >
-                  All notes ({allNotes.length})
-                </button>
-                <button
-                  onClick={() => setScope("selected")}
-                  className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    scope === "selected"
-                      ? "border-accent bg-accent/10 text-text-primary"
-                      : "border-overlay-light bg-overlay-subtle text-text-secondary hover:bg-overlay-light"
-                  }`}
-                >
-                  Selected ({selectedIds.size})
-                </button>
+              <p className="field-label">Notes</p>
+              <div className="seg flex w-full" role="group" aria-label="Notes">
+                {segment(scope === "all", () => setScope("all"), `All notes (${allNotes.length})`)}
+                {segment(
+                  scope === "selected",
+                  () => setScope("selected"),
+                  `Selected (${selectedIds.size})`
+                )}
               </div>
             </div>
           </div>
 
-          {/* Note list (shown when scope === 'selected') */}
           {scope === "selected" && (
-            <div className="flex-1 overflow-y-auto px-6 pb-2 min-h-0 custom-scrollbar">
-              <div className="flex items-center gap-2 mb-2 py-1 border-b border-glass-border">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-2">
+              <label className="palette-row min-h-9 cursor-pointer text-[13px]">
                 <input
                   type="checkbox"
-                  id="select-all"
                   checked={allSelected}
                   ref={(el) => {
                     if (el) el.indeterminate = someSelected;
                   }}
                   onChange={toggleAll}
-                  className="rounded accent-accent"
+                  className="h-4 w-4 accent-accent"
                 />
-                <label
-                  htmlFor="select-all"
-                  className="text-xs text-text-muted cursor-pointer select-none"
-                >
-                  Select all
-                </label>
-              </div>
-              <ul className="space-y-1">
+                <span className="text-text-muted">Select all</span>
+              </label>
+              <ul>
                 {allNotes.map((note) => (
                   <li key={note.id}>
-                    <label className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-overlay-light cursor-pointer transition-colors">
+                    <label className="palette-row min-h-9 cursor-pointer text-[13.5px]">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(note.id)}
                         onChange={() => toggleNote(note.id)}
-                        className="rounded accent-accent shrink-0"
+                        className="h-4 w-4 shrink-0 accent-accent"
                       />
-                      <span className="text-sm text-text-primary truncate" title={note.name}>
+                      <span className="truncate text-text-primary" title={note.name} dir="auto">
                         {note.name}
                       </span>
                     </label>
@@ -217,49 +175,26 @@ const BatchExportModal = ({ isOpen, onClose }) => {
             </div>
           )}
 
-          {/* Footer */}
-          <div className="border-t border-overlay-light px-6 py-4 flex justify-between items-center shrink-0">
-            <p className="text-xs text-text-muted">
-              {notesToExport.length} note{notesToExport.length !== 1 ? "s" : ""} will be exported
-              into a ZIP
+          <div className="modal-footer shrink-0 justify-between">
+            <p className="ps-1 text-[12.5px] text-text-muted">
+              {notesToExport.length} note{notesToExport.length !== 1 ? "s" : ""} in the ZIP
             </p>
             <div className="flex gap-2">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-light rounded-lg transition-colors"
-              >
+              <button type="button" onClick={onClose} className="btn">
                 Cancel
               </button>
-              <button
+              <BusyButton
                 onClick={handleExport}
-                disabled={isExporting || notesToExport.length === 0}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
-                  isExporting || notesToExport.length === 0
-                    ? "bg-overlay-light text-text-muted cursor-not-allowed"
-                    : "bg-accent hover:bg-accent/80 text-white"
-                }`}
+                busy={isExporting}
+                disabled={notesToExport.length === 0}
+                className="btn btn-primary"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                  />
-                </svg>
-                {isExporting ? "Exporting..." : "Export ZIP"}
-              </button>
+                Export ZIP
+              </BusyButton>
             </div>
           </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
-        .animate-slideUp { animation: slideUp 0.3s ease-out; }
-      `}</style>
     </>
   );
 };

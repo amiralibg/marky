@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { getNoteHistorySnapshots } from "../../store/notesStore";
 import { computeLineDiff } from "../../utils/diff";
+import EmptyState from "../ui/EmptyState";
+import { Loadable, SkeletonLines, SkeletonRows } from "../ui/Loading";
 
 const formatRelativeTime = (isoString) => {
   if (!isoString) return "Unknown time";
@@ -29,26 +31,12 @@ const countWords = (text) => {
 const DiffView = ({ diffLines }) => {
   if (!diffLines || diffLines.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 py-16 text-center px-6">
-        <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
-          <svg
-            className="w-6 h-6 text-green-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
-        </div>
-        <p className="text-sm font-medium text-text-primary">No changes</p>
-        <p className="text-xs text-text-muted max-w-xs">
-          This snapshot is identical to the current note content.
-        </p>
+      <div className="flex-1 flex items-center justify-center">
+        <EmptyState
+          icon="doc"
+          title="No changes"
+          body="This snapshot is the same as the note as it is now."
+        />
       </div>
     );
   }
@@ -111,25 +99,32 @@ const NoteHistoryModal = ({ isOpen, onClose, note, onRestore }) => {
   const [viewMode, setViewMode] = useState("diff");
 
   // History moved from localStorage to disk, so this is a read rather than a
-  // lookup. The modal renders its empty state while the read is in flight.
+  // lookup. While it is in flight the modal shows the list's shape, not the
+  // empty state.
   const [snapshots, setSnapshots] = useState([]);
+  const [loadingSnapshots, setLoadingSnapshots] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !note?.filePath) {
       setSnapshots([]);
+      setLoadingSnapshots(false);
       return undefined;
     }
 
     let cancelled = false;
-    getNoteHistorySnapshots(note.filePath).then((loaded) => {
-      if (cancelled) return;
-      // Skip the latest snapshot (index 0) — it matches the current saved content
-      setSnapshots(loaded.slice(1));
-      // The list changed under the selection; start from the top rather than
-      // pointing at an index the new list may not have.
-      setSelectedIndex(0);
-      setConfirmingIndex(null);
-    });
+    setLoadingSnapshots(true);
+    getNoteHistorySnapshots(note.filePath)
+      .catch(() => [])
+      .then((loaded) => {
+        if (cancelled) return;
+        setLoadingSnapshots(false);
+        // Skip the latest snapshot (index 0) — it matches the current saved content
+        setSnapshots(loaded.slice(1));
+        // The list changed under the selection; start from the top rather than
+        // pointing at an index the new list may not have.
+        setSelectedIndex(0);
+        setConfirmingIndex(null);
+      });
 
     return () => {
       cancelled = true;
@@ -181,66 +176,65 @@ const NoteHistoryModal = ({ isOpen, onClose, note, onRestore }) => {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Note History"
+      aria-label="Note history"
       onClick={(e) => {
         if (e.target === e.currentTarget) handleClose();
       }}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="modal-scrim animate-fade-in pointer-events-none" aria-hidden="true" />
 
-      <div className="relative z-10 w-full max-w-5xl max-h-[85vh] flex flex-col bg-bg-sidebar border border-border rounded-xl shadow-2xl overflow-hidden">
+      <div className="relative z-10 w-full max-w-5xl max-h-[85vh] flex flex-col glass-panel modal-panel animate-fade-in">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <div>
-            <h2 className="text-base font-semibold text-text-primary">Note History</h2>
-            <p className="text-xs text-text-muted mt-0.5">
+        <div className="modal-header shrink-0 border-b border-border pb-4">
+          <div className="min-w-0 flex-1">
+            <h2 className="modal-title">Note history</h2>
+            <p className="modal-subtitle truncate">
               {note.name} &mdash; {snapshots.length} snapshot{snapshots.length !== 1 ? "s" : ""}{" "}
               saved
             </p>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-overlay-subtle rounded-md transition-colors"
-            aria-label="Close"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
+          <button onClick={handleClose} className="icon-btn" aria-label="Close">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="m6 6 12 12M18 6 6 18" />
             </svg>
           </button>
         </div>
 
-        {snapshots.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 py-16 text-center px-6">
-            <div className="w-12 h-12 rounded-full bg-overlay-subtle flex items-center justify-center">
-              <svg
-                className="w-6 h-6 text-text-muted"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+        {loadingSnapshots || snapshots.length === 0 ? (
+          <Loadable
+            loading={loadingSnapshots}
+            label="Loading history"
+            className="flex-1 min-h-0 flex overflow-hidden"
+            placeholder={
+              <>
+                <div className="w-56 shrink-0 p-2">
+                  <SkeletonRows count={6} rowHeight={44} />
+                </div>
+                <div className="flex-1 p-6">
+                  <SkeletonLines count={8} heading={false} />
+                </div>
+              </>
+            }
+          >
+            <div className="flex-1 flex items-center justify-center">
+              <EmptyState
+                icon="history"
+                title="No history yet"
+                body="A snapshot is kept each time this note is saved. Save it once to start its history."
+              />
             </div>
-            <p className="text-sm font-medium text-text-primary">No history yet</p>
-            <p className="text-xs text-text-muted max-w-xs">
-              Snapshots are saved automatically each time you save this note. Save it once to start
-              building history.
-            </p>
-          </div>
+          </Loadable>
         ) : (
           <div className="flex-1 min-h-0 flex overflow-hidden">
             {/* Snapshot list sidebar */}
-            <div className="w-56 shrink-0 border-r border-border flex flex-col overflow-y-auto custom-scrollbar">
+            <div className="w-56 shrink-0 border-e border-border flex flex-col gap-px overflow-y-auto p-2">
               {snapshots.map((snapshot, index) => (
                 <button
                   key={snapshot.savedAt + String(index)}
@@ -248,22 +242,22 @@ const NoteHistoryModal = ({ isOpen, onClose, note, onRestore }) => {
                     setSelectedIndex(index);
                     setConfirmingIndex(null);
                   }}
-                  className={`w-full text-left px-4 py-3 border-b border-border/50 transition-colors ${
+                  className={`w-full rounded-control px-3 py-2 text-start transition-colors ${
                     selectedIndex === index
-                      ? "bg-accent/10 text-accent"
-                      : "text-text-secondary hover:bg-overlay-subtle hover:text-text-primary"
+                      ? "bg-item-hover text-text-primary"
+                      : "text-text-secondary hover:bg-item-hover hover:text-text-primary"
                   }`}
                 >
-                  <div className="text-xs font-medium truncate">
+                  <div className="truncate text-[13px] font-semibold">
                     {`Save ${snapshots.length - index}`}
                   </div>
                   <div
-                    className="text-[11px] text-text-muted mt-0.5 truncate"
+                    className="mt-0.5 truncate text-[12px] text-text-muted"
                     title={new Date(snapshot.savedAt).toLocaleString()}
                   >
                     {formatRelativeTime(snapshot.savedAt)}
                   </div>
-                  <div className="text-[11px] text-text-muted mt-0.5">
+                  <div className="mt-0.5 text-[12px] text-text-muted">
                     {countWords(snapshot.content)} words
                   </div>
                 </button>
@@ -277,42 +271,36 @@ const NoteHistoryModal = ({ isOpen, onClose, note, onRestore }) => {
                   {/* Snapshot meta bar */}
                   <div className="px-5 py-3 border-b border-border shrink-0 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-xs font-medium text-text-primary">
+                      <span className="text-[13px] font-semibold text-text-primary">
                         {`Save ${snapshots.length - selectedIndex}`}
                       </span>
-                      <span className="text-xs text-text-muted">
+                      <span className="text-[12.5px] text-text-muted">
                         {new Date(selectedSnapshot.savedAt).toLocaleString()}
                       </span>
 
                       {/* Diff stats */}
                       {viewMode === "diff" && diffStats && (
-                        <div className="flex items-center gap-2 text-[11px]">
-                          <span className="text-green-400">+{diffStats.additions}</span>
-                          <span className="text-red-400">−{diffStats.deletions}</span>
+                        <div className="flex items-center gap-2 font-mono text-[11.5px]">
+                          <span className="text-green-500">+{diffStats.additions}</span>
+                          <span className="text-danger">−{diffStats.deletions}</span>
                         </div>
                       )}
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
                       {/* View toggle */}
-                      <div className="flex items-center gap-0.5 bg-overlay-subtle rounded-md p-0.5 border border-overlay-subtle">
+                      <div className="seg" role="group" aria-label="Snapshot view">
                         <button
+                          type="button"
                           onClick={() => setViewMode("diff")}
-                          className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
-                            viewMode === "diff"
-                              ? "bg-accent/15 text-accent"
-                              : "text-text-secondary hover:text-text-primary"
-                          }`}
+                          aria-pressed={viewMode === "diff"}
                         >
                           Diff
                         </button>
                         <button
+                          type="button"
                           onClick={() => setViewMode("raw")}
-                          className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
-                            viewMode === "raw"
-                              ? "bg-accent/15 text-accent"
-                              : "text-text-secondary hover:text-text-primary"
-                          }`}
+                          aria-pressed={viewMode === "raw"}
                         >
                           Raw
                         </button>
@@ -320,11 +308,7 @@ const NoteHistoryModal = ({ isOpen, onClose, note, onRestore }) => {
 
                       <button
                         onClick={() => handleRestore(selectedIndex)}
-                        className={`shrink-0 px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                          confirmingIndex === selectedIndex
-                            ? "bg-accent text-white hover:bg-accent/90"
-                            : "bg-overlay-subtle text-text-primary border border-border hover:bg-overlay-light"
-                        }`}
+                        className={`btn btn-sm ${confirmingIndex === selectedIndex ? "btn-primary" : ""}`}
                       >
                         {confirmingIndex === selectedIndex
                           ? "Click again to confirm"
@@ -337,7 +321,10 @@ const NoteHistoryModal = ({ isOpen, onClose, note, onRestore }) => {
                   {viewMode === "diff" ? (
                     <DiffView diffLines={diffLines} />
                   ) : (
-                    <pre className="flex-1 overflow-auto p-5 text-xs text-text-secondary font-mono whitespace-pre-wrap leading-relaxed custom-scrollbar">
+                    <pre
+                      className="flex-1 overflow-auto whitespace-pre-wrap p-5 font-mono text-[12px] leading-relaxed text-text-secondary"
+                      dir="auto"
+                    >
                       {selectedSnapshot.content || (
                         <span className="italic text-text-muted">(empty note)</span>
                       )}

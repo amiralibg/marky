@@ -1,7 +1,7 @@
 {
   "name": "marky-notes",
   "private": true,
-  "version": "1.9.2",
+  "version": "1.10.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,6 +21,7 @@
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
     "@codemirror/commands": "^6.10.1",
+    "@codemirror/lang-html": "^6.4.11",
     "@codemirror/lang-markdown": "^6.5.0",
     "@codemirror/language": "^6.12.1",
     "@codemirror/lint": "^6.9.3",
@@ -44,6 +45,7 @@
     "marked-footnote": "^1.4.0",
     "marked-katex-extension": "^5.1.6",
     "mermaid": "^11.12.2",
+    "parse5": "^7.3.0",
     "pdf-lib": "^1.17.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

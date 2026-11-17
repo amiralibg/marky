@@ -18,6 +18,7 @@ import { EditorState, Prec, RangeSet } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { bracketMatching, indentOnInput, foldGutter, foldKeymap } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { html as htmlLanguage } from "@codemirror/lang-html";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import {
   autocompletion,
@@ -27,7 +28,7 @@ import {
 } from "@codemirror/autocomplete";
 import { vim, getCM } from "@replit/codemirror-vim";
 import { setVimVisualLineMotion, vimBlockStepSync } from "./vimSetup";
-import { markyTheme, markySyntaxHighlighting } from "./theme";
+import { markyTheme, markySyntaxHighlighting, markyHtmlSyntaxHighlighting } from "./theme";
 import { livePreview } from "./livePreview";
 import { typewriterMode } from "./typewriterMode";
 import { buildMarkyKeymaps } from "./keymaps";
@@ -124,7 +125,16 @@ export function createExtensions(options = {}) {
     getTags = () => [],
     saveImage = null,
     onImageError = null,
+    // "markdown" (notes) or "html" (an HTML document's Source view). HTML
+    // gets the HTML grammar and none of the markdown machinery: no live
+    // preview, wiki links, slash commands, table editing, image paste or
+    // markdown formatting keys.
+    language = "markdown",
+    // "\r\n" keeps a CRLF file's line endings through an edit; CodeMirror
+    // otherwise splits on any break and joins with "\n".
+    lineSeparator = null,
   } = options;
+  const isHtml = language === "html";
 
   const filteredSearchKeymap = searchKeymap.filter((binding) => binding.key !== "Mod-f");
 
@@ -134,13 +144,16 @@ export function createExtensions(options = {}) {
     markySyntaxHighlighting,
 
     // Language support
-    markdown({
-      base: markdownLanguage,
-      codeLanguages: [], // Can add language support for code blocks later
-      // `![[image.png]]` — Obsidian's embed syntax, which the base grammar
-      // parses as loose text. Live preview needs a node to render against.
-      extensions: [wikiEmbedSyntax],
-    }),
+    isHtml
+      ? [htmlLanguage({ autoCloseTags: true }), markyHtmlSyntaxHighlighting]
+      : markdown({
+          base: markdownLanguage,
+          codeLanguages: [], // Can add language support for code blocks later
+          // `![[image.png]]` — Obsidian's embed syntax, which the base grammar
+          // parses as loose text. Live preview needs a node to render against.
+          extensions: [wikiEmbedSyntax],
+        }),
+    lineSeparator ? EditorState.lineSeparator.of(lineSeparator) : [],
 
     // BiDi support - auto-detect RTL/LTR per line, isolate mixed-script runs
     EditorView.perLineTextDirection.of(true),
@@ -189,7 +202,7 @@ export function createExtensions(options = {}) {
     // autocompletion's activateOnTyping only fires on word characters, so "/"
     // needs an explicit trigger.
     EditorView.updateListener.of((update) => {
-      if (!update.docChanged) return;
+      if (!update.docChanged || isHtml) return;
       let typedSlash = false;
       update.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
         if (inserted.length === 1 && inserted.sliceString(0) === "/") typedSlash = true;
@@ -241,7 +254,7 @@ export function createExtensions(options = {}) {
 
   // Live Preview — Obsidian-style inline rendering. Decoration layer only, so
   // it composes with vim, RTL, autocomplete etc. Pushed before keymaps.
-  if (enableLivePreview) {
+  if (enableLivePreview && !isHtml) {
     extensions.push(livePreview());
   }
 
@@ -259,7 +272,7 @@ export function createExtensions(options = {}) {
 
   // Pasting or dropping an image writes it into the vault and links it.
   // Registered before the keymaps because it is a DOM handler, not a binding.
-  if (saveImage) {
+  if (saveImage && !isHtml) {
     extensions.push(imagePaste({ saveImage, onError: onImageError }));
     // The caret that shows where a file dragged in from the OS will land. Its
     // position comes from Tauri's drag stream, not the DOM — see
@@ -268,7 +281,7 @@ export function createExtensions(options = {}) {
   }
 
   // Wiki link autocomplete for [[note]] syntax
-  if (enableWikiLinkAutocomplete) {
+  if (enableWikiLinkAutocomplete && !isHtml) {
     extensions.push(createWikiLinkAutocomplete(getNotes, getTags));
   }
 
@@ -279,7 +292,7 @@ export function createExtensions(options = {}) {
     extensions.push(vim());
     // Only Live Preview rewrites a motion's landing place, so only it can leave
     // vim's visual selection stale.
-    if (enableLivePreview) extensions.push(vimBlockStepSync);
+    if (enableLivePreview && !isHtml) extensions.push(vimBlockStepSync);
   }
 
   // Typewriter mode
@@ -289,7 +302,9 @@ export function createExtensions(options = {}) {
 
   // Keymaps (order matters - later overrides earlier)
   extensions.push(
-    Prec.high(keymap.of(buildMarkyKeymaps(editorSearchKeymap, formattingKeymaps))), // Custom keymaps highest priority
+    // Custom keymaps highest priority. The formatting keys write markdown, so
+    // an HTML document keeps only Tab and the search key.
+    Prec.high(keymap.of(buildMarkyKeymaps(editorSearchKeymap, isHtml ? {} : formattingKeymaps))),
     keymap.of(closeBracketsKeymap),
     keymap.of(foldKeymap),
     keymap.of(historyKeymap),

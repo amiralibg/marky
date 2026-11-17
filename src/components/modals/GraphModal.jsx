@@ -4,11 +4,13 @@ import useUIStore from "../../store/uiStore";
 import { buildGraphSvg, saveGraphPng, saveGraphSvg, nodeRadius } from "../../utils/graphExport";
 import useModalAccessibility from "../../hooks/useModalAccessibility";
 import { createSimulation, graphBounds } from "./graphSimulation";
+import EmptyState from "../ui/EmptyState";
+import { BusyButton, BusyDots, LoadingState } from "../ui/Loading";
 
 const escapeTitle = (value = "") => value.replace(/\s+/g, " ").trim();
 const linkTargetKey = (value = "") =>
   value
-    .replace(/\.(md|markdown|txt)$/i, "")
+    .replace(/\.(md|markdown|mdx|txt|text|html|htm)$/i, "")
     .trim()
     .toLowerCase();
 
@@ -129,6 +131,8 @@ const GraphModal = ({ isOpen, onClose }) => {
   const dialogRef = useRef(null);
   const sizeRef = useRef({ width: 0, height: 0 });
   const [measured, setMeasured] = useState(false);
+  // True from a layout's build until it first comes to rest.
+  const [settling, setSettling] = useState(false);
 
   const simRef = useRef(null);
   const alphaRef = useRef(0);
@@ -287,6 +291,7 @@ const GraphModal = ({ isOpen, onClose }) => {
       // settles — after a drag — leave the viewport alone for the same reason.
       if (!didFitRef.current) {
         didFitRef.current = true;
+        setSettling(false);
         fitToView(true);
       }
     };
@@ -329,6 +334,7 @@ const GraphModal = ({ isOpen, onClose }) => {
     setGraph({ nodes: sim.nodes, edges: sim.edges });
     alphaRef.current = 1;
     didFitRef.current = false;
+    setSettling(sim.nodes.length > 0);
     fitToView(false);
     runLoop();
 
@@ -603,35 +609,29 @@ const GraphModal = ({ isOpen, onClose }) => {
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-50 animate-fadeIn bg-[rgba(30,25,15,0.38)] backdrop-blur-[3px]"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="modal-scrim z-50 animate-fade-in" onClick={onClose} aria-hidden="true" />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
           ref={dialogRef}
-          className="glass-panel border-glass-border rounded-xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col pointer-events-auto animate-slideUp overflow-hidden"
+          className="glass-panel modal-panel w-full max-w-6xl h-[85vh] flex flex-col pointer-events-auto animate-fade-in"
           onClick={(event) => event.stopPropagation()}
           role="dialog"
           aria-modal="true"
           aria-labelledby="graph-modal-title"
           tabIndex={-1}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-glass-border px-6 py-4 shrink-0 bg-bg-base/40 backdrop-blur-md">
-            <div>
-              <h2 id="graph-modal-title" className="text-xl font-semibold text-text-primary">
-                Note Graph
+          <div className="modal-header shrink-0 flex-wrap border-b border-border pb-4">
+            <div className="min-w-0 flex-1">
+              <h2 id="graph-modal-title" className="modal-title">
+                Note graph
               </h2>
-              <p className="text-sm text-text-muted mt-1">
+              <p className="modal-subtitle">
                 {stats.totalNotes} notes &middot; {stats.totalEdges} connections &middot;{" "}
                 {stats.orphaned} orphaned
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Filter buttons */}
-              <div className="flex items-center bg-overlay-subtle rounded-lg p-1 border border-overlay-light">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="seg" role="group" aria-label="Show">
                 {[
                   { value: "all", label: "All" },
                   { value: "connected", label: "Connected" },
@@ -639,144 +639,139 @@ const GraphModal = ({ isOpen, onClose }) => {
                 ].map((opt) => (
                   <button
                     key={opt.value}
+                    type="button"
                     onClick={() => setFilter(opt.value)}
-                    className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
-                      filter === opt.value
-                        ? "bg-accent text-white shadow-sm"
-                        : "text-text-secondary hover:text-text-primary hover:bg-overlay-light"
-                    }`}
+                    aria-pressed={filter === opt.value}
                   >
                     {opt.label}
                   </button>
                 ))}
               </div>
 
-              {/* Zoom controls */}
-              <div className="flex items-center bg-overlay-subtle rounded-lg p-1 border border-overlay-light">
+              <div className="flex items-center gap-0.5" role="group" aria-label="View">
                 <button
+                  type="button"
                   onClick={() => handleZoomButton(1.25)}
-                  className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
+                  className="icon-btn"
                   title="Zoom in"
+                  aria-label="Zoom in"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.6}
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 5v14M5 12h14" />
                   </svg>
                 </button>
                 <button
+                  type="button"
                   onClick={() => handleZoomButton(0.8)}
-                  className="p-1.5 hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
+                  className="icon-btn"
                   title="Zoom out"
+                  aria-label="Zoom out"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M20 12H4"
-                    />
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.6}
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12h14" />
                   </svg>
                 </button>
-                <div className="w-px h-4 bg-overlay-light mx-1" />
                 <button
+                  type="button"
                   onClick={() => fitToView(true)}
-                  className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
+                  className="btn btn-sm h-7 px-2.5"
                   title="Fit the whole graph in view"
                 >
                   Fit
                 </button>
                 <button
+                  type="button"
                   onClick={handleRedraw}
-                  className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-overlay-light rounded-md text-text-secondary hover:text-text-primary transition-all"
+                  className="btn btn-sm h-7 px-2.5"
                   title="Lay the graph out again from scratch"
                 >
                   Redraw
                 </button>
               </div>
 
-              <div className="flex items-center bg-overlay-subtle rounded-lg p-1 border border-overlay-light">
-                <button
-                  onClick={() => handleExport("svg")}
-                  disabled={exportingFormat !== null}
-                  className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
-                    exportingFormat === "svg"
-                      ? "bg-accent text-white"
-                      : exportingFormat
-                        ? "text-text-muted cursor-not-allowed"
-                        : "text-text-secondary hover:text-text-primary hover:bg-overlay-light"
-                  }`}
-                  title="Export graph as SVG"
-                >
-                  {exportingFormat === "svg" ? "Saving..." : "SVG"}
-                </button>
-                <button
-                  onClick={() => handleExport("png")}
-                  disabled={exportingFormat !== null}
-                  className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
-                    exportingFormat === "png"
-                      ? "bg-accent text-white"
-                      : exportingFormat
-                        ? "text-text-muted cursor-not-allowed"
-                        : "text-text-secondary hover:text-text-primary hover:bg-overlay-light"
-                  }`}
-                  title="Export graph as PNG"
-                >
-                  {exportingFormat === "png" ? "Saving..." : "PNG"}
-                </button>
+              <div className="flex items-center gap-0.5" role="group" aria-label="Export">
+                {["svg", "png"].map((format) => (
+                  <BusyButton
+                    key={format}
+                    onClick={() => handleExport(format)}
+                    busy={exportingFormat === format}
+                    disabled={exportingFormat !== null}
+                    className="btn btn-sm h-7 px-2.5"
+                    title={`Export graph as ${format.toUpperCase()}`}
+                  >
+                    {format.toUpperCase()}
+                  </BusyButton>
+                ))}
               </div>
 
               <button
+                type="button"
                 onClick={onClose}
-                className="p-2 hover:bg-overlay-light rounded-lg transition-colors border border-border"
+                className="icon-btn"
                 title="Close"
+                aria-label="Close"
               >
                 <svg
-                  className="w-5 h-5 text-text-secondary"
+                  viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  viewBox="0 0 24 24"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  aria-hidden="true"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
+                  <path d="m6 6 12 12M18 6 6 18" />
                 </svg>
               </button>
             </div>
           </div>
 
           {/* Graph Area */}
-          <div ref={containerRef} className="flex-1 relative bg-bg-editor/40 overflow-hidden">
+          <div ref={containerRef} className="flex-1 relative overflow-hidden">
+            <LoadingState
+              active={settling}
+              label="Arranging the graph"
+              className="pointer-events-none absolute bottom-4 start-5 z-10"
+            >
+              <span className="flex items-center gap-2 text-[12px] font-medium text-text-muted">
+                <BusyDots />
+                Arranging
+              </span>
+            </LoadingState>
             {measured && nodes.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-text-muted">
-                <div className="text-center">
-                  <svg
-                    className="w-16 h-16 mx-auto mb-4 opacity-20"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1}
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
-                  <p className="text-base">
-                    {filter === "orphaned"
-                      ? "No orphaned notes found."
-                      : filter === "connected"
-                        ? "No connected notes found."
-                        : "No notes yet. Use [[WikiLinks]] to connect your notes."}
-                  </p>
-                </div>
+              <div className="h-full flex items-center justify-center">
+                {filter === "orphaned" ? (
+                  <EmptyState
+                    icon="graph"
+                    title="No orphaned notes"
+                    body="Every note links to another or is linked from one."
+                  />
+                ) : filter === "connected" ? (
+                  <EmptyState
+                    icon="graph"
+                    title="No connected notes"
+                    body="Link one note to another with [[WikiLinks]] and they meet here."
+                  />
+                ) : (
+                  <EmptyState
+                    icon="graph"
+                    title="Nothing to draw yet"
+                    body="Notes show up here as dots; [[WikiLinks]] between them draw the lines."
+                  />
+                )}
               </div>
             ) : (
               <svg
@@ -896,7 +891,7 @@ const GraphModal = ({ isOpen, onClose }) => {
             )}
 
             {/* Zoom Indicator */}
-            <div className="absolute bottom-4 right-6 px-2 py-1 bg-black/20 dark:bg-black/40 backdrop-blur rounded text-[10px] text-text font-mono border border-border pointer-events-none">
+            <div className="pointer-events-none absolute end-6 bottom-4 font-mono text-[11px] text-text-muted">
               {Math.round(transform.k * 100)}%
             </div>
 
@@ -906,7 +901,7 @@ const GraphModal = ({ isOpen, onClose }) => {
                 const node = nodes.find((n) => n.id === hoveredNode);
                 if (!node) return null;
                 return (
-                  <div className="absolute top-4 left-4 bg-bg-sidebar/95 backdrop-blur border border-border rounded-lg px-4 py-3 shadow-xl max-w-xs pointer-events-none">
+                  <div className="glass-panel pointer-events-none absolute start-4 top-4 max-w-xs rounded-card px-4 py-3">
                     <p
                       className="text-sm font-semibold text-text-primary truncate"
                       title={node.name}
@@ -922,8 +917,13 @@ const GraphModal = ({ isOpen, onClose }) => {
                 );
               })()}
 
-            {/* Legend */}
-            <div className="absolute bottom-4 left-4 flex items-center gap-4 text-[10px] text-text-muted pointer-events-none">
+            {/* Legend. It shares the bottom-start corner with "Arranging", so
+                it steps aside while the layout settles instead of overlapping. */}
+            <div
+              className={`pointer-events-none absolute start-4 bottom-4 flex items-center gap-3 text-[11px] text-text-muted motion-safe:transition-opacity motion-safe:duration-150 ${
+                settling ? "opacity-0" : "opacity-100"
+              }`}
+            >
               <span>Drag to pan</span>
               <span>&middot;</span>
               <span>Scroll to zoom</span>

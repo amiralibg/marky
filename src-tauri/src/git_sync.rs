@@ -567,8 +567,7 @@ fn commit(
     options: &SyncOptions,
     envs: &[(&str, String)],
 ) -> Result<Option<String>, String> {
-    git_authored(path, &["commit", "-m", message], options, envs)
-        .map(|_| Some(message.to_string()))
+    git_authored(path, &["commit", "-m", message], options, envs).map(|_| Some(message.to_string()))
 }
 
 // ── Commands ────────────────────────────────────────────────────────────────

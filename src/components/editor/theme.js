@@ -78,6 +78,22 @@ export const buildSyntaxHighlighting = (accentColor = "var(--color-accent)") => 
   );
 };
 
+// HTML source: tags, attributes and values in the same palette roles the
+// markdown highlighting uses (keyword, meta, string, comment), so an HTML
+// document's Source view reads as part of the same editor.
+export const markyHtmlSyntaxHighlighting = syntaxHighlighting(
+  HighlightStyle.define([
+    { tag: t.tagName, color: syntaxColor("keyword") },
+    { tag: t.angleBracket, color: syntaxColor("meta") },
+    { tag: t.attributeName, color: syntaxColor("emphasis") },
+    { tag: t.attributeValue, color: syntaxColor("string") },
+    { tag: t.documentMeta, color: syntaxColor("meta") },
+    { tag: t.processingInstruction, color: syntaxColor("meta") },
+    { tag: t.character, color: syntaxColor("string") },
+    { tag: t.comment, color: syntaxColor("comment"), fontStyle: "italic" },
+  ])
+);
+
 // Theme using Marky's CSS variables for dynamic theme support
 export const markyTheme = EditorView.theme(
   {
@@ -113,7 +129,9 @@ export const markyTheme = EditorView.theme(
       // variable rather than an override: this rule comes from
       // `EditorView.theme`, which outranks anything the live-preview extension
       // can declare, so a plain `.cm-content { padding-inline }` there loses.
-      padding: "2rem var(--marky-editor-gutter, 2.25rem) 40vh",
+      // The top pad is a variable for the same reason: Live mode raises it to
+      // Read mode's head room.
+      padding: "var(--marky-editor-top, 2rem) var(--marky-editor-gutter, 2.25rem) 40vh",
       // Variables for the same reason as the gutter: Live mode sets prose at
       // the Read sheet's size and rhythm, so the two modes never reflow.
       fontSize: "var(--marky-content-font-size, inherit)",
@@ -236,22 +254,25 @@ export const markyTheme = EditorView.theme(
       border: "1px solid var(--color-border)",
       color: "var(--color-text-primary)",
       padding: "0 0.5em",
-      borderRadius: "3px",
+      borderRadius: "6px",
     },
     // ── Autocomplete / slash-command / wiki-link menus ──────────────
-    // Refined to match the app ("Vault") design: panel surface, soft border,
-    // rounded, UI sans font, accent-soft selected row, mono syntax hints.
+    // Frosted like every surface that floats above the sheet (`.glass-panel`
+    // in index.css): the raised colour at 70% blurred behind, the pop shadow
+    // carrying the hairline, radius 14. UI sans, mono syntax hints.
     ".cm-tooltip": {
-      backgroundColor: "var(--color-bg-editor)",
-      border: "1px solid var(--color-border)",
-      borderRadius: "11px",
+      backgroundColor: "var(--color-frost)",
+      backdropFilter: "blur(24px) saturate(1.6)",
+      WebkitBackdropFilter: "blur(24px) saturate(1.6)",
+      border: "none",
+      borderRadius: "14px",
       color: "var(--color-text-primary)",
       fontFamily: "var(--font-family-sans)",
-      boxShadow: "0 12px 34px rgba(20, 20, 15, 0.18)",
+      boxShadow: "var(--pop-shadow)",
       overflow: "hidden",
     },
     ".cm-tooltip.cm-tooltip-autocomplete": {
-      padding: "5px",
+      padding: "6px",
     },
     ".cm-tooltip-autocomplete > ul": {
       maxHeight: "18rem",
@@ -263,8 +284,8 @@ export const markyTheme = EditorView.theme(
       gap: "10px",
       minHeight: "auto",
       padding: "7px 10px",
-      borderRadius: "7px",
-      margin: "1px 2px",
+      borderRadius: "8px",
+      margin: "1px 0",
       fontSize: "13px",
       lineHeight: "1.3",
       color: "var(--color-text-primary)",
@@ -274,8 +295,8 @@ export const markyTheme = EditorView.theme(
       backgroundColor: "var(--color-item-hover)",
     },
     ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
-      backgroundColor: "var(--color-accent-dim)",
-      color: "var(--color-accent)",
+      backgroundColor: "var(--color-item-hover)",
+      color: "var(--color-text-primary)",
       fontWeight: "500",
     },
     // Drop CodeMirror's built-in completion type icons (the "abc"/key glyphs).
@@ -306,8 +327,8 @@ export const markyTheme = EditorView.theme(
     ".cm-tooltip-autocomplete > ul > li.cm-slash-option": {
       gap: "11px",
       padding: "6px 9px",
-      margin: "1px 3px",
-      borderRadius: "9px",
+      margin: "1px 0",
+      borderRadius: "8px",
     },
     ".cm-slash-tile": {
       display: "flex",
@@ -316,16 +337,16 @@ export const markyTheme = EditorView.theme(
       width: "28px",
       height: "28px",
       flexShrink: 0,
-      borderRadius: "7px",
+      borderRadius: "8px",
       backgroundColor: "var(--color-item-hover)",
-      border: "1px solid var(--color-border)",
       color: "var(--color-text-secondary)",
       transition: "background-color 0.12s ease, color 0.12s ease",
     },
+    // The selected row's icon takes the accent tint, not a filled tile: a
+    // view gets one filled accent at most, and a menu row isn't it.
     ".cm-tooltip-autocomplete > ul > li[aria-selected] .cm-slash-tile": {
-      backgroundColor: "var(--color-accent)",
-      borderColor: "transparent",
-      color: "#ffffff",
+      backgroundColor: "var(--color-accent-dim)",
+      color: "var(--color-accent)",
     },
     "li.cm-slash-option .cm-completionLabel": {
       fontWeight: "500",
@@ -351,11 +372,10 @@ export const markyTheme = EditorView.theme(
       marginInlineStart: "0",
       paddingInline: "6px",
       paddingBlock: "1px",
-      borderRadius: "5px",
+      borderRadius: "6px",
       backgroundColor: "var(--color-item-hover)",
-      border: "1px solid var(--color-border)",
       color: "var(--color-text-muted)",
-      fontSize: "10.5px",
+      fontSize: "11px",
     },
     "li[aria-selected].cm-slash-option .cm-completionDetail": {
       backgroundColor: "transparent",
@@ -365,16 +385,18 @@ export const markyTheme = EditorView.theme(
 
     // Side info panel (e.g. a note's path on wiki-link completion).
     ".cm-completionInfo": {
-      backgroundColor: "var(--color-bg-editor)",
-      border: "1px solid var(--color-border)",
-      borderRadius: "9px",
-      padding: "8px 11px",
+      backgroundColor: "var(--color-frost)",
+      backdropFilter: "blur(24px) saturate(1.6)",
+      WebkitBackdropFilter: "blur(24px) saturate(1.6)",
+      border: "none",
+      borderRadius: "14px",
+      padding: "8px 12px",
       marginInline: "6px",
       fontFamily: "var(--font-family-sans)",
       fontSize: "12px",
       lineHeight: "1.5",
       color: "var(--color-text-secondary)",
-      boxShadow: "0 12px 34px rgba(20, 20, 15, 0.18)",
+      boxShadow: "var(--pop-shadow)",
       maxWidth: "260px",
     },
 
@@ -397,11 +419,13 @@ export const markyTheme = EditorView.theme(
       gap: "0.625rem",
       "--search-accent": "var(--color-accent)",
       "--search-accent-hover": "var(--color-accent-hover)",
-      backgroundColor: "var(--color-bg-sidebar)",
-      border: "1px solid var(--color-border)",
+      backgroundColor: "var(--color-frost)",
+      backdropFilter: "blur(24px) saturate(1.6)",
+      WebkitBackdropFilter: "blur(24px) saturate(1.6)",
+      border: "none",
       borderRadius: "14px",
       padding: "3.75rem 5.5rem 1rem 0.875rem",
-      boxShadow: "0 10px 24px rgba(0, 0, 0, 0.2)",
+      boxShadow: "var(--pop-shadow)",
     },
     ".cm-search br": {
       flexBasis: "100%",
@@ -414,13 +438,13 @@ export const markyTheme = EditorView.theme(
       height: "2.5rem",
       backgroundColor: "var(--color-overlay-subtle)",
       border: "1px solid var(--color-overlay-subtle)",
-      borderRadius: "10px",
+      borderRadius: "14px",
       color: "var(--color-text-primary)",
       padding: "0 0.95rem",
       fontSize: "13px",
       fontWeight: "400",
       outline: "none",
-      transition: "border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease",
+      transition: "border-color 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease",
     },
     '.cm-search input[name="search"]': {
       flex: "1 1 18rem",
@@ -450,19 +474,18 @@ export const markyTheme = EditorView.theme(
       alignItems: "center",
       justifyContent: "center",
       height: "2.5rem",
-      borderRadius: "14px",
+      borderRadius: "999px",
       border: "1px solid var(--color-overlay-subtle)",
       backgroundColor: "var(--color-overlay-subtle)",
       color: "var(--color-text-primary)",
       padding: "0 1.2rem",
-      fontSize: "11px",
+      fontSize: "12.5px",
       fontWeight: "600",
-      letterSpacing: "0.04em",
+      letterSpacing: "0",
       lineHeight: 1,
       whiteSpace: "nowrap",
       cursor: "pointer",
-      transition:
-        "transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease",
+      transition: "border-color 0.14s ease, background-color 0.14s ease, color 0.14s ease",
       boxShadow: "none",
     },
     ".cm-search button:hover": {
@@ -530,14 +553,11 @@ export const markyTheme = EditorView.theme(
       border: "1px solid var(--color-overlay-subtle)",
       background: "var(--color-overlay-subtle)",
       color: "var(--color-text-secondary)",
-      fontSize: "11px",
+      fontSize: "12px",
       fontWeight: "600",
-      letterSpacing: "0.05em",
-      textTransform: "uppercase",
       whiteSpace: "nowrap",
       cursor: "pointer",
-      transition:
-        "border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, transform 0.16s ease",
+      transition: "border-color 0.14s ease, background-color 0.14s ease, color 0.14s ease",
     },
     ".cm-search label:hover": {
       color: "var(--color-text-primary)",

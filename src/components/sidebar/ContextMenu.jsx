@@ -3,6 +3,7 @@ import useNotesStore from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
 import ConfirmDialog from "../modals/ConfirmDialog";
 import { openNoteInNewWindow } from "../../utils/noteWindows";
+import { isHtmlDocument } from "../../utils/documentKind";
 
 // Count all descendant notes inside a folder recursively
 const getDescendantCount = (folderId) => {
@@ -39,6 +40,7 @@ const ContextMenu = ({
   onPaste,
   onSelectAll,
   canPaste = false,
+  onNewHtmlDocument,
 }) => {
   const { createFolder, deleteItem, undoLastDelete, togglePinNote, isPinned } = useNotesStore();
   const { addNotification } = useUIStore();
@@ -51,6 +53,8 @@ const ContextMenu = ({
         onShowTemplate(item.type === "folder" ? item.id : item.parentId);
         onClose();
         return;
+      } else if (action === "newHtml") {
+        await onNewHtmlDocument?.(item.type === "folder" ? item.id : item.parentId);
       } else if (action === "newFolder") {
         await createFolder(item.type === "folder" ? item.id : item.parentId);
       } else if (action === "rename") {
@@ -138,11 +142,11 @@ const ContextMenu = ({
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
-        className="fixed z-50 glass-panel rounded-lg shadow-2xl py-1 min-w-[180px] animate-in fade-in zoom-in-95 duration-100"
+        className="fixed z-50 glass-panel rounded-card p-1.5 min-w-[208px] animate-fade-in"
         style={{ left: x, top: y }}
       >
         {selectionCount > 1 && (
-          <div className="px-3 py-2 text-xs text-text-muted border-b border-glass-border">
+          <div className="px-2.5 pt-1 pb-1.5 text-[12px] font-semibold text-text-muted">
             {selectionCount} items selected
           </div>
         )}
@@ -150,54 +154,59 @@ const ContextMenu = ({
           <>
             {selectionCount > 1 ? null : (
               <>
-                <button
-                  className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
-                  onClick={() => handleAction("newNote")}
-                >
+                <button className="menu-item" onClick={() => handleAction("newNote")}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth={2}
+                      strokeWidth={1.6}
                       d="M12 4v16m8-8H4"
                     />
                   </svg>
-                  New Note
+                  New note
                 </button>
-                <button
-                  className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
-                  onClick={() => handleAction("newFolder")}
-                >
+                {onNewHtmlDocument && (
+                  <button className="menu-item" onClick={() => handleAction("newHtml")}>
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.6}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8zM14 3.5V8h4.5M10.5 12 8.5 14.2l2 2.3M13.5 12l2 2.2-2 2.3" />
+                    </svg>
+                    New HTML document
+                  </button>
+                )}
+                <button className="menu-item" onClick={() => handleAction("newFolder")}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth={2}
+                      strokeWidth={1.6}
                       d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
                     />
                   </svg>
-                  New Folder
+                  New folder
                 </button>
-                <div className="my-1 border-t border-glass-border" />
-                <button
-                  className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
-                  onClick={() => handleAction("rename")}
-                >
+                <div className="menu-separator" />
+                <button className="menu-item" onClick={() => handleAction("rename")}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth={2}
+                      strokeWidth={1.6}
                       d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                     />
                   </svg>
                   Rename
                 </button>
                 {item.type === "note" && (
-                  <button
-                    className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
-                    onClick={() => handleAction("pin")}
-                  >
+                  <button className="menu-item" onClick={() => handleAction("pin")}>
                     <svg
                       className={`w-4 h-4 ${isNotePinned ? "text-amber-400 fill-amber-400" : ""}`}
                       fill="none"
@@ -207,7 +216,7 @@ const ContextMenu = ({
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        strokeWidth={2}
+                        strokeWidth={1.6}
                         d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
                       />
                     </svg>
@@ -215,71 +224,58 @@ const ContextMenu = ({
                   </button>
                 )}
                 {item.type === "note" && item.filePath && (
-                  <button
-                    className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
-                    onClick={() => handleAction("openInWindow")}
-                  >
+                  <button className="menu-item" onClick={() => handleAction("openInWindow")}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        strokeWidth={2}
+                        strokeWidth={1.6}
                         d="M4 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
                       />
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        strokeWidth={2}
+                        strokeWidth={1.6}
                         d="M10 10a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2h-6a2 2 0 01-2-2v-6z"
                       />
                     </svg>
-                    Open in New Window
+                    Open in new window
                   </button>
                 )}
               </>
             )}
             {/* Clipboard actions work the same on one row or a selection.
                 Paste lands inside this folder — or beside this row's parent. */}
-            <div className="my-1 border-t border-glass-border" />
-            <button
-              className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
-              onClick={() => handleAction("cut")}
-            >
+            <div className="menu-separator" />
+            <button className="menu-item" onClick={() => handleAction("cut")}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <circle cx="6" cy="6" r="2.6" />
                 <circle cx="6" cy="18" r="2.6" />
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={1.6}
                   d="M8.2 7.7 20 19M8.2 16.3 20 5"
                 />
               </svg>
               Cut
-              <span className="ml-auto text-[11px] font-mono text-text-muted">⌘X</span>
+              <span className="ms-auto text-[11px] font-mono text-text-muted">⌘X</span>
             </button>
-            <button
-              className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
-              onClick={() => handleAction("copy")}
-            >
+            <button className="menu-item" onClick={() => handleAction("copy")}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="9" y="9" width="11" height="11" rx="2" strokeWidth={2} />
+                <rect x="9" y="9" width="11" height="11" rx="2" strokeWidth={1.6} />
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={1.6}
                   d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
                 />
               </svg>
               Copy
-              <span className="ml-auto text-[11px] font-mono text-text-muted">⌘C</span>
+              <span className="ms-auto text-[11px] font-mono text-text-muted">⌘C</span>
             </button>
             <button
-              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
-                canPaste
-                  ? "text-text-primary hover:bg-overlay-light"
-                  : "text-text-muted cursor-default"
-              }`}
+              className="menu-item"
               disabled={!canPaste}
               onClick={() => handleAction("paste")}
             >
@@ -287,39 +283,36 @@ const ContextMenu = ({
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={1.6}
                   d="M9 3h6v3H9zM7 5H5a2 2 0 00-2 2v13a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2h-2"
                 />
               </svg>
               Paste
-              <span className="ml-auto text-[11px] font-mono text-text-muted">⌘V</span>
+              <span className="ms-auto text-[11px] font-mono text-text-muted">⌘V</span>
             </button>
-            <button
-              className="w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-overlay-light flex items-center gap-2 transition-colors"
-              onClick={() => handleAction("selectAll")}
-            >
+            <button className="menu-item" onClick={() => handleAction("selectAll")}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="3.5 3" />
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={1.6}
                   d="M8 12.5l2.5 2.5L16 9.5"
                 />
               </svg>
-              Select All
-              <span className="ml-auto text-[11px] font-mono text-text-muted">⌘A</span>
+              Select all
+              <span className="ms-auto text-[11px] font-mono text-text-muted">⌘A</span>
             </button>
-            {selectionCount > 1 ? null : <div className="my-1 border-t border-glass-border" />}
+            {selectionCount > 1 ? null : <div className="menu-separator" />}
             <button
-              className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+              className="menu-item text-red-500! hover:bg-red-500/10! [&>svg]:text-red-500!"
               onClick={() => handleAction("delete")}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={1.6}
                   d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                 />
               </svg>
@@ -331,7 +324,7 @@ const ContextMenu = ({
 
       <ConfirmDialog
         isOpen={showDeleteConfirm}
-        title={`Delete ${item.type === "folder" ? "Folder" : "Note"}`}
+        title={`Delete ${item.type === "folder" ? "folder" : isHtmlDocument(item) ? "document" : "note"}`}
         message={(() => {
           if (item.type === "folder") {
             const { noteCount, folderCount } = getDescendantCount(item.id);

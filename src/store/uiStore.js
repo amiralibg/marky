@@ -31,6 +31,13 @@ const useUIStore = create((set) => ({
   titlebarSlot: null,
   setTitlebarSlot: (element) => set({ titlebarSlot: element }),
 
+  // The folder Home's Library is showing (`null` = the vault root). Held here
+  // rather than in the dashboard so opening a note and coming back to Home
+  // returns to the same folder; not persisted, since folder ids follow paths
+  // and a stale one would only fall back to the root anyway.
+  homeFolderId: null,
+  setHomeFolderId: (folderId) => set({ homeFolderId: folderId ?? null }),
+
   toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),
   setFocusMode: (value) => set({ focusMode: value }),
 

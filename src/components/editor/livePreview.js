@@ -1857,11 +1857,15 @@ const livePreviewTheme = EditorView.baseTheme({
   // It is set as a custom property, which `markyTheme` reads in its own
   // `padding` shorthand — that rule comes from `EditorView.theme` and outranks
   // this base theme, so declaring `padding-inline` here would simply lose.
+  //
+  // The 4rem head room matches Read mode's top padding (MarkdownEditor.jsx),
+  // so the first line sits at the same height in both.
   ".cm-content": {
     fontFamily: "var(--font-family-body)",
     "--marky-editor-gutter": "4.5rem",
+    "--marky-editor-top": "4rem",
     "--marky-content-font-size":
-      "calc(17px * var(--marky-editor-font-scale, 1) * var(--marky-font-scale, 1) * var(--font-reading-scale, 1))",
+      "calc(16.5px * var(--marky-editor-font-scale, 1) * var(--marky-font-scale, 1) * var(--font-reading-scale, 1))",
     "--marky-content-line-height": "1.7",
   },
   // A flat top pad on every level, matching the preview sheet's heading
@@ -1908,17 +1912,26 @@ const livePreviewTheme = EditorView.baseTheme({
     transition: "opacity 120ms ease",
   },
   ".cm-lp-h-open .cm-lp-hash": { opacity: "1" },
-  ".cm-lp-h1": { fontSize: "2em", letterSpacing: "-0.022em", lineHeight: "1.25" },
-  ".cm-lp-h2": { fontSize: "1.55em", letterSpacing: "-0.018em", lineHeight: "1.25" },
-  ".cm-lp-h3": { fontSize: "1.26em", lineHeight: "1.25" },
+  ".cm-lp-h1": {
+    fontSize: "2.1818em",
+    fontWeight: "700",
+    letterSpacing: "-0.025em",
+    lineHeight: "1.15",
+  },
+  ".cm-lp-h2": {
+    fontSize: "1.4545em",
+    fontWeight: "650",
+    letterSpacing: "-0.018em",
+    lineHeight: "1.25",
+  },
+  ".cm-lp-h3": { fontSize: "1.2em", lineHeight: "1.25" },
   ".cm-lp-h4": { fontSize: "1.1em" },
   ".cm-lp-h5": { fontSize: "1em" },
   ".cm-lp-h6": {
     fontFamily: "var(--font-family-sans)",
-    fontSize: "0.78em",
+    fontSize: "0.82em",
     color: "var(--color-text-muted)",
-    textTransform: "uppercase",
-    letterSpacing: "0.07em",
+    letterSpacing: "0",
   },
   // Kept in step with `.markdown-preview code` / `blockquote` in
   // MarkdownPreview.css so a block looks the same in Live and Read.
@@ -1926,7 +1939,7 @@ const livePreviewTheme = EditorView.baseTheme({
     // Same mix as `--md-surface-strong` in MarkdownPreview.css; the variable
     // itself lives on `.markdown-preview`, which the editor content is not.
     backgroundColor: "color-mix(in srgb, var(--color-text-primary) 8%, var(--color-bg-editor))",
-    borderRadius: "4px",
+    borderRadius: "6px",
     padding: "0.14em 0.38em",
     fontSize: "0.9em",
     fontFamily: "var(--font-family-mono)",
@@ -1939,23 +1952,43 @@ const livePreviewTheme = EditorView.baseTheme({
   // element and may resolve to a different direction (especially a bare `>`
   // separator), while the quote rule must remain continuous on one side.
   ".cm-lp-quote-ltr": {
-    borderLeft: "3px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
+    borderLeft: "2px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
     paddingLeft: "1.1em",
   },
   ".cm-lp-quote-rtl": {
-    borderRight: "3px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
+    borderRight: "2px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
     paddingRight: "1.1em",
   },
   ".cm-lp-link": {
     color: "var(--color-accent)",
     textDecoration: "underline",
+    textDecorationColor: "color-mix(in srgb, var(--color-accent) 35%, transparent)",
+    textDecorationThickness: "1px",
+    textUnderlineOffset: "3px",
     cursor: "pointer",
   },
+  // Same hand-drawn box as Read mode's task checkbox (MarkdownPreview.css):
+  // 17px, radius 5, a hairline ring open and filled accent with a tick done.
   "input.cm-lp-task": {
-    verticalAlign: "middle",
-    marginInlineEnd: "0.45em",
+    appearance: "none",
+    WebkitAppearance: "none",
+    display: "inline-block",
+    width: "1.03em",
+    height: "1.03em",
+    margin: "0",
+    marginInlineEnd: "0.6em",
+    verticalAlign: "-0.17em",
+    borderRadius: "5px",
+    background: "transparent center / 100% 100% no-repeat",
+    boxShadow: "inset 0 0 0 1.5px var(--color-border-light)",
     cursor: "pointer",
-    accentColor: "var(--color-accent)",
+    transition: "background-color 140ms ease, box-shadow 140ms ease",
+  },
+  "input.cm-lp-task:checked": {
+    backgroundColor: "var(--color-accent)",
+    backgroundImage:
+      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 17'%3E%3Cpath d='M4.5 8.8l2.6 2.6 5.4-5.8' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
+    boxShadow: "none",
   },
   // Keep the wrap toggle beside the copy button: the header spreads its
   // children with space-between, so without this the toggle drifts to the
@@ -1976,8 +2009,7 @@ const livePreviewTheme = EditorView.baseTheme({
   // the inner `pre` drew a second rounded frame inside the first at a smaller
   // radius, which read as a box inside a box rather than "this block is live".
   ".cm-lp-render .code-block-wrapper:focus-within": {
-    borderColor: "color-mix(in srgb, var(--color-accent) 55%, transparent)",
-    boxShadow: "0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent)",
+    boxShadow: "0 0 0 2px color-mix(in srgb, var(--color-accent) 45%, transparent)",
   },
   // ── Live frontmatter card ─────────────────────────────────────────────────
   // Structure and look come from the Read-mode `.frontmatter-*` styles via the
@@ -2017,7 +2049,7 @@ const livePreviewTheme = EditorView.baseTheme({
     color: "var(--color-text-muted)",
     font: "700 11px var(--font-family-mono)",
     padding: "2px 6px",
-    borderRadius: "5px",
+    borderRadius: "8px",
     cursor: "pointer",
     opacity: "0",
     transition: "opacity 120ms ease, color 120ms ease",
@@ -2042,7 +2074,7 @@ const livePreviewTheme = EditorView.baseTheme({
   // turned soft wrap on.
   ".cm-lp-render .code-block-wrapper pre": {
     overflow: "auto",
-    borderRadius: "calc(var(--md-radius, 10px) - 1px)",
+    borderRadius: "var(--md-radius, 14px)",
   },
   // The language label doubles as the picker trigger; the wrap toggle sits
   // beside the copy button. All three only surface on hover, like Read mode.
@@ -2058,13 +2090,15 @@ const livePreviewTheme = EditorView.baseTheme({
     position: "relative",
     padding: "2px 6px",
     margin: "-2px -6px",
-    borderRadius: "5px",
+    borderRadius: "8px",
     transition: "background-color 140ms ease, color 140ms ease",
   },
   ".cm-lp-render .code-block-lang.cm-lp-langpick:hover": {
     color: "var(--color-accent)",
     backgroundColor: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
   },
+  // Frosted like every surface that floats above the sheet (`.glass-panel`
+  // in index.css; repeated here because CodeMirror themes are their own CSS).
   ".cm-lp-langmenu": {
     position: "absolute",
     top: "calc(100% + 4px)",
@@ -2072,14 +2106,15 @@ const livePreviewTheme = EditorView.baseTheme({
     zIndex: "14",
     display: "flex",
     flexDirection: "column",
-    minWidth: "110px",
+    minWidth: "120px",
     maxHeight: "240px",
     overflowY: "auto",
-    padding: "4px",
-    borderRadius: "8px",
-    backgroundColor: "var(--color-bg-editor)",
-    border: "1px solid var(--color-border)",
-    boxShadow: "0 6px 20px color-mix(in srgb, black 22%, transparent)",
+    padding: "6px",
+    borderRadius: "14px",
+    backgroundColor: "var(--color-frost)",
+    backdropFilter: "blur(24px) saturate(1.6)",
+    WebkitBackdropFilter: "blur(24px) saturate(1.6)",
+    boxShadow: "var(--pop-shadow)",
   },
   ".cm-lp-langopt": {
     border: "none",
@@ -2087,13 +2122,13 @@ const livePreviewTheme = EditorView.baseTheme({
     color: "var(--color-text-secondary)",
     font: "500 12px var(--font-family-mono)",
     textAlign: "left",
-    padding: "5px 9px",
-    borderRadius: "5px",
+    padding: "6px 10px",
+    borderRadius: "8px",
     cursor: "pointer",
   },
   ".cm-lp-langopt:hover": {
-    backgroundColor: "color-mix(in srgb, var(--color-accent) 14%, transparent)",
-    color: "var(--color-accent)",
+    backgroundColor: "var(--color-item-hover)",
+    color: "var(--color-text-primary)",
   },
   ".cm-lp-langopt-active": {
     color: "var(--color-accent)",
@@ -2110,7 +2145,7 @@ const livePreviewTheme = EditorView.baseTheme({
     height: "24px",
     padding: "0",
     border: "none",
-    borderRadius: "5px",
+    borderRadius: "8px",
     background: "transparent",
     color: "var(--color-text-muted)",
     cursor: "pointer",
@@ -2157,7 +2192,7 @@ const livePreviewTheme = EditorView.baseTheme({
   ".cm-lp-render.cm-lp-tablewrap": { position: "relative", padding: "38px 0 0.55em" },
   ".cm-lp-tablewrap .table-wrap": {
     border: "1px solid color-mix(in srgb, var(--color-text-primary) 12%, transparent)",
-    borderRadius: "10px",
+    borderRadius: "14px",
     overflow: "auto",
     backgroundColor: "color-mix(in srgb, var(--color-text-primary) 2%, transparent)",
     transition: "border-color 140ms ease, box-shadow 140ms ease",
@@ -2166,7 +2201,6 @@ const livePreviewTheme = EditorView.baseTheme({
   // object that lights up while you are editing inside it.
   ".cm-lp-tablewrap .table-wrap:focus-within": {
     borderColor: "color-mix(in srgb, var(--color-accent) 50%, transparent)",
-    boxShadow: "0 0 0 3px color-mix(in srgb, var(--color-accent) 11%, transparent)",
   },
   ".cm-lp-tablewrap th": {
     backgroundColor: "color-mix(in srgb, var(--color-text-primary) 6%, transparent)",
@@ -2193,11 +2227,12 @@ const livePreviewTheme = EditorView.baseTheme({
     insetInlineStart: "0",
     zIndex: "12",
     padding: "3px 4px",
-    borderRadius: "8px",
-    backgroundColor: "var(--color-bg-editor)",
-    border: "1px solid var(--color-border)",
-    boxShadow:
-      "0 1px 2px color-mix(in srgb, black 12%, transparent), 0 4px 14px color-mix(in srgb, black 16%, transparent)",
+    // A floating toolbar: frosted, with the one pop shadow.
+    borderRadius: "14px",
+    backgroundColor: "var(--color-frost)",
+    backdropFilter: "blur(24px) saturate(1.6)",
+    WebkitBackdropFilter: "blur(24px) saturate(1.6)",
+    boxShadow: "var(--pop-shadow)",
     opacity: "0",
     visibility: "hidden",
     transition: "opacity 120ms ease, visibility 120ms ease",
@@ -2214,14 +2249,14 @@ const livePreviewTheme = EditorView.baseTheme({
     height: "24px",
     padding: "0",
     border: "none",
-    borderRadius: "6px",
+    borderRadius: "8px",
     background: "transparent",
     color: "var(--color-text-secondary)",
     cursor: "pointer",
   },
   ".cm-lp-tablebtn:hover": {
-    backgroundColor: "color-mix(in srgb, var(--color-accent) 14%, transparent)",
-    color: "var(--color-accent)",
+    backgroundColor: "var(--color-item-hover)",
+    color: "var(--color-text-primary)",
   },
   ".cm-lp-tablebtn:disabled": {
     opacity: "0.3",
@@ -2297,16 +2332,16 @@ const livePreviewTheme = EditorView.baseTheme({
   // offset bands, these shadows hug the box (no 6px displacement), so the
   // frame reads as one rounded card rather than three floating strips.
   ".cm-lp-src-first": {
-    borderTopLeftRadius: "10px",
-    borderTopRightRadius: "10px",
+    borderTopLeftRadius: "14px",
+    borderTopRightRadius: "14px",
     boxShadow:
       "inset 1px 1px 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)," +
       "inset -1px 0 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)",
     paddingTop: "8px",
   },
   ".cm-lp-src-last": {
-    borderBottomLeftRadius: "10px",
-    borderBottomRightRadius: "10px",
+    borderBottomLeftRadius: "14px",
+    borderBottomRightRadius: "14px",
     boxShadow:
       "inset 1px 0 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)," +
       "inset -1px -1px 0 color-mix(in srgb, var(--color-text-primary) 9%, transparent)",
@@ -2331,7 +2366,7 @@ const livePreviewTheme = EditorView.baseTheme({
   ".cm-lp-render.cm-lp-sel, .cm-lp-inline-render.cm-lp-sel": {
     backgroundColor: "var(--color-accent-selection, rgba(109, 92, 224, 0.3))",
   },
-  ".cm-lp-inline-render img": { maxWidth: "100%", borderRadius: "6px" },
+  ".cm-lp-inline-render img": { maxWidth: "100%", borderRadius: "8px" },
   ".cm-lp-mermaid": {
     display: "flex",
     justifyContent: "center",

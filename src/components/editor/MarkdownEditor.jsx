@@ -16,6 +16,8 @@ import SelectionToolbar from "./SelectionToolbar";
 import OutlineRail from "./OutlineRail";
 import EditorScrollFade from "./EditorScrollFade";
 import EditorActionsMenu from "./EditorActionsMenu";
+import HtmlDocumentEditor from "./HtmlDocumentEditor";
+import { isHtmlDocument } from "../../utils/documentKind";
 import useNotesStore, { SETTINGS_TAB_ID, registerPendingEditFlusher } from "../../store/notesStore";
 import useUIStore from "../../store/uiStore";
 import useSettingsStore, { editorWidthValue, normalizeViewMode } from "../../store/settingsStore";
@@ -27,6 +29,7 @@ import { setAttachmentContext } from "../../utils/attachments";
 import { copyText } from "../../utils/clipboard";
 import { copyDroppedImages, saveImageAttachment } from "../../utils/attachmentSaver";
 import { useExternalImageDrop } from "../../hooks/useExternalImageDrop";
+import { LoadingState, Skeleton, SkeletonCards, SkeletonLines } from "../ui/Loading";
 import "./MarkdownPreview.css";
 
 const ExportModal = lazy(() => import("../modals/ExportModal"));
@@ -144,6 +147,10 @@ const MarkdownEditor = forwardRef((props, ref) => {
   // Live-mode widgets) render from this same pass, and an effect would leave
   // the first render of a newly opened note resolving against the previous one.
   const currentNoteFilePath = getCurrentNote()?.filePath || null;
+  // HTML documents have an editor of their own (rendered below, in place of
+  // this one); the markdown-only machinery here stands down for them.
+  const isHtmlCurrent = isHtmlDocument(getCurrentNote());
+  const htmlEditorRef = useRef(null);
   setAttachmentContext({ notePath: currentNoteFilePath, vaultRoot: rootFolderPath });
 
   // Pasting or dropping an image: write it into the vault, hand back the
@@ -210,7 +217,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
   useExternalImageDrop({
     getView: () => editorRef.current?.getView() ?? null,
     onDropImages: handleDropImages,
-    enabled: viewMode !== "read" && currentNoteId !== SETTINGS_TAB_ID,
+    enabled: viewMode !== "read" && currentNoteId !== SETTINGS_TAB_ID && !isHtmlCurrent,
   });
 
   // Get dirty state from store (persists across tab switches)
@@ -437,6 +444,10 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   // Manual save function
   const handleSave = useCallback(async () => {
+    if (htmlEditorRef.current && isHtmlCurrent) {
+      await htmlEditorRef.current.save();
+      return;
+    }
     if (!currentNoteId || isSaving) return;
 
     const currentNote = getCurrentNote();
@@ -494,6 +505,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
     saveCurrentNoteToDisk,
     updateNotePath,
     addNotification,
+    isHtmlCurrent,
   ]);
 
   // The write itself is scheduled by the store (see `scheduleAutoSave`), which
@@ -531,6 +543,8 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
   // Keyboard shortcut for save (Ctrl+S / Cmd+S)
   useEffect(() => {
+    // An HTML document's editor binds its own (it flushes in-place edits first).
+    if (isHtmlCurrent) return undefined;
     const handleKeyDown = (e) => {
       // Check for Ctrl+S (Windows/Linux) or Cmd+S (Mac)
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
@@ -541,7 +555,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleSave]);
+  }, [handleSave, isHtmlCurrent]);
 
   // Expose methods to parent
   useImperativeHandle(
@@ -550,12 +564,23 @@ const MarkdownEditor = forwardRef((props, ref) => {
       setViewMode,
       scrollToAndHighlight,
       handleSave,
-      handleExport: () => setShowExportModal(true),
+      handleExport: () =>
+        isHtmlCurrent && htmlEditorRef.current
+          ? htmlEditorRef.current.openExport()
+          : setShowExportModal(true),
       nextMatch,
       previousMatch,
       clearSearch,
     }),
-    [setViewMode, scrollToAndHighlight, handleSave, nextMatch, previousMatch, clearSearch]
+    [
+      setViewMode,
+      scrollToAndHighlight,
+      handleSave,
+      nextMatch,
+      previousMatch,
+      clearSearch,
+      isHtmlCurrent,
+    ]
   );
 
   const handleMarkdownChange = (value) => {
@@ -992,9 +1017,11 @@ const MarkdownEditor = forwardRef((props, ref) => {
     return (
       <Suspense
         fallback={
-          <div className="h-full flex items-center justify-center bg-bg-editor text-sm text-text-muted">
-            Loading settings...
-          </div>
+          <LoadingState label="Loading settings" className="h-full bg-bg-editor px-10 py-12">
+            <div className="mx-auto max-w-3xl">
+              <SkeletonLines count={5} />
+            </div>
+          </LoadingState>
         }
       >
         <SettingsPage
@@ -1009,9 +1036,10 @@ const MarkdownEditor = forwardRef((props, ref) => {
     return (
       <Suspense
         fallback={
-          <div className="h-full flex items-center justify-center bg-bg-editor text-sm text-text-muted">
-            Loading workspace...
-          </div>
+          <LoadingState label="Loading Home" className="h-full bg-bg-editor px-10 py-12">
+            <Skeleton className="mb-8 h-7 w-48" />
+            <SkeletonCards count={8} />
+          </LoadingState>
         }
       >
         <WorkspaceDashboard />
@@ -1019,9 +1047,23 @@ const MarkdownEditor = forwardRef((props, ref) => {
     );
   }
 
+  if (isHtmlDocument(currentNote)) {
+    return (
+      <HtmlDocumentEditor
+        key={currentNote.id}
+        ref={htmlEditorRef}
+        note={currentNote}
+        focusMode={focusMode}
+      />
+    );
+  }
+
+  // A segmented control: a 2px-inset track in the hover tint, 28px segments,
+  // the active one raised on the sheet colour with a hairline ring. The thumb's
+  // radius is the track's minus the inset, so the two curves stay concentric.
   const viewModeControl = (
     <div
-      className="flex items-center gap-0.5 rounded-md bg-overlay-subtle p-0.5 shrink-0"
+      className="flex items-center gap-0.5 rounded-control bg-item-hover p-0.5 shrink-0"
       role="group"
       aria-label="Editor view mode"
     >
@@ -1033,19 +1075,19 @@ const MarkdownEditor = forwardRef((props, ref) => {
             onClick={() => setViewMode(m.id)}
             aria-pressed={active}
             aria-label={`Switch to ${m.label} view`}
-            className={`flex h-6 items-center gap-1.5 rounded-[5px] ps-2 pe-2.5 text-[12.5px] transition-colors ${
+            className={`flex h-7 items-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-3 text-[12.5px] transition-[background-color,color] duration-140 ${
               active
-                ? "bg-bg-editor font-semibold text-text-primary shadow-[0_0_0_1px_var(--color-border)]"
-                : "text-text-secondary hover:text-text-primary"
+                ? "bg-item-active font-semibold text-text-primary shadow-[0_0_0_1px_var(--color-border)]"
+                : "font-medium text-text-secondary hover:text-text-primary"
             }`}
             title={`${m.label} view`}
           >
             <svg
-              className={`h-3.5 w-3.5 shrink-0 ${active ? "text-accent" : ""}`}
+              className="h-3.5 w-3.5 shrink-0"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth={1.8}
+              strokeWidth={1.6}
               strokeLinecap="round"
               strokeLinejoin="round"
               aria-hidden="true"
@@ -1105,7 +1147,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
       {titlebarSlot &&
         !focusMode &&
         createPortal(
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {viewModeControl}
             <EditorActionsMenu items={actionMenuItems} />
           </div>,
@@ -1114,7 +1156,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
 
       {recoveredDraft && (
         <div
-          className="flex items-center gap-3 border-b border-border bg-accent-dim px-4 py-2 shrink-0"
+          className="flex items-center gap-3 bg-accent-dim px-5 py-2 shrink-0"
           role="status"
           aria-live="polite"
         >
@@ -1135,7 +1177,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
           <span className="min-w-0 flex-1 truncate text-[13px] text-text-primary">
             <span className="font-medium">Unsaved draft recovered</span>
             {recoveredDraft.savedAt && (
-              <span className="ml-2 text-text-muted">
+              <span className="ms-2 text-text-muted">
                 from {new Date(recoveredDraft.savedAt).toLocaleString()}
               </span>
             )}
@@ -1143,7 +1185,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={handleDiscardRecoveredDraft}
-              className="rounded-md px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:bg-overlay-light hover:text-text-primary"
+              className="rounded-full px-3 py-1 text-[12px] font-medium text-text-secondary transition-colors hover:bg-item-hover hover:text-text-primary"
             >
               Discard
             </button>
@@ -1154,7 +1196,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
                     .then(() => addNotification("Recovered draft saved", "success"))
                     .catch(() => {});
               }}
-              className="rounded-md bg-accent px-2.5 py-1 text-[12px] font-medium text-white transition-opacity hover:opacity-90"
+              className="rounded-full bg-accent px-3 py-1 text-[12px] font-semibold text-white transition-colors hover:bg-accent-hover"
             >
               Save draft
             </button>
@@ -1195,7 +1237,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
                      gradient along with the text behind them. */
                   searchMatches.length > 0 ? (
                     <div
-                      className="absolute top-4 right-4 z-20 flex items-center gap-2 bg-bg-sidebar border border-border rounded-lg shadow-lg px-3 py-2"
+                      className="glass-panel absolute top-4 end-4 z-20 flex items-center gap-2 rounded-card ps-3 pe-1.5 py-1.5"
                       role="search"
                       aria-label="Find results controls"
                     >
@@ -1209,7 +1251,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={previousMatch}
-                          className="p-1 hover:bg-overlay-light rounded transition-colors"
+                          className="grid h-6 w-6 place-items-center rounded-control hover:bg-item-hover transition-colors"
                           title="Previous match (Shift+Enter)"
                           aria-label="Go to previous search match"
                         >
@@ -1229,7 +1271,7 @@ const MarkdownEditor = forwardRef((props, ref) => {
                         </button>
                         <button
                           onClick={nextMatch}
-                          className="p-1 hover:bg-overlay-light rounded transition-colors"
+                          className="grid h-6 w-6 place-items-center rounded-control hover:bg-item-hover transition-colors"
                           title="Next match (Enter)"
                           aria-label="Go to next search match"
                         >
@@ -1248,10 +1290,10 @@ const MarkdownEditor = forwardRef((props, ref) => {
                           </svg>
                         </button>
                       </div>
-                      <div className="w-px h-4 bg-border mx-1" />
+                      <div className="w-px h-4 bg-border mx-0.5" />
                       <button
                         onClick={clearSearch}
-                        className="p-1 hover:bg-overlay-light rounded transition-colors"
+                        className="grid h-6 w-6 place-items-center rounded-control hover:bg-item-hover transition-colors"
                         title="Clear search (Esc)"
                         aria-label="Clear editor search"
                       >
@@ -1306,11 +1348,12 @@ const MarkdownEditor = forwardRef((props, ref) => {
               >
                 {/* The 40vh tail matches `.cm-content` in theme.js, so the end
                     of a note can scroll to mid-window in Read mode too. The
-                    side padding is Live mode's: its 4.5rem heading gutter plus
-                    CodeMirror's own line padding (6px / 2px), so switching
-                    Live ↔ Read leaves every line exactly where it was. */}
+                    top and side padding are Live mode's: its 4rem head room,
+                    its 4.5rem heading gutter plus CodeMirror's own line
+                    padding (6px / 2px), so switching Live ↔ Read leaves every
+                    line exactly where it was. */}
                 <div
-                  className="w-full ps-[calc(4.5rem+6px)] pe-[calc(4.5rem+2px)] pt-8 pb-[40vh]"
+                  className="w-full ps-[calc(4.5rem+6px)] pe-[calc(4.5rem+2px)] pt-16 pb-[40vh]"
                   onClick={handlePreviewClick}
                   role="region"
                   aria-label={`Markdown preview${currentNote?.name ? ` for ${currentNote.name}` : ""}`}
@@ -1339,12 +1382,12 @@ const MarkdownEditor = forwardRef((props, ref) => {
       {/* Notion-style selection formatting bubble */}
       {viewMode !== "read" && <SelectionToolbar selection={selection} onInsert={insertMarkdown} />}
 
-      {/* Status line — no bar, no border, no fill. Where the note lives on the
-          left (it used to be a header row of its own), what's in it and whether
-          it's on disk on the right. */}
+      {/* Status line — 36px inside the sheet, no bar, no border, no fill.
+          Where the note lives on the left (it used to be a header row of its
+          own), what's in it and whether it's on disk on the right. */}
       {currentNote && !focusMode && (
         <div
-          className="shrink-0 flex items-center justify-between gap-4 px-4 pb-2 pt-1 text-[11.5px] text-text-muted"
+          className="flex h-9 shrink-0 items-center justify-between gap-4 px-5 text-[12px] text-text-muted"
           role="status"
           aria-live="polite"
         >
@@ -1369,25 +1412,21 @@ const MarkdownEditor = forwardRef((props, ref) => {
                 <>
                   <button
                     onClick={() => selectNote(null)}
-                    className="shrink-0 truncate rounded px-1 py-0.5 transition-colors hover:text-text-primary max-w-[10rem]"
+                    className="-mx-1.5 shrink-0 truncate rounded-control px-1.5 py-1 transition-colors hover:bg-item-hover hover:text-text-primary max-w-[10rem]"
                     title="Workspace home"
                   >
                     {rootFolderPath.split("/").filter(Boolean).pop()}
                   </button>
                   {noteFolders.map((folder, index) => (
                     <span key={`${index}-${folder}`} className="flex min-w-0 items-center gap-1">
-                      <span className="opacity-60" aria-hidden="true">
-                        /
-                      </span>
+                      <span aria-hidden="true">/</span>
                       <span className="truncate max-w-[8rem]">{folder}</span>
                     </span>
                   ))}
-                  <span className="opacity-60" aria-hidden="true">
-                    /
-                  </span>
+                  <span aria-hidden="true">/</span>
                 </>
               )}
-              <span className="truncate text-text-secondary">{currentNote.name}</span>
+              <span className="truncate font-medium text-text-secondary">{currentNote.name}</span>
               {/* In auto mode saving is not the user's problem, so the only
                   thing worth saying is the moment it lands — and only for a
                   note that has no file yet is there anything to warn about. In

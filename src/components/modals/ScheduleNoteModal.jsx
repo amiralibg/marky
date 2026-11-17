@@ -49,7 +49,7 @@ const CustomSelect = ({ value, onChange, options, className = "" }) => {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary text-left focus:outline-none focus:border-accent flex items-center justify-between hover:bg-overlay-light transition-colors"
+        className="field flex items-center justify-between text-start"
       >
         <span>{selectedOption?.label || "Select..."}</span>
         <svg
@@ -63,7 +63,7 @@ const CustomSelect = ({ value, onChange, options, className = "" }) => {
       </button>
 
       {isOpen && (
-        <div className="absolute z-60 w-full mt-1 bg-bg-sidebar border border-overlay-light rounded-lg shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
+        <div className="glass-panel absolute z-60 mt-1 max-h-60 w-full overflow-y-auto rounded-card p-1">
           {options.map((option) => (
             <button
               key={option.value}
@@ -72,9 +72,7 @@ const CustomSelect = ({ value, onChange, options, className = "" }) => {
                 onChange(option.value);
                 setIsOpen(false);
               }}
-              className={`w-full px-3 py-2 text-left hover:bg-overlay-light transition-colors ${
-                option.value === value ? "bg-accent/20 text-accent" : "text-text-primary"
-              }`}
+              className={`menu-item ${option.value === value ? "font-semibold text-accent" : ""}`}
             >
               {option.label}
             </button>
@@ -176,7 +174,7 @@ const CustomDatePicker = ({ value, onChange, className = "" }) => {
           ref={buttonRef}
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary text-left focus:outline-none focus:border-accent flex items-center justify-between hover:bg-overlay-light transition-colors"
+          className="field flex items-center justify-between text-start"
         >
           <span className="flex items-center gap-2">
             <svg
@@ -209,7 +207,7 @@ const CustomDatePicker = ({ value, onChange, className = "" }) => {
         createPortal(
           <div
             ref={dropdownRef}
-            className="fixed z-60 bg-bg-sidebar border border-overlay-light rounded-lg shadow-xl p-3"
+            className="glass-panel fixed z-60 rounded-card p-3"
             style={{
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,
@@ -217,11 +215,7 @@ const CustomDatePicker = ({ value, onChange, className = "" }) => {
             }}
           >
             <div className="flex items-center justify-between mb-3">
-              <button
-                type="button"
-                onClick={handlePrevMonth}
-                className="p-1 hover:bg-overlay-light rounded transition-colors"
-              >
+              <button type="button" onClick={handlePrevMonth} className="icon-btn">
                 <svg
                   className="w-5 h-5 text-text-primary"
                   fill="none"
@@ -236,12 +230,8 @@ const CustomDatePicker = ({ value, onChange, className = "" }) => {
                   />
                 </svg>
               </button>
-              <span className="text-sm font-medium text-text-primary">{monthYear}</span>
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                className="p-1 hover:bg-overlay-light rounded transition-colors"
-              >
+              <span className="field-label mb-0">{monthYear}</span>
+              <button type="button" onClick={handleNextMonth} className="icon-btn">
                 <svg
                   className="w-5 h-5 text-text-primary"
                   fill="none"
@@ -288,11 +278,11 @@ const CustomDatePicker = ({ value, onChange, className = "" }) => {
                     onClick={() => handleDayClick(day)}
                     disabled={day === null}
                     className={`
-                    aspect-square text-sm rounded transition-colors
+                    aspect-square text-sm rounded-control transition-colors
                     ${day === null ? "invisible" : ""}
                     ${
                       isSelected
-                        ? "bg-accent text-text-primary font-semibold"
+                        ? "bg-accent text-white font-semibold"
                         : isToday
                           ? "bg-overlay-light text-accent font-medium"
                           : "text-text-primary hover:bg-overlay-light"
@@ -508,39 +498,28 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-50 animate-fadeIn bg-[rgba(30,25,15,0.38)] backdrop-blur-[3px]"
-        onClick={onClose}
-      />
+      <div className="modal-scrim z-50 animate-fade-in" onClick={onClose} aria-hidden="true" />
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <form
-          className="bg-bg-editor border border-border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col pointer-events-auto animate-slideUp overflow-hidden"
+          className="glass-panel modal-panel w-full max-w-3xl max-h-[85vh] flex flex-col pointer-events-auto animate-fade-in"
           onSubmit={handleSubmit}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="border-b border-border px-6 py-5">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl" aria-hidden="true">
-                {template.icon}
-              </span>
-              <div>
-                <h2 className="text-2xl font-semibold tracking-[-0.015em] text-text-primary">
-                  Schedule recurring note
-                </h2>
-                <p className="text-sm text-text-muted">
-                  Automatically create{" "}
-                  <span className="text-text-primary font-medium">{template.name}</span> on a
-                  schedule.
-                </p>
-              </div>
+          <div className="modal-header shrink-0">
+            <div className="min-w-0 flex-1">
+              <h2 className="modal-title">Schedule a recurring note</h2>
+              <p className="modal-subtitle">
+                Create <span className="font-medium text-text-primary">{template.name}</span>{" "}
+                automatically, on a schedule.
+              </p>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 custom-scrollbar">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-text-primary">Save to folder</span>
+                <span className="field-label mb-0">Save to folder</span>
                 <CustomSelect
                   value={selectedFolderId}
                   onChange={setSelectedFolderId}
@@ -549,13 +528,13 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-text-primary">Note name (optional)</span>
+                <span className="field-label mb-0">Note name (optional)</span>
                 <input
                   type="text"
                   value={noteName}
                   onChange={(event) => setNoteName(event.target.value)}
                   placeholder={template.suggestedTitle || template.name}
-                  className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                  className="field"
                 />
                 <span className="text-xs text-text-muted">
                   Leave blank to use the template’s suggested title each time.
@@ -565,7 +544,7 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-text-primary">Frequency</span>
+                <span className="field-label mb-0">Frequency</span>
                 <CustomSelect
                   value={frequency}
                   onChange={setFrequency}
@@ -578,24 +557,24 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-text-primary">Start date</span>
+                <span className="field-label mb-0">Start date</span>
                 <CustomDatePicker value={startDate} onChange={setStartDate} />
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-text-primary">Time of day</span>
+                <span className="field-label mb-0">Time of day</span>
                 <input
                   type="time"
                   value={timeOfDay}
                   onChange={(event) => setTimeOfDay(event.target.value)}
-                  className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary focus:outline-none focus:border-accent color-scheme-dark"
+                  className="field"
                 />
               </label>
             </div>
 
             {frequency === "weekly" && (
               <div>
-                <p className="text-sm font-medium text-text-primary mb-2">Repeat on</p>
+                <p className="field-label">Repeat on</p>
                 <div className="flex flex-wrap gap-2">
                   {DAYS_OF_WEEK.map((day) => {
                     const isSelected = daysOfWeek.includes(day.value);
@@ -604,11 +583,8 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                         key={day.value}
                         type="button"
                         onClick={() => handleToggleDay(day.value)}
-                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                          isSelected
-                            ? "bg-accent text-text-primary"
-                            : "bg-overlay-subtle text-text-secondary hover:bg-overlay-light hover:text-text-primary"
-                        }`}
+                        aria-pressed={isSelected}
+                        className="chip"
                       >
                         {day.label}
                       </button>
@@ -622,14 +598,14 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
             {frequency === "monthly" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label className="flex flex-col gap-2">
-                  <span className="text-sm font-medium text-text-primary">Day of month</span>
+                  <span className="field-label mb-0">Day of month</span>
                   <input
                     type="number"
                     min="1"
                     max="31"
                     value={dayOfMonth}
                     onChange={(event) => setDayOfMonth(event.target.value)}
-                    className="w-full px-3 py-2 bg-overlay-subtle border border-overlay-light rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                    className="field"
                   />
                   <span className="text-xs text-text-muted">
                     Notes will be created on this day each month.
@@ -638,7 +614,7 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
               </div>
             )}
 
-            <div className="bg-overlay-subtle border border-overlay-light rounded-lg px-4 py-3">
+            <div className="row-group px-4 py-3">
               <p className="text-sm text-text-primary font-medium">Next run preview</p>
               <p className="text-sm text-text-muted">{previewLabel}</p>
               {activeFolderOption && (
@@ -652,64 +628,32 @@ const ScheduleNoteModal = ({ isOpen, template, defaultFolderId, onClose }) => {
                   type="checkbox"
                   checked={createImmediately}
                   onChange={(event) => setCreateImmediately(event.target.checked)}
-                  className="h-4 w-4 rounded border-overlay-medium bg-overlay-light"
+                  className="h-4 w-4 accent-accent"
                 />
                 <span>Create the first note right away</span>
               </label>
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/40 text-red-200 px-4 py-2 rounded-lg text-sm">
+              <div
+                className="rounded-control bg-danger/10 px-4 py-2 text-[13px] text-danger"
+                role="alert"
+              >
                 {error}
               </div>
             )}
           </div>
 
-          <div className="border-t border-overlay-light px-6 py-4 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-overlay-light rounded-lg transition-colors"
-            >
+          <div className="modal-footer shrink-0">
+            <button type="button" onClick={onClose} className="btn">
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                isSaving
-                  ? "bg-overlay-light text-text-muted cursor-not-allowed"
-                  : "bg-accent text-text-primary hover:bg-accent/90"
-              }`}
-            >
+            <button type="submit" disabled={isSaving} className="btn btn-primary">
               {isSaving ? "Saving…" : "Save schedule"}
             </button>
           </div>
         </form>
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-        .animate-slideUp {
-          animation: slideUp 0.3s ease-out;
-        }
-      `}</style>
     </>
   );
 };

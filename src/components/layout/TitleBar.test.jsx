@@ -203,9 +203,41 @@ describe("TitleBar tabs and edge dissolve", () => {
       fireEvent.scroll(tablist);
     });
 
-    // Blur overlays should be rendered for both left and right edges
+    // Blur overlays should be rendered for both left and right edges. Direct
+    // children only: the tabs' own icons are aria-hidden too.
     const parentContainer = tablist.parentElement;
-    const blurOverlays = parentContainer.querySelectorAll('[aria-hidden="true"]');
+    const blurOverlays = parentContainer.querySelectorAll(':scope > [aria-hidden="true"]');
     expect(blurOverlays).toHaveLength(2);
+  });
+});
+
+describe("TitleBar document kind", () => {
+  it("marks an HTML document's tab and not a note's of the same name", async () => {
+    useNotesStore.setState({
+      openNoteIds: ["note::/v/Q3 report.html", "note::/v/Q3 report.md"],
+      currentNoteId: "note::/v/Q3 report.html",
+      items: [
+        {
+          id: "note::/v/Q3 report.html",
+          name: "Q3 report",
+          type: "note",
+          kind: "html",
+          filePath: "/v/Q3 report.html",
+        },
+        {
+          id: "note::/v/Q3 report.md",
+          name: "Q3 report",
+          type: "note",
+          kind: "markdown",
+          filePath: "/v/Q3 report.md",
+        },
+      ],
+    });
+    await renderTitleBar(true);
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0]).toHaveTextContent("HTMLQ3 report");
+    expect(tabs[1]).toHaveTextContent(/^Q3 report$/);
+    expect(screen.getAllByLabelText("HTML document")).toHaveLength(1);
   });
 });

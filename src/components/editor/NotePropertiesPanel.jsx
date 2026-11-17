@@ -66,30 +66,33 @@ const NotePropertiesPanel = ({ markdown, onApply, onClose }) => {
 
   return (
     <aside
-      className="absolute top-4 right-4 z-20 w-80 max-w-[calc(100%-2rem)] rounded-xl border border-border bg-bg-sidebar shadow-2xl overflow-hidden animate-in slide-in-from-right-4 fade-in duration-200"
+      className="glass-panel absolute top-4 end-4 z-20 w-80 max-w-[calc(100%-2rem)] rounded-card overflow-hidden animate-fade-in"
       role="region"
       aria-label="Note properties"
     >
-      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-1">
         <div>
-          <h2 className="text-sm font-semibold text-text-primary">Note Properties</h2>
+          <h2 className="text-sm font-semibold text-text-primary">Note properties</h2>
           <p className="text-xs text-text-muted mt-0.5">
             Edit YAML metadata without touching raw frontmatter.
           </p>
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-overlay-light transition-colors"
+          className="icon-btn -me-1.5 -mt-1"
           aria-label="Close note properties"
           title="Close properties"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
+          <svg
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.6}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="m6 6 12 12M18 6 6 18" />
           </svg>
         </button>
       </div>
@@ -109,7 +112,7 @@ const NotePropertiesPanel = ({ markdown, onApply, onClose }) => {
                 }
               }}
               placeholder={field.placeholder}
-              className="mt-1 w-full rounded-lg border border-border bg-bg-editor px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
+              className="mt-1 h-9 w-full rounded-card bg-item-hover px-3 text-[13px] text-text-primary placeholder:text-text-muted transition-colors focus:bg-bg-editor focus:outline-none focus:ring-2 focus:ring-accent/50"
             />
           </label>
         ))}
@@ -120,7 +123,7 @@ const NotePropertiesPanel = ({ markdown, onApply, onClose }) => {
           </span>
           <button
             onClick={handleApply}
-            className="px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors"
+            className="h-8 px-3.5 text-[13px] font-semibold rounded-full bg-accent text-white hover:bg-accent-hover transition-colors"
           >
             Apply
           </button>

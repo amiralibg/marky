@@ -47,11 +47,14 @@ describe("openVaultInNewWindow", () => {
     expect(constructed[0].options.url).toBe("index.html?vault=%2FUsers%2Fme%2FMy%20Vault");
   });
 
-  it("creates the window visible so startup cannot strand it off-screen", async () => {
+  // Hidden until its page has committed its first UI and shows itself, so no
+  // frame is drawn before the native material is on; Rust's reveal fallback
+  // (REVEAL_FALLBACK in main.rs) keeps a failed boot from stranding it.
+  it("creates the window hidden, for its page to show", async () => {
     const { openVaultInNewWindow } = await loadModule();
     await openVaultInNewWindow("/Users/me/A");
 
-    expect(constructed[0].options.visible).not.toBe(false);
+    expect(constructed[0].options.visible).toBe(false);
   });
 
   it("leaves the frame to Marky's own title bar off macOS", async () => {
@@ -121,11 +124,11 @@ describe("openEmptyWindow", () => {
     expect(constructed[0].label).toMatch(/^window-[a-z0-9]+$/);
   });
 
-  it("creates empty windows visible so startup cannot strand them off-screen", async () => {
+  it("creates empty windows hidden, for their page to show", async () => {
     const { openEmptyWindow } = await loadModule();
     await openEmptyWindow();
 
-    expect(constructed[0].options.visible).not.toBe(false);
+    expect(constructed[0].options.visible).toBe(false);
   });
 
   it("gives each empty window its own identity", async () => {

@@ -1,5 +1,6 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { detectPlatform } from "./platform";
+import { supportsWindowTranslucency } from "./windowTranslucency";
 import { folderNameOf, sessionWindowLabel, vaultWindowLabel, windowVaultPath } from "./windowVault";
 
 /**
@@ -41,9 +42,18 @@ export async function openVaultInNewWindow(vaultPath, vaultName = null) {
     minHeight: 420,
     titleBarStyle: "Overlay",
     hiddenTitle: true,
-    // Centred in the 40px title bar; keep in step with tauri.conf.json.
-    trafficLightPosition: { x: 16, y: 22 },
+    // No trafficLightPosition: main.rs gives every macOS window an empty
+    // unified toolbar, which places the traffic lights natively.
     decorations: isMac,
+    // So the Translucent window setting can show the desktop through the
+    // desk; with it off the page paints over it. Linux is never transparent
+    // (see windowTranslucency.js).
+    transparent: supportsWindowTranslucency(),
+    // Hidden until its page shows it: Rust puts the remembered material or
+    // desk colour on as the page starts loading, and the page shows the window
+    // once its first UI is committed (see windowStartup.js), so the desktop
+    // never shows through unblurred. Rust shows it anyway after a timeout.
+    visible: false,
     dragDropEnabled: true,
   });
 
@@ -75,9 +85,18 @@ export async function openEmptyWindow() {
     minHeight: 420,
     titleBarStyle: "Overlay",
     hiddenTitle: true,
-    // Centred in the 40px title bar; keep in step with tauri.conf.json.
-    trafficLightPosition: { x: 16, y: 22 },
+    // No trafficLightPosition: main.rs gives every macOS window an empty
+    // unified toolbar, which places the traffic lights natively.
     decorations: isMac,
+    // So the Translucent window setting can show the desktop through the
+    // desk; with it off the page paints over it. Linux is never transparent
+    // (see windowTranslucency.js).
+    transparent: supportsWindowTranslucency(),
+    // Hidden until its page shows it: Rust puts the remembered material or
+    // desk colour on as the page starts loading, and the page shows the window
+    // once its first UI is committed (see windowStartup.js), so the desktop
+    // never shows through unblurred. Rust shows it anyway after a timeout.
+    visible: false,
     dragDropEnabled: true,
   });
 
